@@ -1,0 +1,30 @@
+# Fichiers Python compilés / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environnements virtuels (si tu en crées un plus tard)
+venv/
+.venv/
+env/
+
+# Fichiers de config d'éditeurs / IDE
+.vscode/
+.idea/
+*.swp
+
+# Fichiers spécifiques à l'OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Fichiers de sortie/test personnels (à adapter si besoin)
+*.log
+
+# Ne PAS versionner les scénarios eux-mêmes (trop lourds, propriété de Steam Workshop,
+# et pas utile de les dupliquer dans l'historique Git) -- décommente si tu ranges
+# des scénarios dans ce dossier par erreur :
+# *.ecf
+# Playfields/
+# SharedData/
