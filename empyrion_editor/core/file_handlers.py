@@ -49,7 +49,9 @@ class EcfHandler(FileHandler):
     extensions = ('.ecf',)
 
     def load(self, path: Path) -> str:
-        with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+        # Voir la note dans core/ecf/parser.py : 'utf-8' (pas 'utf-8-sig') pour préserver
+        # un éventuel BOM comme partie du texte, et garantir le round-trip byte-pour-byte.
+        with open(path, 'r', encoding='utf-8', newline='') as f:
             return f.read()
 
     def parse(self, raw: str) -> EcfDocument:

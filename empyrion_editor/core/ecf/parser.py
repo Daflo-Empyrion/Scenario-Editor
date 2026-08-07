@@ -27,7 +27,13 @@ def parse_ecf_text(text: str, source_path: Optional[str] = None) -> EcfDocument:
 
 
 def parse_ecf_file(path) -> EcfDocument:
-    with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+    # Note : on utilise 'utf-8' (pas 'utf-8-sig') volontairement -- si le fichier
+    # commence par un BOM (ex: BlocksConfig.ecf), on le garde tel quel comme premier
+    # caractère du texte (\ufeff), qui finit dans le "raw" de la première ligne et sera
+    # donc automatiquement reproduit à l'identique au moment du render(). Utiliser
+    # 'utf-8-sig' supprimerait le BOM à la lecture sans le remettre à l'écriture,
+    # cassant le round-trip byte-pour-byte sur ce type de fichier.
+    with open(path, 'r', encoding='utf-8', newline='') as f:
         text = f.read()
     return parse_ecf_text(text, source_path=str(path))
 
