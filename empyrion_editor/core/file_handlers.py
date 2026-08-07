@@ -2,12 +2,15 @@
 Interface commune que chaque type de fichier (ECF, YAML, CSV...) devra implémenter.
 
 Étape 0 : on pose le contrat et un registre d'extensions -> handler.
-L'implémentation réelle du parsing ECF arrive à l'Étape 1 ; pour l'instant les handlers
-enregistrés sont des placeholders qui savent juste dire "je gère cette extension".
+Étape 1 : le handler ECF réel est branché ici (voir EcfHandler plus bas).
+Les autres extensions (.yaml, .csv) restent en placeholder pour les étapes suivantes.
 """
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, List, Optional
+
+from .ecf.parser import parse_ecf_file, parse_ecf_text
+from .ecf.model import EcfDocument
 
 
 class FileHandler(ABC):
@@ -37,6 +40,23 @@ class FileHandler(ABC):
     def merge(self, sources: List[Any], rules: Optional[Any] = None) -> Any:
         """Fusionne plusieurs AST du même type selon des règles. Implémenté à l'Étape 4."""
         raise NotImplementedError(f"{type(self).__name__}: merge pas encore implémenté")
+
+
+class EcfHandler(FileHandler):
+    """Handler réel pour les fichiers .ecf, basé sur le parser de l'Étape 1.
+    Garantit un round-trip fidèle (byte pour byte) tant qu'aucune valeur n'est modifiée."""
+
+    extensions = ('.ecf',)
+
+    def load(self, path: Path) -> str:
+        with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+            return f.read()
+
+    def parse(self, raw: str) -> EcfDocument:
+        return parse_ecf_text(raw)
+
+    def serialize(self, ast: EcfDocument) -> str:
+        return ast.render()
 
 
 class UnimplementedHandler(FileHandler):
@@ -80,9 +100,10 @@ class HandlerRegistry:
 
 
 def default_registry() -> HandlerRegistry:
-    """Registre par défaut. Les handlers réels remplaceront ces placeholders au fil des étapes."""
+    """Registre par défaut. Le handler ECF est réel (Étape 1) ; les autres restent des
+    placeholders en attendant les étapes suivantes."""
     reg = HandlerRegistry()
-    reg.register(UnimplementedHandler(('.ecf',)))
+    reg.register(EcfHandler())
     reg.register(UnimplementedHandler(('.yaml', '.yml')))
     reg.register(UnimplementedHandler(('.csv',)))
     return reg
