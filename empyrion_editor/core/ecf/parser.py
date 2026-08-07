@@ -22,7 +22,7 @@ from .model import EcfBlank, EcfComment, EcfProperty, EcfBlock, EcfDocument, Ecf
 
 def parse_ecf_text(text: str, source_path: Optional[str] = None) -> EcfDocument:
     lines = text.splitlines(keepends=True)
-    nodes, _ = _parse_nodes(lines, 0, depth=0)
+    nodes, _, _ = _parse_nodes(lines, 0, depth=0)
     return EcfDocument(nodes=nodes, source_path=source_path)
 
 
@@ -146,17 +146,30 @@ _OPEN_RE = re.compile(r'^\{')
 _CLOSE_RE = re.compile(r'^\}')
 
 
-def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[EcfNode], int]:
+def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[EcfNode], int, bool]:
     """Parse une séquence de lignes jusqu'à la fin de fichier ou une accolade fermante
-    correspondant au niveau appelant. Retourne (liste_de_noeuds, index_suivant)."""
+    correspondant au niveau appelant. Retourne (liste_de_noeuds, index_suivant, ferme_par_accolade).
+    Le 3eme element est False si on a atteint la fin du fichier sans rencontrer de '}' --
+    cas normalement impossible sur un ECF valide, mais gere proprement au cas ou (evite de
+    dupliquer une ligne deja consommee comme enfant lors d'un repli en fin de fichier)."""
     nodes: List[EcfNode] = []
     i = start_idx
     n = len(lines)
+    in_block_comment = False  # a l'interieur d'un commentaire /* ... */ non encore ferme
 
     while i < n:
         raw = lines[i]
         content, eol, indent = _split_line(raw)
         stripped = content.strip()
+
+        if in_block_comment:
+            # Toute ligne a l'interieur d'un /* ... */ est un commentaire, quel que soit
+            # son contenu (meme si elle ressemble a une propriete ou contient { ou }).
+            nodes.append(EcfComment(raw=raw))
+            if '*/' in content:
+                in_block_comment = False
+            i += 1
+            continue
 
         if stripped == '':
             nodes.append(EcfBlank(raw=raw))
@@ -169,20 +182,27 @@ def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[Ecf
             i += 1
             continue
 
+        if stripped.startswith('/*'):
+            # Commentaire de style C, utilise par certains scenarios (ex: Atlantis Next)
+            # pour desactiver une ligne. Peut se refermer sur la meme ligne ou plus loin.
+            nodes.append(EcfComment(raw=raw))
+            if '*/' not in stripped:
+                in_block_comment = True
+            i += 1
+            continue
+
         if _CLOSE_RE.match(stripped):
             # Fin du bloc courant -- on remonte au parent
-            return nodes, i + 1
+            return nodes, i + 1, True
 
         if _OPEN_RE.match(stripped):
             after_brace = stripped[1:]
             code, comment = _split_top_level_comment(after_brace)
             kind, pairs = _split_block_header(code)
 
-            children, next_i = _parse_nodes(lines, i + 1, depth + 1)
+            children, next_i, closed = _parse_nodes(lines, i + 1, depth + 1)
 
-            close_raw = lines[next_i - 1] if next_i - 1 < n and next_i > i + 1 else ''
-            # Si le fichier se termine sans accolade fermante explicite, close_raw reste vide
-            # (cas limite, ne devrait pas arriver sur un ECF valide).
+            close_raw = lines[next_i - 1] if closed else ''
 
             block = EcfBlock(
                 indent=indent,
@@ -191,7 +211,7 @@ def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[Ecf
                 comment=comment,
                 eol=eol,
                 raw_open=raw,
-                close_raw=close_raw if _CLOSE_RE.match(_split_line(close_raw)[0].strip()) else '',
+                close_raw=close_raw,
                 children=children,
             )
             nodes.append(block)
@@ -210,4 +230,4 @@ def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[Ecf
         ))
         i += 1
 
-    return nodes, i
+    return nodes, i, False
