@@ -19,6 +19,10 @@ Un fichier ECF est une séquence de "nœuds" au niveau racine, où un nœud est 
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
+# Cles utilisees pour identifier un bloc de maniere unique (dans cet ordre de priorite).
+# Partagees entre le diff et l'editeur pour qu'un bloc soit toujours repere de la meme facon.
+IDENTITY_KEYS = ('Id', 'Name', 'Ref')
+
 
 @dataclass
 class EcfBlank:
@@ -120,6 +124,22 @@ class EcfBlock:
         """Sous-blocs directs, filtrés par genre si précisé (ex: 'Child Items')."""
         return [c for c in self.children if isinstance(c, EcfBlock) and (kind is None or c.kind == kind)]
 
+    def summary_line(self, max_items: int = 3) -> str:
+        """Résumé court et lisible du bloc (utilisé par l'éditeur en ligne de commande),
+        ex: 'Count: "3,4", Size: "8,1", SfxOpen: UseActions/body_open'."""
+        items = []
+        for k, v in self.pairs:
+            if k is not None and k not in IDENTITY_KEYS:
+                items.append(f"{k}: {v}")
+        for child in self.children:
+            if len(items) >= max_items:
+                break
+            if isinstance(child, EcfProperty) and child.pairs:
+                k, v = child.pairs[0]
+                if k is not None:
+                    items.append(f"{k}: {v}")
+        return ", ".join(items[:max_items])
+
     def render_open(self) -> str:
         if not self.dirty:
             return self.raw_open
@@ -140,6 +160,16 @@ class EcfBlock:
 
 
 EcfNode = Union[EcfBlank, EcfComment, EcfProperty, EcfBlock]
+
+
+def block_identity(block: EcfBlock) -> Optional[str]:
+    """Identite d'un bloc, dans l'ordre de priorite IDENTITY_KEYS (Id, puis Name, puis Ref).
+    Utilisee par le diff et l'editeur pour reperer un bloc de maniere stable."""
+    for key in IDENTITY_KEYS:
+        val = block.get(key)
+        if val is not None:
+            return val
+    return None
 
 
 @dataclass
@@ -167,3 +197,20 @@ class EcfDocument:
             if block.get(key) == value:
                 return block
         return None
+
+    def find_block_by_identity(self, kind: str, identity: str) -> Optional[EcfBlock]:
+        """Trouve le premier bloc d'un genre donné par son identite (Id, ou a defaut Name/Ref).
+        Ex: find_block_by_identity('+Container', '5')."""
+        for block in self.iter_blocks(kind):
+            if block_identity(block) == identity:
+                return block
+        return None
+
+    def top_level_kinds(self) -> List[Tuple[str, int]]:
+        """Liste les genres de blocs presents au niveau racine, avec leur nombre
+        d'occurrences -- utile pour explorer un fichier ECF inconnu."""
+        counts: dict = {}
+        for n in self.nodes:
+            if isinstance(n, EcfBlock):
+                counts[n.kind] = counts.get(n.kind, 0) + 1
+        return list(counts.items())
