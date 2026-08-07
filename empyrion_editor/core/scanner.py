@@ -13,7 +13,7 @@ def scan_scenario(root: Path) -> Scenario:
     """Scan réel : parcourt un dossier sur disque (chemins natifs de l'OS courant)."""
     root = Path(root)
     all_paths = [p for p in root.rglob('*') if p.is_file()]
-    return _build_scenario(root, all_paths)
+    return _build_scenario(root, all_paths, entries_are_confirmed_files=True)
 
 
 def verify_integrity(scenario: Scenario, root: Path = None) -> dict:
@@ -79,7 +79,7 @@ def scan_from_paths(paths: Iterable[str], root_hint: str = None) -> Scenario:
     path_cls = _detect_path_class(cleaned)
     path_objs = [path_cls(p) for p in cleaned]
     root = path_cls(root_hint) if root_hint else _guess_root(path_objs)
-    return _build_scenario(root, path_objs)
+    return _build_scenario(root, path_objs, entries_are_confirmed_files=False)
 
 
 def _detect_path_class(paths: List[str]):
@@ -106,7 +106,7 @@ def _guess_root(paths: List[PurePath]) -> PurePath:
     return path_cls(*common) if common else path_cls('.')
 
 
-def _build_scenario(root: Path, all_paths: List[Path]) -> Scenario:
+def _build_scenario(root: Path, all_paths: List[Path], entries_are_confirmed_files: bool) -> Scenario:
     scenario = Scenario(root_path=root, name=root.name)
     shared_data_paths = []
 
@@ -124,24 +124,25 @@ def _build_scenario(root: Path, all_paths: List[Path]) -> Scenario:
             shared_data_paths.append(p)
             continue
 
-        _classify(scenario, rel_parts, p)
+        _classify(scenario, rel_parts, p, entries_are_confirmed_files)
 
     if shared_data_paths:
         shared_root = root / 'SharedData'
-        scenario.shared_data = _build_scenario(shared_root, shared_data_paths)
+        scenario.shared_data = _build_scenario(shared_root, shared_data_paths, entries_are_confirmed_files)
 
     return scenario
 
 
-def _classify(scenario: Scenario, rel_parts: tuple, p: Path) -> None:
+def _classify(scenario: Scenario, rel_parts: tuple, p: Path, entries_are_confirmed_files: bool) -> None:
     top = rel_parts[0]
 
     # Un listing tree/Get-ChildItem inclut aussi les dossiers eux-mêmes comme entrées
-    # (ex: "Content", "Extras\PDA"). Dans ce jeu de données, une entrée sans extension
-    # est quasi toujours un dossier -> on l'ignore. (Ce heuristique ne s'applique qu'au
-    # scan depuis un listing texte ; scan_scenario() sur un vrai disque utilise is_file()
-    # et n'a pas ce problème.)
-    if p.suffix == '':
+    # (ex: "Content", "Extras\PDA"). Sur un VRAI scan disque (scan_scenario), tous les
+    # chemins reçus ici sont déjà confirmés comme des fichiers via is_file() -- donc une
+    # extension vide (ex: bundles Unity "reforgedcontent", "eden_music") est un vrai
+    # fichier, pas un dossier, et ne doit PAS être ignorée. Ce heuristique ne s'applique
+    # donc que pour scan_from_paths() (listing texte, sans info is_file() fiable).
+    if not entries_are_confirmed_files and p.suffix == '':
         return
 
     # Content/Configuration/*.ecf|.csv|.txt
