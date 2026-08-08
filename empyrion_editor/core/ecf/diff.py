@@ -21,7 +21,7 @@ Le résultat est un arbre de BlockDiff, élagué pour ne garder que ce qui a cha
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .model import EcfBlock, EcfDocument, EcfProperty, IDENTITY_KEYS, block_identity as _block_identity
+from .model import EcfBlock, EcfDocument, EcfProperty, IDENTITY_KEYS, block_identity as _block_identity, property_lines
 
 
 @dataclass
@@ -148,32 +148,6 @@ def _diff_matched_pair(kind: str, identity: Optional[str],
                        property_diffs=prop_diffs, child_diffs=child_diffs, block_a=a, block_b=b)]
 
 
-def _property_lines(block: EcfBlock) -> Dict[str, List[Tuple[Optional[str], str]]]:
-    """
-    Retourne un dict ordonné : identité_de_ligne -> paires complètes de cette ligne.
-
-    L'identité d'une ligne est sa PREMIERE clé (ex: 'Count', 'Name_0', 'Group_1').
-    C'est important : une ligne comme 'Name_0: PromethiumOre, param1: 0.3, param2: "1,2"'
-    doit être comparée comme un TOUT (Name_0 avec ses param1/param2), pas aplatie clé par
-    clé -- sinon les 'param1' de Name_0, Name_1, Name_2... s'écraseraient entre eux au
-    moment de la comparaison, et un changement sur Name_0 pourrait passer inaperçu si la
-    valeur de Name_5 (la dernière ligne à déclarer 'param1') n'a pas changé, elle.
-
-    Inclut aussi les paires déclarées sur la ligne d'ouverture du bloc (Id, etc.), chacune
-    traitée comme sa propre "ligne virtuelle" à une seule paire.
-    """
-    lines: Dict[str, List[Tuple[Optional[str], str]]] = {}
-    for k, v in block.pairs:
-        if k is not None:
-            lines[k] = [(k, v)]
-    for child in block.children:
-        if isinstance(child, EcfProperty) and child.pairs:
-            first_key = child.pairs[0][0]
-            ident = first_key if first_key is not None else f"_ligne_{id(child)}"
-            lines[ident] = child.pairs
-    return lines
-
-
 def _format_pairs(pairs: List[Tuple[Optional[str], str]]) -> str:
     """Formate une ligne de propriété pour l'affichage, sans repeter la 1ere cle
     (deja utilisee comme identifiant de la ligne dans le diff)."""
@@ -188,8 +162,8 @@ def _format_pairs(pairs: List[Tuple[Optional[str], str]]) -> str:
 
 
 def _diff_properties(a: EcfBlock, b: EcfBlock) -> List[PropertyDiff]:
-    lines_a = _property_lines(a)
-    lines_b = _property_lines(b)
+    lines_a = property_lines(a)
+    lines_b = property_lines(b)
 
     diffs = []
     all_idents = list(dict.fromkeys(list(lines_a.keys()) + list(lines_b.keys())))

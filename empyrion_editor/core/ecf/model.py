@@ -214,3 +214,25 @@ class EcfDocument:
             if isinstance(n, EcfBlock):
                 counts[n.kind] = counts.get(n.kind, 0) + 1
         return list(counts.items())
+
+
+def property_lines(block: EcfBlock) -> "dict[str, List[Tuple[Optional[str], str]]]":
+    """
+    Regroupe les propriétés directes d'un bloc par IDENTITE DE LIGNE (sa première clé,
+    ex: 'Count', 'Name_0', 'Group_1'), et non par clé simple -- voir la docstring de
+    EcfProperty pour la raison (une clé comme 'param1' se répète sur plusieurs lignes
+    sœurs Name_0/Name_1/..., il faut comparer/fusionner ligne entière par ligne entière).
+
+    Inclut aussi les paires déclarées sur la ligne d'ouverture du bloc (Id, etc.).
+    Partagée entre le diff et le merge.
+    """
+    lines: "dict[str, List[Tuple[Optional[str], str]]]" = {}
+    for k, v in block.pairs:
+        if k is not None:
+            lines[k] = [(k, v)]
+    for child in block.children:
+        if isinstance(child, EcfProperty) and child.pairs:
+            first_key = child.pairs[0][0]
+            ident = first_key if first_key is not None else f"_ligne_{id(child)}"
+            lines[ident] = child.pairs
+    return lines
