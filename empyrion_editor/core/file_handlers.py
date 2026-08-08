@@ -102,10 +102,11 @@ class HandlerRegistry:
 
 
 def default_registry() -> HandlerRegistry:
-    """Registre par défaut. Le handler ECF est réel (Étape 1) ; les autres restent des
-    placeholders en attendant les étapes suivantes."""
+    """Registre par défaut. Les handlers ECF et YAML sont réels (Étapes 1 et 6, tous
+    deux avec parser maison, sans dépendance externe) ; CSV reste un placeholder."""
     reg = HandlerRegistry()
     reg.register(EcfHandler())
-    reg.register(UnimplementedHandler(('.yaml', '.yml')))
+    from .yaml_handler import YamlHandler
+    reg.register(YamlHandler())
     reg.register(UnimplementedHandler(('.csv',)))
     return reg
