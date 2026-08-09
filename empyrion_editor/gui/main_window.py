@@ -28,15 +28,18 @@ from PyQt6.QtGui import QColor, QBrush
 from core.scanner import scan_scenario
 from core.models import Scenario, FileEntry
 from core.workspace import (
-    Workspace, open_workspace, copy_file_into_working, merge_file_into_working,
-    merge_block_into_working, MergeHighlight,
+    Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
+    merge_file_into_working, merge_block_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
+from core import project_store
+from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
+from gui.startup_dialog import StartupDialog
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -65,6 +68,8 @@ class MainWindow(QMainWindow):
         menu = self.menuBar().addMenu("&Fichier")
         action_new = menu.addAction("&Nouveau projet...")
         action_new.triggered.connect(self.new_project_dialog)
+        action_recent = menu.addAction("&Projets recents...")
+        action_recent.triggered.connect(self.show_startup_dialog)
         menu.addSeparator()
         action_quit = menu.addAction("&Quitter")
         action_quit.triggered.connect(self.close)
@@ -163,12 +168,72 @@ class MainWindow(QMainWindow):
             return
         progress.close()
 
+        self._highlights = {}
         self._refresh_all_trees()
         self.tabs.clear()
+
+        self._remember_current_project()
 
         mode = "FUSION" if self.workspace.is_merge_mode else "edition simple"
         self.statusBar().showMessage(
             f"Projet ouvert ({mode}) -- copie de travail : {self.workspace.working_root}"
+        )
+
+    def _remember_current_project(self):
+        if not self.workspace:
+            return
+        record = ProjectRecord(
+            source_a=str(self.workspace.source_a_root),
+            working=str(self.workspace.working_root),
+            source_b=str(self.workspace.source_b_root) if self.workspace.source_b_root else None,
+        )
+        project_store.add_recent_project(record)
+
+    def show_startup_dialog(self, auto_at_launch: bool = False):
+        projects = project_store.load_recent_projects()
+        if not projects:
+            if not auto_at_launch:
+                QMessageBox.information(self, "Aucun projet recent",
+                                         "Aucun projet recent enregistre -- utilise 'Nouveau projet...'")
+            return
+
+        dialog = StartupDialog(projects, self)
+        if dialog.exec() != StartupDialog.DialogCode.Accepted:
+            if dialog.project_to_remove:
+                project_store.remove_project(dialog.project_to_remove.working)
+            return
+
+        if dialog.project_to_remove:
+            project_store.remove_project(dialog.project_to_remove.working)
+
+        if dialog.want_new_project:
+            self.new_project_dialog()
+            return
+
+        if dialog.chosen_project:
+            self.open_existing_project(dialog.chosen_project)
+
+    def open_existing_project(self, record: ProjectRecord):
+        source_a = Path(record.source_a)
+        working = Path(record.working)
+        source_b = Path(record.source_b) if record.source_b else None
+
+        try:
+            self.workspace = load_existing_workspace(source_a, working, source_b)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur",
+                                  f"Impossible de reprendre ce projet :\n{e}\n\n"
+                                  f"Il a peut-etre ete deplace ou supprime.")
+            return
+
+        self._highlights = {}
+        self._refresh_all_trees()
+        self.tabs.clear()
+        self._remember_current_project()  # remonte ce projet en tete de la liste recente
+
+        mode = "FUSION" if self.workspace.is_merge_mode else "edition simple"
+        self.statusBar().showMessage(
+            f"Projet repris ({mode}) -- copie de travail : {self.workspace.working_root}"
         )
 
     def _refresh_all_trees(self):
@@ -612,6 +677,11 @@ def main():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
+
+    # Propose de reprendre un projet recent des le lancement, s'il y en a
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(0, lambda: window.show_startup_dialog(auto_at_launch=True))
+
     sys.exit(app.exec())
 
 

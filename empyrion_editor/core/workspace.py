@@ -58,6 +58,24 @@ def open_workspace(source_a_root: Path, working_dest: Path,
     )
 
 
+def load_existing_workspace(source_a_root: Path, working_root: Path,
+                             source_b_root: Optional[Path] = None) -> Workspace:
+    """Recharge un workspace DEJA CREE precedemment (la copie de travail existe deja
+    sur disque, avec eventuellement des modifications en cours) -- pour reprendre un
+    projet, sans recreer la copie physique. Contrairement a open_workspace(), ne copie
+    rien : se contente de scanner les trois emplacements tels qu'ils sont."""
+    if not working_root.exists():
+        raise FileNotFoundError(f"La copie de travail n'existe plus : {working_root}")
+    source_a = scan_scenario(source_a_root)
+    working = scan_scenario(working_root)
+    source_b = scan_scenario(source_b_root) if source_b_root else None
+    return Workspace(
+        source_a=source_a, source_a_root=source_a_root,
+        working=working, working_root=working_root,
+        source_b=source_b, source_b_root=source_b_root,
+    )
+
+
 def copy_file_into_working(workspace: Workspace, source_file: Path, source_root: Path) -> Path:
     """Copie un fichier (mesh, icone, ECF, YAML...) depuis une source (A ou B) vers la
     copie de travail, en preservant son chemin relatif. Cree les dossiers intermediaires
