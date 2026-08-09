@@ -21,16 +21,24 @@ from PyQt6.QtWidgets import (
     QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu, QProgressDialog,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QBrush
 
 from core.scanner import scan_scenario
 from core.models import Scenario, FileEntry
-from core.workspace import Workspace, open_workspace, copy_file_into_working
+from core.workspace import (
+    Workspace, open_workspace, copy_file_into_working, merge_file_into_working,
+    merge_block_into_working, MergeHighlight,
+)
 from core.ecf.parser import parse_ecf_file
 from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
 
 from gui.new_project_dialog import NewProjectDialog
+
+COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
+COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
+COLOR_NEW_PROPERTY = QBrush(QColor(200, 255, 200))    # vert clair : ligne de propriete ajoutee
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +48,7 @@ class MainWindow(QMainWindow):
         self.resize(1500, 800)
 
         self.workspace: Optional[Workspace] = None
+        self._highlights: dict = {}  # Path -> MergeHighlight, pour colorer les ajouts de fusion
 
         self._build_menu()
         self._build_layout()
@@ -185,8 +194,47 @@ class MainWindow(QMainWindow):
         self._add_file_category(root_item, "Sectors", scenario.sectors)
         self._add_file_category(root_item, "RandomPresets", scenario.random_presets)
         self._add_file_category(root_item, "Extras", scenario.extras)
-        self._add_file_category(root_item, "Autres (non structures)", scenario.other_files)
+        self._add_other_files_tree(root_item, scenario)
+        if scenario.shared_data:
+            shared_item = QTreeWidgetItem([f"SharedData ({scenario.shared_data.total_file_count()} fichiers)"])
+            root_item.addChild(shared_item)
+            self._add_file_category(shared_item, "Configuration", scenario.shared_data.configuration)
+            self._add_playfields_category(shared_item, scenario.shared_data)
+            self._add_file_category(shared_item, "Extras", scenario.shared_data.extras)
+            self._add_other_files_tree(shared_item, scenario.shared_data)
         root_item.setExpanded(True)
+
+    def _add_other_files_tree(self, parent_item: QTreeWidgetItem, scenario: Scenario):
+        """Reconstruit la VRAIE arborescence de dossiers pour les fichiers non
+        categorises (Prefabs, Logos, fichiers de racine...), au lieu de tout aplatir
+        dans une seule liste en vrac."""
+        if not scenario.other_files:
+            return
+        other_root = QTreeWidgetItem([f"Autres ({len(scenario.other_files)})"])
+        parent_item.addChild(other_root)
+
+        tree_dict: dict = {}
+        for entry in scenario.other_files:
+            try:
+                rel_parts = entry.path.relative_to(scenario.root_path).parts
+            except ValueError:
+                rel_parts = (entry.name,)
+            node = tree_dict
+            for part in rel_parts[:-1]:
+                node = node.setdefault(part, {})
+            node.setdefault('__files__', []).append(entry)
+
+        self._build_dict_tree(other_root, tree_dict)
+
+    def _build_dict_tree(self, parent_item: QTreeWidgetItem, tree_dict: dict):
+        for key in sorted(k for k in tree_dict if k != '__files__'):
+            sub_item = QTreeWidgetItem([key])
+            parent_item.addChild(sub_item)
+            self._build_dict_tree(sub_item, tree_dict[key])
+        for entry in sorted(tree_dict.get('__files__', []), key=lambda e: e.name):
+            leaf = QTreeWidgetItem([entry.name])
+            leaf.setData(0, Qt.ItemDataRole.UserRole, ("file", entry.path))
+            parent_item.addChild(leaf)
 
     def _add_file_category(self, parent_item: QTreeWidgetItem, label: str, entries: list):
         if not entries:
@@ -226,22 +274,92 @@ class MainWindow(QMainWindow):
             return
         path: Path = data[1]
 
+        source_label = "Scenario A" if source_root == self.workspace.source_a_root else "Scenario B"
+
         menu = QMenu(self)
-        action = menu.addAction(f"Copier '{path.name}' vers la copie de travail")
+        action = menu.addAction(f"Copier / fusionner '{path.name}' vers la copie de travail")
         chosen = menu.exec(tree.viewport().mapToGlobal(pos))
         if chosen == action:
-            self._copy_into_working(path, source_root)
+            self._copy_into_working(path, source_root, source_label)
 
-    def _copy_into_working(self, path: Path, source_root: Path):
+    def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
         try:
-            dest = copy_file_into_working(self.workspace, path, source_root)
+            dest, highlight, id_conflicts = merge_file_into_working(self.workspace, path, source_root, source_label)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de copier {path.name} :\n{e}")
+            QMessageBox.critical(self, "Erreur", f"Impossible de copier/fusionner {path.name} :\n{e}")
             return
 
+        if highlight:
+            self._highlights[dest] = highlight
+        else:
+            self._highlights.pop(dest, None)
+
         self._populate_tree(self.tree_working, self.workspace.working)
-        self.statusBar().showMessage(f"Copie vers la copie de travail : {dest}")
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        if id_conflicts:
+            details = "\n".join(
+                f"- {c.kind} [{c.identity}] : \"{c.base_name}\" (copie de travail) "
+                f"vs \"{c.conflicting_name}\" ({c.conflicting_source})"
+                for c in id_conflicts
+            )
+            QMessageBox.warning(
+                self, "Conflits d'Id detectes",
+                f"{len(id_conflicts)} bloc(s) partagent un Id deja utilise par un element "
+                f"DIFFERENT dans la copie de travail. Ils n'ont PAS ete fusionnes -- ajoutes "
+                f"en fin de fichier, desactives (commentes), a traiter manuellement "
+                f"(reassigner un Id libre) :\n\n{details}"
+            )
+
+        if highlight and (highlight.new_blocks or highlight.changed_blocks):
+            n_new = len(highlight.new_blocks)
+            n_changed = len(highlight.changed_blocks)
+            msg = (f"Fusionne dans la copie de travail : {dest.name} -- "
+                   f"{n_new} bloc(s) nouveau(x), {n_changed} bloc(s) complete(s)")
+            if id_conflicts:
+                msg += f", {len(id_conflicts)} conflit(s) d'Id a revoir"
+            self.statusBar().showMessage(msg)
+        else:
+            self.statusBar().showMessage(f"Copie vers la copie de travail : {dest}")
+
+    def _copy_block_into_working(self, block: EcfBlock, source_file_path: Path,
+                                  source_root: Path, source_label: str):
+        """Fusionne UN SEUL bloc (point 3 : mise a jour ciblee sans tout refusionner)."""
+        rel = source_file_path.relative_to(source_root)
+        try:
+            dest, status, highlight = merge_block_into_working(self.workspace, rel, block, source_label)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible de copier ce bloc :\n{e}")
+            return
+
+        if highlight:
+            self._highlights[dest] = highlight
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        if status == 'conflict':
+            QMessageBox.warning(
+                self, "Conflit d'Id",
+                f"Ce bloc partage un Id deja utilise par un element DIFFERENT dans la "
+                f"copie de travail. Il n'a PAS ete fusionne -- ajoute en fin de fichier, "
+                f"desactive (commente), a traiter manuellement."
+            )
+            self.statusBar().showMessage(f"Conflit d'Id detecte sur {dest.name} -- bloc ajoute desactive")
+        elif status == 'added':
+            self.statusBar().showMessage(f"Bloc ajoute dans {dest.name}")
+        else:
+            self.statusBar().showMessage(f"Bloc fusionne (complete) dans {dest.name}")
 
     # ------------------------------------------------------------------
     # Ouverture de fichiers (lecture seule pour A/B, meme vue pour l'instant sur
@@ -252,7 +370,8 @@ class MainWindow(QMainWindow):
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data or data[0] != "file":
             return
-        self.open_file_tab(data[1], read_only=True)
+        source_label = "Scenario A" if source_root == self.workspace.source_a_root else "Scenario B"
+        self.open_file_tab(data[1], read_only=True, source_root=source_root, source_label=source_label)
 
     def _on_working_double_clicked(self, item: QTreeWidgetItem, column: int):
         data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -260,7 +379,8 @@ class MainWindow(QMainWindow):
             return
         self.open_file_tab(data[1], read_only=False)
 
-    def open_file_tab(self, path: Path, read_only: bool):
+    def open_file_tab(self, path: Path, read_only: bool,
+                       source_root: Optional[Path] = None, source_label: Optional[str] = None):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(path):
                 self.tabs.setCurrentIndex(i)
@@ -269,7 +389,13 @@ class MainWindow(QMainWindow):
         ext = path.suffix.lower()
         try:
             if ext == '.ecf':
-                widget = EcfViewWidget(path)
+                highlight = self._highlights.get(path)
+                on_copy_block = None
+                if read_only and source_root and source_label:
+                    on_copy_block = lambda block: self._copy_block_into_working(
+                        block, path, source_root, source_label)
+                widget = EcfViewWidget(path, highlight=highlight, on_copy_block=on_copy_block,
+                                        copy_label=source_label)
             elif ext in ('.yaml', '.yml'):
                 widget = YamlViewWidget(path)
             else:
@@ -287,15 +413,25 @@ class MainWindow(QMainWindow):
 
 
 class EcfViewWidget(QWidget):
-    """Vue en lecture d'un fichier .ecf : arbre des blocs a gauche, proprietes a droite."""
+    """Vue en lecture d'un fichier .ecf : arbre des blocs a gauche, proprietes a droite.
+    Si `highlight` est fourni (suite a une fusion), colore les blocs/proprietes ajoutes.
+    Si `on_copy_block` est fourni (vue d'une source A/B), un clic droit sur un bloc
+    propose de le fusionner vers la copie de travail SANS toucher au reste du fichier."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, highlight: Optional[MergeHighlight] = None,
+                 on_copy_block=None, copy_label: Optional[str] = None):
         super().__init__()
         self.path = path
+        self.highlight = highlight
+        self.on_copy_block = on_copy_block
+        self.copy_label = copy_label
         self.doc: EcfDocument = parse_ecf_file(path)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(f"{path.name}  --  {sum(1 for _ in self.doc.iter_blocks())} blocs"))
+        title = f"{path.name}  --  {sum(1 for _ in self.doc.iter_blocks())} blocs"
+        if highlight and (highlight.new_blocks or highlight.changed_blocks):
+            title += "   [vert = nouveau depuis la fusion, orange = complete depuis la fusion]"
+        layout.addWidget(QLabel(title))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -303,6 +439,9 @@ class EcfViewWidget(QWidget):
         self.tree.setHeaderLabels(["Bloc"])
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_block_selected)
+        if self.on_copy_block:
+            self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self.tree.customContextMenuRequested.connect(self._show_block_context_menu)
         splitter.addWidget(self.tree)
 
         self.props_table = QTableWidget(0, 2)
@@ -312,6 +451,22 @@ class EcfViewWidget(QWidget):
 
         splitter.setSizes([400, 500])
         layout.addWidget(splitter)
+
+    def _show_block_context_menu(self, pos):
+        item = self.tree.itemAt(pos)
+        if not item:
+            return
+        block = item.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(block, EcfBlock):
+            return
+        ident = block_identity(block)
+        label = f"{block.kind} [{ident}]" if ident else block.kind
+
+        menu = QMenu(self)
+        action = menu.addAction(f"Copier / fusionner ce bloc ({label}) vers la copie de travail")
+        chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
+        if chosen == action:
+            self.on_copy_block(block)
 
     def _populate_tree(self):
         for node in self.doc.nodes:
@@ -323,6 +478,16 @@ class EcfViewWidget(QWidget):
         label = f"{block.kind} [{ident}]" if ident else block.kind
         item = QTreeWidgetItem([label])
         item.setData(0, Qt.ItemDataRole.UserRole, block)
+
+        if self.highlight:
+            key = (block.kind, ident)
+            if key in self.highlight.new_blocks:
+                item.setBackground(0, COLOR_NEW_BLOCK)
+                item.setText(0, label + "  (nouveau)")
+            elif key in self.highlight.changed_blocks:
+                item.setBackground(0, COLOR_CHANGED_BLOCK)
+                item.setText(0, label + "  (complete)")
+
         for child in block.children:
             if isinstance(child, EcfBlock):
                 item.addChild(self._make_block_item(child))
@@ -342,10 +507,20 @@ class EcfViewWidget(QWidget):
                     if k:
                         rows.append((k, v))
 
+        added_keys = set()
+        if self.highlight:
+            key = (block.kind, block_identity(block))
+            added_keys = self.highlight.changed_blocks.get(key, set())
+
         self.props_table.setRowCount(len(rows))
         for i, (k, v) in enumerate(rows):
-            self.props_table.setItem(i, 0, QTableWidgetItem(k))
-            self.props_table.setItem(i, 1, QTableWidgetItem(v))
+            item_k = QTableWidgetItem(k)
+            item_v = QTableWidgetItem(v)
+            if k in added_keys:
+                item_k.setBackground(COLOR_NEW_PROPERTY)
+                item_v.setBackground(COLOR_NEW_PROPERTY)
+            self.props_table.setItem(i, 0, item_k)
+            self.props_table.setItem(i, 1, item_v)
 
 
 class YamlViewWidget(QWidget):

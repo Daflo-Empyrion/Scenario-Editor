@@ -28,7 +28,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .model import EcfDocument, EcfBlock, EcfProperty, block_identity, property_lines
+from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, block_identity, property_lines
 
 
 @dataclass
@@ -44,14 +44,83 @@ class MergeReportEntry:
 
 
 @dataclass
+class IdConflict:
+    """
+    Cas dangereux : deux blocs partagent le meme (genre, identite) -- typiquement le
+    meme Id -- mais leur propriete 'Name' differe, ce qui indique qu'il s'agit en
+    realite de DEUX ELEMENTS DIFFERENTS qui se trouvent juste avoir le meme numero
+    d'Id d'un scenario a l'autre (ex: Id 628 = 'InteriorBath' dans un scenario,
+    'CPUExtenderLargeT5' dans un autre -- les Id de BlocksConfig.ecf ne sont PAS
+    garantis coherents entre deux scenarios independants).
+
+    Dans ce cas, on ne fusionne JAMAIS automatiquement (ce serait fusionner deux
+    materiels differents entre eux, silencieusement). Le bloc de la source non
+    prioritaire est ajoute au document en fin de fichier, mais DESACTIVE (commente),
+    avec une note explicative -- a l'utilisateur de lui assigner un Id libre puis de
+    le decommenter manuellement.
+    """
+    kind: str
+    identity: str
+    base_name: Optional[str]
+    base_source: str
+    conflicting_source: str
+    conflicting_name: Optional[str]
+    block: EcfBlock
+
+
+@dataclass
 class MergeResult:
     document: EcfDocument
     report: List[MergeReportEntry]
+    id_conflicts: List[IdConflict] = field(default_factory=list)
 
     def conflicts(self) -> List[MergeReportEntry]:
         """Entrees ou plusieurs sources definissaient le meme bloc -- la priorite a du
         arbitrer, donc a revoir en premier lors d'un controle humain."""
         return [e for e in self.report if len(e.sources_present) > 1]
+
+
+def _blocks_correspond(base_block: EcfBlock, other_block: EcfBlock) -> bool:
+    """Verifie qu'un Id (ou autre identite) partage designe bien le MEME element
+    materiel des deux cotes. On compare 'Name' ET plusieurs proprietes revelatrices
+    de l'identite REELLE du bloc (CustomIcon, TemplateRoot, Model).
+
+    Pourquoi pas 'Name' seul : les scenarios recyclent parfois un ancien Id/Name
+    vanilla pour un objet completement different (ex: 'InteriorBath' garde son nom
+    d'origine mais devient en realite un Quantum CPU via son CustomIcon/TemplateRoot).
+    Deux blocs peuvent donc avoir exactement le meme 'Name' tout en etant des elements
+    totalement differents -- il faut regarder plus loin que le nom affiche.
+
+    Un mismatch sur N'IMPORTE LAQUELLE de ces cles (quand les deux blocs la definissent)
+    suffit a declencher un conflit."""
+    identity_keys = ('Name', 'CustomIcon', 'TemplateRoot', 'Model', 'IndexName')
+    for key in identity_keys:
+        val_a = base_block.get_property(key)
+        val_b = other_block.get_property(key)
+        if val_a is not None and val_b is not None and val_a != val_b:
+            return False
+    return True
+
+
+def _make_pending_comment_nodes(conflict: IdConflict) -> List:
+    """Transforme un bloc en conflit en une sequence de commentaires inertes (meme
+    convention que les blocs deja desactives manuellement dans les fichiers Empyrion :
+    '# { +Container Id: ...'), precedee d'une note expliquant le conflit."""
+    header_text = (
+        f"# CONFLIT D'ID {conflict.identity} ({conflict.kind}) : la copie de travail "
+        f"utilise deja cet Id pour \"{conflict.base_name}\" (source: {conflict.base_source}), "
+        f"mais {conflict.conflicting_source} l'utilise pour \"{conflict.conflicting_name}\". "
+        f"Bloc DESACTIVE ci-dessous -- assigner un Id libre puis decommenter pour l'activer.\r\n"
+    )
+    nodes = [EcfBlank(raw="\r\n"), EcfComment(raw=header_text)]
+    rendered = conflict.block.render()
+    for line in rendered.splitlines(keepends=True):
+        stripped = line.rstrip('\r\n')
+        if stripped == '':
+            nodes.append(EcfComment(raw="#" + line[len(stripped):]))
+        else:
+            nodes.append(EcfComment(raw="# " + line))
+    return nodes
 
 
 def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block') -> MergeResult:
@@ -67,13 +136,24 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
 
     grouped: Dict[Tuple[str, Optional[str]], List[Tuple[str, EcfBlock]]] = {}
     order: List[Tuple[str, Optional[str]]] = []
+    id_conflicts: List[IdConflict] = []
 
     for label, doc in sources:
         for node in doc.nodes:
             if not isinstance(node, EcfBlock):
                 continue
             key = (node.kind, block_identity(node))
-            if key not in grouped:
+            if key in grouped:
+                base_label, base_block = grouped[key][0]
+                if key[1] is not None and not _blocks_correspond(base_block, node):
+                    id_conflicts.append(IdConflict(
+                        kind=node.kind, identity=key[1],
+                        base_name=base_block.get_property('Name'), base_source=base_label,
+                        conflicting_source=label, conflicting_name=node.get_property('Name'),
+                        block=node,
+                    ))
+                    continue
+            else:
                 grouped[key] = []
                 order.append(key)
             grouped[key].append((label, node))
@@ -99,8 +179,11 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
         merged_nodes.append(merged_block)
         report.append(entry)
 
+    for conflict in id_conflicts:
+        merged_nodes.extend(_make_pending_comment_nodes(conflict))
+
     merged_doc = EcfDocument(nodes=merged_nodes, source_path=None)
-    return MergeResult(document=merged_doc, report=report)
+    return MergeResult(document=merged_doc, report=report, id_conflicts=id_conflicts)
 
 
 def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock, List[str]]:
@@ -184,14 +267,73 @@ def format_report(result: MergeResult, show_all: bool = False) -> str:
     conflicts = result.conflicts()
     lines.append(f"Total : {len(result.report)} bloc(s) dans le resultat fusionne")
     lines.append(f"Dont {len(conflicts)} present(s) dans plusieurs sources (arbitres par la priorite)")
+    if result.id_conflicts:
+        lines.append(f"⚠ {len(result.id_conflicts)} CONFLIT(S) D'ID : Id partage entre deux elements "
+                      f"DIFFERENTS -- ajoutes en fin de fichier, DESACTIVES (commentes), non fusionnes")
     lines.append("")
 
     entries = result.report if show_all else conflicts
     if not entries:
-        lines.append("(aucun conflit -- toutes les identites de bloc n'apparaissaient que dans une seule source)")
+        lines.append("(aucun conflit de fusion -- toutes les identites de bloc n'apparaissaient que dans une seule source)")
     for e in entries:
         sources_str = " > ".join(e.sources_present)
         lines.append(f"  {e.label()} : {sources_str}  (gagnant: {e.winning_source})")
         for ov in e.property_overrides:
             lines.append(f"      + {ov}")
+
+    if result.id_conflicts:
+        lines.append("")
+        lines.append("CONFLITS D'ID (a revoir manuellement) :")
+        for c in result.id_conflicts:
+            lines.append(f"  {c.kind} [{c.identity}] : \"{c.base_name}\" ({c.base_source}) "
+                          f"vs \"{c.conflicting_name}\" ({c.conflicting_source}) -- bloc desactive en fin de fichier")
+
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------
+# Fusion d'un seul bloc (sans toucher au reste du fichier)
+# ------------------------------------------------------------------
+
+def merge_single_block(working_doc: EcfDocument, incoming: EcfBlock,
+                        source_label: str) -> Tuple[str, object]:
+    """
+    Fusionne UN SEUL bloc (venant d'une source) dans un document deja charge (la copie
+    de travail), sans toucher au reste du fichier -- utile pour importer une seule
+    modification/ajout lors d'une mise a jour, sans avoir a tout re-controler.
+
+    Retourne (status, info) ou status vaut :
+      'added'    : bloc absent de la copie de travail -> ajoute tel quel.
+                   info = (kind, identite)
+      'merged'   : bloc deja present et coherent (meme 'Name') -> complete avec les
+                   proprietes manquantes. info = ((kind, identite), {cles ajoutees})
+      'conflict' : meme identite mais 'Name' different (materiel different) -> PAS
+                   fusionne, ajoute en fin de document sous forme de bloc desactive
+                   (commente). info = l'IdConflict correspondant.
+    """
+    key = (incoming.kind, block_identity(incoming))
+    existing = None
+    for node in working_doc.nodes:
+        if isinstance(node, EcfBlock) and (node.kind, block_identity(node)) == key:
+            existing = node
+            break
+
+    if existing is None:
+        working_doc.nodes.append(copy.deepcopy(incoming))
+        return 'added', key
+
+    if key[1] is not None and not _blocks_correspond(existing, incoming):
+        conflict = IdConflict(
+            kind=incoming.kind, identity=key[1],
+            base_name=existing.get_property('Name'), base_source="copie de travail",
+            conflicting_source=source_label, conflicting_name=incoming.get_property('Name'),
+            block=incoming,
+        )
+        working_doc.nodes.extend(_make_pending_comment_nodes(conflict))
+        return 'conflict', conflict
+
+    merged_block, overrides = _merge_properties([("copie de travail", existing), (source_label, incoming)])
+    idx = working_doc.nodes.index(existing)
+    working_doc.nodes[idx] = merged_block
+    idents = {ov.split(' (depuis')[0] for ov in overrides}
+    return 'merged', (key, idents)
