@@ -18,9 +18,11 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
     QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
-    QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu, QProgressDialog,
+    QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
+    QProgressDialog,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QTreeWidgetItemIterator
 from PyQt6.QtGui import QColor, QBrush
 
 from core.scanner import scan_scenario
@@ -433,6 +435,19 @@ class EcfViewWidget(QWidget):
             title += "   [vert = nouveau depuis la fusion, orange = complete depuis la fusion]"
         layout.addWidget(QLabel(title))
 
+        # -- Barre de recherche : indispensable des que le fichier a beaucoup de blocs
+        # (certains ECF reels en ont plus de 5000 au niveau racine, impossible a
+        # reperer en faisant defiler manuellement une liste non triee) --
+        search_row = QHBoxLayout()
+        search_row.addWidget(QLabel("Rechercher (Id / Name) :"))
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Tape un Id ou un nom, puis Entree pour sauter au suivant...")
+        self.search_box.returnPressed.connect(self._search_next)
+        search_row.addWidget(self.search_box)
+        self.search_status = QLabel("")
+        search_row.addWidget(self.search_status)
+        layout.addLayout(search_row)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self.tree = QTreeWidget()
@@ -451,6 +466,45 @@ class EcfViewWidget(QWidget):
 
         splitter.setSizes([400, 500])
         layout.addWidget(splitter)
+
+        self._search_matches: list = []
+        self._search_index = -1
+        self._search_last_query = ""
+
+    def _search_next(self):
+        query = self.search_box.text().strip().lower()
+        if not query:
+            return
+
+        # Reconstruit la liste des correspondances seulement si la recherche a change
+        if not self._search_matches or self._search_last_query != query:
+            self._search_matches = []
+            it = QTreeWidgetItemIterator(self.tree)
+            while it.value():
+                item = it.value()
+                block = item.data(0, Qt.ItemDataRole.UserRole)
+                searchable = item.text(0).lower()
+                if isinstance(block, EcfBlock):
+                    for key in ('Name', 'CustomIcon', 'TemplateRoot', 'IndexName'):
+                        val = block.get_property(key)
+                        if val:
+                            searchable += " " + val.lower()
+                if query in searchable:
+                    self._search_matches.append(item)
+                it += 1
+            self._search_index = -1
+            self._search_last_query = query
+
+        if not self._search_matches:
+            self.search_status.setText("Aucun resultat")
+            return
+
+        self._search_index = (self._search_index + 1) % len(self._search_matches)
+        item = self._search_matches[self._search_index]
+        self.tree.setCurrentItem(item)
+        self.tree.scrollToItem(item)
+        self._on_block_selected(item, 0)
+        self.search_status.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
     def _show_block_context_menu(self, pos):
         item = self.tree.itemAt(pos)
