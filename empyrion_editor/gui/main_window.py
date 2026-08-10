@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
     QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
-    QProgressDialog,
+    QProgressDialog, QInputDialog,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -32,14 +32,15 @@ from core.workspace import (
     merge_file_into_working, merge_block_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
-from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity
+from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
-from core import project_store
+from core import project_store, settings
 from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
+from gui.ecf_edit_widget import EcfEditWidget, CompareWidget
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -71,8 +72,35 @@ class MainWindow(QMainWindow):
         action_recent = menu.addAction("&Projets recents...")
         action_recent.triggered.connect(self.show_startup_dialog)
         menu.addSeparator()
+        action_save = menu.addAction("&Enregistrer")
+        action_save.setShortcut("Ctrl+S")
+        action_save.triggered.connect(self._save_current_tab)
+        menu.addSeparator()
         action_quit = menu.addAction("&Quitter")
         action_quit.triggered.connect(self.close)
+
+        menu_options = self.menuBar().addMenu("&Options")
+        action_author = menu_options.addAction("Nom pour les annotations...")
+        action_author.triggered.connect(self._set_author_dialog)
+        self.action_toggle_annotations = menu_options.addAction("Annoter les modifications automatiquement")
+        self.action_toggle_annotations.setCheckable(True)
+        self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
+        self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
+
+    def _save_current_tab(self):
+        widget = self.tabs.currentWidget()
+        if widget and hasattr(widget, 'save'):
+            widget.save()
+        else:
+            self.statusBar().showMessage("Rien a enregistrer sur cet onglet.")
+
+    def _set_author_dialog(self):
+        current = settings.get_author()
+        name, ok = QInputDialog.getText(self, "Nom pour les annotations",
+                                         "Ce nom apparaitra dans les commentaires '# original: ... -- Mod par ...' :",
+                                         text=current)
+        if ok and name.strip():
+            settings.set_author(name.strip())
 
     def _build_layout(self):
         self.outer_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -444,7 +472,56 @@ class MainWindow(QMainWindow):
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data or data[0] != "file":
             return
-        self.open_file_tab(data[1], read_only=False)
+        self.open_working_file_tab(data[1])
+
+    def open_working_file_tab(self, path: Path):
+        """Ouvre un fichier de la copie de travail en edition, avec la (ou les) source(s)
+        A/B correspondante(s) affichee(s) cote a cote si elles existent."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(path):
+                self.tabs.setCurrentIndex(i)
+                return
+
+        ext = path.suffix.lower()
+        if ext != '.ecf':
+            # Pas encore d'edition pour les autres formats -- vue lecture seule standard
+            self.open_file_tab(path, read_only=False)
+            return
+
+        try:
+            rel = path.relative_to(self.workspace.working_root)
+        except ValueError:
+            rel = None
+
+        compare_sources = {}
+        if rel is not None:
+            candidate_a = self.workspace.source_a_root / rel
+            if candidate_a.exists() and candidate_a != path:
+                compare_sources["Scenario A"] = candidate_a
+            if self.workspace.is_merge_mode:
+                candidate_b = self.workspace.source_b_root / rel
+                if candidate_b.exists():
+                    compare_sources["Scenario B"] = candidate_b
+
+        try:
+            widget = CompareWidget(path, compare_sources, lambda p: EcfViewWidget(p))
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
+            return
+
+        index = self.tabs.addTab(widget, "✎ " + path.name)
+        self.tabs.setTabToolTip(index, str(path))
+        self.tabs.setCurrentIndex(index)
+
+        widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
+        widget.saved.connect(lambda w=widget: self.statusBar().showMessage(f"Enregistre : {w.edit_widget.path}"))
+
+    def _update_tab_title(self, widget, modified: bool):
+        idx = self.tabs.indexOf(widget)
+        if idx == -1:
+            return
+        base = widget.edit_widget.path.name
+        self.tabs.setTabText(idx, ("✎ * " if modified else "✎ ") + base)
 
     def open_file_tab(self, path: Path, read_only: bool,
                        source_root: Optional[Path] = None, source_label: Optional[str] = None):
@@ -599,7 +676,7 @@ class EcfViewWidget(QWidget):
         item.setData(0, Qt.ItemDataRole.UserRole, block)
 
         if self.highlight:
-            key = (block.kind, ident)
+            key = (normalized_kind(block.kind), ident)
             if key in self.highlight.new_blocks:
                 item.setBackground(0, COLOR_NEW_BLOCK)
                 item.setText(0, label + "  (nouveau)")
@@ -628,7 +705,7 @@ class EcfViewWidget(QWidget):
 
         added_keys = set()
         if self.highlight:
-            key = (block.kind, block_identity(block))
+            key = (normalized_kind(block.kind), block_identity(block))
             added_keys = self.highlight.changed_blocks.get(key, set())
 
         self.props_table.setRowCount(len(rows))

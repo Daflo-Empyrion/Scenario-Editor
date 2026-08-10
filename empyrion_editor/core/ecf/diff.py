@@ -21,7 +21,7 @@ Le résultat est un arbre de BlockDiff, élagué pour ne garder que ce qui a cha
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .model import EcfBlock, EcfDocument, EcfProperty, IDENTITY_KEYS, block_identity as _block_identity, property_lines
+from .model import EcfBlock, EcfDocument, EcfProperty, IDENTITY_KEYS, block_identity as _block_identity, property_lines, normalized_kind
 
 
 @dataclass
@@ -80,7 +80,7 @@ def diff_blocks(blocks_a: List[EcfBlock], blocks_b: List[EcfBlock]) -> List[Bloc
 def _group_by_kind(blocks: List[EcfBlock]) -> Dict[str, List[EcfBlock]]:
     groups: Dict[str, List[EcfBlock]] = {}
     for b in blocks:
-        groups.setdefault(b.kind, []).append(b)
+        groups.setdefault(normalized_kind(b.kind), []).append(b)
     return groups
 
 

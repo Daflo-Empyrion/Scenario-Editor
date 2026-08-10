@@ -28,7 +28,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, block_identity, property_lines
+from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, block_identity, property_lines, normalized_kind
 
 
 @dataclass
@@ -142,7 +142,7 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
         for node in doc.nodes:
             if not isinstance(node, EcfBlock):
                 continue
-            key = (node.kind, block_identity(node))
+            key = (normalized_kind(node.kind), block_identity(node))
             if key in grouped:
                 base_label, base_block = grouped[key][0]
                 if key[1] is not None and not _blocks_correspond(base_block, node):
@@ -311,10 +311,10 @@ def merge_single_block(working_doc: EcfDocument, incoming: EcfBlock,
                    fusionne, ajoute en fin de document sous forme de bloc desactive
                    (commente). info = l'IdConflict correspondant.
     """
-    key = (incoming.kind, block_identity(incoming))
+    key = (normalized_kind(incoming.kind), block_identity(incoming))
     existing = None
     for node in working_doc.nodes:
-        if isinstance(node, EcfBlock) and (node.kind, block_identity(node)) == key:
+        if isinstance(node, EcfBlock) and (normalized_kind(node.kind), block_identity(node)) == key:
             existing = node
             break
 

@@ -172,6 +172,75 @@ def block_identity(block: EcfBlock) -> Optional[str]:
     return None
 
 
+def normalized_kind(kind: str) -> str:
+    """Retire le prefixe '+'/'-' d'un genre de bloc pour les comparaisons d'identite.
+
+    Empyrion utilise ce prefixe comme convention de PATCH/SURCHARGE : un meme Id peut
+    apparaitre une fois comme '{ Block Id: 53...}' (definition de base) et une autre
+    fois comme '{ +Block Id: 53...}' (patch qui le complete) -- c'est le MEME bloc
+    conceptuellement, pas deux blocs differents. Sans cette normalisation, le merge et
+    le diff les traitent a tort comme deux entites distinctes et en creent des doublons.
+    """
+    return kind.lstrip('+-').strip()
+
+
+def add_property_line(block: EcfBlock, pairs: List[Tuple[Optional[str], str]]) -> EcfProperty:
+    """Insere une nouvelle ligne de propriete dans un bloc (avant le premier sous-bloc
+    s'il y en a un, pour rester groupee avec les autres proprietes simples, sinon a la
+    fin). Retourne le noeud cree."""
+    indent = "  "
+    for child in block.children:
+        if isinstance(child, EcfProperty):
+            indent = child.indent
+            break
+    new_prop = EcfProperty(raw="", indent=indent, pairs=list(pairs), comment=None,
+                            eol=block.eol or "\r\n", dirty=True)
+    insert_at = len(block.children)
+    for i, child in enumerate(block.children):
+        if isinstance(child, EcfBlock):
+            insert_at = i
+            break
+    block.children.insert(insert_at, new_prop)
+    return new_prop
+
+
+def remove_property_line(block: EcfBlock, prop_node: EcfProperty) -> bool:
+    """Supprime une ligne de propriete d'un bloc. Retourne False si elle n'y etait pas."""
+    if prop_node in block.children:
+        block.children.remove(prop_node)
+        return True
+    return False
+
+
+def remove_block(nodes: List["EcfNode"], target: EcfBlock) -> bool:
+    """Supprime un bloc (a n'importe quelle profondeur) d'une liste de noeuds.
+    Retourne False si le bloc n'a pas ete trouve."""
+    if target in nodes:
+        nodes.remove(target)
+        return True
+    for node in nodes:
+        if isinstance(node, EcfBlock):
+            if remove_block(node.children, target):
+                return True
+    return False
+
+
+def create_block(kind: str, pairs: List[Tuple[Optional[str], str]], eol: str = "\r\n") -> EcfBlock:
+    """Cree un nouveau bloc de toutes pieces (pas encore attache a un document)."""
+    return EcfBlock(indent="", kind=kind, pairs=list(pairs), comment=None, eol=eol,
+                     raw_open="", close_raw=f"}}{eol}", children=[], dirty=True)
+
+
+def annotate_property(prop: EcfProperty, note_text: str) -> None:
+    """Ajoute une note de tracabilite en fin de ligne (ex: '# original: 100 -- Mod par
+    Daflo'), sans ecraser un commentaire deja present sur cette ligne."""
+    if prop.comment:
+        prop.comment = prop.comment + "  " + note_text
+    else:
+        prop.comment = note_text
+    prop.dirty = True
+
+
 @dataclass
 class EcfDocument:
     nodes: List[EcfNode]
