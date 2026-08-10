@@ -29,9 +29,10 @@ from core.scanner import scan_scenario
 from core.models import Scenario, FileEntry
 from core.workspace import (
     Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
-    merge_file_into_working, merge_block_into_working, MergeHighlight,
+    merge_file_into_working, merge_folder_into_working, merge_block_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
+from core.ecf.dependency_check import check_references
 from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
@@ -79,6 +80,10 @@ class MainWindow(QMainWindow):
         action_quit = menu.addAction("&Quitter")
         action_quit.triggered.connect(self.close)
 
+        menu_check = self.menuBar().addMenu("&Verification")
+        action_refs = menu_check.addAction("Verifier les references (Ref) de la copie de travail...")
+        action_refs.triggered.connect(self.check_references_dialog)
+
         menu_options = self.menuBar().addMenu("&Options")
         action_author = menu_options.addAction("Nom pour les annotations...")
         action_author.triggered.connect(self._set_author_dialog)
@@ -101,6 +106,45 @@ class MainWindow(QMainWindow):
                                          text=current)
         if ok and name.strip():
             settings.set_author(name.strip())
+
+    def check_references_dialog(self):
+        if not self.workspace:
+            QMessageBox.information(self, "Aucun projet", "Ouvre d'abord un projet.")
+            return
+
+        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
+        if not ecf_files:
+            QMessageBox.information(self, "Aucun fichier", "Aucun fichier .ecf trouve dans Configuration.")
+            return
+
+        progress = QProgressDialog(f"Verification de {len(ecf_files)} fichier(s)...", None, 0, 0, self)
+        progress.setWindowTitle("Veuillez patienter")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.show()
+        QApplication.processEvents()
+
+        try:
+            broken = check_references(ecf_files)
+        except Exception as e:
+            progress.close()
+            QMessageBox.critical(self, "Erreur", f"Erreur pendant la verification :\n{e}")
+            return
+        progress.close()
+
+        if not broken:
+            QMessageBox.information(self, "Verification des references",
+                                     f"Aucune reference cassee trouvee sur {len(ecf_files)} fichier(s) verifie(s).")
+            return
+
+        details = "\n".join(b.label() for b in broken[:100])
+        more = f"\n... et {len(broken) - 100} autre(s)" if len(broken) > 100 else ""
+        QMessageBox.warning(
+            self, "References cassees detectees",
+            f"{len(broken)} reference(s) 'Ref' ne correspondent a aucun 'Name' existant "
+            f"dans la copie de travail (l'heritage attendu ne fonctionnera pas en jeu) :\n\n"
+            f"{details}{more}"
+        )
 
     def _build_layout(self):
         self.outer_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -283,19 +327,25 @@ class MainWindow(QMainWindow):
     def _populate_tree(self, tree: QTreeWidget, scenario: Scenario):
         tree.clear()
         root_item = QTreeWidgetItem([scenario.name])
+        root_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", scenario.root_path))
         tree.addTopLevelItem(root_item)
-        self._add_file_category(root_item, "Configuration", scenario.configuration)
+        self._add_file_category(root_item, "Configuration", scenario.configuration,
+                                 scenario.root_path / "Content" / "Configuration")
         self._add_playfields_category(root_item, scenario)
-        self._add_file_category(root_item, "Sectors", scenario.sectors)
-        self._add_file_category(root_item, "RandomPresets", scenario.random_presets)
-        self._add_file_category(root_item, "Extras", scenario.extras)
+        self._add_file_category(root_item, "Sectors", scenario.sectors, scenario.root_path / "Sectors")
+        self._add_file_category(root_item, "RandomPresets", scenario.random_presets,
+                                 scenario.root_path / "RandomPresets")
+        self._add_file_category(root_item, "Extras", scenario.extras, scenario.root_path / "Extras")
         self._add_other_files_tree(root_item, scenario)
         if scenario.shared_data:
             shared_item = QTreeWidgetItem([f"SharedData ({scenario.shared_data.total_file_count()} fichiers)"])
+            shared_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", scenario.shared_data.root_path))
             root_item.addChild(shared_item)
-            self._add_file_category(shared_item, "Configuration", scenario.shared_data.configuration)
+            self._add_file_category(shared_item, "Configuration", scenario.shared_data.configuration,
+                                     scenario.shared_data.root_path / "Content" / "Configuration")
             self._add_playfields_category(shared_item, scenario.shared_data)
-            self._add_file_category(shared_item, "Extras", scenario.shared_data.extras)
+            self._add_file_category(shared_item, "Extras", scenario.shared_data.extras,
+                                     scenario.shared_data.root_path / "Extras")
             self._add_other_files_tree(shared_item, scenario.shared_data)
         root_item.setExpanded(True)
 
@@ -319,22 +369,27 @@ class MainWindow(QMainWindow):
                 node = node.setdefault(part, {})
             node.setdefault('__files__', []).append(entry)
 
-        self._build_dict_tree(other_root, tree_dict)
+        self._build_dict_tree(other_root, tree_dict, scenario.root_path)
 
-    def _build_dict_tree(self, parent_item: QTreeWidgetItem, tree_dict: dict):
+    def _build_dict_tree(self, parent_item: QTreeWidgetItem, tree_dict: dict, current_folder: Path):
         for key in sorted(k for k in tree_dict if k != '__files__'):
             sub_item = QTreeWidgetItem([key])
+            sub_folder = current_folder / key
+            sub_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", sub_folder))
             parent_item.addChild(sub_item)
-            self._build_dict_tree(sub_item, tree_dict[key])
+            self._build_dict_tree(sub_item, tree_dict[key], sub_folder)
         for entry in sorted(tree_dict.get('__files__', []), key=lambda e: e.name):
             leaf = QTreeWidgetItem([entry.name])
             leaf.setData(0, Qt.ItemDataRole.UserRole, ("file", entry.path))
             parent_item.addChild(leaf)
 
-    def _add_file_category(self, parent_item: QTreeWidgetItem, label: str, entries: list):
+    def _add_file_category(self, parent_item: QTreeWidgetItem, label: str, entries: list,
+                            folder_path: Optional[Path] = None):
         if not entries:
             return
         cat_item = QTreeWidgetItem([f"{label} ({len(entries)})"])
+        if folder_path is not None:
+            cat_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", folder_path))
         parent_item.addChild(cat_item)
         for entry in sorted(entries, key=lambda e: e.name):
             leaf = QTreeWidgetItem([entry.name])
@@ -344,10 +399,13 @@ class MainWindow(QMainWindow):
     def _add_playfields_category(self, parent_item: QTreeWidgetItem, scenario: Scenario):
         if not scenario.playfields:
             return
+        playfields_root = scenario.root_path / "Playfields"
         cat_item = QTreeWidgetItem([f"Playfields ({len(scenario.playfields)})"])
+        cat_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", playfields_root))
         parent_item.addChild(cat_item)
         for name, pf in sorted(scenario.playfields.items()):
             pf_item = QTreeWidgetItem([name])
+            pf_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", playfields_root / name))
             cat_item.addChild(pf_item)
             for role, path in sorted(pf.role_files.items()):
                 leaf = QTreeWidgetItem([f"{role} : {path.name}"])
@@ -365,17 +423,82 @@ class MainWindow(QMainWindow):
         if not item:
             return
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        if not data or data[0] != "file":
+        if not data:
             return
-        path: Path = data[1]
 
         source_label = "Scenario A" if source_root == self.workspace.source_a_root else "Scenario B"
-
         menu = QMenu(self)
-        action = menu.addAction(f"Copier / fusionner '{path.name}' vers la copie de travail")
-        chosen = menu.exec(tree.viewport().mapToGlobal(pos))
-        if chosen == action:
-            self._copy_into_working(path, source_root, source_label)
+
+        if data[0] == "file":
+            path: Path = data[1]
+            action = menu.addAction(f"Copier / fusionner '{path.name}' vers la copie de travail")
+            chosen = menu.exec(tree.viewport().mapToGlobal(pos))
+            if chosen == action:
+                self._copy_into_working(path, source_root, source_label)
+
+        elif data[0] == "folder":
+            folder: Path = data[1]
+            if not folder.exists():
+                return
+            action = menu.addAction(f"Fusionner le dossier '{folder.name}' (et sous-dossiers) vers la copie de travail")
+            chosen = menu.exec(tree.viewport().mapToGlobal(pos))
+            if chosen == action:
+                self._merge_folder_into_working_ui(folder, source_root, source_label)
+
+    def _merge_folder_into_working_ui(self, folder: Path, source_root: Path, source_label: str):
+        nb_files = sum(1 for _ in folder.rglob('*') if _.is_file())
+        if nb_files == 0:
+            QMessageBox.information(self, "Dossier vide", "Aucun fichier a fusionner dans ce dossier.")
+            return
+        confirm = QMessageBox.question(
+            self, "Confirmer",
+            f"Fusionner {nb_files} fichier(s) de '{folder.name}' (et sous-dossiers) vers la copie de travail ?"
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        progress = QProgressDialog(f"Fusion de {nb_files} fichier(s)...", None, 0, 0, self)
+        progress.setWindowTitle("Veuillez patienter")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.show()
+        QApplication.processEvents()
+
+        try:
+            highlights, id_conflicts = merge_folder_into_working(self.workspace, folder, source_root, source_label)
+            self.workspace.rescan_working()
+        except Exception as e:
+            progress.close()
+            QMessageBox.critical(self, "Erreur", f"Impossible de fusionner le dossier :\n{e}")
+            return
+        progress.close()
+
+        self._highlights.update(highlights)
+        self._populate_tree(self.tree_working, self.workspace.working)
+
+        for path_touched in highlights:
+            for i in range(self.tabs.count()):
+                if self.tabs.tabToolTip(i) == str(path_touched):
+                    self.tabs.removeTab(i)
+
+        if id_conflicts:
+            details = "\n".join(
+                f"- {c.kind} [{c.identity}] : \"{c.base_name}\" (copie de travail) "
+                f"vs \"{c.conflicting_name}\" ({c.conflicting_source})"
+                for c in id_conflicts[:20]
+            )
+            more = f"\n... et {len(id_conflicts) - 20} autre(s)" if len(id_conflicts) > 20 else ""
+            QMessageBox.warning(
+                self, "Conflits d'Id detectes",
+                f"{len(id_conflicts)} bloc(s) au total n'ont pas ete fusionnes (Id partage "
+                f"avec un materiel different) -- ajoutes desactives dans leurs fichiers respectifs "
+                f"pour revue manuelle :\n\n{details}{more}"
+            )
+
+        self.statusBar().showMessage(
+            f"Dossier fusionne : {nb_files} fichier(s) traites, {len(highlights)} fichier(s) .ecf "
+            f"avec des changements, {len(id_conflicts)} conflit(s) d'Id au total"
+        )
 
     def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
         try:
@@ -497,14 +620,17 @@ class MainWindow(QMainWindow):
         if rel is not None:
             candidate_a = self.workspace.source_a_root / rel
             if candidate_a.exists() and candidate_a != path:
-                compare_sources["Scenario A"] = candidate_a
+                compare_sources["Scenario A"] = (candidate_a, self.workspace.source_a_root)
             if self.workspace.is_merge_mode:
                 candidate_b = self.workspace.source_b_root / rel
                 if candidate_b.exists():
-                    compare_sources["Scenario B"] = candidate_b
+                    compare_sources["Scenario B"] = (candidate_b, self.workspace.source_b_root)
+
+        def _copy_block_cb(block, source_path, source_root, source_label):
+            self._copy_block_into_working(block, source_path, source_root, source_label)
 
         try:
-            widget = CompareWidget(path, compare_sources, lambda p: EcfViewWidget(p))
+            widget = CompareWidget(path, compare_sources, EcfViewWidget, copy_block_callback=_copy_block_cb)
         except Exception as e:
             QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
             return

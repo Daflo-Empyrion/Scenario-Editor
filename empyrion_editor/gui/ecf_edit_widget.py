@@ -336,12 +336,19 @@ class EcfEditWidget(QWidget):
 
 class CompareWidget(QWidget):
     """Vue cote a cote : copie de travail (editable) a gauche, source(s) A/B en
-    lecture seule a droite (dans des onglets si plusieurs sont disponibles)."""
+    lecture seule a droite (dans des onglets si plusieurs sont disponibles).
+    Le clic droit "copier ce bloc" fonctionne aussi depuis les panneaux source ici."""
 
-    def __init__(self, working_path: Path, compare_sources: Dict[str, Path], view_widget_factory):
-        """`view_widget_factory(path)` doit retourner un widget de lecture seule
-        (typiquement EcfViewWidget de main_window.py) -- injecte pour eviter un import
-        circulaire entre ce module et main_window.py."""
+    def __init__(self, working_path: Path, compare_sources: Dict[str, tuple], view_widget_factory,
+                 copy_block_callback=None):
+        """
+        compare_sources : {label: (chemin_source, racine_source)}
+        view_widget_factory(path, on_copy_block=None) doit retourner un widget de
+        lecture seule (typiquement EcfViewWidget de main_window.py) -- injecte pour
+        eviter un import circulaire entre ce module et main_window.py.
+        copy_block_callback(block, source_path, source_root, source_label) : appele
+        quand l'utilisateur choisit "copier ce bloc" depuis un panneau source.
+        """
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -353,8 +360,12 @@ class CompareWidget(QWidget):
 
         if compare_sources:
             right_side = QTabWidget()
-            for label, src_path in compare_sources.items():
-                right_side.addTab(view_widget_factory(src_path), label)
+            for label, (src_path, src_root) in compare_sources.items():
+                on_copy = None
+                if copy_block_callback:
+                    on_copy = (lambda block, p=src_path, r=src_root, l=label:
+                               copy_block_callback(block, p, r, l))
+                right_side.addTab(view_widget_factory(src_path, on_copy_block=on_copy, copy_label=label), label)
             splitter.addWidget(right_side)
             splitter.setSizes([600, 500])
         else:

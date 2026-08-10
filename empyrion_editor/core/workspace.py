@@ -150,6 +150,25 @@ def merge_file_into_working(workspace: Workspace, source_file: Path, source_root
     return dest, highlight, result.id_conflicts
 
 
+def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_root: Path,
+                               source_label: str) -> Tuple[dict, list]:
+    """
+    Fusionne recursivement TOUS les fichiers d'un dossier (et sous-dossiers) source vers
+    la copie de travail, fichier par fichier -- meme logique que merge_file_into_working
+    pour chacun (fusion intelligente pour les .ecf existants, simple copie sinon).
+    Utile pour importer plusieurs blocs/fichiers d'un coup sans fusionner tout le scenario.
+
+    Retourne (dict {chemin_destination: MergeHighlight}, liste_de_tous_les_conflits_d_id).
+    """
+    highlights = {}
+    all_conflicts = []
+    files = [p for p in source_folder.rglob('*') if p.is_file()]
+    for f in files:
+        dest, highlight, conflicts = merge_file_into_working(workspace, f, source_root, source_label)
+        if highlight:
+            highlights[dest] = highlight
+        all_conflicts.extend(conflicts)
+    return highlights, all_conflicts
 def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
                               block, source_label: str) -> Tuple[Path, str, Optional["MergeHighlight"]]:
     """
