@@ -185,6 +185,11 @@ class EcfEditWidget(QWidget):
         block = self._current_block
         self.props_table.blockSignals(True)
         rows = []
+        # Proprietes declarees sur la ligne d'ouverture du bloc (Id, Name, Ref...) --
+        # marquees avec le bloc lui-meme comme reference, distinct des lignes enfants.
+        for k, v in block.pairs:
+            if k:
+                rows.append((k, v, block))
         for child in block.children:
             if isinstance(child, EcfProperty):
                 for k, v in child.pairs:
@@ -196,6 +201,8 @@ class EcfEditWidget(QWidget):
             item_k.setFlags(item_k.flags() & ~Qt.ItemFlag.ItemIsEditable)  # la cle n'est pas editable ici
             item_v = QTableWidgetItem(v)
             item_v.setData(Qt.ItemDataRole.UserRole, prop_node)
+            if prop_node is block:
+                item_k.setToolTip("Propriete d'en-tete du bloc (ex: Id, Name)")
             if id(prop_node) in self._edited_prop_nodes:
                 item_k.setBackground(COLOR_MODIFIED_ROW)
                 item_v.setBackground(COLOR_MODIFIED_ROW)
@@ -207,29 +214,40 @@ class EcfEditWidget(QWidget):
         if item.column() != 1:
             return
         prop_node = item.data(Qt.ItemDataRole.UserRole)
-        if not isinstance(prop_node, EcfProperty):
-            return
         row = item.row()
         key_item = self.props_table.item(row, 0)
         key = key_item.text()
         new_value = item.text()
 
-        old_value = None
-        idx = None
-        for i, (k, v) in enumerate(prop_node.pairs):
-            if k == key:
-                old_value = v
-                idx = i
-                break
-        if idx is None or old_value == new_value:
-            return
+        if isinstance(prop_node, EcfBlock):
+            # Propriete d'en-tete (Id, Name...) -- vit sur block.pairs, pas sur une
+            # ligne enfant. Attention particuliere : modifier l'Id peut casser des
+            # references ailleurs dans le fichier -- on laisse faire (l'utilisateur est
+            # averti via le tooltip) mais on ne l'empeche pas.
+            old_value = prop_node.get(key)
+            if old_value == new_value:
+                return
+            prop_node.set(key, new_value)
+            annotate_target = None  # les proprietes d'en-tete n'ont pas de 'comment' individuel simple a annoter
+        else:
+            if not isinstance(prop_node, EcfProperty):
+                return
+            old_value = None
+            idx = None
+            for i, (k, v) in enumerate(prop_node.pairs):
+                if k == key:
+                    old_value = v
+                    idx = i
+                    break
+            if idx is None or old_value == new_value:
+                return
+            prop_node.pairs[idx] = (key, new_value)
+            prop_node.dirty = True
+            annotate_target = prop_node
 
-        prop_node.pairs[idx] = (key, new_value)
-        prop_node.dirty = True
-
-        if settings.get_annotations_enabled():
+        if settings.get_annotations_enabled() and annotate_target is not None:
             author = settings.get_author()
-            annotate_property(prop_node, f"# original {key}: {old_value} -- Mod par {author}")
+            annotate_property(annotate_target, f"# original {key}: {old_value} -- Mod par {author}")
 
         self._edited_prop_nodes.add(id(prop_node))
         self._set_modified(True)
@@ -244,6 +262,11 @@ class EcfEditWidget(QWidget):
             return
         row = item.row()
         prop_node = self.props_table.item(row, 1).data(Qt.ItemDataRole.UserRole)
+
+        if isinstance(prop_node, EcfBlock):
+            # Propriete d'en-tete (Id, Name...) -- pas de suppression proposee ici,
+            # trop risque de casser la structure du bloc sans passer par une action dediee.
+            return
 
         menu = QMenu(self)
         action_del = menu.addAction("Supprimer cette propriete")
