@@ -33,6 +33,7 @@ from core.workspace import (
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.dependency_check import check_references
+from core.ecf.pending_conflicts import find_pending_conflicts, activate_pending_conflict
 from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
@@ -83,6 +84,8 @@ class MainWindow(QMainWindow):
         menu_check = self.menuBar().addMenu("&Verification")
         action_refs = menu_check.addAction("Verifier les references (Ref) de la copie de travail...")
         action_refs.triggered.connect(self.check_references_dialog)
+        action_pending = menu_check.addAction("Blocs en attente (conflits d'Id)...")
+        action_pending.triggered.connect(self.check_pending_conflicts_dialog)
 
         menu_options = self.menuBar().addMenu("&Options")
         action_author = menu_options.addAction("Nom pour les annotations...")
@@ -106,6 +109,74 @@ class MainWindow(QMainWindow):
                                          text=current)
         if ok and name.strip():
             settings.set_author(name.strip())
+
+    def check_pending_conflicts_dialog(self):
+        if not self.workspace:
+            QMessageBox.information(self, "Aucun projet", "Ouvre d'abord un projet.")
+            return
+
+        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
+        all_conflicts = []  # (file_path, PendingConflict)
+        for path in ecf_files:
+            try:
+                doc = parse_ecf_file(path)
+            except Exception:
+                continue
+            for c in find_pending_conflicts(doc):
+                all_conflicts.append((path, c))
+
+        if not all_conflicts:
+            QMessageBox.information(self, "Blocs en attente",
+                                     "Aucun bloc en attente (conflit d'Id) trouve dans la copie de travail.")
+            return
+
+        labels = [f"{path.name} -- {c.header_text[7:90]}..." for path, c in all_conflicts]
+        choice, ok = QInputDialog.getItem(
+            self, "Blocs en attente (conflits d'Id)",
+            f"{len(all_conflicts)} bloc(s) en attente trouve(s). Choisis-en un a activer :",
+            labels, 0, False
+        )
+        if not ok:
+            return
+
+        idx = labels.index(choice)
+        target_path, target_conflict = all_conflicts[idx]
+
+        new_id, ok = QInputDialog.getText(
+            self, "Nouvel Id",
+            "Id libre a assigner a ce bloc (verifie qu'il n'est pas deja utilise) :"
+        )
+        if not ok or not new_id.strip():
+            return
+
+        try:
+            doc = parse_ecf_file(target_path)
+            fresh_conflicts = find_pending_conflicts(doc)
+            match = next((c for c in fresh_conflicts if c.header_text == target_conflict.header_text), None)
+            if match is None:
+                QMessageBox.critical(self, "Erreur", "Le bloc en attente n'a plus ete retrouve (fichier modifie entre-temps ?).")
+                return
+
+            success = activate_pending_conflict(doc, match, new_id.strip())
+            if not success:
+                QMessageBox.critical(self, "Erreur", "Impossible d'activer ce bloc (motif 'Id:' introuvable dans son texte).")
+                return
+
+            with open(target_path, 'w', encoding='utf-8', newline='') as f:
+                f.write(doc.render())
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Erreur pendant l'activation :\n{e}")
+            return
+
+        self.workspace.rescan_working()
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(target_path):
+                self.tabs.removeTab(i)
+
+        self.statusBar().showMessage(f"Bloc active avec Id={new_id.strip()} dans {target_path.name}")
+        QMessageBox.information(self, "Bloc active",
+                                 f"Le bloc est maintenant actif avec Id={new_id.strip()} dans {target_path.name}.\n"
+                                 f"Pense a relancer la verification des references si ce bloc en concernait.")
 
     def check_references_dialog(self):
         if not self.workspace:
