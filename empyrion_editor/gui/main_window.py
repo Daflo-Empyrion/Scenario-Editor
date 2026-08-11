@@ -779,15 +779,20 @@ class EcfViewWidget(QWidget):
         self.doc: EcfDocument = parse_ecf_file(path)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(2)
         title = f"{path.name}  --  {sum(1 for _ in self.doc.iter_blocks())} blocs"
         if highlight and (highlight.new_blocks or highlight.changed_blocks):
             title += "   [vert = nouveau depuis la fusion, orange = complete depuis la fusion]"
-        layout.addWidget(QLabel(title))
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
+        layout.addWidget(title_label)
 
         # -- Barre de recherche : indispensable des que le fichier a beaucoup de blocs
         # (certains ECF reels en ont plus de 5000 au niveau racine, impossible a
         # reperer en faisant defiler manuellement une liste non triee) --
         search_row = QHBoxLayout()
+        search_row.setSpacing(4)
         search_row.addWidget(QLabel("Rechercher (Id / Name) :"))
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Tape un Id ou un nom, puis Entree pour sauter au suivant...")

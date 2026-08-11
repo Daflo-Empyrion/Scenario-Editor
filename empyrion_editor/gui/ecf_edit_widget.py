@@ -248,9 +248,14 @@ class EcfEditWidget(QWidget):
         self._edited_prop_nodes = set()  # ids Python des EcfProperty touches cette session
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(f"{path.name}  (copie de travail -- modifiable)"))
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(2)
+        filename_label = QLabel(f"{path.name}  (copie de travail -- modifiable)")
+        filename_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
+        layout.addWidget(filename_label)
 
         search_row = QHBoxLayout()
+        search_row.setSpacing(4)
         search_row.addWidget(QLabel("Rechercher :"))
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Id / Name / CustomIcon... puis Entree")
@@ -261,6 +266,7 @@ class EcfEditWidget(QWidget):
         layout.addLayout(search_row)
 
         toolbar = QHBoxLayout()
+        toolbar.setSpacing(4)
         btn_add_block = QPushButton("+ Bloc")
         btn_add_block.clicked.connect(self._add_block_dialog)
         toolbar.addWidget(btn_add_block)
