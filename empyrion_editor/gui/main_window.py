@@ -33,7 +33,9 @@ from core.workspace import (
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.dependency_check import check_references
-from core.ecf.pending_conflicts import find_pending_conflicts, activate_pending_conflict
+from core.ecf.pending_conflicts import (
+    find_pending_conflicts, activate_pending_conflict, parse_pending_block, find_used_ids,
+)
 from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
@@ -42,7 +44,7 @@ from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
-from gui.ecf_edit_widget import EcfEditWidget, CompareWidget
+from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -116,38 +118,40 @@ class MainWindow(QMainWindow):
             return
 
         ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
-        all_conflicts = []  # (file_path, PendingConflict)
+
+        entries = []
         for path in ecf_files:
             try:
                 doc = parse_ecf_file(path)
             except Exception:
                 continue
             for c in find_pending_conflicts(doc):
-                all_conflicts.append((path, c))
+                pending_block = parse_pending_block(c)
+                base_block = None
+                if pending_block:
+                    ident = block_identity(pending_block)
+                    if ident:
+                        base_block = doc.find_block(normalized_kind(pending_block.kind), 'Id', ident) \
+                                     or doc.find_block(normalized_kind(pending_block.kind), 'Name', ident)
+                entries.append({'path': path, 'doc': doc, 'conflict': c,
+                                 'pending_block': pending_block, 'base_block': base_block})
 
-        if not all_conflicts:
+        if not entries:
             QMessageBox.information(self, "Blocs en attente",
                                      "Aucun bloc en attente (conflit d'Id) trouve dans la copie de travail.")
             return
 
-        labels = [f"{path.name} -- {c.header_text[7:90]}..." for path, c in all_conflicts]
-        choice, ok = QInputDialog.getItem(
-            self, "Blocs en attente (conflits d'Id)",
-            f"{len(all_conflicts)} bloc(s) en attente trouve(s). Choisis-en un a activer :",
-            labels, 0, False
-        )
-        if not ok:
+        used_ids = find_used_ids(ecf_files)
+
+        dialog = PendingConflictsDialog(entries, used_ids, self)
+        if dialog.exec() != PendingConflictsDialog.DialogCode.Accepted:
+            return
+        if not dialog.chosen_entry or not dialog.chosen_new_id:
             return
 
-        idx = labels.index(choice)
-        target_path, target_conflict = all_conflicts[idx]
-
-        new_id, ok = QInputDialog.getText(
-            self, "Nouvel Id",
-            "Id libre a assigner a ce bloc (verifie qu'il n'est pas deja utilise) :"
-        )
-        if not ok or not new_id.strip():
-            return
+        target_path = dialog.chosen_entry['path']
+        target_conflict = dialog.chosen_entry['conflict']
+        new_id = dialog.chosen_new_id
 
         try:
             doc = parse_ecf_file(target_path)
@@ -157,7 +161,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Erreur", "Le bloc en attente n'a plus ete retrouve (fichier modifie entre-temps ?).")
                 return
 
-            success = activate_pending_conflict(doc, match, new_id.strip())
+            success = activate_pending_conflict(doc, match, new_id)
             if not success:
                 QMessageBox.critical(self, "Erreur", "Impossible d'activer ce bloc (motif 'Id:' introuvable dans son texte).")
                 return
@@ -173,9 +177,9 @@ class MainWindow(QMainWindow):
             if self.tabs.tabToolTip(i) == str(target_path):
                 self.tabs.removeTab(i)
 
-        self.statusBar().showMessage(f"Bloc active avec Id={new_id.strip()} dans {target_path.name}")
+        self.statusBar().showMessage(f"Bloc active avec Id={new_id} dans {target_path.name}")
         QMessageBox.information(self, "Bloc active",
-                                 f"Le bloc est maintenant actif avec Id={new_id.strip()} dans {target_path.name}.\n"
+                                 f"Le bloc est maintenant actif avec Id={new_id} dans {target_path.name}.\n"
                                  f"Pense a relancer la verification des references si ce bloc en concernait.")
 
     def check_references_dialog(self):

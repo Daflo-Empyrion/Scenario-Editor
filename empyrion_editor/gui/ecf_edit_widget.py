@@ -10,12 +10,12 @@ disponibles) pour editer en gardant la reference sous les yeux, sans perdre d'es
 d'affichage a switcher entre onglets separes.
 """
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
-    QInputDialog, QTabWidget,
+    QInputDialog, QTabWidget, QDialog, QListWidget, QTextEdit,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -26,9 +26,133 @@ from core.ecf.model import (
     EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
     add_property_line, remove_property_line, remove_block, create_block, annotate_property,
 )
+from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
 
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
+
+
+class PendingConflictsDialog(QDialog):
+    """Fenetre de revue des blocs en attente : liste a gauche, comparaison detaillee
+    (bloc actuel vs bloc en attente, via le moteur de diff) a droite, avec suggestion
+    d'Id libres pour l'activation."""
+
+    def __init__(self, entries: List[dict], used_ids: set, parent=None):
+        """entries : liste de dict {path, conflict, pending_block, base_block}."""
+        super().__init__(parent)
+        self.setWindowTitle("Blocs en attente (conflits d'Id)")
+        self.setMinimumSize(900, 600)
+        self.entries = entries
+        self.used_ids = used_ids
+        self.chosen_new_id: Optional[str] = None
+        self.chosen_entry: Optional[dict] = None
+
+        layout = QVBoxLayout(self)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        self.list_widget = QListWidget()
+        for e in entries:
+            ident = block_identity(e['pending_block']) if e['pending_block'] else "?"
+            name = e['pending_block'].get_property('Name') if e['pending_block'] else "?"
+            self.list_widget.addItem(f"{e['path'].name} -- Id {ident} ({name})")
+        self.list_widget.currentRowChanged.connect(self._on_selection_changed)
+        splitter.addWidget(self.list_widget)
+
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+
+        right_layout.addWidget(QLabel("Comparaison (bloc actuel dans la copie de travail vs bloc en attente) :"))
+        self.diff_view = QTextEdit()
+        self.diff_view.setReadOnly(True)
+        self.diff_view.setFontFamily("Consolas, monospace")
+        right_layout.addWidget(self.diff_view)
+
+        id_row = QHBoxLayout()
+        id_row.addWidget(QLabel("Nouvel Id a assigner :"))
+        self.id_edit = QLineEdit()
+        id_row.addWidget(self.id_edit)
+        right_layout.addLayout(id_row)
+
+        self.suggestions_label = QLabel("")
+        self.suggestions_label.setWordWrap(True)
+        right_layout.addWidget(self.suggestions_label)
+
+        splitter.addWidget(right)
+        splitter.setSizes([300, 600])
+        layout.addWidget(splitter)
+
+        buttons = QHBoxLayout()
+        btn_activate = QPushButton("Activer avec cet Id")
+        btn_activate.clicked.connect(self._on_activate)
+        buttons.addWidget(btn_activate)
+        btn_cancel = QPushButton("Fermer")
+        btn_cancel.clicked.connect(self.reject)
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+
+        if entries:
+            self.list_widget.setCurrentRow(0)
+
+    def _on_selection_changed(self, row: int):
+        if row < 0 or row >= len(self.entries):
+            return
+        entry = self.entries[row]
+        pending = entry['pending_block']
+        base = entry['base_block']
+
+        lines = []
+        if base is None:
+            lines.append("(bloc de base introuvable -- affichage du bloc en attente seul)")
+            lines.append("")
+            lines.append(pending.render() if pending else "(erreur de lecture du bloc)")
+        else:
+            from core.ecf.diff import diff_documents, format_diff
+            from core.ecf.model import EcfDocument
+            doc_a = EcfDocument(nodes=[base])
+            doc_b = EcfDocument(nodes=[pending])
+            diffs = diff_documents(doc_a, doc_b)
+            if diffs:
+                lines.append("Differences (- = valeur actuelle, + = valeur du bloc en attente) :")
+                lines.append("")
+                lines.append(format_diff(diffs))
+            else:
+                lines.append("Aucune difference de propriete detectee entre les deux (le conflit "
+                              "vient uniquement du Name/CustomIcon/TemplateRoot different).")
+            lines.append("")
+            lines.append("--- Bloc actuellement actif (Id existant) ---")
+            lines.append(base.render())
+            lines.append("")
+            lines.append("--- Bloc en attente (ce que tu vas activer) ---")
+            lines.append(pending.render())
+
+        self.diff_view.setPlainText("\n".join(lines))
+
+        suggestions = suggest_free_ids(self.used_ids, 8)
+        self.suggestions_label.setText(
+            "Id libres suggeres (au-dessus du maximum utilise dans le scenario) : " +
+            ", ".join(str(s) for s in suggestions)
+        )
+        self.id_edit.setText(str(suggestions[0]))
+
+    def _on_activate(self):
+        row = self.list_widget.currentRow()
+        if row < 0:
+            return
+        new_id = self.id_edit.text().strip()
+        if not new_id:
+            QMessageBox.warning(self, "Id manquant", "Indique un Id.")
+            return
+        if new_id.isdigit() and int(new_id) in self.used_ids:
+            confirm = QMessageBox.question(
+                self, "Id deja utilise",
+                f"L'Id {new_id} semble deja utilise ailleurs dans le scenario. Continuer quand meme ?"
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+
+        self.chosen_entry = self.entries[row]
+        self.chosen_new_id = new_id
+        self.accept()
 
 
 class EcfEditWidget(QWidget):

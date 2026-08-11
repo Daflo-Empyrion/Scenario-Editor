@@ -72,6 +72,42 @@ def find_pending_conflicts(doc: EcfDocument) -> List[PendingConflict]:
     return results
 
 
+def parse_pending_block(conflict: "PendingConflict") -> Optional[EcfBlock]:
+    """Reparse le texte d'un bloc en attente (deja decommenter en memoire) pour
+    l'inspecter -- SANS toucher au document d'origine ni changer son Id. Utile pour
+    afficher son contenu avant de decider de l'activer."""
+    parsed = parse_ecf_text(conflict.block_text)
+    blocks = [n for n in parsed.nodes if isinstance(n, EcfBlock)]
+    return blocks[0] if len(blocks) == 1 else None
+
+
+def find_used_ids(ecf_files: List) -> set:
+    """Recense tous les Id numeriques utilises dans une liste de fichiers ECF (tous
+    genres de blocs confondus) -- pour pouvoir suggerer des Id libres."""
+    used = set()
+    for path in ecf_files:
+        try:
+            doc = parse_ecf_text(open(path, 'r', encoding='utf-8', newline='').read())
+        except Exception:
+            continue
+        for block in doc.iter_blocks():
+            val = block.get('Id')
+            if val and val.strip().lstrip('-').isdigit():
+                used.add(int(val))
+    return used
+
+
+def suggest_free_ids(used_ids: set, count: int = 10) -> List[int]:
+    """Propose `count` Id libres, au-dessus du maximum actuellement utilise -- la
+    zone la plus sure pour ne rentrer en collision avec rien d'existant (scenario
+    comme vanilla). Le mod lui-meme peut avoir ses propres conventions de plage
+    d'Id -- ceci est une suggestion de depart, pas une regle absolue."""
+    if not used_ids:
+        return list(range(1, count + 1))
+    start = max(used_ids) + 1
+    return list(range(start, start + count))
+
+
 def activate_pending_conflict(doc: EcfDocument, conflict: PendingConflict, new_id: str) -> bool:
     """Remplace la sequence de commentaires par un VRAI bloc actif, avec le nouvel Id
     fourni. Retourne False si le remplacement de l'Id n'a pas pu se faire."""
