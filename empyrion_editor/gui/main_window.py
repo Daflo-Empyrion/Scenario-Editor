@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
     QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
-    QProgressDialog, QInputDialog, QPushButton,
+    QProgressDialog, QInputDialog, QPushButton, QSizePolicy,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -786,7 +786,8 @@ class EcfViewWidget(QWidget):
             title += "   [vert = nouveau depuis la fusion, orange = complete depuis la fusion]"
         title_label = QLabel(title)
         title_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
-        layout.addWidget(title_label)
+        title_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        layout.addWidget(title_label, 0)
 
         # -- Barre de recherche : indispensable des que le fichier a beaucoup de blocs
         # (certains ECF reels en ont plus de 5000 au niveau racine, impossible a
@@ -803,7 +804,7 @@ class EcfViewWidget(QWidget):
         btn_filter = QPushButton("Filtrer par propriete...")
         btn_filter.clicked.connect(self._open_property_filter)
         search_row.addWidget(btn_filter)
-        layout.addLayout(search_row)
+        layout.addLayout(search_row, 0)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -822,7 +823,7 @@ class EcfViewWidget(QWidget):
         splitter.addWidget(self.props_table)
 
         splitter.setSizes([400, 500])
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
         self._search_matches: list = []
         self._search_index = -1

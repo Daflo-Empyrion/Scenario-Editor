@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
-    QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit,
+    QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -252,7 +252,8 @@ class EcfEditWidget(QWidget):
         layout.setSpacing(2)
         filename_label = QLabel(f"{path.name}  (copie de travail -- modifiable)")
         filename_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
-        layout.addWidget(filename_label)
+        filename_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        layout.addWidget(filename_label, 0)
 
         search_row = QHBoxLayout()
         search_row.setSpacing(4)
@@ -263,7 +264,7 @@ class EcfEditWidget(QWidget):
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
         search_row.addWidget(self.search_status)
-        layout.addLayout(search_row)
+        layout.addLayout(search_row, 0)
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(4)
@@ -280,7 +281,7 @@ class EcfEditWidget(QWidget):
         btn_save.clicked.connect(self.save)
         toolbar.addWidget(btn_save)
         toolbar.addStretch()
-        layout.addLayout(toolbar)
+        layout.addLayout(toolbar, 0)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -301,7 +302,7 @@ class EcfEditWidget(QWidget):
         splitter.addWidget(self.props_table)
 
         splitter.setSizes([400, 500])
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
         self._search_matches: list = []
         self._search_index = -1
