@@ -14,6 +14,10 @@ from PyQt6.QtGui import QColor, QBrush
 
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
 from core import translation
+from gui.text_tools import (
+    copy_selection, cut_selection, paste_into_selection, delete_selection,
+    install_clipboard_shortcuts, add_clipboard_menu_actions, open_bbcode_tool,
+)
 
 COLOR_MODIFIED_CELL = QBrush(QColor(255, 250, 200))
 
@@ -156,6 +160,9 @@ class CsvEditWidget(QWidget):
         self.table.itemChanged.connect(self._on_cell_changed)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
+        if editable:
+            self.table.setSelectionMode(self.table.SelectionMode.ContiguousSelection)
+            install_clipboard_shortcuts(self.table, allow_new_rows=True)
         layout.addWidget(self.table, 1)
 
     def _populate_table(self):
@@ -264,21 +271,36 @@ class CsvEditWidget(QWidget):
             return
 
         item = self.table.itemAt(pos)
-        if not item:
-            return
-        text = item.text()
-        if not text.strip():
+        if item is None:
+            item = self.table.currentItem()
+
+        menu = QMenu(self)
+        add_clipboard_menu_actions(menu, self.table, allow_new_rows=True)
+        menu.addSeparator()
+
+        text = item.text() if item else ""
+        translate_menu = None
+        lang_actions = {}
+        action_bbcode = None
+        if item and text.strip():
+            translate_menu = menu.addMenu("Traduire vers...")
+            for label, code in translation.COMMON_LANGUAGES:
+                a = translate_menu.addAction(label)
+                lang_actions[a] = (code, label)
+            action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
+
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+
+        if item is None:
             return
         row = item.row()
 
-        menu = QMenu(self)
-        translate_menu = menu.addMenu("Traduire vers...")
-        lang_actions = {}
-        for label, code in translation.COMMON_LANGUAGES:
-            a = translate_menu.addAction(label)
-            lang_actions[a] = (code, label)
+        if action_bbcode is not None and chosen == action_bbcode:
+            new_text = open_bbcode_tool(self, text)
+            if new_text is not None:
+                item.setText(new_text)
+            return
 
-        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
         if chosen not in lang_actions:
             return
         target_code, target_label = lang_actions[chosen]

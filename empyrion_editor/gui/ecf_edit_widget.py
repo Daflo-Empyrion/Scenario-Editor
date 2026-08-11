@@ -29,6 +29,7 @@ from core.ecf.model import (
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
 from gui.csv_edit_widget import TranslationResultDialog
+from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
 
@@ -300,6 +301,7 @@ class EcfEditWidget(QWidget):
         self.props_table.itemChanged.connect(self._on_cell_changed)
         self.props_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.props_table.customContextMenuRequested.connect(self._show_table_context_menu)
+        install_clipboard_shortcuts(self.props_table, allow_new_rows=False)
         splitter.addWidget(self.props_table)
 
         splitter.setSizes([400, 500])
@@ -483,19 +485,29 @@ class EcfEditWidget(QWidget):
         global_pos = self.props_table.viewport().mapToGlobal(pos)
 
         menu = QMenu(self)
-        translate_menu = menu.addMenu("Traduire vers...")
+        add_clipboard_menu_actions(menu, self.props_table, allow_new_rows=False)
+        menu.addSeparator()
+
         from core import translation
+        translate_menu = menu.addMenu("Traduire vers...")
         lang_actions = {}
         for label, code in translation.COMMON_LANGUAGES:
             a = translate_menu.addAction(label)
             lang_actions[a] = code
+
+        action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
+
         action_del = None
         if not is_header_prop:
             action_del = menu.addAction("Supprimer cette propriete")
 
         chosen = menu.exec(global_pos)
 
-        if chosen in lang_actions:
+        if chosen == action_bbcode:
+            new_text = open_bbcode_tool(self, value_item.text())
+            if new_text is not None:
+                value_item.setText(new_text)
+        elif chosen in lang_actions:
             self._translate_cell(value_item, key_item, prop_node, lang_actions[chosen])
         elif chosen == action_del and isinstance(prop_node, EcfProperty):
             remove_property_line(self._current_block, prop_node)
