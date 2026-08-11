@@ -408,92 +408,35 @@ class MainWindow(QMainWindow):
             self.panel_b.setVisible(False)
 
     def _populate_tree(self, tree: QTreeWidget, scenario: Scenario):
+        """Reconstruit l'arborescence EXACTE du disque (comme un explorateur de
+        fichiers classique), plutot qu'une vue categorisee -- plus previsible et plus
+        facile a comparer visuellement entre Scenario A, B et la copie de travail,
+        puisque les trois montrent la meme structure que sur le disque."""
         tree.clear()
-        root_item = QTreeWidgetItem([scenario.name])
+        root_item = QTreeWidgetItem([scenario.root_path.name])
         root_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", scenario.root_path))
         tree.addTopLevelItem(root_item)
-        self._add_file_category(root_item, "Configuration", scenario.configuration,
-                                 scenario.root_path / "Content" / "Configuration")
-        self._add_playfields_category(root_item, scenario)
-        self._add_file_category(root_item, "Sectors", scenario.sectors, scenario.root_path / "Sectors")
-        self._add_file_category(root_item, "RandomPresets", scenario.random_presets,
-                                 scenario.root_path / "RandomPresets")
-        self._add_file_category(root_item, "Extras", scenario.extras, scenario.root_path / "Extras")
-        self._add_other_files_tree(root_item, scenario)
-        if scenario.shared_data:
-            shared_item = QTreeWidgetItem([f"SharedData ({scenario.shared_data.total_file_count()} fichiers)"])
-            shared_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", scenario.shared_data.root_path))
-            root_item.addChild(shared_item)
-            self._add_file_category(shared_item, "Configuration", scenario.shared_data.configuration,
-                                     scenario.shared_data.root_path / "Content" / "Configuration")
-            self._add_playfields_category(shared_item, scenario.shared_data)
-            self._add_file_category(shared_item, "Extras", scenario.shared_data.extras,
-                                     scenario.shared_data.root_path / "Extras")
-            self._add_other_files_tree(shared_item, scenario.shared_data)
+        self._build_real_tree(root_item, scenario.root_path)
         root_item.setExpanded(True)
 
-    def _add_other_files_tree(self, parent_item: QTreeWidgetItem, scenario: Scenario):
-        """Reconstruit la VRAIE arborescence de dossiers pour les fichiers non
-        categorises (Prefabs, Logos, fichiers de racine...), au lieu de tout aplatir
-        dans une seule liste en vrac."""
-        if not scenario.other_files:
+    def _build_real_tree(self, parent_item: QTreeWidgetItem, folder: Path):
+        try:
+            entries = list(folder.iterdir())
+        except OSError:
             return
-        other_root = QTreeWidgetItem([f"Autres ({len(scenario.other_files)})"])
-        parent_item.addChild(other_root)
+        dirs = sorted((e for e in entries if e.is_dir()), key=lambda p: p.name.lower())
+        files = sorted((e for e in entries if e.is_file()), key=lambda p: p.name.lower())
 
-        tree_dict: dict = {}
-        for entry in scenario.other_files:
-            try:
-                rel_parts = entry.path.relative_to(scenario.root_path).parts
-            except ValueError:
-                rel_parts = (entry.name,)
-            node = tree_dict
-            for part in rel_parts[:-1]:
-                node = node.setdefault(part, {})
-            node.setdefault('__files__', []).append(entry)
+        for d in dirs:
+            item = QTreeWidgetItem([d.name])
+            item.setData(0, Qt.ItemDataRole.UserRole, ("folder", d))
+            parent_item.addChild(item)
+            self._build_real_tree(item, d)
 
-        self._build_dict_tree(other_root, tree_dict, scenario.root_path)
-
-    def _build_dict_tree(self, parent_item: QTreeWidgetItem, tree_dict: dict, current_folder: Path):
-        for key in sorted(k for k in tree_dict if k != '__files__'):
-            sub_item = QTreeWidgetItem([key])
-            sub_folder = current_folder / key
-            sub_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", sub_folder))
-            parent_item.addChild(sub_item)
-            self._build_dict_tree(sub_item, tree_dict[key], sub_folder)
-        for entry in sorted(tree_dict.get('__files__', []), key=lambda e: e.name):
-            leaf = QTreeWidgetItem([entry.name])
-            leaf.setData(0, Qt.ItemDataRole.UserRole, ("file", entry.path))
-            parent_item.addChild(leaf)
-
-    def _add_file_category(self, parent_item: QTreeWidgetItem, label: str, entries: list,
-                            folder_path: Optional[Path] = None):
-        if not entries:
-            return
-        cat_item = QTreeWidgetItem([f"{label} ({len(entries)})"])
-        if folder_path is not None:
-            cat_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", folder_path))
-        parent_item.addChild(cat_item)
-        for entry in sorted(entries, key=lambda e: e.name):
-            leaf = QTreeWidgetItem([entry.name])
-            leaf.setData(0, Qt.ItemDataRole.UserRole, ("file", entry.path))
-            cat_item.addChild(leaf)
-
-    def _add_playfields_category(self, parent_item: QTreeWidgetItem, scenario: Scenario):
-        if not scenario.playfields:
-            return
-        playfields_root = scenario.root_path / "Playfields"
-        cat_item = QTreeWidgetItem([f"Playfields ({len(scenario.playfields)})"])
-        cat_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", playfields_root))
-        parent_item.addChild(cat_item)
-        for name, pf in sorted(scenario.playfields.items()):
-            pf_item = QTreeWidgetItem([name])
-            pf_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", playfields_root / name))
-            cat_item.addChild(pf_item)
-            for role, path in sorted(pf.role_files.items()):
-                leaf = QTreeWidgetItem([f"{role} : {path.name}"])
-                leaf.setData(0, Qt.ItemDataRole.UserRole, ("file", path))
-                pf_item.addChild(leaf)
+        for f in files:
+            item = QTreeWidgetItem([f.name])
+            item.setData(0, Qt.ItemDataRole.UserRole, ("file", f))
+            parent_item.addChild(item)
 
     # ------------------------------------------------------------------
     # Copier depuis une source (A ou B) vers la copie de travail
