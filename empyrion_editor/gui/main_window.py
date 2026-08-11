@@ -44,7 +44,7 @@ from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
-from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog
+from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -818,20 +818,17 @@ class EcfViewWidget(QWidget):
         self._search_last_query = ""
 
     def _open_property_filter(self):
-        dialog = PropertyFilterDialog(self.doc, self)
-        if dialog.exec() == PropertyFilterDialog.DialogCode.Accepted and dialog.selected_block:
-            self._select_block_in_tree(dialog.selected_block)
+        dialog = PropertyFilterDialog(self.doc, on_filter_changed=self._apply_property_filter, parent=self)
+        dialog.exec()
 
-    def _select_block_in_tree(self, block: EcfBlock):
-        it = QTreeWidgetItemIterator(self.tree)
-        while it.value():
-            item = it.value()
-            if item.data(0, Qt.ItemDataRole.UserRole) is block:
-                self.tree.setCurrentItem(item)
-                self.tree.scrollToItem(item)
-                self._on_block_selected(item, 0)
-                return
-            it += 1
+    def _apply_property_filter(self, keys):
+        for i in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(i)
+            block = item.data(0, Qt.ItemDataRole.UserRole)
+            if not keys or not isinstance(block, EcfBlock):
+                item.setHidden(False)
+                continue
+            item.setHidden(not all(k in _block_own_keys(block) for k in keys))
 
     def _search_next(self):
         query = self.search_box.text().strip().lower()

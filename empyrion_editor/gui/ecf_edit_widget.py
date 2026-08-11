@@ -155,30 +155,44 @@ class PendingConflictsDialog(QDialog):
         self.accept()
 
 
-class PropertyFilterDialog(QDialog):
-    """Liste toutes les proprietes existantes dans un fichier (blocs de premier niveau),
-    et permet d'en cocher une ou plusieurs pour voir la liste des blocs qui les
-    possedent toutes -- pratique pour reperer par ex. tous les blocs ayant 'CustomIcon'
-    sans avoir a cliquer sur chaque bloc un par un."""
+def _block_own_keys(block: EcfBlock) -> set:
+    """Cles de proprietes DIRECTES d'un bloc (en-tete + lignes enfants directes, sans
+    descendre dans les sous-blocs comme 'Child Items')."""
+    keys = set()
+    for k, v in block.pairs:
+        if k:
+            keys.add(k)
+    for child in block.children:
+        if isinstance(child, EcfProperty):
+            for k, v in child.pairs:
+                if k:
+                    keys.add(k)
+    return keys
 
-    def __init__(self, doc: EcfDocument, parent=None):
+
+class PropertyFilterDialog(QDialog):
+    """Liste toutes les proprietes existantes dans un fichier (blocs de premier niveau)
+    a cocher ; le filtre s'applique EN DIRECT sur l'arbre principal du fichier ouvert
+    (masque les blocs qui n'ont pas toutes les proprietes cochees), via le callback
+    `on_filter_changed`. Reste actif meme apres fermeture de cette fenetre."""
+
+    def __init__(self, doc: EcfDocument, on_filter_changed, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Filtrer par propriete")
-        self.setMinimumSize(750, 500)
-        self.selected_block: Optional[EcfBlock] = None
+        self.setMinimumSize(400, 500)
+        self.on_filter_changed = on_filter_changed
 
-        self.top_blocks = [n for n in doc.nodes if isinstance(n, EcfBlock)]
+        top_blocks = [n for n in doc.nodes if isinstance(n, EcfBlock)]
         key_counts: Dict[str, int] = {}
-        for b in self.top_blocks:
-            for k in self._own_keys(b):
+        for b in top_blocks:
+            for k in _block_own_keys(b):
                 key_counts[k] = key_counts.get(k, 0) + 1
 
         layout = QVBoxLayout(self)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(QLabel("Coche une ou plusieurs proprietes : seuls les blocs\n"
+                                 "possedant TOUTES les proprietes cochees restent visibles\n"
+                                 "dans l'arbre du fichier ouvert."))
 
-        left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.addWidget(QLabel("Proprietes trouvees (coche-en une ou plusieurs) :"))
         self.prop_list = QListWidget()
         for key in sorted(key_counts.keys()):
             item = QListWidgetItem(f"{key}  ({key_counts[key]})")
@@ -186,46 +200,17 @@ class PropertyFilterDialog(QDialog):
             item.setCheckState(Qt.CheckState.Unchecked)
             item.setData(Qt.ItemDataRole.UserRole, key)
             self.prop_list.addItem(item)
-        self.prop_list.itemChanged.connect(self._refresh_results)
-        left_layout.addWidget(self.prop_list)
-        splitter.addWidget(left)
-
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        self.result_label = QLabel("Coche une propriete a gauche pour voir les blocs correspondants.")
-        self.result_label.setWordWrap(True)
-        right_layout.addWidget(self.result_label)
-        self.result_list = QListWidget()
-        self.result_list.itemDoubleClicked.connect(lambda _: self._on_goto())
-        right_layout.addWidget(self.result_list)
-        splitter.addWidget(right)
-
-        splitter.setSizes([320, 430])
-        layout.addWidget(splitter)
+        self.prop_list.itemChanged.connect(self._on_checkbox_changed)
+        layout.addWidget(self.prop_list)
 
         buttons = QHBoxLayout()
-        btn_goto = QPushButton("Aller a ce bloc")
-        btn_goto.clicked.connect(self._on_goto)
-        buttons.addWidget(btn_goto)
+        btn_clear = QPushButton("Tout decocher (afficher tous les blocs)")
+        btn_clear.clicked.connect(self._clear_all)
+        buttons.addWidget(btn_clear)
         btn_close = QPushButton("Fermer")
-        btn_close.clicked.connect(self.reject)
+        btn_close.clicked.connect(self.accept)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)
-
-    @staticmethod
-    def _own_keys(block: EcfBlock) -> set:
-        """Cles de proprietes DIRECTES d'un bloc (en-tete + lignes enfants directes,
-        sans descendre dans les sous-blocs comme 'Child Items')."""
-        keys = set()
-        for k, v in block.pairs:
-            if k:
-                keys.add(k)
-        for child in block.children:
-            if isinstance(child, EcfProperty):
-                for k, v in child.pairs:
-                    if k:
-                        keys.add(k)
-        return keys
 
     def _checked_keys(self) -> List[str]:
         keys = []
@@ -235,30 +220,15 @@ class PropertyFilterDialog(QDialog):
                 keys.append(item.data(Qt.ItemDataRole.UserRole))
         return keys
 
-    def _refresh_results(self, _item=None):
-        keys = self._checked_keys()
-        self.result_list.clear()
-        if not keys:
-            self.result_label.setText("Coche une propriete a gauche pour voir les blocs correspondants.")
-            return
+    def _on_checkbox_changed(self, _item):
+        self.on_filter_changed(self._checked_keys())
 
-        matches = [b for b in self.top_blocks if all(k in self._own_keys(b) for k in keys)]
-        self.result_label.setText(f"{len(matches)} bloc(s) possedant : {', '.join(keys)}")
-        for b in matches:
-            ident = block_identity(b)
-            name = b.get_property('Name')
-            label = f"{b.kind} [{ident}]" if ident else b.kind
-            if name and name != ident:
-                label += f"  - {name}"
-            item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, b)
-            self.result_list.addItem(item)
-
-    def _on_goto(self):
-        item = self.result_list.currentItem()
-        if item:
-            self.selected_block = item.data(Qt.ItemDataRole.UserRole)
-            self.accept()
+    def _clear_all(self):
+        self.prop_list.blockSignals(True)
+        for i in range(self.prop_list.count()):
+            self.prop_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+        self.prop_list.blockSignals(False)
+        self.on_filter_changed([])
 
 
 class EcfEditWidget(QWidget):
@@ -552,20 +522,17 @@ class EcfEditWidget(QWidget):
                 self._populate_tree()
 
     def _open_property_filter(self):
-        dialog = PropertyFilterDialog(self.doc, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_block:
-            self._select_block_in_tree(dialog.selected_block)
+        dialog = PropertyFilterDialog(self.doc, on_filter_changed=self._apply_property_filter, parent=self)
+        dialog.exec()
 
-    def _select_block_in_tree(self, block: EcfBlock):
-        it = QTreeWidgetItemIterator(self.tree)
-        while it.value():
-            item = it.value()
-            if item.data(0, Qt.ItemDataRole.UserRole) is block:
-                self.tree.setCurrentItem(item)
-                self.tree.scrollToItem(item)
-                self._on_block_selected(item, 0)
-                return
-            it += 1
+    def _apply_property_filter(self, keys: List[str]):
+        for i in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(i)
+            block = item.data(0, Qt.ItemDataRole.UserRole)
+            if not keys or not isinstance(block, EcfBlock):
+                item.setHidden(False)
+                continue
+            item.setHidden(not all(k in _block_own_keys(block) for k in keys))
 
     def _add_block_dialog(self):
         kind, ok = QInputDialog.getText(self, "Ajouter un bloc", "Genre du bloc (ex: Block) :")
