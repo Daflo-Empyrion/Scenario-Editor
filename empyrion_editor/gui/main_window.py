@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
     QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
-    QProgressDialog, QInputDialog,
+    QProgressDialog, QInputDialog, QPushButton,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -44,7 +44,7 @@ from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
-from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog
+from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -789,6 +789,9 @@ class EcfViewWidget(QWidget):
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
         search_row.addWidget(self.search_status)
+        btn_filter = QPushButton("Filtrer par propriete...")
+        btn_filter.clicked.connect(self._open_property_filter)
+        search_row.addWidget(btn_filter)
         layout.addLayout(search_row)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -813,6 +816,22 @@ class EcfViewWidget(QWidget):
         self._search_matches: list = []
         self._search_index = -1
         self._search_last_query = ""
+
+    def _open_property_filter(self):
+        dialog = PropertyFilterDialog(self.doc, self)
+        if dialog.exec() == PropertyFilterDialog.DialogCode.Accepted and dialog.selected_block:
+            self._select_block_in_tree(dialog.selected_block)
+
+    def _select_block_in_tree(self, block: EcfBlock):
+        it = QTreeWidgetItemIterator(self.tree)
+        while it.value():
+            item = it.value()
+            if item.data(0, Qt.ItemDataRole.UserRole) is block:
+                self.tree.setCurrentItem(item)
+                self.tree.scrollToItem(item)
+                self._on_block_selected(item, 0)
+                return
+            it += 1
 
     def _search_next(self):
         query = self.search_box.text().strip().lower()
@@ -873,6 +892,9 @@ class EcfViewWidget(QWidget):
     def _make_block_item(self, block: EcfBlock) -> QTreeWidgetItem:
         ident = block_identity(block)
         label = f"{block.kind} [{ident}]" if ident else block.kind
+        name = block.get_property('Name')
+        if name and name != ident:
+            label += f"  - {name}"
         item = QTreeWidgetItem([label])
         item.setData(0, Qt.ItemDataRole.UserRole, block)
 
