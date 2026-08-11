@@ -13,7 +13,7 @@ import csv
 import io
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .file_handlers import FileHandler
 
@@ -99,3 +99,80 @@ class CsvHandler(FileHandler):
 
     def serialize(self, ast: CsvDocument) -> str:
         return render_csv(ast)
+
+
+def merge_csv_documents(working_doc: CsvDocument, incoming_doc: CsvDocument) -> "Tuple[CsvDocument, List[str]]":
+    """
+    Fusionne deux documents CSV par cle (1ere colonne) : la copie de travail est
+    TOUJOURS prioritaire -- une ligne dont la cle existe deja n'est jamais ecrasee,
+    seules les CELLULES VIDES sont completees depuis la source (meme philosophie que
+    la fusion ECF en mode 'properties'). Les lignes dont la cle est absente de la copie
+    de travail sont ajoutees telles quelles.
+
+    Retourne (document_fusionne, rapport_des_changements -- une ligne de texte par
+    ligne ajoutee ou completee).
+    """
+    report: List[str] = []
+    merged_rows = [list(row) for row in working_doc.rows]
+    key_to_index = {row[0]: i for i, row in enumerate(merged_rows) if row}
+
+    for inc_row in incoming_doc.rows:
+        if not inc_row:
+            continue
+        key = inc_row[0]
+        if key not in key_to_index:
+            merged_rows.append(list(inc_row))
+            key_to_index[key] = len(merged_rows) - 1
+            report.append(f"+ {key} (nouvelle ligne)")
+        else:
+            idx = key_to_index[key]
+            existing_row = merged_rows[idx]
+            new_row = list(existing_row)
+            changed_cols = []
+            for c in range(max(len(existing_row), len(inc_row))):
+                existing_val = existing_row[c] if c < len(existing_row) else ""
+                inc_val = inc_row[c] if c < len(inc_row) else ""
+                if not existing_val.strip() and inc_val.strip():
+                    while len(new_row) <= c:
+                        new_row.append("")
+                    new_row[c] = inc_val
+                    changed_cols.append(c)
+            if changed_cols:
+                merged_rows[idx] = new_row
+                col_names = [working_doc.header[c] if working_doc.header and c < len(working_doc.header) else str(c)
+                             for c in changed_cols]
+                report.append(f"~ {key} (complete : {', '.join(col_names)})")
+
+    merged_doc = CsvDocument(
+        header=working_doc.header, rows=merged_rows,
+        delimiter=working_doc.delimiter, quotechar=working_doc.quotechar,
+        lineterminator=working_doc.lineterminator, quoting=working_doc.quoting,
+    )
+    return merged_doc, report
+
+
+def merge_single_csv_row(working_doc: CsvDocument, row: List[str]) -> "Tuple[CsvDocument, str]":
+    """Fusionne UNE SEULE ligne (par cle) dans un document CSV deja charge -- meme
+    logique que merge_csv_documents (complete les cellules vides, jamais d'ecrasement).
+    Retourne (document_modifie, statut) ou statut vaut 'added', 'merged', ou 'unchanged'."""
+    if not row:
+        return working_doc, 'unchanged'
+    key = row[0]
+    for i, existing_row in enumerate(working_doc.rows):
+        if existing_row and existing_row[0] == key:
+            new_row = list(existing_row)
+            changed = False
+            for c in range(max(len(existing_row), len(row))):
+                existing_val = existing_row[c] if c < len(existing_row) else ""
+                inc_val = row[c] if c < len(row) else ""
+                if not existing_val.strip() and inc_val.strip():
+                    while len(new_row) <= c:
+                        new_row.append("")
+                    new_row[c] = inc_val
+                    changed = True
+            if changed:
+                working_doc.rows[i] = new_row
+                return working_doc, 'merged'
+            return working_doc, 'unchanged'
+    working_doc.rows.append(list(row))
+    return working_doc, 'added'

@@ -99,15 +99,18 @@ def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
 class CsvEditWidget(QWidget):
     """Editeur/visualiseur de fichier .csv : tableau editable si `editable=True` (copie
     de travail), ou lecture seule sinon (Scenario A/B). La traduction par clic droit
-    reste disponible dans les deux cas."""
+    reste disponible dans les deux cas. En lecture seule, si `on_copy_row` est fourni,
+    un clic droit propose de copier la ligne (par cle) vers la copie de travail."""
 
     modified_changed = pyqtSignal(bool)
     saved = pyqtSignal()
 
-    def __init__(self, path: Path, editable: bool = True):
+    def __init__(self, path: Path, editable: bool = True, on_copy_row=None, copy_label: Optional[str] = None):
         super().__init__()
         self.path = path
         self.editable = editable
+        self.on_copy_row = on_copy_row
+        self.copy_label = copy_label
         self._modified = False
 
         handler = CsvHandler()
@@ -223,10 +226,24 @@ class CsvEditWidget(QWidget):
 
     def _show_context_menu(self, pos):
         if not self.editable:
-            # Vue lecture seule (Scenario A/B) -- pas d'action de traduction/ecriture
-            # ici : rien de sur ou l'ecrire (aucun fichier de copie de travail associe
-            # a ce panneau precis).
+            # Vue lecture seule (Scenario A/B) -- seule action proposee : copier la
+            # ligne entiere vers la copie de travail (si le callback est fourni).
+            if not self.on_copy_row:
+                return
+            item = self.table.itemAt(pos)
+            if not item:
+                return
+            row_idx = item.row()
+            row_values = [self.table.item(row_idx, c).text() if self.table.item(row_idx, c) else ""
+                          for c in range(self.table.columnCount())]
+            key = row_values[0] if row_values else "?"
+            menu = QMenu(self)
+            action = menu.addAction(f"Copier cette ligne (cle '{key}') vers la copie de travail")
+            chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+            if chosen == action:
+                self.on_copy_row(row_values)
             return
+
         item = self.table.itemAt(pos)
         if not item:
             return

@@ -96,32 +96,45 @@ class MergeHighlight:
 
 
 def merge_file_into_working(workspace: Workspace, source_file: Path, source_root: Path,
-                             source_label: str) -> Tuple[Path, Optional["MergeHighlight"], list]:
+                             source_label: str) -> Tuple[Path, Optional["MergeHighlight"], list, Optional[list]]:
     """
     Importe un fichier depuis une source (A ou B) vers la copie de travail :
-      - si le fichier n'existe pas encore dans la copie de travail, ou si ce n'est pas
-        un .ecf (format sans moteur de fusion dedie pour l'instant) -> simple copie.
-      - si c'est un .ecf qui existe DEJA dans la copie de travail -> FUSION intelligente
-        (mode 'properties', la copie de travail est prioritaire : ses valeurs existantes
-        sont conservees, seules les proprietes/blocs absents sont completes depuis la
-        source). Retourne aussi un rapport (MergeHighlight) de ce qui a ete ajoute, pour
-        que l'interface puisse coloriser les changements.
+      - .ecf qui existe deja -> FUSION intelligente (mode 'properties', copie de
+        travail prioritaire, garde-fou anti-collision d'Id -- voir plus bas).
+      - .csv qui existe deja -> FUSION par cle (1ere colonne) : la copie de travail
+        est prioritaire, seules les cellules VIDES sont completees depuis la source,
+        les lignes de cle absente sont ajoutees. Retourne un rapport texte (4eme
+        valeur) au lieu d'un MergeHighlight.
+      - tout le reste (fichier absent de la copie de travail, ou format sans moteur de
+        fusion dedie) -> simple copie.
 
-    IMPORTANT -- garde-fou anti-collision : si un Id est partage entre deux blocs dont
-    la propriete 'Name' differe (meme Id, materiel different -- ca arrive entre
-    scenarios independants, ex: BlocksConfig.ecf), le bloc n'est JAMAIS fusionne a
-    l'aveugle. Il est ajoute en fin de fichier, DESACTIVE (commente), pour revue
-    manuelle -- voir la liste de conflits retournee.
+    IMPORTANT -- garde-fou anti-collision (ECF uniquement) : si un Id est partage
+    entre deux blocs dont la propriete 'Name' differe (meme Id, materiel different),
+    le bloc n'est JAMAIS fusionne a l'aveugle -- ajoute en fin de fichier, DESACTIVE
+    (commente), pour revue manuelle.
 
-    Retourne (chemin_destination, highlight_ou_None, liste_de_conflits_d_id).
+    Retourne (chemin_destination, highlight_ecf_ou_None, conflits_id_ecf, rapport_csv_ou_None).
     """
     rel = source_file.relative_to(source_root)
     dest = workspace.working_root / rel
 
+    if dest.suffix.lower() == '.csv' and dest.exists():
+        from .csv_handler import CsvHandler, merge_csv_documents, render_csv
+
+        handler = CsvHandler()
+        working_doc = handler.parse(handler.load(dest))
+        source_doc = handler.parse(handler.load(source_file))
+        merged_doc, csv_report = merge_csv_documents(working_doc, source_doc)
+
+        with open(dest, 'w', encoding='utf-8', newline='') as f:
+            f.write(render_csv(merged_doc))
+
+        return dest, None, [], csv_report
+
     if dest.suffix.lower() != '.ecf' or not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_file, dest)
-        return dest, None, []
+        return dest, None, [], None
 
     from .ecf.parser import parse_ecf_file
     from .ecf.merge import merge_documents
@@ -147,28 +160,60 @@ def merge_file_into_working(workspace: Workspace, source_file: Path, source_root
             changed_blocks[(e.kind, e.identity)] = idents
 
     highlight = MergeHighlight(new_blocks=new_blocks, changed_blocks=changed_blocks)
-    return dest, highlight, result.id_conflicts
+    return dest, highlight, result.id_conflicts, None
 
 
 def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_root: Path,
-                               source_label: str) -> Tuple[dict, list]:
+                               source_label: str) -> Tuple[dict, list, dict]:
     """
     Fusionne recursivement TOUS les fichiers d'un dossier (et sous-dossiers) source vers
     la copie de travail, fichier par fichier -- meme logique que merge_file_into_working
-    pour chacun (fusion intelligente pour les .ecf existants, simple copie sinon).
-    Utile pour importer plusieurs blocs/fichiers d'un coup sans fusionner tout le scenario.
+    pour chacun (fusion intelligente pour les .ecf existants, fusion par cle pour les
+    .csv existants, simple copie sinon). Utile pour importer plusieurs fichiers d'un
+    coup sans fusionner tout le scenario.
 
-    Retourne (dict {chemin_destination: MergeHighlight}, liste_de_tous_les_conflits_d_id).
+    Retourne (dict {chemin: MergeHighlight} pour les .ecf, liste de tous les conflits
+    d'Id, dict {chemin: rapport} pour les .csv).
     """
     highlights = {}
     all_conflicts = []
+    csv_reports = {}
     files = [p for p in source_folder.rglob('*') if p.is_file()]
     for f in files:
-        dest, highlight, conflicts = merge_file_into_working(workspace, f, source_root, source_label)
+        dest, highlight, conflicts, csv_report = merge_file_into_working(workspace, f, source_root, source_label)
         if highlight:
             highlights[dest] = highlight
+        if csv_report:
+            csv_reports[dest] = csv_report
         all_conflicts.extend(conflicts)
-    return highlights, all_conflicts
+    return highlights, all_conflicts, csv_reports
+
+
+def merge_csv_row_into_working(workspace: Workspace, working_relative_path: Path,
+                                row: list) -> Tuple[Path, str]:
+    """Fusionne UNE SEULE ligne CSV (venant d'une source) dans le fichier correspondant
+    de la copie de travail, SANS toucher au reste du fichier. Meme logique que
+    merge_csv_documents (jamais d'ecrasement, complete seulement les cellules vides).
+    Retourne (chemin_du_fichier, statut) -- statut : 'added', 'merged', 'unchanged'."""
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(
+            f"Le fichier {dest} n'existe pas encore dans la copie de travail -- "
+            f"importe d'abord le fichier entier avant de fusionner une ligne precise."
+        )
+
+    from .csv_handler import CsvHandler, merge_single_csv_row, render_csv
+
+    handler = CsvHandler()
+    doc = handler.parse(handler.load(dest))
+    doc, status = merge_single_csv_row(doc, row)
+
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(render_csv(doc))
+
+    return dest, status
+
+
 def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
                               block, source_label: str) -> Tuple[Path, str, Optional["MergeHighlight"]]:
     """

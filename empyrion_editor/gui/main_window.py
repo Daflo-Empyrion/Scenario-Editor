@@ -29,7 +29,8 @@ from core.scanner import scan_scenario
 from core.models import Scenario, FileEntry
 from core.workspace import (
     Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
-    merge_file_into_working, merge_folder_into_working, merge_block_into_working, MergeHighlight,
+    merge_file_into_working, merge_folder_into_working, merge_block_into_working,
+    merge_csv_row_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.dependency_check import check_references
@@ -547,7 +548,8 @@ class MainWindow(QMainWindow):
         QApplication.processEvents()
 
         try:
-            highlights, id_conflicts = merge_folder_into_working(self.workspace, folder, source_root, source_label)
+            highlights, id_conflicts, csv_reports = merge_folder_into_working(
+                self.workspace, folder, source_root, source_label)
             self.workspace.rescan_working()
         except Exception as e:
             progress.close()
@@ -558,7 +560,7 @@ class MainWindow(QMainWindow):
         self._highlights.update(highlights)
         self._populate_tree(self.tree_working, self.workspace.working)
 
-        for path_touched in highlights:
+        for path_touched in list(highlights.keys()) + list(csv_reports.keys()):
             for i in range(self.tabs.count()):
                 if self.tabs.tabToolTip(i) == str(path_touched):
                     self.tabs.removeTab(i)
@@ -577,14 +579,17 @@ class MainWindow(QMainWindow):
                 f"pour revue manuelle :\n\n{details}{more}"
             )
 
+        n_csv_rows = sum(len(r) for r in csv_reports.values())
         self.statusBar().showMessage(
             f"Dossier fusionne : {nb_files} fichier(s) traites, {len(highlights)} fichier(s) .ecf "
-            f"avec des changements, {len(id_conflicts)} conflit(s) d'Id au total"
+            f"avec des changements, {len(csv_reports)} fichier(s) .csv completes "
+            f"({n_csv_rows} ligne(s)), {len(id_conflicts)} conflit(s) d'Id au total"
         )
 
     def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
         try:
-            dest, highlight, id_conflicts = merge_file_into_working(self.workspace, path, source_root, source_label)
+            dest, highlight, id_conflicts, csv_report = merge_file_into_working(
+                self.workspace, path, source_root, source_label)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, "Erreur", f"Impossible de copier/fusionner {path.name} :\n{e}")
@@ -617,7 +622,16 @@ class MainWindow(QMainWindow):
                 f"(reassigner un Id libre) :\n\n{details}"
             )
 
-        if highlight and (highlight.new_blocks or highlight.changed_blocks):
+        if csv_report is not None:
+            if csv_report:
+                self.statusBar().showMessage(
+                    f"Fusionne (CSV) dans la copie de travail : {dest.name} -- "
+                    f"{len(csv_report)} ligne(s) ajoutee(s)/completee(s) "
+                    f"(les lignes deja presentes n'ont pas ete ecrasees)"
+                )
+            else:
+                self.statusBar().showMessage(f"Fusionne (CSV) : {dest.name} -- aucun changement (deja a jour)")
+        elif highlight and (highlight.new_blocks or highlight.changed_blocks):
             n_new = len(highlight.new_blocks)
             n_changed = len(highlight.changed_blocks)
             msg = (f"Fusionne dans la copie de travail : {dest.name} -- "
@@ -660,6 +674,32 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Bloc ajoute dans {dest.name}")
         else:
             self.statusBar().showMessage(f"Bloc fusionne (complete) dans {dest.name}")
+
+    def _copy_csv_row_into_working(self, row: list, source_file_path: Path,
+                                    source_root: Path, source_label: str):
+        """Copie UNE SEULE ligne CSV (par cle) vers le fichier correspondant de la
+        copie de travail, sans toucher au reste du fichier."""
+        rel = source_file_path.relative_to(source_root)
+        try:
+            dest, status = merge_csv_row_into_working(self.workspace, rel, row)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible de copier cette ligne :\n{e}")
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        key = row[0] if row else "?"
+        if status == 'added':
+            self.statusBar().showMessage(f"Ligne '{key}' ajoutee dans {dest.name}")
+        elif status == 'merged':
+            self.statusBar().showMessage(f"Ligne '{key}' completee (cellules vides) dans {dest.name}")
+        else:
+            self.statusBar().showMessage(f"Ligne '{key}' deja a jour dans {dest.name} -- rien a changer")
 
     # ------------------------------------------------------------------
     # Ouverture de fichiers (lecture seule pour A/B, meme vue pour l'instant sur
@@ -767,7 +807,11 @@ class MainWindow(QMainWindow):
             elif ext in ('.yaml', '.yml'):
                 widget = YamlViewWidget(path)
             elif ext == '.csv':
-                widget = CsvEditWidget(path, editable=False)
+                on_copy_row = None
+                if read_only and source_root and source_label:
+                    on_copy_row = lambda row: self._copy_csv_row_into_working(
+                        row, path, source_root, source_label)
+                widget = CsvEditWidget(path, editable=False, on_copy_row=on_copy_row, copy_label=source_label)
             else:
                 QMessageBox.information(self, "Non supporte",
                                          f"Pas encore de vue pour les fichiers {ext}")
