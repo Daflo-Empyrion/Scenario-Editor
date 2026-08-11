@@ -240,11 +240,10 @@ def translate_csv_cell_into_working(workspace: Workspace, working_relative_path:
 
     target_col = None
     if doc.header:
-        code_upper = target_code.upper()
-        label_upper = target_label.upper()
+        from .translation import find_language_aliases, _normalize
+        aliases = find_language_aliases(target_code, target_label)
         for c, h in enumerate(doc.header):
-            h_upper = h.strip().upper()
-            if h_upper == code_upper or h_upper == label_upper:
+            if _normalize(h.strip()) in aliases:
                 target_col = c
                 break
     if target_col is None:

@@ -28,11 +28,60 @@ COMMON_LANGUAGES = [
     ("Espagnol", "es"),
     ("Italien", "it"),
     ("Russe", "ru"),
-    ("Portugais", "pt"),
+    ("Portugais (Europe)", "pt"),
+    ("Portugais (Bresil)", "pt-BR"),
     ("Neerlandais", "nl"),
     ("Polonais", "pl"),
+    ("Japonais", "ja"),
+    ("Coreen", "ko"),
+    ("Turc", "tr"),
+    ("Grec", "el"),
+    ("Vietnamien", "vi"),
     ("Chinois (simplifie)", "zh-CN"),
+    ("Chinois (traditionnel)", "zh-TW"),
 ]
+
+# Alias possibles pour reperer la colonne d'une langue dans l'en-tete d'un CSV --
+# les fichiers Empyrion reels utilisent des conventions variees (nom anglais, nom
+# natif, code ISO...), donc on accepte plusieurs formes par langue. La comparaison
+# se fait sans tenir compte des accents (voir _normalize).
+LANGUAGE_ALIASES = {
+    "fr": ["fr", "french", "francais", "français"],
+    "en": ["en", "english", "anglais"],
+    "de": ["de", "german", "deutsch", "allemand"],
+    "es": ["es", "spanish", "espanol", "español", "espagnol"],
+    "it": ["it", "italian", "italiano", "italien"],
+    "ru": ["ru", "russian", "russe"],
+    "pt": ["pt", "portuguese (euro)", "portuguese", "portugues", "português", "portugais"],
+    "pt-BR": ["pt-br", "portuguese (brazil)", "portugues (brasil)", "português (brasil)"],
+    "nl": ["nl", "dutch", "nederlands", "neerlandais"],
+    "pl": ["pl", "polish", "polski", "polonais"],
+    "ja": ["ja", "japanese", "japonais"],
+    "ko": ["ko", "korean", "coreen"],
+    "tr": ["tr", "turkish", "turc"],
+    "el": ["el", "greek", "grec"],
+    "vi": ["vi", "vietnamese", "vietnamien"],
+    "zh-CN": ["zh-cn", "chinese (simplified)", "chinois (simplifie)"],
+    "zh-TW": ["zh-tw", "chinese (traditional)", "chinois (traditionnel)"],
+}
+
+
+def _normalize(s: str) -> str:
+    """Normalise une chaine pour comparaison : sans accents, sans espaces superflus,
+    en majuscules -- pour que 'Français' == 'Francais' == 'FRANCAIS'."""
+    import unicodedata
+    s = unicodedata.normalize('NFKD', s)
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    return s.strip().upper()
+
+
+def find_language_aliases(target_code: str, target_label: str) -> list:
+    """Retourne toutes les formes acceptees (normalisees) pour reperer la colonne
+    d'une langue donnee dans un en-tete CSV."""
+    aliases = set(LANGUAGE_ALIASES.get(target_code, [target_code]))
+    aliases.add(target_code)
+    aliases.add(target_label)
+    return [_normalize(a) for a in aliases]
 
 # Balises BBCode : [b], [/b], [color=#FF0000], [url=...], etc.
 _BBCODE_RE = r'\[/?[a-zA-Z0-9_]+(?:=[^\]]*)?\]'

@@ -220,16 +220,15 @@ class CsvEditWidget(QWidget):
         self._set_modified(True)
 
     def _find_language_column(self, target_code: str, target_label: str) -> Optional[int]:
-        """Trouve la colonne dont l'en-tete correspond a la langue cible, par code
-        (ex: 'FR') ou par libelle (ex: 'Francais') -- comparaison insensible a la casse."""
-        code_upper = target_code.upper()
-        label_upper = target_label.upper()
+        """Trouve la colonne dont l'en-tete correspond a la langue cible -- via une
+        liste d'alias (code ISO, nom anglais, nom natif, libelle du menu), comparaison
+        insensible aux accents et a la casse (voir core.translation.find_language_aliases)."""
+        aliases = translation.find_language_aliases(target_code, target_label)
         for c in range(self.table.columnCount()):
             header_item = self.table.horizontalHeaderItem(c)
             if not header_item:
                 continue
-            header_upper = header_item.text().strip().upper()
-            if header_upper == code_upper or header_upper == label_upper:
+            if translation._normalize(header_item.text().strip()) in aliases:
                 return c
         return None
 
