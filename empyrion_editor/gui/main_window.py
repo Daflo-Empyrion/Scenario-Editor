@@ -222,12 +222,23 @@ class MainWindow(QMainWindow):
         )
 
     def _build_layout(self):
-        self.outer_splitter = QSplitter(Qt.Orientation.Horizontal)
+        # Layout vertical : en HAUT les fichiers ouverts (l'espace de travail principal,
+        # comparaison + edition -- ce qui merite le plus de place), en BAS une bande
+        # compacte de navigation avec les 3 scenarios cote a cote (A | copie de travail | B).
+        self.main_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # -- Volet gauche : Scenario A (lecture seule) --
+        # -- Haut : onglets des fichiers ouverts --
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(lambda i: self.tabs.removeTab(i))
+        self.main_splitter.addWidget(self.tabs)
+
+        # -- Bas : bande de navigation A | copie de travail | B --
+        bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
+
         self.panel_a = QWidget()
         layout_a = QVBoxLayout(self.panel_a)
-        layout_a.setContentsMargins(4, 4, 4, 4)
+        layout_a.setContentsMargins(4, 2, 4, 2)
         self.label_a = QLabel("Scenario A (lecture seule)")
         self.label_a.setStyleSheet("font-weight: bold;")
         self.tree_a = QTreeWidget()
@@ -238,35 +249,23 @@ class MainWindow(QMainWindow):
             lambda pos: self._show_source_context_menu(self.tree_a, pos, self._root_a))
         layout_a.addWidget(self.label_a)
         layout_a.addWidget(self.tree_a)
-        self.outer_splitter.addWidget(self.panel_a)
+        bottom_splitter.addWidget(self.panel_a)
 
-        # -- Volet central : copie de travail + onglets --
-        center_widget = QWidget()
-        center_layout = QVBoxLayout(center_widget)
-        center_layout.setContentsMargins(4, 4, 4, 4)
+        self.panel_working = QWidget()
+        layout_w = QVBoxLayout(self.panel_working)
+        layout_w.setContentsMargins(4, 2, 4, 2)
         self.label_working = QLabel("Copie de travail (modifiable)")
         self.label_working.setStyleSheet("font-weight: bold; color: #2a6;")
-        center_layout.addWidget(self.label_working)
-
-        center_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
-        center_splitter.addWidget(self.tree_working)
+        layout_w.addWidget(self.label_working)
+        layout_w.addWidget(self.tree_working)
+        bottom_splitter.addWidget(self.panel_working)
 
-        self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True)
-        self.tabs.tabCloseRequested.connect(lambda i: self.tabs.removeTab(i))
-        center_splitter.addWidget(self.tabs)
-        center_splitter.setSizes([280, 700])
-
-        center_layout.addWidget(center_splitter)
-        self.outer_splitter.addWidget(center_widget)
-
-        # -- Volet droit : Scenario B (lecture seule, cache si pas en mode fusion) --
         self.panel_b = QWidget()
         layout_b = QVBoxLayout(self.panel_b)
-        layout_b.setContentsMargins(4, 4, 4, 4)
+        layout_b.setContentsMargins(4, 2, 4, 2)
         self.label_b = QLabel("Scenario B (lecture seule)")
         self.label_b.setStyleSheet("font-weight: bold;")
         self.tree_b = QTreeWidget()
@@ -277,11 +276,18 @@ class MainWindow(QMainWindow):
             lambda pos: self._show_source_context_menu(self.tree_b, pos, self._root_b))
         layout_b.addWidget(self.label_b)
         layout_b.addWidget(self.tree_b)
-        self.outer_splitter.addWidget(self.panel_b)
+        bottom_splitter.addWidget(self.panel_b)
         self.panel_b.setVisible(False)
 
-        self.outer_splitter.setSizes([320, 880, 320])
-        self.setCentralWidget(self.outer_splitter)
+        bottom_splitter.setSizes([320, 320, 320])
+        self.main_splitter.addWidget(bottom_splitter)
+
+        # Le haut (onglets) prend la grande majorite de la hauteur ; le bas reste une
+        # bande de navigation compacte, redimensionnable a la souris si besoin.
+        self.main_splitter.setSizes([650, 220])
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 0)
+        self.setCentralWidget(self.main_splitter)
 
     @property
     def _root_a(self) -> Optional[Path]:
