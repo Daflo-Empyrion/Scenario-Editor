@@ -107,7 +107,21 @@ def add_clipboard_menu_actions(menu: QMenu, table: QTableWidget, allow_new_rows:
     menu.addAction("Copier", lambda: copy_selection(table))
     menu.addAction("Couper", lambda: cut_selection(table))
     menu.addAction("Coller", lambda: paste_into_selection(table, allow_new_rows))
-    menu.addAction("Supprimer le contenu", lambda: delete_selection(table))
+    menu.addAction("Supprimer le contenu (vide la/les cellule(s))", lambda: delete_selection(table))
+
+
+def delete_selected_rows(table: QTableWidget) -> int:
+    """Supprime ENTIEREMENT la ou les lignes couvertes par la selection (pas juste
+    leur contenu) -- utile pour un tableau ou chaque ligne represente un enregistrement
+    complet (ex: une ligne CSV). Retourne le nombre de lignes supprimees."""
+    rows = set()
+    for r in table.selectedRanges():
+        rows.update(range(r.topRow(), r.bottomRow() + 1))
+    if not rows and table.currentRow() >= 0:
+        rows = {table.currentRow()}
+    for row in sorted(rows, reverse=True):
+        table.removeRow(row)
+    return len(rows)
 
 
 # ------------------------------------------------------------------

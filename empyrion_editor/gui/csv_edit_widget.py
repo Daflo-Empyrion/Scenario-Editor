@@ -15,7 +15,7 @@ from PyQt6.QtGui import QColor, QBrush
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
 from core import translation
 from gui.text_tools import (
-    copy_selection, cut_selection, paste_into_selection, delete_selection,
+    copy_selection, cut_selection, paste_into_selection, delete_selection, delete_selected_rows,
     install_clipboard_shortcuts, add_clipboard_menu_actions, open_bbcode_tool,
 )
 
@@ -276,6 +276,7 @@ class CsvEditWidget(QWidget):
 
         menu = QMenu(self)
         add_clipboard_menu_actions(menu, self.table, allow_new_rows=True)
+        action_del_row = menu.addAction("Supprimer la/les ligne(s) entiere(s)")
         menu.addSeparator()
 
         text = item.text() if item else ""
@@ -290,6 +291,12 @@ class CsvEditWidget(QWidget):
             action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
 
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+
+        if chosen == action_del_row:
+            n = delete_selected_rows(self.table)
+            if n:
+                self._set_modified(True)
+            return
 
         if item is None:
             return
