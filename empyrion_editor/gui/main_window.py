@@ -45,6 +45,7 @@ from core.project_store import ProjectRecord
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
 from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys
+from gui.csv_edit_widget import CsvEditWidget
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -680,13 +681,28 @@ class MainWindow(QMainWindow):
 
     def open_working_file_tab(self, path: Path):
         """Ouvre un fichier de la copie de travail en edition, avec la (ou les) source(s)
-        A/B correspondante(s) affichee(s) cote a cote si elles existent."""
+        A/B correspondante(s) affichee(s) cote a cote si elles existent (uniquement
+        pour les .ecf pour l'instant)."""
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(path):
                 self.tabs.setCurrentIndex(i)
                 return
 
         ext = path.suffix.lower()
+
+        if ext == '.csv':
+            try:
+                widget = CsvEditWidget(path)
+            except Exception as e:
+                QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
+                return
+            index = self.tabs.addTab(widget, "✎ " + path.name)
+            self.tabs.setTabToolTip(index, str(path))
+            self.tabs.setCurrentIndex(index)
+            widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
+            widget.saved.connect(lambda w=widget: self.statusBar().showMessage(f"Enregistre : {w.path}"))
+            return
+
         if ext != '.ecf':
             # Pas encore d'edition pour les autres formats -- vue lecture seule standard
             self.open_file_tab(path, read_only=False)
@@ -727,7 +743,8 @@ class MainWindow(QMainWindow):
         idx = self.tabs.indexOf(widget)
         if idx == -1:
             return
-        base = widget.edit_widget.path.name
+        inner = getattr(widget, 'edit_widget', widget)  # CompareWidget a un sous-widget, CsvEditWidget non
+        base = inner.path.name
         self.tabs.setTabText(idx, ("✎ * " if modified else "✎ ") + base)
 
     def open_file_tab(self, path: Path, read_only: bool,

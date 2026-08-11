@@ -108,5 +108,6 @@ def default_registry() -> HandlerRegistry:
     reg.register(EcfHandler())
     from .yaml_handler import YamlHandler
     reg.register(YamlHandler())
-    reg.register(UnimplementedHandler(('.csv',)))
+    from .csv_handler import CsvHandler
+    reg.register(CsvHandler())
     return reg

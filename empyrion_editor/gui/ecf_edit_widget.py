@@ -28,6 +28,7 @@ from core.ecf.model import (
 )
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
+from gui.csv_edit_widget import TranslationResultDialog
 
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
 
@@ -474,20 +475,55 @@ class EcfEditWidget(QWidget):
         if not item or not self._current_block:
             return
         row = item.row()
-        prop_node = self.props_table.item(row, 1).data(Qt.ItemDataRole.UserRole)
+        value_item = self.props_table.item(row, 1)
+        key_item = self.props_table.item(row, 0)
+        prop_node = value_item.data(Qt.ItemDataRole.UserRole)
 
-        if isinstance(prop_node, EcfBlock):
-            # Propriete d'en-tete (Id, Name...) -- pas de suppression proposee ici,
-            # trop risque de casser la structure du bloc sans passer par une action dediee.
-            return
+        is_header_prop = isinstance(prop_node, EcfBlock)
+        global_pos = self.props_table.viewport().mapToGlobal(pos)
 
         menu = QMenu(self)
-        action_del = menu.addAction("Supprimer cette propriete")
-        chosen = menu.exec(self.props_table.viewport().mapToGlobal(pos))
-        if chosen == action_del and isinstance(prop_node, EcfProperty):
+        translate_menu = menu.addMenu("Traduire vers...")
+        from core import translation
+        lang_actions = {}
+        for label, code in translation.COMMON_LANGUAGES:
+            a = translate_menu.addAction(label)
+            lang_actions[a] = code
+        action_del = None
+        if not is_header_prop:
+            action_del = menu.addAction("Supprimer cette propriete")
+
+        chosen = menu.exec(global_pos)
+
+        if chosen in lang_actions:
+            self._translate_cell(value_item, key_item, prop_node, lang_actions[chosen])
+        elif chosen == action_del and isinstance(prop_node, EcfProperty):
             remove_property_line(self._current_block, prop_node)
             self._set_modified(True)
             self._refresh_props_table()
+
+    def _translate_cell(self, value_item, key_item, prop_node, target_lang: str):
+        from core import translation
+        text = value_item.text()
+        if not translation.is_available():
+            QMessageBox.warning(self, "Traduction indisponible",
+                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            return
+        try:
+            translated = translation.translate_text(text, target=target_lang)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de traduction",
+                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            return
+
+        dialog = TranslationResultDialog(text, translated, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.accepted_replace:
+            return
+        new_value = dialog.result_text()
+
+        # Applique via le meme chemin qu'une edition manuelle -- annotation de
+        # tracabilite comprise (comportement coherent avec toute autre modification).
+        value_item.setText(new_value)  # declenche _on_cell_changed, qui gere tout le reste
 
     def _add_property_dialog(self):
         if not self._current_block:
