@@ -97,15 +97,17 @@ def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
 
 
 class CsvEditWidget(QWidget):
-    """Editeur de fichier .csv (copie de travail) : tableau editable, avec traduction
-    par clic droit sur une cellule."""
+    """Editeur/visualiseur de fichier .csv : tableau editable si `editable=True` (copie
+    de travail), ou lecture seule sinon (Scenario A/B). La traduction par clic droit
+    reste disponible dans les deux cas."""
 
     modified_changed = pyqtSignal(bool)
     saved = pyqtSignal()
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, editable: bool = True):
         super().__init__()
         self.path = path
+        self.editable = editable
         self._modified = False
 
         handler = CsvHandler()
@@ -116,24 +118,26 @@ class CsvEditWidget(QWidget):
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(2)
 
-        info_label = QLabel(f"{path.name}  (copie de travail -- modifiable) -- "
+        mode_text = "copie de travail -- modifiable" if editable else "lecture seule"
+        info_label = QLabel(f"{path.name}  ({mode_text}) -- "
                              f"{len(self.doc.rows)} ligne(s), delimiteur '{self.doc.delimiter}'")
         info_label.setStyleSheet("font-size: 11px; color: gray;")
         layout.addWidget(info_label, 0)
 
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(4)
-        btn_add_row = QPushButton("+ Ligne")
-        btn_add_row.clicked.connect(self._add_row)
-        toolbar.addWidget(btn_add_row)
-        btn_del_row = QPushButton("- Ligne selectionnee")
-        btn_del_row.clicked.connect(self._delete_selected_row)
-        toolbar.addWidget(btn_del_row)
-        btn_save = QPushButton("Enregistrer (Ctrl+S)")
-        btn_save.clicked.connect(self.save)
-        toolbar.addWidget(btn_save)
-        toolbar.addStretch()
-        layout.addLayout(toolbar, 0)
+        if editable:
+            toolbar = QHBoxLayout()
+            toolbar.setSpacing(4)
+            btn_add_row = QPushButton("+ Ligne")
+            btn_add_row.clicked.connect(self._add_row)
+            toolbar.addWidget(btn_add_row)
+            btn_del_row = QPushButton("- Ligne selectionnee")
+            btn_del_row.clicked.connect(self._delete_selected_row)
+            toolbar.addWidget(btn_del_row)
+            btn_save = QPushButton("Enregistrer (Ctrl+S)")
+            btn_save.clicked.connect(self.save)
+            toolbar.addWidget(btn_save)
+            toolbar.addStretch()
+            layout.addLayout(toolbar, 0)
 
         n_cols = len(self.doc.header) if self.doc.header else (len(self.doc.rows[0]) if self.doc.rows else 1)
         self.table = QTableWidget(len(self.doc.rows), n_cols)
@@ -141,6 +145,9 @@ class CsvEditWidget(QWidget):
             self.table.setHorizontalHeaderLabels(self.doc.header)
         self.table.horizontalHeader().setStretchLastSection(True)
         self._populate_table()
+        if not editable:
+            from PyQt6.QtWidgets import QAbstractItemView
+            self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.itemChanged.connect(self._on_cell_changed)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
@@ -163,6 +170,8 @@ class CsvEditWidget(QWidget):
         return self._modified
 
     def save(self):
+        if not self.editable:
+            return
         self._sync_doc_from_table()
         rendered = render_csv(self.doc)
         with open(self.path, 'w', encoding='utf-8', newline='') as f:
@@ -213,6 +222,11 @@ class CsvEditWidget(QWidget):
         return None
 
     def _show_context_menu(self, pos):
+        if not self.editable:
+            # Vue lecture seule (Scenario A/B) -- pas d'action de traduction/ecriture
+            # ici : rien de sur ou l'ecrire (aucun fichier de copie de travail associe
+            # a ce panneau precis).
+            return
         item = self.table.itemAt(pos)
         if not item:
             return

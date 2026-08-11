@@ -766,6 +766,8 @@ class MainWindow(QMainWindow):
                                         copy_label=source_label)
             elif ext in ('.yaml', '.yml'):
                 widget = YamlViewWidget(path)
+            elif ext == '.csv':
+                widget = CsvEditWidget(path, editable=False)
             else:
                 QMessageBox.information(self, "Non supporte",
                                          f"Pas encore de vue pour les fichiers {ext}")
