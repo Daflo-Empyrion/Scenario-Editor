@@ -20,9 +20,10 @@ COLOR_MODIFIED_CELL = QBrush(QColor(255, 250, 200))
 
 class TranslationResultDialog(QDialog):
     """Petite fenetre affichant le resultat d'une traduction, avec le choix de
-    remplacer la cellule d'origine ou juste copier le resultat."""
+    remplacer la cellule d'origine (ou une cellule destination precise) ou juste
+    copier le resultat."""
 
-    def __init__(self, original: str, translated: str, parent=None):
+    def __init__(self, original: str, translated: str, parent=None, destination_label: Optional[str] = None):
         super().__init__(parent)
         self.setWindowTitle("Traduction")
         self.setMinimumWidth(500)
@@ -42,10 +43,11 @@ class TranslationResultDialog(QDialog):
         layout.addWidget(self.translated_view)
 
         buttons = QHBoxLayout()
-        btn_replace = QPushButton("Remplacer la cellule par ce texte")
+        replace_label = f"Placer dans {destination_label}" if destination_label else "Remplacer la cellule par ce texte"
+        btn_replace = QPushButton(replace_label)
         btn_replace.clicked.connect(self._on_replace)
         buttons.addWidget(btn_replace)
-        btn_close = QPushButton("Fermer (ne pas remplacer)")
+        btn_close = QPushButton("Fermer (ne pas appliquer)")
         btn_close.clicked.connect(self.reject)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)
@@ -196,9 +198,70 @@ class CsvEditWidget(QWidget):
         self.table.removeRow(r)
         self._set_modified(True)
 
+    def _find_language_column(self, target_code: str, target_label: str) -> Optional[int]:
+        """Trouve la colonne dont l'en-tete correspond a la langue cible, par code
+        (ex: 'FR') ou par libelle (ex: 'Francais') -- comparaison insensible a la casse."""
+        code_upper = target_code.upper()
+        label_upper = target_label.upper()
+        for c in range(self.table.columnCount()):
+            header_item = self.table.horizontalHeaderItem(c)
+            if not header_item:
+                continue
+            header_upper = header_item.text().strip().upper()
+            if header_upper == code_upper or header_upper == label_upper:
+                return c
+        return None
+
     def _show_context_menu(self, pos):
         item = self.table.itemAt(pos)
         if not item:
             return
-        global_pos = self.table.viewport().mapToGlobal(pos)
-        show_translate_context_menu(self, global_pos, item.text(), lambda t: item.setText(t))
+        text = item.text()
+        if not text.strip():
+            return
+        row = item.row()
+
+        menu = QMenu(self)
+        translate_menu = menu.addMenu("Traduire vers...")
+        lang_actions = {}
+        for label, code in translation.COMMON_LANGUAGES:
+            a = translate_menu.addAction(label)
+            lang_actions[a] = (code, label)
+
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if chosen not in lang_actions:
+            return
+        target_code, target_label = lang_actions[chosen]
+
+        if not translation.is_available():
+            QMessageBox.warning(self, "Traduction indisponible",
+                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            return
+        try:
+            translated = translation.translate_text(text, target=target_code)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de traduction",
+                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            return
+
+        target_col = self._find_language_column(target_code, target_label)
+        dest_label = None
+        if target_col is not None and target_col != item.column():
+            header = self.table.horizontalHeaderItem(target_col)
+            dest_label = f"la colonne '{header.text() if header else target_label}' (meme ligne)"
+
+        dialog = TranslationResultDialog(text, translated, self, destination_label=dest_label)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.accepted_replace:
+            return
+        result_text = dialog.result_text()
+
+        if target_col is not None and target_col != item.column():
+            dest_item = self.table.item(row, target_col)
+            if dest_item is None:
+                dest_item = QTableWidgetItem("")
+                self.table.setItem(row, target_col, dest_item)
+            dest_item.setText(result_text)
+        else:
+            # Pas de colonne correspondant a cette langue trouvee dans l'en-tete ->
+            # on remplace la cellule d'origine par defaut, comme avant.
+            item.setText(result_text)
