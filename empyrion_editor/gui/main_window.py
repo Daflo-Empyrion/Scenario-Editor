@@ -30,7 +30,7 @@ from core.models import Scenario, FileEntry
 from core.workspace import (
     Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
     merge_file_into_working, merge_folder_into_working, merge_block_into_working,
-    merge_csv_row_into_working, MergeHighlight,
+    merge_csv_row_into_working, translate_csv_cell_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.dependency_check import check_references
@@ -644,6 +644,49 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(f"Ligne '{key}' deja a jour dans {dest.name} -- rien a changer")
 
+    def _translate_csv_cell_into_working(self, key: str, text: str, target_code: str, target_label: str,
+                                          source_file_path: Path, source_root: Path, source_label: str):
+        """Traduit une cellule d'une vue lecture seule (Scenario A/B) et applique le
+        resultat directement dans la cellule correspondante (meme cle, colonne de la
+        langue cible) de la copie de travail -- sans jamais ecraser une valeur deja
+        presente."""
+        from core import translation
+        if not translation.is_available():
+            QMessageBox.warning(self, "Traduction indisponible",
+                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            return
+        try:
+            translated = translation.translate_text(text, target=target_code)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de traduction",
+                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            return
+
+        rel = source_file_path.relative_to(source_root)
+        try:
+            dest, status = translate_csv_cell_into_working(
+                self.workspace, rel, key, target_code, target_label, translated)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible d'appliquer la traduction :\n{e}")
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        if status == 'added':
+            self.statusBar().showMessage(f"Ligne '{key}' ajoutee avec la traduction ({target_label}) dans {dest.name}")
+        elif status == 'merged':
+            self.statusBar().showMessage(f"Traduction ({target_label}) ajoutee pour '{key}' dans {dest.name}")
+        else:
+            self.statusBar().showMessage(
+                f"'{key}' avait deja une valeur dans la colonne {target_label} -- "
+                f"rien change (copie de travail prioritaire)"
+            )
+
     # ------------------------------------------------------------------
     # Ouverture de fichiers (lecture seule pour A/B, meme vue pour l'instant sur
     # la copie de travail -- l'edition inline viendra dans une passe suivante)
@@ -751,10 +794,14 @@ class MainWindow(QMainWindow):
                 widget = YamlViewWidget(path)
             elif ext == '.csv':
                 on_copy_row = None
+                on_translate_cell = None
                 if read_only and source_root and source_label:
                     on_copy_row = lambda row: self._copy_csv_row_into_working(
                         row, path, source_root, source_label)
-                widget = CsvEditWidget(path, editable=False, on_copy_row=on_copy_row, copy_label=source_label)
+                    on_translate_cell = lambda key, text, code, label: self._translate_csv_cell_into_working(
+                        key, text, code, label, path, source_root, source_label)
+                widget = CsvEditWidget(path, editable=False, on_copy_row=on_copy_row,
+                                        copy_label=source_label, on_translate_cell=on_translate_cell)
             else:
                 QMessageBox.information(self, "Non supporte",
                                          f"Pas encore de vue pour les fichiers {ext}")

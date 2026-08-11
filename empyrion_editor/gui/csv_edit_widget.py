@@ -105,12 +105,14 @@ class CsvEditWidget(QWidget):
     modified_changed = pyqtSignal(bool)
     saved = pyqtSignal()
 
-    def __init__(self, path: Path, editable: bool = True, on_copy_row=None, copy_label: Optional[str] = None):
+    def __init__(self, path: Path, editable: bool = True, on_copy_row=None, copy_label: Optional[str] = None,
+                 on_translate_cell=None):
         super().__init__()
         self.path = path
         self.editable = editable
         self.on_copy_row = on_copy_row
         self.copy_label = copy_label
+        self.on_translate_cell = on_translate_cell
         self._modified = False
 
         handler = CsvHandler()
@@ -226,10 +228,9 @@ class CsvEditWidget(QWidget):
 
     def _show_context_menu(self, pos):
         if not self.editable:
-            # Vue lecture seule (Scenario A/B) -- seule action proposee : copier la
-            # ligne entiere vers la copie de travail (si le callback est fourni).
-            if not self.on_copy_row:
-                return
+            # Vue lecture seule (Scenario A/B) : copier la ligne entiere, ET/OU
+            # traduire directement cette cellule vers la colonne de la langue
+            # choisie dans la copie de travail (meme ligne, cle identique).
             item = self.table.itemAt(pos)
             if not item:
                 return
@@ -237,11 +238,29 @@ class CsvEditWidget(QWidget):
             row_values = [self.table.item(row_idx, c).text() if self.table.item(row_idx, c) else ""
                           for c in range(self.table.columnCount())]
             key = row_values[0] if row_values else "?"
+            text = item.text()
+
             menu = QMenu(self)
-            action = menu.addAction(f"Copier cette ligne (cle '{key}') vers la copie de travail")
+            action_copy = None
+            if self.on_copy_row:
+                action_copy = menu.addAction(f"Copier cette ligne (cle '{key}') vers la copie de travail")
+
+            lang_actions = {}
+            if self.on_translate_cell and text.strip():
+                translate_menu = menu.addMenu("Traduire cette cellule vers... (-> copie de travail)")
+                for label, code in translation.COMMON_LANGUAGES:
+                    a = translate_menu.addAction(label)
+                    lang_actions[a] = (code, label)
+
+            if not action_copy and not lang_actions:
+                return
+
             chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
-            if chosen == action:
+            if action_copy and chosen == action_copy:
                 self.on_copy_row(row_values)
+            elif chosen in lang_actions:
+                target_code, target_label = lang_actions[chosen]
+                self.on_translate_cell(key, text, target_code, target_label)
             return
 
         item = self.table.itemAt(pos)

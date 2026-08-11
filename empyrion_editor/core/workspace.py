@@ -214,6 +214,69 @@ def merge_csv_row_into_working(workspace: Workspace, working_relative_path: Path
     return dest, status
 
 
+def translate_csv_cell_into_working(workspace: Workspace, working_relative_path: Path,
+                                     key: str, target_code: str, target_label: str,
+                                     translated_value: str) -> Tuple[Path, str]:
+    """
+    Applique une traduction (deja calculee) dans la cellule de la copie de travail
+    correspondant a la cle `key` et a la colonne de la langue cible (trouvee par
+    correspondance d'en-tete, code ou libelle). Meme philosophie que le reste de la
+    fusion CSV : ne remplace JAMAIS une cellule deja non-vide.
+
+    Retourne (chemin_du_fichier, statut) -- statut : 'added' (nouvelle ligne creee),
+    'merged' (cellule vide completee), ou 'unchanged' (deja une valeur, rien fait).
+    """
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(
+            f"Le fichier {dest} n'existe pas encore dans la copie de travail -- "
+            f"importe d'abord le fichier entier."
+        )
+
+    from .csv_handler import CsvHandler, render_csv
+
+    handler = CsvHandler()
+    doc = handler.parse(handler.load(dest))
+
+    target_col = None
+    if doc.header:
+        code_upper = target_code.upper()
+        label_upper = target_label.upper()
+        for c, h in enumerate(doc.header):
+            h_upper = h.strip().upper()
+            if h_upper == code_upper or h_upper == label_upper:
+                target_col = c
+                break
+    if target_col is None:
+        raise ValueError(
+            f"Aucune colonne correspondant a la langue '{target_label}' ({target_code}) "
+            f"trouvee dans l'en-tete de {dest.name}."
+        )
+
+    for i, row in enumerate(doc.rows):
+        if row and row[0] == key:
+            existing = row[target_col] if target_col < len(row) else ""
+            if existing.strip():
+                return dest, 'unchanged'
+            new_row = list(row)
+            while len(new_row) <= target_col:
+                new_row.append("")
+            new_row[target_col] = translated_value
+            doc.rows[i] = new_row
+            with open(dest, 'w', encoding='utf-8', newline='') as f:
+                f.write(render_csv(doc))
+            return dest, 'merged'
+
+    n_cols = len(doc.header) if doc.header else (target_col + 1)
+    new_row = [""] * max(n_cols, target_col + 1)
+    new_row[0] = key
+    new_row[target_col] = translated_value
+    doc.rows.append(new_row)
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(render_csv(doc))
+    return dest, 'added'
+
+
 def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
                               block, source_label: str) -> Tuple[Path, str, Optional["MergeHighlight"]]:
     """
