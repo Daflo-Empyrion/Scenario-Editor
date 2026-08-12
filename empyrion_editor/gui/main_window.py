@@ -163,9 +163,7 @@ class MainWindow(QMainWindow):
 
     def _set_author_dialog(self):
         current = settings.get_author()
-        name, ok = QInputDialog.getText(self, "Nom pour les annotations",
-                                         "Ce nom apparaitra dans les commentaires '# original: ... -- Mod par ...' :",
-                                         text=current)
+        name, ok = QInputDialog.getText(self, t("author.title"), t("author.label"), text=current)
         if ok and name.strip():
             settings.set_author(name.strip())
 

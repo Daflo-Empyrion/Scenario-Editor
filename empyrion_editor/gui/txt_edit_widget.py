@@ -122,14 +122,12 @@ class TxtEditWidget(QWidget):
         target_code = lang_actions[chosen]
 
         if not translation.is_available():
-            QMessageBox.warning(self, "Traduction indisponible",
-                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
             return
         try:
             translated = translation.translate_text(selected, target=target_code)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de traduction",
-                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
 
         dialog = TranslationResultDialog(selected, translated, self)

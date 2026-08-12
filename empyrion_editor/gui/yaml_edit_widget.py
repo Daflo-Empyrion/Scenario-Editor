@@ -208,7 +208,7 @@ class YamlEditWidget(QWidget):
             action_copy = menu.addAction(f"Copier cette entree ({label}) vers la copie de travail")
         action_dup = None
         if self.on_duplicate_entry:
-            action_dup = menu.addAction("Dupliquer avec une nouvelle cle/valeur vers la copie de travail...")
+            action_dup = menu.addAction(t("yaml.duplicate_action"))
 
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
         if action_copy and chosen == action_copy:
@@ -274,10 +274,10 @@ class YamlEditWidget(QWidget):
         self.search_status.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
     def _add_entry_dialog(self):
-        key, ok = QInputDialog.getText(self, "Ajouter une entree", "Cle (laisser vide pour un item de sequence) :")
+        key, ok = QInputDialog.getText(self, t("yaml.add_entry_title"), t("yaml.key_label"))
         if not ok:
             return
-        value, ok = QInputDialog.getText(self, "Ajouter une entree", "Valeur :")
+        value, ok = QInputDialog.getText(self, t("yaml.add_entry_title"), t("yaml.value_label"))
         if not ok:
             return
 
@@ -295,9 +295,10 @@ class YamlEditWidget(QWidget):
 
     def _delete_selected_entry(self):
         if not self._current_entry:
-            QMessageBox.information(self, "Aucune selection", "Selectionne d'abord une entree dans l'arbre.")
+            QMessageBox.information(self, t("yaml.no_selection_title"), t("yaml.no_selection_msg"))
             return
-        confirm = QMessageBox.question(self, "Confirmer", f"Supprimer '{self._current_entry.key or self._current_entry.value}' ?")
+        confirm = QMessageBox.question(self, t("merge.confirm_title"),
+                                        t("yaml.confirm_delete", name=self._current_entry.key or self._current_entry.value))
         if confirm != QMessageBox.StandardButton.Yes:
             return
         self._snapshot_undo()
@@ -321,11 +322,11 @@ class YamlEditWidget(QWidget):
         action_bbcode = None
         if selected.strip():
             menu.addSeparator()
-            translate_menu = menu.addMenu("Traduire la selection vers...")
+            translate_menu = menu.addMenu(t("ctx.translate_selection_to"))
             for label, code in translation.COMMON_LANGUAGES:
                 a = translate_menu.addAction(label)
                 lang_actions[a] = code
-            action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
+            action_bbcode = menu.addAction(t("ctx.bbcode"))
 
         chosen = menu.exec(self.value_edit.viewport().mapToGlobal(pos))
 
@@ -340,14 +341,12 @@ class YamlEditWidget(QWidget):
         target_code = lang_actions[chosen]
 
         if not translation.is_available():
-            QMessageBox.warning(self, "Traduction indisponible",
-                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
             return
         try:
             translated = translation.translate_text(selected, target=target_code)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de traduction",
-                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
 
         dialog = TranslationResultDialog(selected, translated, self)

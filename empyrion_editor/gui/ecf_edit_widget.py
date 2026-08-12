@@ -519,17 +519,17 @@ class EcfEditWidget(QWidget):
         menu.addSeparator()
 
         from core import translation
-        translate_menu = menu.addMenu("Traduire vers...")
+        translate_menu = menu.addMenu(t("ctx.translate_to"))
         lang_actions = {}
         for label, code in translation.COMMON_LANGUAGES:
             a = translate_menu.addAction(label)
             lang_actions[a] = code
 
-        action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
+        action_bbcode = menu.addAction(t("ctx.bbcode"))
 
         action_del = None
         if not is_header_prop:
-            action_del = menu.addAction("Supprimer cette propriete")
+            action_del = menu.addAction(t("ecf.delete_property_action"))
 
         chosen = menu.exec(global_pos)
 
@@ -549,14 +549,12 @@ class EcfEditWidget(QWidget):
         from core import translation
         text = value_item.text()
         if not translation.is_available():
-            QMessageBox.warning(self, "Traduction indisponible",
-                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
             return
         try:
             translated = translation.translate_text(text, target=target_lang)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de traduction",
-                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
 
         dialog = TranslationResultDialog(text, translated, self)
@@ -570,12 +568,12 @@ class EcfEditWidget(QWidget):
 
     def _add_property_dialog(self):
         if not self._current_block:
-            QMessageBox.information(self, "Aucun bloc", "Selectionne d'abord un bloc dans l'arbre.")
+            QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
             return
-        key, ok = QInputDialog.getText(self, "Ajouter une propriete", "Nom de la propriete :")
+        key, ok = QInputDialog.getText(self, t("ecf.add_property_title"), t("ecf.property_name_label"))
         if not ok or not key.strip():
             return
-        value, ok = QInputDialog.getText(self, "Ajouter une propriete", f"Valeur de '{key}' :")
+        value, ok = QInputDialog.getText(self, t("ecf.add_property_title"), t("ecf.property_value_label", key=key))
         if not ok:
             return
         self._snapshot_undo()
@@ -598,11 +596,11 @@ class EcfEditWidget(QWidget):
         if not isinstance(block, EcfBlock):
             return
         menu = QMenu(self)
-        action_del = menu.addAction("Supprimer ce bloc")
+        action_del = menu.addAction(t("ecf.delete_block_action"))
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
         if chosen == action_del:
-            confirm = QMessageBox.question(self, "Confirmer",
-                                            f"Supprimer le bloc {item.text(0)} ?")
+            confirm = QMessageBox.question(self, t("merge.confirm_title"),
+                                            t("ecf.confirm_delete_block", name=item.text(0)))
             if confirm == QMessageBox.StandardButton.Yes:
                 self._snapshot_undo()
                 remove_block(self.doc.nodes, block)
@@ -626,13 +624,13 @@ class EcfEditWidget(QWidget):
             item.setHidden(not all(k in _block_own_keys(block) for k in keys))
 
     def _add_block_dialog(self):
-        kind, ok = QInputDialog.getText(self, "Ajouter un bloc", "Genre du bloc (ex: Block) :")
+        kind, ok = QInputDialog.getText(self, t("ecf.add_block_title"), t("ecf.block_kind_label"))
         if not ok or not kind.strip():
             return
-        block_id, ok = QInputDialog.getText(self, "Ajouter un bloc", "Id :")
+        block_id, ok = QInputDialog.getText(self, t("ecf.add_block_title"), t("ecf.id_label"))
         if not ok or not block_id.strip():
             return
-        name, ok = QInputDialog.getText(self, "Ajouter un bloc", "Name (optionnel) :")
+        name, ok = QInputDialog.getText(self, t("ecf.add_block_title"), t("ecf.name_optional_label"))
         if not ok:
             name = ""
         pairs = [('Id', block_id.strip())]

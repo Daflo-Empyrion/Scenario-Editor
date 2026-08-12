@@ -104,10 +104,11 @@ def install_clipboard_shortcuts(table: QTableWidget, allow_new_rows: bool = True
 
 def add_clipboard_menu_actions(menu: QMenu, table: QTableWidget, allow_new_rows: bool = True) -> None:
     """Ajoute Copier/Couper/Coller/Supprimer a un menu contextuel existant."""
-    menu.addAction("Copier", lambda: copy_selection(table))
-    menu.addAction("Couper", lambda: cut_selection(table))
-    menu.addAction("Coller", lambda: paste_into_selection(table, allow_new_rows))
-    menu.addAction("Supprimer le contenu (vide la/les cellule(s))", lambda: delete_selection(table))
+    from core.i18n import t
+    menu.addAction(t("ctx.copy"), lambda: copy_selection(table))
+    menu.addAction(t("ctx.cut"), lambda: cut_selection(table))
+    menu.addAction(t("ctx.paste"), lambda: paste_into_selection(table, allow_new_rows))
+    menu.addAction(t("ctx.clear_content"), lambda: delete_selection(table))
 
 
 def delete_selected_rows(table: QTableWidget) -> int:

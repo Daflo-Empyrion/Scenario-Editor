@@ -73,7 +73,7 @@ def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
         return
 
     menu = QMenu(parent_widget)
-    translate_menu = menu.addMenu("Traduire vers...")
+    translate_menu = menu.addMenu(t("ctx.translate_to"))
     lang_actions = {}
     for label, code in translation.COMMON_LANGUAGES:
         action = translate_menu.addAction(label)
@@ -325,7 +325,7 @@ class CsvEditWidget(QWidget):
 
             lang_actions = {}
             if self.on_translate_cell and text.strip():
-                translate_menu = menu.addMenu("Traduire cette cellule vers... (-> copie de travail)")
+                translate_menu = menu.addMenu(t("ctx.translate_cell_to"))
                 for label, code in translation.COMMON_LANGUAGES:
                     a = translate_menu.addAction(label)
                     lang_actions[a] = (code, label)
@@ -388,14 +388,12 @@ class CsvEditWidget(QWidget):
         target_code, target_label = lang_actions[chosen]
 
         if not translation.is_available():
-            QMessageBox.warning(self, "Traduction indisponible",
-                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
             return
         try:
             translated = translation.translate_text(text, target=target_code)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de traduction",
-                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
 
         target_col = self._find_language_column(target_code, target_label)

@@ -201,6 +201,44 @@ STRINGS = {
                                            "handled manually (reassign a free Id):\n\n{details}"},
     "merge.id_conflicts_more": {"fr": "\n... et {n} autre(s)", "en": "\n... and {n} more"},
 
+    # --- YAML : suppression d'entree ---
+    "yaml.no_selection_title": {"fr": "Aucune selection", "en": "No selection"},
+    "yaml.no_selection_msg": {"fr": "Selectionne d'abord une entree dans l'arbre.",
+                               "en": "Select an entry in the tree first."},
+    "yaml.confirm_delete": {"fr": "Supprimer '{name}' ?", "en": "Delete '{name}'?"},
+
+    # --- ECF : selection/suppression de bloc ---
+    "ecf.no_block_title": {"fr": "Aucun bloc", "en": "No block"},
+    "ecf.no_block_msg": {"fr": "Selectionne d'abord un bloc dans l'arbre.",
+                          "en": "Select a block in the tree first."},
+    "ecf.confirm_delete_block": {"fr": "Supprimer le bloc {name} ?", "en": "Delete block {name}?"},
+    "ecf.delete_block_action": {"fr": "Supprimer ce bloc", "en": "Delete this block"},
+
+    # --- ECF : ajout bloc/propriete (QInputDialog) ---
+    "ecf.add_property_title": {"fr": "Ajouter une propriete", "en": "Add a property"},
+    "ecf.property_name_label": {"fr": "Nom de la propriete :", "en": "Property name:"},
+    "ecf.property_value_label": {"fr": "Valeur de '{key}' :", "en": "Value of '{key}':"},
+    "ecf.add_block_title": {"fr": "Ajouter un bloc", "en": "Add a block"},
+    "ecf.block_kind_label": {"fr": "Genre du bloc (ex: Block) :", "en": "Block kind (e.g. Block):"},
+    "ecf.id_label": {"fr": "Id :", "en": "Id:"},
+    "ecf.name_optional_label": {"fr": "Name (optionnel) :", "en": "Name (optional):"},
+    "ecf.delete_property_action": {"fr": "Supprimer cette propriete", "en": "Delete this property"},
+    "ctx.translate_cell_to": {"fr": "Traduire cette cellule vers... (-> copie de travail)",
+                               "en": "Translate this cell to... (-> working copy)"},
+
+    # --- Options : nom d'auteur ---
+    "author.title": {"fr": "Nom pour les annotations", "en": "Name for annotations"},
+    "author.label": {"fr": "Ce nom apparaitra dans les commentaires '# original: ... -- Mod par ...' :",
+                      "en": "This name will appear in the traceability comments '# original: ... -- Mod by ...':"},
+
+    # --- YAML : ajout d'entree ---
+    "yaml.add_entry_title": {"fr": "Ajouter une entree", "en": "Add an entry"},
+    "yaml.key_label": {"fr": "Cle (laisser vide pour un item de sequence) :",
+                        "en": "Key (leave empty for a sequence item):"},
+    "yaml.value_label": {"fr": "Valeur :", "en": "Value:"},
+    "yaml.duplicate_action": {"fr": "Dupliquer avec une nouvelle cle/valeur vers la copie de travail...",
+                               "en": "Duplicate with a new key/value to working copy..."},
+
     # --- Duplication ---
     "dup.file_missing_title": {"fr": "Fichier absent", "en": "File missing"},
     "dup.file_missing_msg": {"fr": "{file} n'existe pas encore dans la copie de travail -- "
