@@ -205,7 +205,7 @@ class YamlEditWidget(QWidget):
         menu = QMenu(self)
         action_copy = None
         if self.on_copy_entry:
-            action_copy = menu.addAction(f"Copier cette entree ({label}) vers la copie de travail")
+            action_copy = menu.addAction(t("yaml.copy_entry_action", label=label))
         action_dup = None
         if self.on_duplicate_entry:
             action_dup = menu.addAction(t("yaml.duplicate_action"))

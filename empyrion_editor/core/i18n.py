@@ -239,6 +239,66 @@ STRINGS = {
     "yaml.duplicate_action": {"fr": "Dupliquer avec une nouvelle cle/valeur vers la copie de travail...",
                                "en": "Duplicate with a new key/value to working copy..."},
 
+    # --- Menu contextuel bloc ECF (vue comparative / source) ---
+    "ecf.merge_block_action": {"fr": "Copier / fusionner ce bloc ({label}) vers la copie de travail",
+                                "en": "Copy / merge this block ({label}) to working copy"},
+    "ecf.duplicate_subblock_action": {"fr": "Dupliquer ce sous-bloc (dans le meme parent) vers la copie de travail...",
+                                       "en": "Duplicate this sub-block (in the same parent) to working copy..."},
+    "ecf.duplicate_block_action": {"fr": "Dupliquer avec un nouvel Id vers la copie de travail...",
+                                    "en": "Duplicate with a new Id to working copy..."},
+
+    # --- Menus contextuels fichier/ligne/entree (f-strings ratees a la premiere passe) ---
+    "csv.copy_row_action": {"fr": "Copier cette ligne (cle '{key}') vers la copie de travail",
+                             "en": "Copy this row (key '{key}') to working copy"},
+    "csv.duplicate_row_action": {"fr": "Dupliquer avec une nouvelle cle vers la copie de travail...",
+                                  "en": "Duplicate with a new key to working copy..."},
+    "file.merge_action": {"fr": "Copier / fusionner '{name}' vers la copie de travail",
+                           "en": "Copy / merge '{name}' to working copy"},
+    "folder.merge_action": {"fr": "Fusionner le dossier '{name}' (et sous-dossiers) vers la copie de travail",
+                             "en": "Merge folder '{name}' (and subfolders) to working copy"},
+    "yaml.copy_entry_action": {"fr": "Copier cette entree ({label}) vers la copie de travail",
+                                "en": "Copy this entry ({label}) to working copy"},
+    "csv.duplicate_title": {"fr": "Dupliquer avec une nouvelle cle", "en": "Duplicate with a new key"},
+    "csv.duplicate_current_key": {"fr": "Cle actuelle : '{key}'\n\nNouvelle cle :",
+                                   "en": "Current key: '{key}'\n\nNew key:"},
+    "yaml.duplicate_title": {"fr": "Dupliquer avec une nouvelle cle/valeur", "en": "Duplicate with a new key/value"},
+    "yaml.duplicate_current_value": {"fr": "Valeur actuelle : '{value}'\n\nNouvelle valeur :",
+                                      "en": "Current value: '{value}'\n\nNew value:"},
+
+    # --- Panneaux du bas (arborescence des 3 scenarios) ---
+    "panel.scenario_a": {"fr": "Scenario A (lecture seule)", "en": "Scenario A (read-only)"},
+    "panel.working_copy": {"fr": "Copie de travail (modifiable)", "en": "Working copy (editable)"},
+    "panel.scenario_b": {"fr": "Scenario B (lecture seule)", "en": "Scenario B (read-only)"},
+    "panel.scenario_a_named": {"fr": "Scenario A (lecture seule) -- {name}", "en": "Scenario A (read-only) -- {name}"},
+    "panel.working_copy_named": {"fr": "Copie de travail (modifiable) -- {name}", "en": "Working copy (editable) -- {name}"},
+    "panel.scenario_b_named": {"fr": "Scenario B (lecture seule) -- {name}", "en": "Scenario B (read-only) -- {name}"},
+
+    # --- Fenetres de progression ---
+    "progress.please_wait": {"fr": "Veuillez patienter", "en": "Please wait"},
+
+    # --- Suggestions Id (fenetre duplication) ---
+    "dup.suggestions_label": {"fr": "Suggestions libres : {ids}", "en": "Free suggestions: {ids}"},
+
+    # --- Fenetre resultat de traduction ---
+    "trans.dialog_title": {"fr": "Traduction", "en": "Translation"},
+    "trans.original_label": {"fr": "Original :", "en": "Original:"},
+    "trans.translation_label": {"fr": "Traduction :", "en": "Translation:"},
+    "trans.close_no_apply": {"fr": "Fermer (ne pas appliquer)", "en": "Close (don't apply)"},
+
+    # --- Fenetre BBCode ---
+    "bbcode.title": {"fr": "Mise en forme BBCode", "en": "BBCode formatting"},
+    "bbcode.instructions": {"fr": "Selectionne une portion de texte ci-dessous, puis clique une "
+                                   "couleur ou un style pour l'appliquer :",
+                             "en": "Select a portion of text below, then click a "
+                                   "color or a style to apply it:"},
+    "bbcode.colors_label": {"fr": "Couleurs :", "en": "Colors:"},
+    "bbcode.apply_to_cell": {"fr": "Appliquer a la cellule", "en": "Apply to cell"},
+    "bbcode.bold": {"fr": "Gras", "en": "Bold"},
+    "bbcode.italic": {"fr": "Italique", "en": "Italic"},
+    "bbcode.underline": {"fr": "Souligne", "en": "Underline"},
+    "trans.place_in": {"fr": "Placer dans {destination}", "en": "Place in {destination}"},
+    "trans.replace_cell": {"fr": "Remplacer la cellule par ce texte", "en": "Replace the cell with this text"},
+
     # --- Duplication ---
     "dup.file_missing_title": {"fr": "Fichier absent", "en": "File missing"},
     "dup.file_missing_msg": {"fr": "{file} n'existe pas encore dans la copie de travail -- "

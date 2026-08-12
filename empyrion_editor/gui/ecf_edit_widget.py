@@ -652,14 +652,18 @@ class CompareWidget(QWidget):
     Le clic droit "copier ce bloc" fonctionne aussi depuis les panneaux source ici."""
 
     def __init__(self, working_path: Path, compare_sources: Dict[str, tuple], view_widget_factory,
-                 copy_block_callback=None):
+                 copy_block_callback=None, duplicate_block_callback=None):
         """
         compare_sources : {label: (chemin_source, racine_source)}
-        view_widget_factory(path, on_copy_block=None) doit retourner un widget de
-        lecture seule (typiquement EcfViewWidget de main_window.py) -- injecte pour
-        eviter un import circulaire entre ce module et main_window.py.
+        view_widget_factory(path, on_copy_block=None, on_duplicate_block=None) doit
+        retourner un widget de lecture seule (typiquement EcfViewWidget de
+        main_window.py) -- injecte pour eviter un import circulaire entre ce module et
+        main_window.py.
         copy_block_callback(block, source_path, source_root, source_label) : appele
         quand l'utilisateur choisit "copier ce bloc" depuis un panneau source.
+        duplicate_block_callback(block, parent_chain, source_path, source_root,
+        source_label) : appele quand l'utilisateur choisit "dupliquer avec un nouvel
+        Id" depuis un panneau source.
         """
         super().__init__()
         layout = QVBoxLayout(self)
@@ -677,7 +681,14 @@ class CompareWidget(QWidget):
                 if copy_block_callback:
                     on_copy = (lambda block, p=src_path, r=src_root, l=label:
                                copy_block_callback(block, p, r, l))
-                right_side.addTab(view_widget_factory(src_path, on_copy_block=on_copy, copy_label=label), label)
+                on_dup = None
+                if duplicate_block_callback:
+                    on_dup = (lambda block, parent_chain, p=src_path, r=src_root, l=label:
+                              duplicate_block_callback(block, parent_chain, p, r, l))
+                right_side.addTab(
+                    view_widget_factory(src_path, on_copy_block=on_copy, copy_label=label,
+                                         on_duplicate_block=on_dup),
+                    label)
             splitter.addWidget(right_side)
             splitter.setSizes([600, 500])
         else:

@@ -246,7 +246,7 @@ class MainWindow(QMainWindow):
             return
 
         progress = QProgressDialog(f"Verification de {len(ecf_files)} fichier(s)...", None, 0, 0, self)
-        progress.setWindowTitle("Veuillez patienter")
+        progress.setWindowTitle(t("progress.please_wait"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.show()
@@ -291,7 +291,7 @@ class MainWindow(QMainWindow):
         self.panel_a = QWidget()
         layout_a = QVBoxLayout(self.panel_a)
         layout_a.setContentsMargins(4, 2, 4, 2)
-        self.label_a = QLabel("Scenario A (lecture seule)")
+        self.label_a = QLabel(t("panel.scenario_a"))
         self.label_a.setStyleSheet("font-weight: bold;")
         self.tree_a = QTreeWidget()
         self.tree_a.setHeaderLabels(["Scenario A"])
@@ -306,7 +306,7 @@ class MainWindow(QMainWindow):
         self.panel_working = QWidget()
         layout_w = QVBoxLayout(self.panel_working)
         layout_w.setContentsMargins(4, 2, 4, 2)
-        self.label_working = QLabel("Copie de travail (modifiable)")
+        self.label_working = QLabel(t("panel.working_copy"))
         self.label_working.setStyleSheet("font-weight: bold; color: #2a6;")
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
@@ -318,7 +318,7 @@ class MainWindow(QMainWindow):
         self.panel_b = QWidget()
         layout_b = QVBoxLayout(self.panel_b)
         layout_b.setContentsMargins(4, 2, 4, 2)
-        self.label_b = QLabel("Scenario B (lecture seule)")
+        self.label_b = QLabel(t("panel.scenario_b"))
         self.label_b.setStyleSheet("font-weight: bold;")
         self.tree_b = QTreeWidget()
         self.tree_b.setHeaderLabels(["Scenario B"])
@@ -359,7 +359,7 @@ class MainWindow(QMainWindow):
             return
 
         progress = QProgressDialog("Copie du scenario de base en cours...", None, 0, 0, self)
-        progress.setWindowTitle("Veuillez patienter")
+        progress.setWindowTitle(t("progress.please_wait"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.show()
@@ -442,15 +442,15 @@ class MainWindow(QMainWindow):
     def _refresh_all_trees(self):
         if not self.workspace:
             return
-        self.label_a.setText(f"Scenario A (lecture seule) -- {self.workspace.source_a_root.name}")
+        self.label_a.setText(t("panel.scenario_a_named", name=self.workspace.source_a_root.name))
         self._populate_tree(self.tree_a, self.workspace.source_a)
 
-        self.label_working.setText(f"Copie de travail (modifiable) -- {self.workspace.working_root.name}")
+        self.label_working.setText(t("panel.working_copy_named", name=self.workspace.working_root.name))
         self._populate_tree(self.tree_working, self.workspace.working)
 
         if self.workspace.is_merge_mode:
             self.panel_b.setVisible(True)
-            self.label_b.setText(f"Scenario B (lecture seule) -- {self.workspace.source_b_root.name}")
+            self.label_b.setText(t("panel.scenario_b_named", name=self.workspace.source_b_root.name))
             self._populate_tree(self.tree_b, self.workspace.source_b)
         else:
             self.panel_b.setVisible(False)
@@ -505,7 +505,7 @@ class MainWindow(QMainWindow):
 
         if data[0] == "file":
             path: Path = data[1]
-            action = menu.addAction(f"Copier / fusionner '{path.name}' vers la copie de travail")
+            action = menu.addAction(t("file.merge_action", name=path.name))
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
             if chosen == action:
                 self._copy_into_working(path, source_root, source_label)
@@ -514,7 +514,7 @@ class MainWindow(QMainWindow):
             folder: Path = data[1]
             if not folder.exists():
                 return
-            action = menu.addAction(f"Fusionner le dossier '{folder.name}' (et sous-dossiers) vers la copie de travail")
+            action = menu.addAction(t("folder.merge_action", name=folder.name))
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
             if chosen == action:
                 self._merge_folder_into_working_ui(folder, source_root, source_label)
@@ -532,7 +532,7 @@ class MainWindow(QMainWindow):
             return
 
         progress = QProgressDialog(f"Fusion de {nb_files} fichier(s)...", None, 0, 0, self)
-        progress.setWindowTitle("Veuillez patienter")
+        progress.setWindowTitle(t("progress.please_wait"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.show()
@@ -753,8 +753,8 @@ class MainWindow(QMainWindow):
         old_key = row[0] if row else "?"
 
         new_key, ok = QInputDialog.getText(
-            self, "Dupliquer avec une nouvelle cle",
-            f"Cle actuelle : '{old_key}'\n\nNouvelle cle :"
+            self, t("csv.duplicate_title"),
+            t("csv.duplicate_current_key", key=old_key)
         )
         if not ok:
             return
@@ -816,8 +816,8 @@ class MainWindow(QMainWindow):
             else (entry.key or entry.value)
 
         new_value, ok = QInputDialog.getText(
-            self, "Dupliquer avec une nouvelle cle/valeur",
-            f"Valeur actuelle : '{current}'\n\nNouvelle valeur :"
+            self, t("yaml.duplicate_title"),
+            t("yaml.duplicate_current_value", value=current)
         )
         if not ok:
             return
@@ -959,8 +959,13 @@ class MainWindow(QMainWindow):
         def _copy_block_cb(block, source_path, source_root, source_label):
             self._copy_block_into_working(block, source_path, source_root, source_label)
 
+        def _duplicate_block_cb(block, parent_chain, source_path, source_root, source_label):
+            self._duplicate_ecf_block_dialog(block, parent_chain, source_path, source_root, source_label)
+
         try:
-            widget = CompareWidget(path, compare_sources, EcfViewWidget, copy_block_callback=_copy_block_cb)
+            widget = CompareWidget(path, compare_sources, EcfViewWidget,
+                                    copy_block_callback=_copy_block_cb,
+                                    duplicate_block_callback=_duplicate_block_cb)
         except Exception as e:
             QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
             return
@@ -1065,7 +1070,7 @@ class DuplicateBlockDialog(QDialog):
         id_row.addWidget(self.id_edit)
         layout.addLayout(id_row)
         if suggestions:
-            sugg_label = QLabel(f"Suggestions libres : {', '.join(str(s) for s in suggestions)}")
+            sugg_label = QLabel(t("dup.suggestions_label", ids=', '.join(str(s) for s in suggestions)))
             sugg_label.setStyleSheet("color: gray; font-size: 11px;")
             layout.addWidget(sugg_label)
 
@@ -1256,13 +1261,13 @@ class EcfViewWidget(QWidget):
         menu = QMenu(self)
         action_merge = None
         if self.on_copy_block:
-            action_merge = menu.addAction(f"Copier / fusionner ce bloc ({label}) vers la copie de travail")
+            action_merge = menu.addAction(t("ecf.merge_block_action", label=label))
         action_dup = None
         if self.on_duplicate_block:
             if parent_chain:
-                action_dup = menu.addAction(f"Dupliquer ce sous-bloc (dans le meme parent) vers la copie de travail...")
+                action_dup = menu.addAction(t("ecf.duplicate_subblock_action"))
             else:
-                action_dup = menu.addAction(f"Dupliquer avec un nouvel Id vers la copie de travail...")
+                action_dup = menu.addAction(t("ecf.duplicate_block_action"))
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
         if action_merge and chosen == action_merge:
             self.on_copy_block(block)

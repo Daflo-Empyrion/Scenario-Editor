@@ -16,6 +16,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtCore import Qt
 
+from core.i18n import t
+
 
 # ------------------------------------------------------------------
 # Copier / couper / coller / supprimer sur un QTableWidget
@@ -150,12 +152,11 @@ class BBCodeToolDialog(QDialog):
 
     def __init__(self, text: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Mise en forme BBCode")
+        self.setWindowTitle(t("bbcode.title"))
         self.setMinimumWidth(520)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Selectionne une portion de texte ci-dessous, puis clique une "
-                                 "couleur ou un style pour l'appliquer :"))
+        layout.addWidget(QLabel(t("bbcode.instructions")))
 
         self.text_edit = QTextEdit()
         self.text_edit.setPlainText(text)
@@ -163,14 +164,14 @@ class BBCodeToolDialog(QDialog):
         layout.addWidget(self.text_edit)
 
         style_row = QHBoxLayout()
-        for label, tag in [("Gras", "b"), ("Italique", "i"), ("Souligne", "u")]:
-            btn = QPushButton(label)
-            btn.clicked.connect(lambda checked, t=tag: self._wrap_selection(f"[{t}]", f"[/{t}]"))
+        for label_key, tag in [("bbcode.bold", "b"), ("bbcode.italic", "i"), ("bbcode.underline", "u")]:
+            btn = QPushButton(t(label_key))
+            btn.clicked.connect(lambda checked, tg=tag: self._wrap_selection(f"[{tg}]", f"[/{tg}]"))
             style_row.addWidget(btn)
         style_row.addStretch()
         layout.addLayout(style_row)
 
-        layout.addWidget(QLabel("Couleurs :"))
+        layout.addWidget(QLabel(t("bbcode.colors_label")))
         palette_row = QHBoxLayout()
         for name, hexcode in BBCODE_COLORS:
             btn = QPushButton()
@@ -184,10 +185,10 @@ class BBCodeToolDialog(QDialog):
         layout.addLayout(palette_row)
 
         buttons = QHBoxLayout()
-        btn_apply = QPushButton("Appliquer a la cellule")
+        btn_apply = QPushButton(t("bbcode.apply_to_cell"))
         btn_apply.clicked.connect(self.accept)
         buttons.addWidget(btn_apply)
-        btn_cancel = QPushButton("Annuler")
+        btn_cancel = QPushButton(t("btn.cancel"))
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)

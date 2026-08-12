@@ -30,29 +30,29 @@ class TranslationResultDialog(QDialog):
 
     def __init__(self, original: str, translated: str, parent=None, destination_label: Optional[str] = None):
         super().__init__(parent)
-        self.setWindowTitle("Traduction")
+        self.setWindowTitle(t("trans.dialog_title"))
         self.setMinimumWidth(500)
         self.accepted_replace = False
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Original :"))
+        layout.addWidget(QLabel(t("trans.original_label")))
         orig_view = QTextEdit()
         orig_view.setPlainText(original)
         orig_view.setReadOnly(True)
         orig_view.setMaximumHeight(80)
         layout.addWidget(orig_view)
 
-        layout.addWidget(QLabel("Traduction :"))
+        layout.addWidget(QLabel(t("trans.translation_label")))
         self.translated_view = QTextEdit()
         self.translated_view.setPlainText(translated)
         layout.addWidget(self.translated_view)
 
         buttons = QHBoxLayout()
-        replace_label = f"Placer dans {destination_label}" if destination_label else "Remplacer la cellule par ce texte"
+        replace_label = t("trans.place_in", destination=destination_label) if destination_label else t("trans.replace_cell")
         btn_replace = QPushButton(replace_label)
         btn_replace.clicked.connect(self._on_replace)
         buttons.addWidget(btn_replace)
-        btn_close = QPushButton("Fermer (ne pas appliquer)")
+        btn_close = QPushButton(t("trans.close_no_apply"))
         btn_close.clicked.connect(self.reject)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)
@@ -318,10 +318,10 @@ class CsvEditWidget(QWidget):
             menu = QMenu(self)
             action_copy = None
             if self.on_copy_row:
-                action_copy = menu.addAction(f"Copier cette ligne (cle '{key}') vers la copie de travail")
+                action_copy = menu.addAction(t("csv.copy_row_action", key=key))
             action_dup = None
             if self.on_duplicate_row:
-                action_dup = menu.addAction(f"Dupliquer avec une nouvelle cle vers la copie de travail...")
+                action_dup = menu.addAction(t("csv.duplicate_row_action"))
 
             lang_actions = {}
             if self.on_translate_cell and text.strip():
