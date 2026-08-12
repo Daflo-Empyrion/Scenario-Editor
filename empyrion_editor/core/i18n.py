@@ -411,6 +411,18 @@ STRINGS = {
                               "{modified} modifie(s), {unchanged} identique(s)",
                         "en": "Summary: {added} file(s) added, {removed} removed, "
                               "{modified} modified, {unchanged} unchanged"},
+    "report.scenario_a_line": {"fr": "Scenario A (reference) : {name}  --  {path}",
+                                "en": "Scenario A (reference): {name}  --  {path}"},
+    "report.scenario_b_line": {"fr": "Scenario B (compare a A) : {name}  --  {path}",
+                                "en": "Scenario B (compared to A): {name}  --  {path}"},
+    "report.direction_note": {"fr": "Les differences ci-dessous sont exprimees du point de vue de B : "
+                                     "'+' = ajoute dans B, '-' = present dans A mais absent de B (supprime), "
+                                     "'~' = different entre A et B.",
+                               "en": "The differences below are expressed from B's perspective: "
+                                     "'+' = added in B, '-' = present in A but missing from B (removed), "
+                                     "'~' = different between A and B."},
+    "compare.direction_label": {"fr": "Comparaison de {name_b} par rapport a {name_a}",
+                                 "en": "Comparing {name_b} against {name_a}"},
     "yaml.copy_entry_action": {"fr": "Copier cette entree ({label}) vers la copie de travail",
                                 "en": "Copy this entry ({label}) to working copy"},
     "csv.duplicate_title": {"fr": "Dupliquer avec une nouvelle cle", "en": "Duplicate with a new key"},

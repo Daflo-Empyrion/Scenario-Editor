@@ -47,8 +47,11 @@ class ScenarioDiffResult:
         c = self.counts()
         lines = [
             t("report.title"),
-            f"  A : {self.root_a}",
-            f"  B : {self.root_b}",
+            "",
+            t("report.scenario_a_line", name=self.root_a.name, path=self.root_a),
+            t("report.scenario_b_line", name=self.root_b.name, path=self.root_b),
+            "",
+            t("report.direction_note"),
             "",
             t("report.summary", added=c['added'], removed=c['removed'],
               modified=c['modified'], unchanged=c['unchanged']),

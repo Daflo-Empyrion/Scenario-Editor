@@ -20,7 +20,7 @@ from PyQt6.QtGui import QColor, QBrush
 
 from core.i18n import t
 from core.scenario_diff import compare_scenarios, ScenarioDiffResult, FileDiffEntry
-from gui.theme import icon, icon_size, GREEN, RED, ORANGE, TEXT_GRAY
+from gui.theme import icon, icon_size, GREEN, RED, ORANGE, TEXT_GRAY, PRIMARY_DARK
 
 
 STATUS_COLORS = {
@@ -71,6 +71,10 @@ class ScenarioCompareDialog(QDialog):
         self.summary_label.setObjectName("mutedLabel")
         top_row.addWidget(self.summary_label)
         layout.addLayout(top_row)
+
+        self.direction_label = QLabel("")
+        self.direction_label.setStyleSheet(f"font-weight: 700; color: {PRIMARY_DARK}; padding: 4px 0;")
+        layout.addWidget(self.direction_label)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.tree = QTreeWidget()
@@ -137,6 +141,9 @@ class ScenarioCompareDialog(QDialog):
         c = self.result.counts()
         self.summary_label.setText(t("compare.summary", added=c['added'], removed=c['removed'],
                                       modified=c['modified'], unchanged=c['unchanged']))
+        self.direction_label.setText(
+            t("compare.direction_label", name_a=self.result.root_a.name, name_b=self.result.root_b.name)
+        )
         self._populate_tree()
 
     def _populate_tree(self):
