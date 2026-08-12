@@ -51,6 +51,7 @@ from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDi
 from gui.csv_edit_widget import CsvEditWidget
 from gui.yaml_edit_widget import YamlEditWidget
 from gui.txt_edit_widget import TxtEditWidget
+from gui.wiki_viewer import open_wiki
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -102,6 +103,14 @@ class MainWindow(QMainWindow):
         self.action_toggle_annotations.setCheckable(True)
         self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
         self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
+
+        menu_help = self.menuBar().addMenu("&Aide")
+        action_wiki_app = menu_help.addAction("Wiki de l'application (fonctions)...")
+        action_wiki_app.triggered.connect(
+            lambda: open_wiki(self, "Wiki de l'application", "wiki_app.md"))
+        action_wiki_empyrion = menu_help.addAction("Wiki Empyrion (proprietes, fichiers, structure)...")
+        action_wiki_empyrion.triggered.connect(
+            lambda: open_wiki(self, "Wiki Empyrion", "wiki_empyrion.md"))
 
     def _save_current_tab(self):
         widget = self.tabs.currentWidget()
