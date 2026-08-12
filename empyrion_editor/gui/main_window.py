@@ -43,6 +43,8 @@ from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, n
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
 from core import project_store, settings
+from core import i18n
+from core.i18n import t
 from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
@@ -77,40 +79,71 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_menu(self):
-        menu = self.menuBar().addMenu("&Fichier")
-        action_new = menu.addAction("&Nouveau projet...")
-        action_new.triggered.connect(self.new_project_dialog)
-        action_recent = menu.addAction("&Projets recents...")
-        action_recent.triggered.connect(self.show_startup_dialog)
-        menu.addSeparator()
-        action_save = menu.addAction("&Enregistrer")
-        action_save.setShortcut("Ctrl+S")
-        action_save.triggered.connect(self._save_current_tab)
-        menu.addSeparator()
-        action_quit = menu.addAction("&Quitter")
-        action_quit.triggered.connect(self.close)
+        self.menu_file = self.menuBar().addMenu(t("menu.file"))
+        self.action_new = self.menu_file.addAction(t("menu.file.new_project"))
+        self.action_new.triggered.connect(self.new_project_dialog)
+        self.action_recent = self.menu_file.addAction(t("menu.file.recent_projects"))
+        self.action_recent.triggered.connect(self.show_startup_dialog)
+        self.menu_file.addSeparator()
+        self.action_save = self.menu_file.addAction(t("menu.file.save"))
+        self.action_save.setShortcut("Ctrl+S")
+        self.action_save.triggered.connect(self._save_current_tab)
+        self.menu_file.addSeparator()
+        self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
+        self.action_quit.triggered.connect(self.close)
 
-        menu_check = self.menuBar().addMenu("&Verification")
-        action_refs = menu_check.addAction("Verifier les references (Ref) de la copie de travail...")
-        action_refs.triggered.connect(self.check_references_dialog)
-        action_pending = menu_check.addAction("Blocs en attente (conflits d'Id)...")
-        action_pending.triggered.connect(self.check_pending_conflicts_dialog)
+        self.menu_check = self.menuBar().addMenu(t("menu.verification"))
+        self.action_refs = self.menu_check.addAction(t("menu.verification.check_refs"))
+        self.action_refs.triggered.connect(self.check_references_dialog)
+        self.action_pending = self.menu_check.addAction(t("menu.verification.pending"))
+        self.action_pending.triggered.connect(self.check_pending_conflicts_dialog)
 
-        menu_options = self.menuBar().addMenu("&Options")
-        action_author = menu_options.addAction("Nom pour les annotations...")
-        action_author.triggered.connect(self._set_author_dialog)
-        self.action_toggle_annotations = menu_options.addAction("Annoter les modifications automatiquement")
+        self.menu_options = self.menuBar().addMenu(t("menu.options"))
+        self.action_author = self.menu_options.addAction(t("menu.options.author"))
+        self.action_author.triggered.connect(self._set_author_dialog)
+        self.action_toggle_annotations = self.menu_options.addAction(t("menu.options.annotations"))
         self.action_toggle_annotations.setCheckable(True)
         self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
         self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
+        self.menu_options.addSeparator()
+        self.action_language = self.menu_options.addAction(t("menu.options.language"))
+        self.action_language.triggered.connect(self._toggle_language)
 
-        menu_help = self.menuBar().addMenu("&Aide")
-        action_wiki_app = menu_help.addAction("Wiki de l'application (fonctions)...")
-        action_wiki_app.triggered.connect(
-            lambda: open_wiki(self, "Wiki de l'application", "wiki_app.md"))
-        action_wiki_empyrion = menu_help.addAction("Wiki Empyrion (proprietes, fichiers, structure)...")
-        action_wiki_empyrion.triggered.connect(
-            lambda: open_wiki(self, "Wiki Empyrion", "wiki_empyrion.md"))
+        self.menu_help = self.menuBar().addMenu(t("menu.help"))
+        self.action_wiki_app = self.menu_help.addAction(t("menu.help.wiki_app"))
+        self.action_wiki_app.triggered.connect(
+            lambda: open_wiki(self, t("menu.help.wiki_app").rstrip("."), "wiki_app.md"))
+        self.action_wiki_empyrion = self.menu_help.addAction(t("menu.help.wiki_empyrion"))
+        self.action_wiki_empyrion.triggered.connect(
+            lambda: open_wiki(self, t("menu.help.wiki_empyrion").rstrip("."), "wiki_empyrion.md"))
+
+    def _toggle_language(self):
+        current = i18n.get_language()
+        new_lang = "en" if current == "fr" else "fr"
+        i18n.set_language(new_lang)
+        self._apply_language()
+
+    def _apply_language(self):
+        """Reassigne le texte de tous les elements de menu traduits, sans reconstruire
+        la structure (garde les connexions de signaux intactes)."""
+        self.menu_file.setTitle(t("menu.file"))
+        self.action_new.setText(t("menu.file.new_project"))
+        self.action_recent.setText(t("menu.file.recent_projects"))
+        self.action_save.setText(t("menu.file.save"))
+        self.action_quit.setText(t("menu.file.quit"))
+
+        self.menu_check.setTitle(t("menu.verification"))
+        self.action_refs.setText(t("menu.verification.check_refs"))
+        self.action_pending.setText(t("menu.verification.pending"))
+
+        self.menu_options.setTitle(t("menu.options"))
+        self.action_author.setText(t("menu.options.author"))
+        self.action_toggle_annotations.setText(t("menu.options.annotations"))
+        self.action_language.setText(t("menu.options.language"))
+
+        self.menu_help.setTitle(t("menu.help"))
+        self.action_wiki_app.setText(t("menu.help.wiki_app"))
+        self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
 
     def _save_current_tab(self):
         widget = self.tabs.currentWidget()

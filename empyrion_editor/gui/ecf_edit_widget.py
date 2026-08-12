@@ -21,7 +21,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
 from PyQt6.QtGui import QColor, QBrush
 
-from core.ecf.parser import parse_ecf_file
+from core.ecf.parser import parse_ecf_file, parse_ecf_text
 from core.ecf.model import (
     EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
     add_property_line, remove_property_line, remove_block, create_block, annotate_property,
@@ -248,6 +248,8 @@ class EcfEditWidget(QWidget):
         self._modified = False
         self._current_block: Optional[EcfBlock] = None
         self._edited_prop_nodes = set()  # ids Python des EcfProperty touches cette session
+        self._undo_stack: list = []  # textes serialises (fidelite deja prouvee par le parser)
+        self._undo_max = 20
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
@@ -279,11 +281,18 @@ class EcfEditWidget(QWidget):
         btn_filter = QPushButton("Filtrer par propriete...")
         btn_filter.clicked.connect(self._open_property_filter)
         toolbar.addWidget(btn_filter)
+        self.btn_undo = QPushButton("Annuler (Ctrl+Z)")
+        self.btn_undo.clicked.connect(self.undo)
+        self.btn_undo.setEnabled(False)
+        toolbar.addWidget(self.btn_undo)
         btn_save = QPushButton("Enregistrer (Ctrl+S)")
         btn_save.clicked.connect(self.save)
         toolbar.addWidget(btn_save)
         toolbar.addStretch()
         layout.addLayout(toolbar, 0)
+
+        from PyQt6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -328,6 +337,26 @@ class EcfEditWidget(QWidget):
             f.write(self.doc.render())
         self._set_modified(False)
         self.saved.emit()
+
+    def _snapshot_undo(self):
+        """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
+        (texte serialise ; fidelite deja prouvee par le parser) pour pouvoir l'annuler."""
+        self._undo_stack.append(self.doc.render())
+        if len(self._undo_stack) > self._undo_max:
+            self._undo_stack.pop(0)
+        self.btn_undo.setEnabled(True)
+
+    def undo(self):
+        if not self._undo_stack:
+            return
+        previous_text = self._undo_stack.pop()
+        self.doc = parse_ecf_text(previous_text)
+        self._current_block = None
+        self.props_table.setRowCount(0)
+        self._populate_tree()
+        self._set_modified(True)
+        if not self._undo_stack:
+            self.btn_undo.setEnabled(False)
 
     # ------------------------------------------------------------------
     # Arbre des blocs
@@ -443,6 +472,7 @@ class EcfEditWidget(QWidget):
             old_value = prop_node.get(key)
             if old_value == new_value:
                 return
+            self._snapshot_undo()
             prop_node.set(key, new_value)
             annotate_target = None  # les proprietes d'en-tete n'ont pas de 'comment' individuel simple a annoter
         else:
@@ -457,6 +487,7 @@ class EcfEditWidget(QWidget):
                     break
             if idx is None or old_value == new_value:
                 return
+            self._snapshot_undo()
             prop_node.pairs[idx] = (key, new_value)
             prop_node.dirty = True
             annotate_target = prop_node
@@ -510,6 +541,7 @@ class EcfEditWidget(QWidget):
         elif chosen in lang_actions:
             self._translate_cell(value_item, key_item, prop_node, lang_actions[chosen])
         elif chosen == action_del and isinstance(prop_node, EcfProperty):
+            self._snapshot_undo()
             remove_property_line(self._current_block, prop_node)
             self._set_modified(True)
             self._refresh_props_table()
@@ -547,7 +579,11 @@ class EcfEditWidget(QWidget):
         value, ok = QInputDialog.getText(self, "Ajouter une propriete", f"Valeur de '{key}' :")
         if not ok:
             return
-        add_property_line(self._current_block, [(key.strip(), value.strip())])
+        self._snapshot_undo()
+        new_prop = add_property_line(self._current_block, [(key.strip(), value.strip())])
+        if settings.get_annotations_enabled():
+            author = settings.get_author()
+            annotate_property(new_prop, f"# Ajoute par {author}")
         self._set_modified(True)
         self._refresh_props_table()
 
@@ -569,6 +605,7 @@ class EcfEditWidget(QWidget):
             confirm = QMessageBox.question(self, "Confirmer",
                                             f"Supprimer le bloc {item.text(0)} ?")
             if confirm == QMessageBox.StandardButton.Yes:
+                self._snapshot_undo()
                 remove_block(self.doc.nodes, block)
                 self._set_modified(True)
                 if self._current_block is block:
@@ -602,7 +639,11 @@ class EcfEditWidget(QWidget):
         pairs = [('Id', block_id.strip())]
         if name.strip():
             pairs.append(('Name', name.strip()))
+        self._snapshot_undo()
         new_block = create_block(kind.strip(), pairs)
+        if settings.get_annotations_enabled():
+            author = settings.get_author()
+            new_block.comment = f"# Ajoute par {author}"
         self.doc.nodes.append(new_block)
         self._set_modified(True)
         self._populate_tree()

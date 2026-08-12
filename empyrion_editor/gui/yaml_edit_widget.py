@@ -15,9 +15,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
 
-from core.yamllite.parser import parse_yaml_file
+from core.yamllite.parser import parse_yaml_file, parse_yaml_text
 from core.yamllite.model import YamlDocument, YamlEntry, create_entry, remove_entry
-from core import translation
+from core import translation, settings
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import open_bbcode_tool
 
@@ -39,6 +39,8 @@ class YamlEditWidget(QWidget):
         self.doc: YamlDocument = parse_yaml_file(path)
         self._modified = False
         self._current_entry: Optional[YamlEntry] = None
+        self._undo_stack: list = []
+        self._undo_max = 20
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
@@ -69,11 +71,17 @@ class YamlEditWidget(QWidget):
             btn_del = QPushButton("Supprimer l'entree selectionnee")
             btn_del.clicked.connect(self._delete_selected_entry)
             toolbar.addWidget(btn_del)
+            self.btn_undo = QPushButton("Annuler (Ctrl+Z)")
+            self.btn_undo.clicked.connect(self.undo)
+            self.btn_undo.setEnabled(False)
+            toolbar.addWidget(self.btn_undo)
             btn_save = QPushButton("Enregistrer (Ctrl+S)")
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()
             layout.addLayout(toolbar, 0)
+            from PyQt6.QtGui import QKeySequence, QShortcut
+            QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -122,6 +130,27 @@ class YamlEditWidget(QWidget):
             f.write(self.doc.render())
         self._set_modified(False)
         self.saved.emit()
+
+    def _snapshot_undo(self):
+        """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
+        (texte serialise) pour pouvoir l'annuler."""
+        self._undo_stack.append(self.doc.render())
+        if len(self._undo_stack) > self._undo_max:
+            self._undo_stack.pop(0)
+        self.btn_undo.setEnabled(True)
+
+    def undo(self):
+        if not self._undo_stack:
+            return
+        previous_text = self._undo_stack.pop()
+        self.doc = parse_yaml_text(previous_text)
+        self._current_entry = None
+        self.value_edit.clear()
+        self.value_edit.setEnabled(False)
+        self._populate_tree()
+        self._set_modified(True)
+        if not self._undo_stack:
+            self.btn_undo.setEnabled(False)
 
     def _populate_tree(self):
         self.tree.clear()
@@ -200,7 +229,17 @@ class YamlEditWidget(QWidget):
             return
         new_value = self.value_edit.toPlainText()
         if new_value != self._current_entry.value:
+            self._snapshot_undo()
+            old_value = self._current_entry.value
             self._current_entry.set_own_value(new_value)
+            if settings.get_annotations_enabled():
+                author = settings.get_author()
+                note = f"# original: {old_value} -- Mod par {author}"
+                if self._current_entry.comment:
+                    self._current_entry.comment = self._current_entry.comment + "  " + note
+                else:
+                    self._current_entry.comment = note
+                self._current_entry.dirty = True
             self._set_modified(True)
             self._refresh_current_item_preview()
 
@@ -244,7 +283,11 @@ class YamlEditWidget(QWidget):
         parent_entry = self._current_entry
         target_list = parent_entry.children if parent_entry else self.doc.nodes
         indent = (parent_entry.indent + "  ") if parent_entry else ""
+        self._snapshot_undo()
         new_entry = create_entry(key.strip() or None, value.strip(), indent=indent)
+        if settings.get_annotations_enabled():
+            author = settings.get_author()
+            new_entry.comment = f"# Ajoute par {author}"
         target_list.append(new_entry)
         self._set_modified(True)
         self._populate_tree()
@@ -256,6 +299,7 @@ class YamlEditWidget(QWidget):
         confirm = QMessageBox.question(self, "Confirmer", f"Supprimer '{self._current_entry.key or self._current_entry.value}' ?")
         if confirm != QMessageBox.StandardButton.Yes:
             return
+        self._snapshot_undo()
         remove_entry(self.doc.nodes, self._current_entry)
         self._current_entry = None
         self.value_edit.clear()

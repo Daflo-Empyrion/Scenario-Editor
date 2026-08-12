@@ -119,6 +119,9 @@ class CsvEditWidget(QWidget):
         self.on_translate_cell = on_translate_cell
         self.on_duplicate_row = on_duplicate_row
         self._modified = False
+        self._undo_stack: list = []
+        self._undo_max = 20
+        self._pre_edit_snapshot = None  # capture avant edition en double-clic
 
         handler = CsvHandler()
         raw = handler.load(path)
@@ -143,6 +146,10 @@ class CsvEditWidget(QWidget):
             btn_del_row = QPushButton("- Ligne selectionnee")
             btn_del_row.clicked.connect(self._delete_selected_row)
             toolbar.addWidget(btn_del_row)
+            self.btn_undo = QPushButton("Annuler (Ctrl+Z)")
+            self.btn_undo.clicked.connect(self.undo)
+            self.btn_undo.setEnabled(False)
+            toolbar.addWidget(self.btn_undo)
             btn_save = QPushButton("Enregistrer (Ctrl+S)")
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
@@ -163,7 +170,17 @@ class CsvEditWidget(QWidget):
         self.table.customContextMenuRequested.connect(self._show_context_menu)
         if editable:
             self.table.setSelectionMode(self.table.SelectionMode.ContiguousSelection)
-            install_clipboard_shortcuts(self.table, allow_new_rows=True)
+            self.table.itemDoubleClicked.connect(lambda item: self._snapshot_undo())
+            from PyQt6.QtGui import QKeySequence, QShortcut
+            QShortcut(QKeySequence.StandardKey.Copy, self.table,
+                      activated=lambda: copy_selection(self.table))
+            QShortcut(QKeySequence.StandardKey.Cut, self.table,
+                      activated=self._do_cut)
+            QShortcut(QKeySequence.StandardKey.Paste, self.table,
+                      activated=self._do_paste)
+            QShortcut(QKeySequence(Qt.Key.Key_Delete), self.table,
+                      activated=self._do_delete_content)
+            QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
         layout.addWidget(self.table, 1)
 
     def _populate_table(self):
@@ -192,6 +209,54 @@ class CsvEditWidget(QWidget):
         self._set_modified(False)
         self.saved.emit()
 
+    def _snapshot_table(self) -> list:
+        return [[self.table.item(r, c).text() if self.table.item(r, c) else ""
+                 for c in range(self.table.columnCount())]
+                for r in range(self.table.rowCount())]
+
+    def _snapshot_undo(self):
+        """A appeler AVANT toute modification (edition, coller, ajout/suppression de
+        ligne...) -- capture le tableau tel qu'il est maintenant, pour pouvoir y revenir."""
+        self._undo_stack.append(self._snapshot_table())
+        if len(self._undo_stack) > self._undo_max:
+            self._undo_stack.pop(0)
+        self.btn_undo.setEnabled(True)
+
+    def undo(self):
+        if not self._undo_stack:
+            return
+        snapshot = self._undo_stack.pop()
+        self.table.blockSignals(True)
+        self.table.setRowCount(len(snapshot))
+        for r, row_vals in enumerate(snapshot):
+            for c, val in enumerate(row_vals):
+                item = self.table.item(r, c)
+                if item is None:
+                    item = QTableWidgetItem("")
+                    self.table.setItem(r, c, item)
+                item.setText(val)
+        self.table.blockSignals(False)
+        self._set_modified(True)
+        if not self._undo_stack:
+            self.btn_undo.setEnabled(False)
+
+    def _do_cut(self):
+        self._snapshot_undo()
+        cut_selection(self.table)
+
+    def _do_paste(self):
+        self._snapshot_undo()
+        paste_into_selection(self.table, allow_new_rows=True)
+
+    def _do_delete_content(self):
+        self._snapshot_undo()
+        delete_selection(self.table)
+
+    def _do_delete_rows(self):
+        self._snapshot_undo()
+        delete_selected_rows(self.table)
+        self._set_modified(True)
+
     def _sync_doc_from_table(self):
         rows = []
         for r in range(self.table.rowCount()):
@@ -207,6 +272,7 @@ class CsvEditWidget(QWidget):
         self._set_modified(True)
 
     def _add_row(self):
+        self._snapshot_undo()
         r = self.table.rowCount()
         self.table.insertRow(r)
         for c in range(self.table.columnCount()):
@@ -217,6 +283,7 @@ class CsvEditWidget(QWidget):
         r = self.table.currentRow()
         if r < 0:
             return
+        self._snapshot_undo()
         self.table.removeRow(r)
         self._set_modified(True)
 
@@ -280,7 +347,10 @@ class CsvEditWidget(QWidget):
             item = self.table.currentItem()
 
         menu = QMenu(self)
-        add_clipboard_menu_actions(menu, self.table, allow_new_rows=True)
+        menu.addAction("Copier", lambda: copy_selection(self.table))
+        menu.addAction("Couper", self._do_cut)
+        menu.addAction("Coller", self._do_paste)
+        menu.addAction("Supprimer le contenu (vide la/les cellule(s))", self._do_delete_content)
         action_del_row = menu.addAction("Supprimer la/les ligne(s) entiere(s)")
         menu.addSeparator()
 
@@ -298,9 +368,7 @@ class CsvEditWidget(QWidget):
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
 
         if chosen == action_del_row:
-            n = delete_selected_rows(self.table)
-            if n:
-                self._set_modified(True)
+            self._do_delete_rows()
             return
 
         if item is None:
@@ -310,6 +378,7 @@ class CsvEditWidget(QWidget):
         if action_bbcode is not None and chosen == action_bbcode:
             new_text = open_bbcode_tool(self, text)
             if new_text is not None:
+                self._snapshot_undo()
                 item.setText(new_text)
             return
 
@@ -339,6 +408,7 @@ class CsvEditWidget(QWidget):
             return
         result_text = dialog.result_text()
 
+        self._snapshot_undo()
         if target_col is not None and target_col != item.column():
             dest_item = self.table.item(row, target_col)
             if dest_item is None:

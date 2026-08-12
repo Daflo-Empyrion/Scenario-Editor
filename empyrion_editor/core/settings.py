@@ -54,3 +54,26 @@ def set_annotations_enabled(enabled: bool) -> None:
     data['annotations_enabled'] = enabled
     data['author'] = data.get('author', DEFAULT_AUTHOR)
     SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+
+def get_language() -> str:
+    """Code langue de l'interface : 'fr' ou 'en'."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            return data.get('language', 'fr')
+        except Exception:
+            pass
+    return 'fr'
+
+
+def set_language(lang: str) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    data['language'] = lang
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')

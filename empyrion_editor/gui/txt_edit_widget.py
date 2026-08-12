@@ -47,6 +47,9 @@ class TxtEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
+            btn_undo = QPushButton("Annuler (Ctrl+Z)")
+            btn_undo.clicked.connect(lambda: self.text_edit.undo())
+            toolbar.addWidget(btn_undo)
             btn_save = QPushButton("Enregistrer (Ctrl+S)")
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
