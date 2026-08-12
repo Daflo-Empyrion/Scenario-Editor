@@ -189,6 +189,7 @@ class BBCodeToolDialog(QDialog):
         btn_apply.clicked.connect(self.accept)
         buttons.addWidget(btn_apply)
         btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)

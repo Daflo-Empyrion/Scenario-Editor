@@ -69,6 +69,9 @@ class NewProjectDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
+        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_btn:
+            cancel_btn.setObjectName("secondaryButton")
         layout.addWidget(buttons)
 
     def _browse(self, target_edit: QLineEdit):

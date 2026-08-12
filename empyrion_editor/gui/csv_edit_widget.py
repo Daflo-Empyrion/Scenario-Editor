@@ -15,6 +15,7 @@ from PyQt6.QtGui import QColor, QBrush
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
 from core import translation
 from core.i18n import t
+from gui.theme import icon, icon_size
 from gui.text_tools import (
     copy_selection, cut_selection, paste_into_selection, delete_selection, delete_selected_rows,
     install_clipboard_shortcuts, add_clipboard_menu_actions, open_bbcode_tool,
@@ -53,6 +54,7 @@ class TranslationResultDialog(QDialog):
         btn_replace.clicked.connect(self._on_replace)
         buttons.addWidget(btn_replace)
         btn_close = QPushButton(t("trans.close_no_apply"))
+        btn_close.setObjectName("secondaryButton")
         btn_close.clicked.connect(self.reject)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)
@@ -139,17 +141,23 @@ class CsvEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
-            btn_add_row = QPushButton(t("btn.add_row"))
+            btn_add_row = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_row"))
+            btn_add_row.setIconSize(icon_size())
             btn_add_row.clicked.connect(self._add_row)
             toolbar.addWidget(btn_add_row)
-            btn_del_row = QPushButton(t("btn.delete_selected_row"))
+            btn_del_row = QPushButton(icon("fa5s.trash-alt", "#4a7dfc"), t("btn.delete_selected_row"))
+            btn_del_row.setIconSize(icon_size())
+            btn_del_row.setObjectName("secondaryButton")
             btn_del_row.clicked.connect(self._delete_selected_row)
             toolbar.addWidget(btn_del_row)
-            self.btn_undo = QPushButton(t("btn.undo"))
+            self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
+            self.btn_undo.setIconSize(icon_size())
+            self.btn_undo.setObjectName("secondaryButton")
             self.btn_undo.clicked.connect(self.undo)
             self.btn_undo.setEnabled(False)
             toolbar.addWidget(self.btn_undo)
-            btn_save = QPushButton(t("btn.save"))
+            btn_save = QPushButton(icon("fa5s.save", "#ffffff"), t("btn.save"))
+            btn_save.setIconSize(icon_size())
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()

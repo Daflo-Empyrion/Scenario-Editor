@@ -45,6 +45,7 @@ class StartupDialog(QDialog):
         btn_row.addWidget(btn_open)
 
         btn_remove = QPushButton(t("startup.remove"))
+        btn_remove.setObjectName("secondaryButton")
         btn_remove.clicked.connect(self._on_remove)
         btn_row.addWidget(btn_remove)
 
@@ -53,6 +54,7 @@ class StartupDialog(QDialog):
         btn_row.addWidget(btn_new)
 
         btn_close = QPushButton(t("btn.close"))
+        btn_close.setObjectName("secondaryButton")
         btn_close.clicked.connect(self.reject)
         btn_row.addWidget(btn_close)
 

@@ -54,6 +54,7 @@ from gui.csv_edit_widget import CsvEditWidget
 from gui.yaml_edit_widget import YamlEditWidget
 from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
+from gui.theme import NAVY, PRIMARY_DARK, PRIMARY, icon, icon_size
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -148,8 +149,9 @@ class MainWindow(QMainWindow):
     def _build_toolbar(self):
         toolbar = self.addToolBar("Langue / Language")
         toolbar.setMovable(False)
-        self.btn_language = QPushButton(i18n.get_language().upper())
-        self.btn_language.setFixedWidth(50)
+        self.btn_language = QPushButton(icon("fa5s.globe", "#ffffff"), i18n.get_language().upper())
+        self.btn_language.setIconSize(icon_size())
+        self.btn_language.setFixedWidth(75)
         self.btn_language.setToolTip(t("menu.options.language"))
         self.btn_language.clicked.connect(self._toggle_language)
         toolbar.addWidget(self.btn_language)
@@ -290,7 +292,7 @@ class MainWindow(QMainWindow):
         layout_a = QVBoxLayout(self.panel_a)
         layout_a.setContentsMargins(4, 2, 4, 2)
         self.label_a = QLabel(t("panel.scenario_a"))
-        self.label_a.setStyleSheet("font-weight: bold;")
+        self.label_a.setStyleSheet(f"font-weight: 700; color: {NAVY};")
         self.tree_a = QTreeWidget()
         self.tree_a.setHeaderLabels(["Scenario A"])
         self.tree_a.itemDoubleClicked.connect(lambda item, col: self._on_source_double_clicked(item, self._root_a))
@@ -305,7 +307,7 @@ class MainWindow(QMainWindow):
         layout_w = QVBoxLayout(self.panel_working)
         layout_w.setContentsMargins(4, 2, 4, 2)
         self.label_working = QLabel(t("panel.working_copy"))
-        self.label_working.setStyleSheet("font-weight: bold; color: #2a6;")
+        self.label_working.setStyleSheet(f"font-weight: 700; color: {PRIMARY_DARK};")
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
@@ -317,7 +319,7 @@ class MainWindow(QMainWindow):
         layout_b = QVBoxLayout(self.panel_b)
         layout_b.setContentsMargins(4, 2, 4, 2)
         self.label_b = QLabel(t("panel.scenario_b"))
-        self.label_b.setStyleSheet("font-weight: bold;")
+        self.label_b.setStyleSheet(f"font-weight: 700; color: {NAVY};")
         self.tree_b = QTreeWidget()
         self.tree_b.setHeaderLabels(["Scenario B"])
         self.tree_b.itemDoubleClicked.connect(lambda item, col: self._on_source_double_clicked(item, self._root_b))
@@ -1080,6 +1082,7 @@ class DuplicateBlockDialog(QDialog):
         btn_ok.clicked.connect(self._on_accept)
         buttons.addWidget(btn_ok)
         btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)
@@ -1352,6 +1355,8 @@ class YamlViewWidget(QWidget):
 
 def main():
     app = QApplication(sys.argv)
+    from gui.theme import apply_theme
+    apply_theme(app)
     window = MainWindow()
     window.show()
 

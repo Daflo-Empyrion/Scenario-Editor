@@ -29,6 +29,7 @@ from core.ecf.model import (
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
 from core.i18n import t
+from gui.theme import icon, icon_size
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
@@ -207,6 +208,7 @@ class PropertyFilterDialog(QDialog):
         btn_clear.clicked.connect(self._clear_all)
         buttons.addWidget(btn_clear)
         btn_close = QPushButton(t("btn.close"))
+        btn_close.setObjectName("secondaryButton")
         btn_close.clicked.connect(self.accept)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)
@@ -261,6 +263,7 @@ class EcfEditWidget(QWidget):
         search_row.addWidget(QLabel(t("label.search")))
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Id / Name / CustomIcon...")
+        self.search_box.addAction(icon("fa5s.search", color="#7c859c"), QLineEdit.ActionPosition.LeadingPosition)
         self.search_box.returnPressed.connect(self._search_next)
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
@@ -269,20 +272,27 @@ class EcfEditWidget(QWidget):
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(4)
-        btn_add_block = QPushButton(t("btn.add_block"))
+        btn_add_block = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_block"))
+        btn_add_block.setIconSize(icon_size())
         btn_add_block.clicked.connect(self._add_block_dialog)
         toolbar.addWidget(btn_add_block)
-        btn_add_prop = QPushButton(t("btn.add_property"))
+        btn_add_prop = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_property"))
+        btn_add_prop.setIconSize(icon_size())
         btn_add_prop.clicked.connect(self._add_property_dialog)
         toolbar.addWidget(btn_add_prop)
-        btn_filter = QPushButton(t("btn.filter_by_property"))
+        btn_filter = QPushButton(icon("fa5s.filter", "#4a7dfc"), t("btn.filter_by_property"))
+        btn_filter.setIconSize(icon_size())
+        btn_filter.setObjectName("secondaryButton")
         btn_filter.clicked.connect(self._open_property_filter)
         toolbar.addWidget(btn_filter)
-        self.btn_undo = QPushButton(t("btn.undo"))
+        self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
+        self.btn_undo.setIconSize(icon_size())
+        self.btn_undo.setObjectName("secondaryButton")
         self.btn_undo.clicked.connect(self.undo)
         self.btn_undo.setEnabled(False)
         toolbar.addWidget(self.btn_undo)
-        btn_save = QPushButton(t("btn.save"))
+        btn_save = QPushButton(icon("fa5s.save", "#ffffff"), t("btn.save"))
+        btn_save.setIconSize(icon_size())
         btn_save.clicked.connect(self.save)
         toolbar.addWidget(btn_save)
         toolbar.addStretch()

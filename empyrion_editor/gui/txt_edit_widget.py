@@ -13,6 +13,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 from core import translation
 from core.i18n import t
+from gui.theme import icon, icon_size
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import open_bbcode_tool
 
@@ -48,10 +49,13 @@ class TxtEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
-            btn_undo = QPushButton(t("btn.undo"))
+            btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
+            btn_undo.setIconSize(icon_size())
+            btn_undo.setObjectName("secondaryButton")
             btn_undo.clicked.connect(lambda: self.text_edit.undo())
             toolbar.addWidget(btn_undo)
-            btn_save = QPushButton(t("btn.save"))
+            btn_save = QPushButton(icon("fa5s.save", "#ffffff"), t("btn.save"))
+            btn_save.setIconSize(icon_size())
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()

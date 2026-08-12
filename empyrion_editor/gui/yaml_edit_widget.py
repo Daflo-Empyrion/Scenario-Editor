@@ -19,6 +19,7 @@ from core.yamllite.parser import parse_yaml_file, parse_yaml_text
 from core.yamllite.model import YamlDocument, YamlEntry, create_entry, remove_entry
 from core import translation, settings
 from core.i18n import t
+from gui.theme import icon, icon_size
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import open_bbcode_tool
 
@@ -66,17 +67,23 @@ class YamlEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
-            btn_add = QPushButton(t("btn.add_entry"))
+            btn_add = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_entry"))
+            btn_add.setIconSize(icon_size())
             btn_add.clicked.connect(self._add_entry_dialog)
             toolbar.addWidget(btn_add)
-            btn_del = QPushButton(t("btn.delete_selected_entry"))
+            btn_del = QPushButton(icon("fa5s.trash-alt", "#4a7dfc"), t("btn.delete_selected_entry"))
+            btn_del.setIconSize(icon_size())
+            btn_del.setObjectName("secondaryButton")
             btn_del.clicked.connect(self._delete_selected_entry)
             toolbar.addWidget(btn_del)
-            self.btn_undo = QPushButton(t("btn.undo"))
+            self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
+            self.btn_undo.setIconSize(icon_size())
+            self.btn_undo.setObjectName("secondaryButton")
             self.btn_undo.clicked.connect(self.undo)
             self.btn_undo.setEnabled(False)
             toolbar.addWidget(self.btn_undo)
-            btn_save = QPushButton(t("btn.save"))
+            btn_save = QPushButton(icon("fa5s.save", "#ffffff"), t("btn.save"))
+            btn_save.setIconSize(icon_size())
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()
