@@ -47,6 +47,8 @@ from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
 from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys
 from gui.csv_edit_widget import CsvEditWidget
+from gui.yaml_edit_widget import YamlEditWidget
+from gui.txt_edit_widget import TxtEditWidget
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -708,7 +710,7 @@ class MainWindow(QMainWindow):
     def open_working_file_tab(self, path: Path):
         """Ouvre un fichier de la copie de travail en edition, avec la (ou les) source(s)
         A/B correspondante(s) affichee(s) cote a cote si elles existent (uniquement
-        pour les .ecf pour l'instant)."""
+        pour les .ecf pour l'instant -- les autres formats s'ouvrent seuls)."""
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(path):
                 self.tabs.setCurrentIndex(i)
@@ -716,9 +718,15 @@ class MainWindow(QMainWindow):
 
         ext = path.suffix.lower()
 
-        if ext == '.csv':
+        simple_editors = {
+            '.csv': CsvEditWidget,
+            '.yaml': YamlEditWidget,
+            '.yml': YamlEditWidget,
+            '.txt': TxtEditWidget,
+        }
+        if ext in simple_editors:
             try:
-                widget = CsvEditWidget(path)
+                widget = simple_editors[ext](path)
             except Exception as e:
                 QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
                 return
@@ -791,7 +799,9 @@ class MainWindow(QMainWindow):
                 widget = EcfViewWidget(path, highlight=highlight, on_copy_block=on_copy_block,
                                         copy_label=source_label)
             elif ext in ('.yaml', '.yml'):
-                widget = YamlViewWidget(path)
+                widget = YamlEditWidget(path, editable=False)
+            elif ext == '.txt':
+                widget = TxtEditWidget(path, editable=False)
             elif ext == '.csv':
                 on_copy_row = None
                 on_translate_cell = None

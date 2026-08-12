@@ -100,6 +100,26 @@ class YamlEntry:
 YamlNode = Union[YamlBlank, YamlComment, YamlEntry]
 
 
+def create_entry(key: Optional[str], value: str, indent: str = "", is_sequence_item: bool = False,
+                  eol: str = "\r\n") -> YamlEntry:
+    """Cree une nouvelle entree YAML de toutes pieces (pas encore attachee a un document)."""
+    return YamlEntry(raw="", indent=indent, is_sequence_item=is_sequence_item, key=key,
+                      value=value, comment=None, eol=eol, children=[], dirty=True)
+
+
+def remove_entry(nodes: List[YamlNode], target: YamlEntry) -> bool:
+    """Supprime une entree (a n'importe quelle profondeur) d'une liste de noeuds.
+    Retourne False si l'entree n'a pas ete trouvee."""
+    if target in nodes:
+        nodes.remove(target)
+        return True
+    for node in nodes:
+        if isinstance(node, YamlEntry):
+            if remove_entry(node.children, target):
+                return True
+    return False
+
+
 @dataclass
 class YamlDocument:
     nodes: List[YamlNode]
