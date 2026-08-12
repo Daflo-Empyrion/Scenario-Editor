@@ -589,7 +589,7 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(f"Copie vers la copie de travail : {dest}")
 
-    def _duplicate_ecf_block_dialog(self, block: EcfBlock, source_file_path: Path,
+    def _duplicate_ecf_block_dialog(self, block: EcfBlock, parent_chain: list, source_file_path: Path,
                                      source_root: Path, source_label: str):
         """Duplique un bloc en lui donnant un nouvel Id et/ou un nouveau Name, comme un
         element independant (pas une fusion) -- utile pour partir d'un bloc existant
@@ -618,10 +618,17 @@ class MainWindow(QMainWindow):
             dest, status = duplicate_ecf_block_into_working(
                 self.workspace, rel, block,
                 dialog.result_new_id, dialog.result_new_name, dialog.result_remove_id,
-                source_label)
+                source_label, parent_chain=parent_chain)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer ce bloc :\n{e}")
+            return
+
+        if status == 'parent_not_found':
+            QMessageBox.warning(self, "Bloc parent introuvable",
+                                 f"Ce bloc est imbrique dans un autre (ex: un 'Mode' dans un 'Item'), "
+                                 f"mais son parent n'existe pas encore dans {dest.name} -- copie/fusionne "
+                                 f"d'abord le bloc parent avant de dupliquer ce sous-bloc.")
             return
 
         if status == 'exists':
@@ -962,8 +969,8 @@ class MainWindow(QMainWindow):
                 if read_only and source_root and source_label:
                     on_copy_block = lambda block: self._copy_block_into_working(
                         block, path, source_root, source_label)
-                    on_duplicate_block = lambda block: self._duplicate_ecf_block_dialog(
-                        block, path, source_root, source_label)
+                    on_duplicate_block = lambda block, parent_chain: self._duplicate_ecf_block_dialog(
+                        block, parent_chain, path, source_root, source_label)
                 widget = EcfViewWidget(path, highlight=highlight, on_copy_block=on_copy_block,
                                         copy_label=source_label, on_duplicate_block=on_duplicate_block)
             elif ext in ('.yaml', '.yml'):
@@ -1210,18 +1217,33 @@ class EcfViewWidget(QWidget):
         ident = block_identity(block)
         label = f"{block.kind} [{ident}]" if ident else block.kind
 
+        # Chaine des ancetres (kind, identite) menant a ce bloc -- vide si le bloc est
+        # deja au niveau racine. Indispensable pour un sous-bloc imbrique (ex: 'Mode'
+        # dans un 'Item') : sans ca, une duplication le placerait a tort au niveau
+        # racine, isole de son parent.
+        parent_chain = []
+        parent_item = item.parent()
+        while parent_item is not None:
+            parent_block = parent_item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(parent_block, EcfBlock):
+                parent_chain.insert(0, (normalized_kind(parent_block.kind), block_identity(parent_block)))
+            parent_item = parent_item.parent()
+
         menu = QMenu(self)
         action_merge = None
         if self.on_copy_block:
             action_merge = menu.addAction(f"Copier / fusionner ce bloc ({label}) vers la copie de travail")
         action_dup = None
         if self.on_duplicate_block:
-            action_dup = menu.addAction(f"Dupliquer avec un nouvel Id vers la copie de travail...")
+            if parent_chain:
+                action_dup = menu.addAction(f"Dupliquer ce sous-bloc (dans le meme parent) vers la copie de travail...")
+            else:
+                action_dup = menu.addAction(f"Dupliquer avec un nouvel Id vers la copie de travail...")
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
         if action_merge and chosen == action_merge:
             self.on_copy_block(block)
         elif action_dup and chosen == action_dup:
-            self.on_duplicate_block(block)
+            self.on_duplicate_block(block, parent_chain)
 
     def _populate_tree(self):
         for node in self.doc.nodes:

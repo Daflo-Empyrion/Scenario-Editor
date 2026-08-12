@@ -349,9 +349,28 @@ def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
     return dest, status, highlight
 
 
+def _find_ecf_parent_children(nodes: list, parent_chain: list) -> Optional[list]:
+    """Retrouve, dans une liste de noeuds ECF, la liste d'enfants correspondant a une
+    chaine de parents (kind normalise, identite) -- pour savoir dans quel bloc reinserer
+    un sous-bloc duplique, au meme niveau d'imbrication que l'original."""
+    from .ecf.model import normalized_kind, block_identity
+    current_nodes = nodes
+    for kind, ident in parent_chain:
+        found = None
+        for n in current_nodes:
+            if hasattr(n, 'kind') and normalized_kind(n.kind) == kind and block_identity(n) == ident:
+                found = n
+                break
+        if found is None:
+            return None
+        current_nodes = found.children
+    return current_nodes
+
+
 def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
                                       block, new_id: Optional[str], new_name: Optional[str],
-                                      remove_id: bool, source_label: str) -> Tuple[Path, str]:
+                                      remove_id: bool, source_label: str,
+                                      parent_chain: Optional[list] = None) -> Tuple[Path, str]:
     """
     Duplique un bloc ECF (venant d'une source) vers la copie de travail comme un bloc
     INDEPENDANT (pas une fusion) -- l'utilisateur choisit librement : nouvel Id, nouveau
@@ -359,8 +378,15 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
     (certains blocs reels n'ont pas d'Id du tout). Ne passe pas par le garde-fou de
     fusion puisque le but est justement de creer un element distinct.
 
+    Si `parent_chain` est fourni (liste de (kind, identite) menant au bloc dans le
+    document source -- ex: [('Item', '100')] pour un sous-bloc 'Mode' imbrique dans un
+    Item), le nouveau bloc est insere DANS LE MEME PARENT (retrouve dans la copie de
+    travail par cette chaine), et pas au niveau racine -- sinon un sous-bloc duplique se
+    retrouverait isole/orphelin en fin de fichier.
+
     Verifie les collisions contre l'identite REELLE du bloc obtenu (Id si present,
-    sinon Name). Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'exists'.
+    sinon Name), au sein du meme conteneur (racine ou parent). Retourne
+    (chemin_du_fichier, statut) -- statut : 'added', 'exists', ou 'parent_not_found'.
     """
     dest = workspace.working_root / working_relative_path
     if not dest.exists():
@@ -371,6 +397,13 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
 
     working_doc = parse_ecf_file(dest)
 
+    target_nodes = working_doc.nodes
+    if parent_chain:
+        found_nodes = _find_ecf_parent_children(working_doc.nodes, parent_chain)
+        if found_nodes is None:
+            return dest, 'parent_not_found'
+        target_nodes = found_nodes
+
     overrides = {}
     if new_id:
         overrides['Id'] = new_id
@@ -379,24 +412,25 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
     remove_keys = ['Id'] if remove_id else []
 
     new_block = duplicate_block(block, overrides=overrides, remove_keys=remove_keys)
+    # Reajuste l'indentation au niveau d'imbrication reel de destination (l'original
+    # copie garde sinon l'indentation de sa position d'origine, qui peut ne pas
+    # correspondre si le contexte differe).
+    new_block.indent = "  " * len(parent_chain) if parent_chain else ""
 
     final_id = new_block.get('Id')
     final_name = new_block.get_property('Name')
 
-    for node in working_doc.nodes:
+    for node in target_nodes:
         if not (hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind)):
             continue
         if final_id is not None:
             if node.get('Id') == final_id:
                 return dest, 'exists'
         elif final_name is not None:
-            # Le nouveau bloc n'a pas d'Id -> ne compare qu'aux autres blocs SANS Id non plus,
-            # identifies par le meme Name (sinon on pourrait bloquer a tort sur un Name partage
-            # par un bloc different qui a lui un Id -- deux systemes d'identite distincts).
             if node.get('Id') is None and node.get_property('Name') == final_name:
                 return dest, 'exists'
 
-    working_doc.nodes.append(new_block)
+    target_nodes.append(new_block)
 
     with open(dest, 'w', encoding='utf-8', newline='') as f:
         f.write(working_doc.render())
