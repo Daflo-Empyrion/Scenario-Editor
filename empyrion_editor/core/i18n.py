@@ -136,6 +136,127 @@ STRINGS = {
     "propfilter.clear_all": {"fr": "Tout decocher (afficher tous les blocs)",
                               "en": "Uncheck all (show all blocks)"},
 
+    # --- Titres generiques de messages ---
+    "err.title": {"fr": "Erreur", "en": "Error"},
+    "err.read_title": {"fr": "Erreur de lecture", "en": "Read error"},
+    "err.no_project_title": {"fr": "Aucun projet", "en": "No project"},
+    "err.no_project_msg": {"fr": "Ouvre d'abord un projet.", "en": "Open a project first."},
+    "err.no_file_title": {"fr": "Aucun fichier", "en": "No file"},
+
+    # --- Blocs en attente ---
+    "pending.none_title": {"fr": "Blocs en attente", "en": "Pending blocks"},
+    "pending.none_msg": {"fr": "Aucun bloc en attente (conflit d'Id) trouve dans la copie de travail.",
+                          "en": "No pending block (Id conflict) found in the working copy."},
+    "pending.not_found_msg": {"fr": "Le bloc en attente n'a plus ete retrouve (fichier modifie entre-temps ?).",
+                               "en": "The pending block could no longer be found (was the file modified meanwhile?)."},
+    "pending.cannot_activate_msg": {"fr": "Impossible d'activer ce bloc (motif 'Id:' introuvable dans son texte).",
+                                     "en": "Could not activate this block ('Id:' pattern not found in its text)."},
+    "pending.activation_error": {"fr": "Erreur pendant l'activation", "en": "Error during activation"},
+    "pending.activated_title": {"fr": "Bloc active", "en": "Block activated"},
+    "pending.activated_msg": {"fr": "Le bloc est maintenant actif avec Id={id} dans {file}.\n"
+                                     "Pense a relancer la verification des references si ce bloc en concernait.",
+                               "en": "The block is now active with Id={id} in {file}.\n"
+                                     "Remember to re-run the reference check if this block was involved."},
+
+    # --- Verification des references ---
+    "check.no_ecf_found": {"fr": "Aucun fichier .ecf trouve dans Configuration.",
+                            "en": "No .ecf file found in Configuration."},
+    "check.verification_error": {"fr": "Erreur pendant la verification", "en": "Error during check"},
+    "check.refs_title": {"fr": "Verification des references", "en": "Reference check"},
+    "check.refs_ok": {"fr": "Aucune reference cassee trouvee sur {n} fichier(s) verifie(s).",
+                       "en": "No broken reference found across {n} checked file(s)."},
+
+    # --- Projets ---
+    "err.create_project": {"fr": "Impossible de creer le projet", "en": "Could not create the project"},
+    "recent.none_title": {"fr": "Aucun projet recent", "en": "No recent project"},
+    "recent.none_msg": {"fr": "Aucun projet recent enregistre -- utilise 'Nouveau projet...'",
+                         "en": "No recent project saved -- use 'New project...'"},
+    "recent.resume_error": {"fr": "Impossible de reprendre ce projet", "en": "Could not resume this project"},
+    "recent.resume_error_hint": {"fr": "Il a peut-etre ete deplace ou supprime.",
+                                  "en": "It may have been moved or deleted."},
+
+    # --- Fusion ---
+    "merge.empty_folder_title": {"fr": "Dossier vide", "en": "Empty folder"},
+    "merge.empty_folder_msg": {"fr": "Aucun fichier a fusionner dans ce dossier.",
+                                "en": "No file to merge in this folder."},
+    "merge.folder_error": {"fr": "Impossible de fusionner le dossier", "en": "Could not merge the folder"},
+    "merge.file_error": {"fr": "Impossible de copier/fusionner {file}", "en": "Could not copy/merge {file}"},
+    "merge.confirm_title": {"fr": "Confirmer", "en": "Confirm"},
+    "merge.confirm_folder_msg": {"fr": "Fusionner {n} fichier(s) de '{folder}' (et sous-dossiers) vers la copie de travail ?",
+                                  "en": "Merge {n} file(s) from '{folder}' (and subfolders) into the working copy?"},
+    "merge.id_conflicts_title": {"fr": "Conflits d'Id detectes", "en": "Id conflicts detected"},
+    "merge.id_conflicts_folder_msg": {"fr": "{n} bloc(s) au total n'ont pas ete fusionnes (Id partage "
+                                             "avec un materiel different) -- ajoutes desactives dans leurs "
+                                             "fichiers respectifs pour revue manuelle :\n\n{details}{more}",
+                                       "en": "{n} block(s) in total were not merged (Id shared "
+                                             "with different content) -- added disabled in their "
+                                             "respective files for manual review:\n\n{details}{more}"},
+    "merge.id_conflicts_file_msg": {"fr": "{n} bloc(s) partagent un Id deja utilise par un element "
+                                           "DIFFERENT dans la copie de travail. Ils n'ont PAS ete fusionnes -- "
+                                           "ajoutes en fin de fichier, desactives (commentes), a traiter "
+                                           "manuellement (reassigner un Id libre) :\n\n{details}",
+                                     "en": "{n} block(s) share an Id already used by a DIFFERENT "
+                                           "element in the working copy. They were NOT merged -- "
+                                           "added at the end of the file, disabled (commented out), to be "
+                                           "handled manually (reassign a free Id):\n\n{details}"},
+    "merge.id_conflicts_more": {"fr": "\n... et {n} autre(s)", "en": "\n... and {n} more"},
+
+    # --- Duplication ---
+    "dup.file_missing_title": {"fr": "Fichier absent", "en": "File missing"},
+    "dup.file_missing_msg": {"fr": "{file} n'existe pas encore dans la copie de travail -- "
+                                    "importe d'abord le fichier entier.",
+                              "en": "{file} doesn't exist yet in the working copy -- "
+                                    "import the whole file first."},
+    "dup.block_error": {"fr": "Impossible de dupliquer ce bloc", "en": "Could not duplicate this block"},
+    "dup.parent_not_found_title": {"fr": "Bloc parent introuvable", "en": "Parent block not found"},
+    "dup.parent_not_found_msg": {"fr": "Ce bloc est imbrique dans un autre (ex: un 'Mode' dans un 'Item'), "
+                                        "mais son parent n'existe pas encore dans {file} -- copie/fusionne "
+                                        "d'abord le bloc parent avant de dupliquer ce sous-bloc.",
+                                  "en": "This block is nested inside another (e.g. a 'Mode' inside an 'Item'), "
+                                        "but its parent doesn't exist yet in {file} -- copy/merge "
+                                        "the parent block first before duplicating this sub-block."},
+    "dup.already_used_title": {"fr": "Deja utilise", "en": "Already in use"},
+    "dup.already_used_msg": {"fr": "Cette identite (Id ou Name) est deja utilisee dans {file} -- "
+                                    "choisis une autre valeur.",
+                              "en": "This identity (Id or Name) is already used in {file} -- "
+                                    "choose another value."},
+    "copy.block_error": {"fr": "Impossible de copier ce bloc", "en": "Could not copy this block"},
+    "copy.row_error": {"fr": "Impossible de copier cette ligne", "en": "Could not copy this row"},
+    "dup.key_required_title": {"fr": "Cle requise", "en": "Key required"},
+    "dup.key_required_msg": {"fr": "Une cle est necessaire pour identifier cette nouvelle ligne "
+                                    "(1ere colonne du fichier).",
+                              "en": "A key is required to identify this new row "
+                                    "(the file's first column)."},
+    "dup.row_error": {"fr": "Impossible de dupliquer cette ligne", "en": "Could not duplicate this row"},
+    "dup.key_exists_title": {"fr": "Cle deja utilisee", "en": "Key already in use"},
+    "dup.key_exists_msg": {"fr": "La cle '{key}' existe deja dans {file} -- choisis-en une autre.",
+                            "en": "The key '{key}' already exists in {file} -- choose another one."},
+    "copy.entry_error": {"fr": "Impossible de copier cette entree", "en": "Could not copy this entry"},
+    "dup.value_required_title": {"fr": "Valeur requise", "en": "Value required"},
+    "dup.value_required_msg": {"fr": "Une nouvelle cle/valeur est necessaire pour distinguer "
+                                      "cette entree de l'originale.",
+                                "en": "A new key/value is required to distinguish "
+                                      "this entry from the original."},
+    "dup.entry_error": {"fr": "Impossible de dupliquer cette entree", "en": "Could not duplicate this entry"},
+    "dup.value_exists_title": {"fr": "Deja utilisee", "en": "Already in use"},
+    "dup.value_exists_msg": {"fr": "'{value}' existe deja dans {file} -- choisis autre chose.",
+                              "en": "'{value}' already exists in {file} -- choose something else."},
+
+    # --- Traduction ---
+    "trans.unavailable_title": {"fr": "Traduction indisponible", "en": "Translation unavailable"},
+    "trans.unavailable_msg": {"fr": "deep-translator n'est pas installe.\nLance : pip install deep-translator",
+                               "en": "deep-translator is not installed.\nRun: pip install deep-translator"},
+    "trans.error_title": {"fr": "Erreur de traduction", "en": "Translation error"},
+    "trans.error_msg": {"fr": "La traduction a echoue :\n{error}\n\nVerifie ta connexion internet.",
+                         "en": "Translation failed:\n{error}\n\nCheck your internet connection."},
+    "trans.apply_error": {"fr": "Impossible d'appliquer la traduction", "en": "Could not apply the translation"},
+
+    # --- Ouverture de fichiers ---
+    "open.error": {"fr": "Impossible d'ouvrir {file}", "en": "Could not open {file}"},
+    "open.not_supported_title": {"fr": "Non supporte", "en": "Not supported"},
+    "open.not_supported_msg": {"fr": "Pas encore de vue pour les fichiers {ext}",
+                                "en": "No viewer yet for {ext} files"},
+
     # --- Libelles communs ---
     "label.search": {"fr": "Rechercher :", "en": "Search:"},
     "label.value": {"fr": "Valeur :", "en": "Value:"},

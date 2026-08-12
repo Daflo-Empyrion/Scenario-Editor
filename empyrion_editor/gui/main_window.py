@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
 
     def check_pending_conflicts_dialog(self):
         if not self.workspace:
-            QMessageBox.information(self, "Aucun projet", "Ouvre d'abord un projet.")
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return
 
         ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
@@ -194,8 +194,7 @@ class MainWindow(QMainWindow):
                                  'pending_block': pending_block, 'base_block': base_block})
 
         if not entries:
-            QMessageBox.information(self, "Blocs en attente",
-                                     "Aucun bloc en attente (conflit d'Id) trouve dans la copie de travail.")
+            QMessageBox.information(self, t("pending.none_title"), t("pending.none_msg"))
             return
 
         used_ids = find_used_ids(ecf_files)
@@ -215,18 +214,18 @@ class MainWindow(QMainWindow):
             fresh_conflicts = find_pending_conflicts(doc)
             match = next((c for c in fresh_conflicts if c.header_text == target_conflict.header_text), None)
             if match is None:
-                QMessageBox.critical(self, "Erreur", "Le bloc en attente n'a plus ete retrouve (fichier modifie entre-temps ?).")
+                QMessageBox.critical(self, t("err.title"), t("pending.not_found_msg"))
                 return
 
             success = activate_pending_conflict(doc, match, new_id)
             if not success:
-                QMessageBox.critical(self, "Erreur", "Impossible d'activer ce bloc (motif 'Id:' introuvable dans son texte).")
+                QMessageBox.critical(self, t("err.title"), t("pending.cannot_activate_msg"))
                 return
 
             with open(target_path, 'w', encoding='utf-8', newline='') as f:
                 f.write(doc.render())
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Erreur pendant l'activation :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('pending.activation_error')} :\n{e}")
             return
 
         self.workspace.rescan_working()
@@ -235,18 +234,17 @@ class MainWindow(QMainWindow):
                 self.tabs.removeTab(i)
 
         self.statusBar().showMessage(f"Bloc active avec Id={new_id} dans {target_path.name}")
-        QMessageBox.information(self, "Bloc active",
-                                 f"Le bloc est maintenant actif avec Id={new_id} dans {target_path.name}.\n"
-                                 f"Pense a relancer la verification des references si ce bloc en concernait.")
+        QMessageBox.information(self, t("pending.activated_title"),
+                                 t("pending.activated_msg", id=new_id, file=target_path.name))
 
     def check_references_dialog(self):
         if not self.workspace:
-            QMessageBox.information(self, "Aucun projet", "Ouvre d'abord un projet.")
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return
 
         ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
         if not ecf_files:
-            QMessageBox.information(self, "Aucun fichier", "Aucun fichier .ecf trouve dans Configuration.")
+            QMessageBox.information(self, t("err.no_file_title"), t("check.no_ecf_found"))
             return
 
         progress = QProgressDialog(f"Verification de {len(ecf_files)} fichier(s)...", None, 0, 0, self)
@@ -260,13 +258,12 @@ class MainWindow(QMainWindow):
             broken = check_references(ecf_files)
         except Exception as e:
             progress.close()
-            QMessageBox.critical(self, "Erreur", f"Erreur pendant la verification :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
             return
         progress.close()
 
         if not broken:
-            QMessageBox.information(self, "Verification des references",
-                                     f"Aucune reference cassee trouvee sur {len(ecf_files)} fichier(s) verifie(s).")
+            QMessageBox.information(self, t("check.refs_title"), t("check.refs_ok", n=len(ecf_files)))
             return
 
         details = "\n".join(b.label() for b in broken[:100])
@@ -374,7 +371,7 @@ class MainWindow(QMainWindow):
             self.workspace = open_workspace(dialog.source_a_path, dialog.dest_path, dialog.source_b_path)
         except Exception as e:
             progress.close()
-            QMessageBox.critical(self, "Erreur", f"Impossible de creer le projet :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('err.create_project')} :\n{e}")
             return
         progress.close()
 
@@ -403,8 +400,7 @@ class MainWindow(QMainWindow):
         projects = project_store.load_recent_projects()
         if not projects:
             if not auto_at_launch:
-                QMessageBox.information(self, "Aucun projet recent",
-                                         "Aucun projet recent enregistre -- utilise 'Nouveau projet...'")
+                QMessageBox.information(self, t("recent.none_title"), t("recent.none_msg"))
             return
 
         dialog = StartupDialog(projects, self)
@@ -431,9 +427,8 @@ class MainWindow(QMainWindow):
         try:
             self.workspace = load_existing_workspace(source_a, working, source_b)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur",
-                                  f"Impossible de reprendre ce projet :\n{e}\n\n"
-                                  f"Il a peut-etre ete deplace ou supprime.")
+            QMessageBox.critical(self, t("err.title"),
+                                  f"{t('recent.resume_error')} :\n{e}\n\n{t('recent.resume_error_hint')}")
             return
 
         self._highlights = {}
@@ -529,11 +524,11 @@ class MainWindow(QMainWindow):
     def _merge_folder_into_working_ui(self, folder: Path, source_root: Path, source_label: str):
         nb_files = sum(1 for _ in folder.rglob('*') if _.is_file())
         if nb_files == 0:
-            QMessageBox.information(self, "Dossier vide", "Aucun fichier a fusionner dans ce dossier.")
+            QMessageBox.information(self, t("merge.empty_folder_title"), t("merge.empty_folder_msg"))
             return
         confirm = QMessageBox.question(
-            self, "Confirmer",
-            f"Fusionner {nb_files} fichier(s) de '{folder.name}' (et sous-dossiers) vers la copie de travail ?"
+            self, t("merge.confirm_title"),
+            t("merge.confirm_folder_msg", n=nb_files, folder=folder.name)
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
@@ -551,7 +546,7 @@ class MainWindow(QMainWindow):
             self.workspace.rescan_working()
         except Exception as e:
             progress.close()
-            QMessageBox.critical(self, "Erreur", f"Impossible de fusionner le dossier :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('merge.folder_error')} :\n{e}")
             return
         progress.close()
 
@@ -569,12 +564,10 @@ class MainWindow(QMainWindow):
                 f"vs \"{c.conflicting_name}\" ({c.conflicting_source})"
                 for c in id_conflicts[:20]
             )
-            more = f"\n... et {len(id_conflicts) - 20} autre(s)" if len(id_conflicts) > 20 else ""
+            more = t("merge.id_conflicts_more", n=len(id_conflicts) - 20) if len(id_conflicts) > 20 else ""
             QMessageBox.warning(
-                self, "Conflits d'Id detectes",
-                f"{len(id_conflicts)} bloc(s) au total n'ont pas ete fusionnes (Id partage "
-                f"avec un materiel different) -- ajoutes desactives dans leurs fichiers respectifs "
-                f"pour revue manuelle :\n\n{details}{more}"
+                self, t("merge.id_conflicts_title"),
+                t("merge.id_conflicts_folder_msg", n=len(id_conflicts), details=details, more=more)
             )
 
         n_csv_rows = sum(len(r) for r in csv_reports.values())
@@ -590,7 +583,7 @@ class MainWindow(QMainWindow):
                 self.workspace, path, source_root, source_label)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de copier/fusionner {path.name} :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=path.name)} :\n{e}")
             return
 
         if highlight:
@@ -613,11 +606,8 @@ class MainWindow(QMainWindow):
                 for c in id_conflicts
             )
             QMessageBox.warning(
-                self, "Conflits d'Id detectes",
-                f"{len(id_conflicts)} bloc(s) partagent un Id deja utilise par un element "
-                f"DIFFERENT dans la copie de travail. Ils n'ont PAS ete fusionnes -- ajoutes "
-                f"en fin de fichier, desactives (commentes), a traiter manuellement "
-                f"(reassigner un Id libre) :\n\n{details}"
+                self, t("merge.id_conflicts_title"),
+                t("merge.id_conflicts_file_msg", n=len(id_conflicts), details=details)
             )
 
         if csv_report is not None:
@@ -653,9 +643,7 @@ class MainWindow(QMainWindow):
         rel = source_file_path.relative_to(source_root)
         dest_path = self.workspace.working_root / rel
         if not dest_path.exists():
-            QMessageBox.warning(self, "Fichier absent",
-                                 f"{dest_path.name} n'existe pas encore dans la copie de travail -- "
-                                 f"importe d'abord le fichier entier.")
+            QMessageBox.warning(self, t("dup.file_missing_title"), t("dup.file_missing_msg", file=dest_path.name))
             return
 
         used_ids = find_used_ids([dest_path])
@@ -672,20 +660,16 @@ class MainWindow(QMainWindow):
                 source_label, parent_chain=parent_chain)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer ce bloc :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('dup.block_error')} :\n{e}")
             return
 
         if status == 'parent_not_found':
-            QMessageBox.warning(self, "Bloc parent introuvable",
-                                 f"Ce bloc est imbrique dans un autre (ex: un 'Mode' dans un 'Item'), "
-                                 f"mais son parent n'existe pas encore dans {dest.name} -- copie/fusionne "
-                                 f"d'abord le bloc parent avant de dupliquer ce sous-bloc.")
+            QMessageBox.warning(self, t("dup.parent_not_found_title"),
+                                 t("dup.parent_not_found_msg", file=dest.name))
             return
 
         if status == 'exists':
-            QMessageBox.warning(self, "Deja utilise",
-                                 f"Cette identite (Id ou Name) est deja utilisee dans {dest.name} -- "
-                                 f"choisis une autre valeur.")
+            QMessageBox.warning(self, t("dup.already_used_title"), t("dup.already_used_msg", file=dest.name))
             return
 
         for i in range(self.tabs.count()):
@@ -711,7 +695,7 @@ class MainWindow(QMainWindow):
             dest, status, highlight = merge_block_into_working(self.workspace, rel, block, source_label)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de copier ce bloc :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('copy.block_error')} :\n{e}")
             return
 
         if highlight:
@@ -745,7 +729,7 @@ class MainWindow(QMainWindow):
             dest, status = merge_csv_row_into_working(self.workspace, rel, row)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de copier cette ligne :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('copy.row_error')} :\n{e}")
             return
 
         for i in range(self.tabs.count()):
@@ -777,21 +761,19 @@ class MainWindow(QMainWindow):
         if not ok:
             return
         if not new_key.strip():
-            QMessageBox.warning(self, "Cle requise",
-                                 "Une cle est necessaire pour identifier cette nouvelle ligne "
-                                 "(1ere colonne du fichier).")
+            QMessageBox.warning(self, t("dup.key_required_title"), t("dup.key_required_msg"))
             return
 
         try:
             dest, status = duplicate_csv_row_into_working(self.workspace, rel, row, new_key.strip())
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer cette ligne :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('dup.row_error')} :\n{e}")
             return
 
         if status == 'key_exists':
-            QMessageBox.warning(self, "Cle deja utilisee",
-                                 f"La cle '{new_key.strip()}' existe deja dans {dest.name} -- choisis-en une autre.")
+            QMessageBox.warning(self, t("dup.key_exists_title"),
+                                 t("dup.key_exists_msg", key=new_key.strip(), file=dest.name))
             return
 
         for i in range(self.tabs.count()):
@@ -809,7 +791,7 @@ class MainWindow(QMainWindow):
             dest, status = copy_yaml_entry_into_working(self.workspace, rel, entry, key_path)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de copier cette entree :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('copy.entry_error')} :\n{e}")
             return
 
         for i in range(self.tabs.count()):
@@ -842,9 +824,7 @@ class MainWindow(QMainWindow):
         if not ok:
             return
         if not new_value.strip():
-            QMessageBox.warning(self, "Valeur requise",
-                                 "Une nouvelle cle/valeur est necessaire pour distinguer "
-                                 "cette entree de l'originale.")
+            QMessageBox.warning(self, t("dup.value_required_title"), t("dup.value_required_msg"))
             return
 
         try:
@@ -852,12 +832,12 @@ class MainWindow(QMainWindow):
                 self.workspace, rel, entry, key_path, new_value.strip())
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer cette entree :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('dup.entry_error')} :\n{e}")
             return
 
         if status == 'key_exists':
-            QMessageBox.warning(self, "Deja utilisee",
-                                 f"'{new_value.strip()}' existe deja dans {dest.name} -- choisis autre chose.")
+            QMessageBox.warning(self, t("dup.value_exists_title"),
+                                 t("dup.value_exists_msg", value=new_value.strip(), file=dest.name))
             return
 
         for i in range(self.tabs.count()):
@@ -877,14 +857,12 @@ class MainWindow(QMainWindow):
         presente."""
         from core import translation
         if not translation.is_available():
-            QMessageBox.warning(self, "Traduction indisponible",
-                                 "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
             return
         try:
             translated = translation.translate_text(text, target=target_code)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de traduction",
-                                  f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+            QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
 
         rel = source_file_path.relative_to(source_root)
@@ -893,7 +871,7 @@ class MainWindow(QMainWindow):
                 self.workspace, rel, key, target_code, target_label, translated)
             self.workspace.rescan_working()
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Impossible d'appliquer la traduction :\n{e}")
+            QMessageBox.critical(self, t("err.title"), f"{t('trans.apply_error')} :\n{e}")
             return
 
         for i in range(self.tabs.count()):
@@ -951,7 +929,7 @@ class MainWindow(QMainWindow):
             try:
                 widget = simple_editors[ext](path)
             except Exception as e:
-                QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
+                QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
                 return
             index = self.tabs.addTab(widget, "✎ " + path.name)
             self.tabs.setTabToolTip(index, str(path))
@@ -986,7 +964,7 @@ class MainWindow(QMainWindow):
         try:
             widget = CompareWidget(path, compare_sources, EcfViewWidget, copy_block_callback=_copy_block_cb)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
+            QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
             return
 
         index = self.tabs.addTab(widget, "✎ " + path.name)
@@ -1051,11 +1029,10 @@ class MainWindow(QMainWindow):
                                         copy_label=source_label, on_translate_cell=on_translate_cell,
                                         on_duplicate_row=on_duplicate_row)
             else:
-                QMessageBox.information(self, "Non supporte",
-                                         f"Pas encore de vue pour les fichiers {ext}")
+                QMessageBox.information(self, t("open.not_supported_title"), t("open.not_supported_msg", ext=ext))
                 return
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de lecture", f"Impossible d'ouvrir {path.name} :\n{e}")
+            QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
             return
 
         prefix = "🔒 " if read_only else "✎ "
