@@ -186,22 +186,23 @@ def _diff_properties(a: EcfBlock, b: EcfBlock) -> List[PropertyDiff]:
 # ------------------------------------------------------------------
 
 def format_diff(diffs: List[BlockDiff], indent: int = 0) -> str:
+    from core.i18n import t
     lines = []
     pad = "  " * indent
     for d in diffs:
         if d.status == 'added':
-            lines.append(f"{pad}+ {d.label()}  (nouveau)")
+            lines.append(f"{pad}+ {d.label()}  {t('diff.new')}")
         elif d.status == 'removed':
-            lines.append(f"{pad}- {d.label()}  (supprime)")
+            lines.append(f"{pad}- {d.label()}  {t('diff.removed')}")
         else:
-            lines.append(f"{pad}~ {d.label()}  (modifie)")
+            lines.append(f"{pad}~ {d.label()}  {t('diff.modified')}")
             for pd in d.property_diffs:
                 if pd.status == 'changed':
                     lines.append(f"{pad}    {pd.key}: {pd.value_a} -> {pd.value_b}")
                 elif pd.status == 'added':
-                    lines.append(f"{pad}    + {pd.key}: {pd.value_b}  (nouvelle propriete)")
+                    lines.append(f"{pad}    + {pd.key}: {pd.value_b}  {t('diff.new_property')}")
                 elif pd.status == 'removed':
-                    lines.append(f"{pad}    - {pd.key}: {pd.value_a}  (propriete supprimee)")
+                    lines.append(f"{pad}    - {pd.key}: {pd.value_a}  {t('diff.removed_property')}")
             if d.child_diffs:
                 lines.append(format_diff(d.child_diffs, indent + 2))
     return "\n".join(lines)

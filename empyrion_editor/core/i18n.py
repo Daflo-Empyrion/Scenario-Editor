@@ -369,6 +369,48 @@ STRINGS = {
                            "en": "Copy / merge '{name}' to working copy"},
     "folder.merge_action": {"fr": "Fusionner le dossier '{name}' (et sous-dossiers) vers la copie de travail",
                              "en": "Merge folder '{name}' (and subfolders) to working copy"},
+
+    # --- Comparaison de scenarios ---
+    "menu.file.compare": {"fr": "Comparer deux scenarios...", "en": "Compare two scenarios..."},
+    "compare.title": {"fr": "Comparer deux scenarios", "en": "Compare two scenarios"},
+    "compare.scenario_a": {"fr": "Scenario A (ancien / reference) :", "en": "Scenario A (old / reference):"},
+    "compare.scenario_b": {"fr": "Scenario B (nouveau / mis a jour) :", "en": "Scenario B (new / updated):"},
+    "compare.run": {"fr": "Comparer", "en": "Compare"},
+    "compare.choose_folder": {"fr": "Choisir un dossier de scenario", "en": "Choose a scenario folder"},
+    "compare.both_required": {"fr": "Choisis les deux dossiers de scenario a comparer.",
+                               "en": "Choose both scenario folders to compare."},
+    "compare.progress": {"fr": "Comparaison en cours...", "en": "Comparing..."},
+    "compare.summary": {"fr": "{added} ajoute(s)   {removed} supprime(s)   {modified} modifie(s)   {unchanged} identique(s)",
+                         "en": "{added} added   {removed} removed   {modified} modified   {unchanged} unchanged"},
+    "compare.show_unchanged": {"fr": "Afficher aussi les fichiers identiques", "en": "Also show unchanged files"},
+    "compare.export": {"fr": "Exporter le rapport...", "en": "Export report..."},
+    "compare.export_title": {"fr": "Enregistrer le rapport de comparaison", "en": "Save comparison report"},
+    "compare.export_done_title": {"fr": "Rapport exporte", "en": "Report exported"},
+    "compare.export_done_msg": {"fr": "Rapport enregistre dans {path}", "en": "Report saved to {path}"},
+    "compare.select_file_hint": {"fr": "Selectionne un fichier modifie dans l'arbre pour voir le detail.",
+                                  "en": "Select a modified file in the tree to see the detail."},
+    "compare.no_detail": {"fr": "(pas de detail disponible pour ce type de fichier -- "
+                                 "contenu binaire ou format non structure)",
+                           "en": "(no detail available for this file type -- "
+                                 "binary content or unstructured format)"},
+    "compare.error_title": {"fr": "Erreur de comparaison", "en": "Comparison error"},
+
+    # --- Format de diff ECF (reutilise par comparaison de scenarios + blocs en attente) ---
+    "diff.new": {"fr": "(nouveau)", "en": "(new)"},
+    "diff.removed": {"fr": "(supprime)", "en": "(removed)"},
+    "diff.modified": {"fr": "(modifie)", "en": "(modified)"},
+    "diff.new_property": {"fr": "(nouvelle propriete)", "en": "(new property)"},
+    "diff.removed_property": {"fr": "(propriete supprimee)", "en": "(removed property)"},
+    "diff.row_removed": {"fr": "- Ligne '{key}'  (supprimee)", "en": "- Row '{key}'  (removed)"},
+    "diff.row_added": {"fr": "+ Ligne '{key}'  (nouvelle)", "en": "+ Row '{key}'  (new)"},
+    "diff.row_modified": {"fr": "~ Ligne '{key}'  (modifiee)", "en": "~ Row '{key}'  (modified)"},
+    "diff.yaml_removed": {"fr": "- {path}  (supprime)", "en": "- {path}  (removed)"},
+    "diff.yaml_added": {"fr": "+ {path}: {value}  (nouveau)", "en": "+ {path}: {value}  (new)"},
+    "report.title": {"fr": "Comparaison de scenarios", "en": "Scenario comparison"},
+    "report.summary": {"fr": "Resume : {added} fichier(s) ajoute(s), {removed} supprime(s), "
+                              "{modified} modifie(s), {unchanged} identique(s)",
+                        "en": "Summary: {added} file(s) added, {removed} removed, "
+                              "{modified} modified, {unchanged} unchanged"},
     "yaml.copy_entry_action": {"fr": "Copier cette entree ({label}) vers la copie de travail",
                                 "en": "Copy this entry ({label}) to working copy"},
     "csv.duplicate_title": {"fr": "Dupliquer avec une nouvelle cle", "en": "Duplicate with a new key"},
