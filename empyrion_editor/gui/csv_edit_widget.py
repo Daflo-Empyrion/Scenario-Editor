@@ -84,16 +84,14 @@ def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
         return
 
     if not translation.is_available():
-        QMessageBox.warning(parent_widget, "Traduction indisponible",
-                             "deep-translator n'est pas installe.\nLance : pip install deep-translator")
+        QMessageBox.warning(parent_widget, t("trans.unavailable_title"), t("trans.unavailable_msg"))
         return
 
     target_lang = lang_actions[chosen]
     try:
         translated = translation.translate_text(text, target=target_lang)
     except Exception as e:
-        QMessageBox.critical(parent_widget, "Erreur de traduction",
-                              f"La traduction a echoue :\n{e}\n\nVerifie ta connexion internet.")
+        QMessageBox.critical(parent_widget, t("trans.error_title"), t("trans.error_msg", error=e))
         return
 
     dialog = TranslationResultDialog(text, translated, parent_widget)

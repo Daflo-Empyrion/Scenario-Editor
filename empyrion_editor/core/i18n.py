@@ -105,6 +105,117 @@ STRINGS = {
 
     # --- Dialogue Dupliquer un bloc ---
     "dup.title": {"fr": "Dupliquer ce bloc", "en": "Duplicate this block"},
+    "dup.current_block": {"fr": "Bloc actuel : Id={id}, Name={name}", "en": "Current block: Id={id}, Name={name}"},
+    "dup.none_placeholder": {"fr": "(aucun)", "en": "(none)"},
+    "dup.instructions": {"fr": "Renseigne un nouvel Id, un nouveau Name, ou les deux -- au moins une "
+                                "valeur doit differer de l'original.",
+                          "en": "Enter a new Id, a new Name, or both -- at least one "
+                                "value must differ from the original."},
+
+    # --- Barre de statut ---
+    "status.no_project": {"fr": "Aucun projet ouvert -- Fichier > Nouveau projet...",
+                           "en": "No project open -- File > New project..."},
+    "status.nothing_to_save": {"fr": "Rien a enregistrer sur cet onglet.", "en": "Nothing to save on this tab."},
+    "status.block_activated": {"fr": "Bloc active avec Id={id} dans {file}", "en": "Block activated with Id={id} in {file}"},
+    "status.project_opened": {"fr": "Projet ouvert ({mode}) -- copie de travail : {path}",
+                               "en": "Project opened ({mode}) -- working copy: {path}"},
+    "status.project_resumed": {"fr": "Projet repris ({mode}) -- copie de travail : {path}",
+                                "en": "Project resumed ({mode}) -- working copy: {path}"},
+    "status.folder_merged": {"fr": "Dossier fusionne : {n} fichier(s) traites, {ecf} fichier(s) .ecf "
+                                    "avec des changements, {csv} fichier(s) .csv completes "
+                                    "({rows} ligne(s)), {conflicts} conflit(s) d'Id au total",
+                              "en": "Folder merged: {n} file(s) processed, {ecf} .ecf file(s) "
+                                    "with changes, {csv} .csv file(s) completed "
+                                    "({rows} row(s)), {conflicts} Id conflict(s) in total"},
+    "status.csv_merged_rows": {"fr": "Fusionne (CSV) dans la copie de travail : {file} -- "
+                                      "{n} ligne(s) ajoutee(s)/completee(s) "
+                                      "(les lignes deja presentes n'ont pas ete ecrasees)",
+                                "en": "Merged (CSV) into working copy: {file} -- "
+                                      "{n} row(s) added/completed "
+                                      "(existing rows were not overwritten)"},
+    "status.csv_merged_none": {"fr": "Fusionne (CSV) : {file} -- aucun changement (deja a jour)",
+                                "en": "Merged (CSV): {file} -- no change (already up to date)"},
+    "status.merged_working": {"fr": "Fusionne dans la copie de travail : {file} -- "
+                                     "{new} bloc(s) nouveau(x), {changed} bloc(s) complete(s)",
+                               "en": "Merged into working copy: {file} -- "
+                                     "{new} new block(s), {changed} completed block(s)"},
+    "status.id_conflicts_suffix": {"fr": ", {n} conflit(s) d'Id a revoir", "en": ", {n} Id conflict(s) to review"},
+    "status.copied_to_working": {"fr": "Copie vers la copie de travail : {dest}", "en": "Copied to working copy: {dest}"},
+    "status.block_duplicated": {"fr": "Bloc duplique ({details}) dans {file}", "en": "Block duplicated ({details}) in {file}"},
+    "status.id_conflict_detected": {"fr": "Conflit d'Id detecte sur {file} -- bloc ajoute desactive",
+                                     "en": "Id conflict detected on {file} -- block added disabled"},
+    "status.block_added": {"fr": "Bloc ajoute dans {file}", "en": "Block added in {file}"},
+    "status.block_merged": {"fr": "Bloc fusionne (complete) dans {file}", "en": "Block merged (completed) in {file}"},
+    "status.row_added": {"fr": "Ligne '{key}' ajoutee dans {file}", "en": "Row '{key}' added in {file}"},
+    "status.row_merged": {"fr": "Ligne '{key}' completee (cellules vides) dans {file}",
+                           "en": "Row '{key}' completed (empty cells) in {file}"},
+    "status.row_unchanged": {"fr": "Ligne '{key}' deja a jour dans {file} -- rien a changer",
+                              "en": "Row '{key}' already up to date in {file} -- nothing to change"},
+    "status.row_duplicated": {"fr": "Ligne dupliquee avec la cle '{key}' dans {file}",
+                               "en": "Row duplicated with key '{key}' in {file}"},
+    "status.entry_copied_root": {"fr": "Entree copiee dans {file} -- emplacement d'origine introuvable, "
+                                        "ajoutee a la racine du fichier (a repositionner si besoin)",
+                                  "en": "Entry copied in {file} -- original location not found, "
+                                        "added at the file's root (reposition if needed)"},
+    "status.entry_copied": {"fr": "Entree copiee dans {file} (meme emplacement)",
+                             "en": "Entry copied in {file} (same location)"},
+    "status.entry_duplicated": {"fr": "Entree dupliquee avec '{value}' dans {file}{note}",
+                                 "en": "Entry duplicated with '{value}' in {file}{note}"},
+    "status.row_translated": {"fr": "Ligne '{key}' ajoutee avec la traduction ({lang}) dans {file}",
+                               "en": "Row '{key}' added with translation ({lang}) in {file}"},
+    "status.cell_translated": {"fr": "Traduction ({lang}) ajoutee pour '{key}' dans {file}",
+                                "en": "Translation ({lang}) added for '{key}' in {file}"},
+    "status.cell_already_has_value": {"fr": "'{key}' avait deja une valeur dans la colonne {lang} -- "
+                                             "rien change (copie de travail prioritaire)",
+                                       "en": "'{key}' already had a value in the {lang} column -- "
+                                             "nothing changed (working copy takes priority)"},
+    "status.saved": {"fr": "Enregistre : {path}", "en": "Saved: {path}"},
+    "status.mode_merge": {"fr": "FUSION", "en": "MERGE"},
+    "status.mode_simple": {"fr": "edition simple", "en": "simple editing"},
+
+    # --- Panneau de comparaison (blocs en attente) ---
+    "pending.no_base_block": {"fr": "(bloc de base introuvable -- affichage du bloc en attente seul)",
+                               "en": "(base block not found -- showing pending block only)"},
+    "pending.read_error": {"fr": "(erreur de lecture du bloc)", "en": "(error reading the block)"},
+    "pending.differences_header": {"fr": "Differences (- = valeur actuelle, + = valeur du bloc en attente) :",
+                                    "en": "Differences (- = current value, + = pending block value):"},
+    "pending.no_diff": {"fr": "Aucune difference de propriete detectee entre les deux (le conflit "
+                               "vient uniquement du Name/CustomIcon/TemplateRoot different).",
+                         "en": "No property difference detected between the two (the conflict "
+                               "only comes from a different Name/CustomIcon/TemplateRoot)."},
+    "pending.active_block_header": {"fr": "--- Bloc actuellement actif (Id existant) ---",
+                                     "en": "--- Currently active block (existing Id) ---"},
+    "pending.pending_block_header": {"fr": "--- Bloc en attente (ce que tu vas activer) ---",
+                                      "en": "--- Pending block (what you're about to activate) ---"},
+    "pending.suggestions_label": {"fr": "Id libres suggeres (au-dessus du maximum utilise dans le scenario) : {ids}",
+                                   "en": "Free Id suggestions (above the highest used in the scenario): {ids}"},
+    "status.entry_duplicated_note": {"fr": " (emplacement d'origine introuvable, ajoutee a la racine)",
+                                      "en": " (original location not found, added at the root)"},
+    "check.refs_broken_title": {"fr": "References cassees detectees", "en": "Broken references detected"},
+    "check.refs_broken_msg": {"fr": "{n} reference(s) 'Ref' ne correspondent a aucun 'Name' existant "
+                                     "dans la copie de travail (l'heritage attendu ne fonctionnera pas en jeu) :\n\n"
+                                     "{details}{more}",
+                               "en": "{n} 'Ref' reference(s) don't match any existing 'Name' "
+                                     "in the working copy (the expected inheritance won't work in-game):\n\n"
+                                     "{details}{more}"},
+    "check.refs_more": {"fr": "\n... et {n} autre(s)", "en": "\n... and {n} more"},
+    "dup.name_required_msg": {"fr": "Si tu abandonnes l'Id, il faut un nouveau Name pour identifier "
+                                     "ce bloc (sinon impossible de le distinguer de l'original).",
+                               "en": "If you drop the Id, a new Name is required to identify "
+                                     "this block (otherwise it can't be distinguished from the original)."},
+    "dup.no_change_msg": {"fr": "Indique un nouvel Id et/ou un nouveau Name, different de l'original.",
+                           "en": "Enter a new Id and/or a new Name, different from the original."},
+    "ecf.single_block_conflict_title": {"fr": "Conflit d'Id", "en": "Id conflict"},
+    "ecf.single_block_conflict_msg": {"fr": "Ce bloc partage un Id deja utilise par un element DIFFERENT dans la "
+                                             "copie de travail. Il n'a PAS ete fusionne -- ajoute en fin de fichier, "
+                                             "desactive (commente), a traiter manuellement.",
+                                       "en": "This block shares an Id already used by a DIFFERENT element in the "
+                                             "working copy. It was NOT merged -- added at the end of the file, "
+                                             "disabled (commented out), to be handled manually."},
+    "ecf.header_property_tooltip": {"fr": "Propriete d'en-tete du bloc (ex: Id, Name)",
+                                     "en": "Block header property (e.g. Id, Name)"},
+    "bbcode.select_text_hint": {"fr": "Selectionne d'abord une portion de texte dans la zone ci-dessus.",
+                                 "en": "Select a portion of text in the area above first."},
     "dup.new_id": {"fr": "Nouvel Id :", "en": "New Id:"},
     "dup.new_name": {"fr": "Nouveau Name :", "en": "New Name:"},
     "dup.remove_id": {"fr": "Abandonner l'Id sur le nouveau bloc (l'identifier seulement par Name -- "
@@ -124,6 +235,8 @@ STRINGS = {
     "pending.id_missing": {"fr": "Id manquant", "en": "Missing Id"},
     "pending.id_missing_msg": {"fr": "Indique un Id.", "en": "Enter an Id."},
     "pending.id_already_used": {"fr": "Id deja utilise", "en": "Id already in use"},
+    "pending.id_already_used_confirm": {"fr": "L'Id {id} semble deja utilise ailleurs dans le scenario. Continuer quand meme ?",
+                                         "en": "Id {id} seems to already be used elsewhere in the scenario. Continue anyway?"},
 
     # --- Dialogue Filtrer par propriete ---
     "propfilter.title": {"fr": "Filtrer par propriete", "en": "Filter by property"},

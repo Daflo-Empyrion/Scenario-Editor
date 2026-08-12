@@ -197,7 +197,7 @@ class BBCodeToolDialog(QDialog):
         cursor = self.text_edit.textCursor()
         selected = cursor.selectedText().replace('\u2029', '\n')
         if not selected:
-            self._flash_hint("Selectionne d'abord une portion de texte dans la zone ci-dessus.")
+            self._flash_hint(t("bbcode.select_text_hint"))
             return
         cursor.insertText(f"{open_tag}{selected}{close_tag}")
 

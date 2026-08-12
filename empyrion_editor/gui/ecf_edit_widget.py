@@ -105,9 +105,9 @@ class PendingConflictsDialog(QDialog):
 
         lines = []
         if base is None:
-            lines.append("(bloc de base introuvable -- affichage du bloc en attente seul)")
+            lines.append(t("pending.no_base_block"))
             lines.append("")
-            lines.append(pending.render() if pending else "(erreur de lecture du bloc)")
+            lines.append(pending.render() if pending else t("pending.read_error"))
         else:
             from core.ecf.diff import diff_documents, format_diff
             from core.ecf.model import EcfDocument
@@ -115,25 +115,23 @@ class PendingConflictsDialog(QDialog):
             doc_b = EcfDocument(nodes=[pending])
             diffs = diff_documents(doc_a, doc_b)
             if diffs:
-                lines.append("Differences (- = valeur actuelle, + = valeur du bloc en attente) :")
+                lines.append(t("pending.differences_header"))
                 lines.append("")
                 lines.append(format_diff(diffs))
             else:
-                lines.append("Aucune difference de propriete detectee entre les deux (le conflit "
-                              "vient uniquement du Name/CustomIcon/TemplateRoot different).")
+                lines.append(t("pending.no_diff"))
             lines.append("")
-            lines.append("--- Bloc actuellement actif (Id existant) ---")
+            lines.append(t("pending.active_block_header"))
             lines.append(base.render())
             lines.append("")
-            lines.append("--- Bloc en attente (ce que tu vas activer) ---")
+            lines.append(t("pending.pending_block_header"))
             lines.append(pending.render())
 
         self.diff_view.setPlainText("\n".join(lines))
 
         suggestions = suggest_free_ids(self.used_ids, 8)
         self.suggestions_label.setText(
-            "Id libres suggeres (au-dessus du maximum utilise dans le scenario) : " +
-            ", ".join(str(s) for s in suggestions)
+            t("pending.suggestions_label", ids=", ".join(str(s) for s in suggestions))
         )
         self.id_edit.setText(str(suggestions[0]))
 
@@ -148,7 +146,7 @@ class PendingConflictsDialog(QDialog):
         if new_id.isdigit() and int(new_id) in self.used_ids:
             confirm = QMessageBox.question(
                 self, t("pending.id_already_used"),
-                f"L'Id {new_id} semble deja utilise ailleurs dans le scenario. Continuer quand meme ?"
+                t("pending.id_already_used_confirm", id=new_id)
             )
             if confirm != QMessageBox.StandardButton.Yes:
                 return
@@ -446,7 +444,7 @@ class EcfEditWidget(QWidget):
             item_v = QTableWidgetItem(v)
             item_v.setData(Qt.ItemDataRole.UserRole, prop_node)
             if prop_node is block:
-                item_k.setToolTip("Propriete d'en-tete du bloc (ex: Id, Name)")
+                item_k.setToolTip(t("ecf.header_property_tooltip"))
             if id(prop_node) in self._edited_prop_nodes:
                 item_k.setBackground(COLOR_MODIFIED_ROW)
                 item_v.setBackground(COLOR_MODIFIED_ROW)

@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_layout()
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Aucun projet ouvert -- Fichier > Nouveau projet...")
+        self.statusBar().showMessage(t("status.no_project"))
 
     # ------------------------------------------------------------------
     # Construction de l'interface
@@ -159,7 +159,7 @@ class MainWindow(QMainWindow):
         if widget and hasattr(widget, 'save'):
             widget.save()
         else:
-            self.statusBar().showMessage("Rien a enregistrer sur cet onglet.")
+            self.statusBar().showMessage(t("status.nothing_to_save"))
 
     def _set_author_dialog(self):
         current = settings.get_author()
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
             if self.tabs.tabToolTip(i) == str(target_path):
                 self.tabs.removeTab(i)
 
-        self.statusBar().showMessage(f"Bloc active avec Id={new_id} dans {target_path.name}")
+        self.statusBar().showMessage(t("status.block_activated", id=new_id, file=target_path.name))
         QMessageBox.information(self, t("pending.activated_title"),
                                  t("pending.activated_msg", id=new_id, file=target_path.name))
 
@@ -265,12 +265,10 @@ class MainWindow(QMainWindow):
             return
 
         details = "\n".join(b.label() for b in broken[:100])
-        more = f"\n... et {len(broken) - 100} autre(s)" if len(broken) > 100 else ""
+        more = t("check.refs_more", n=len(broken) - 100) if len(broken) > 100 else ""
         QMessageBox.warning(
-            self, "References cassees detectees",
-            f"{len(broken)} reference(s) 'Ref' ne correspondent a aucun 'Name' existant "
-            f"dans la copie de travail (l'heritage attendu ne fonctionnera pas en jeu) :\n\n"
-            f"{details}{more}"
+            self, t("check.refs_broken_title"),
+            t("check.refs_broken_msg", n=len(broken), details=details, more=more)
         )
 
     def _build_layout(self):
@@ -379,9 +377,9 @@ class MainWindow(QMainWindow):
 
         self._remember_current_project()
 
-        mode = "FUSION" if self.workspace.is_merge_mode else "edition simple"
+        mode = t("status.mode_merge") if self.workspace.is_merge_mode else t("status.mode_simple")
         self.statusBar().showMessage(
-            f"Projet ouvert ({mode}) -- copie de travail : {self.workspace.working_root}"
+            t("status.project_opened", mode=mode, path=self.workspace.working_root)
         )
 
     def _remember_current_project(self):
@@ -434,9 +432,9 @@ class MainWindow(QMainWindow):
         self.tabs.clear()
         self._remember_current_project()  # remonte ce projet en tete de la liste recente
 
-        mode = "FUSION" if self.workspace.is_merge_mode else "edition simple"
+        mode = t("status.mode_merge") if self.workspace.is_merge_mode else t("status.mode_simple")
         self.statusBar().showMessage(
-            f"Projet repris ({mode}) -- copie de travail : {self.workspace.working_root}"
+            t("status.project_resumed", mode=mode, path=self.workspace.working_root)
         )
 
     def _refresh_all_trees(self):
@@ -570,9 +568,8 @@ class MainWindow(QMainWindow):
 
         n_csv_rows = sum(len(r) for r in csv_reports.values())
         self.statusBar().showMessage(
-            f"Dossier fusionne : {nb_files} fichier(s) traites, {len(highlights)} fichier(s) .ecf "
-            f"avec des changements, {len(csv_reports)} fichier(s) .csv completes "
-            f"({n_csv_rows} ligne(s)), {len(id_conflicts)} conflit(s) d'Id au total"
+            t("status.folder_merged", n=nb_files, ecf=len(highlights), csv=len(csv_reports),
+              rows=n_csv_rows, conflicts=len(id_conflicts))
         )
 
     def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
@@ -611,22 +608,19 @@ class MainWindow(QMainWindow):
         if csv_report is not None:
             if csv_report:
                 self.statusBar().showMessage(
-                    f"Fusionne (CSV) dans la copie de travail : {dest.name} -- "
-                    f"{len(csv_report)} ligne(s) ajoutee(s)/completee(s) "
-                    f"(les lignes deja presentes n'ont pas ete ecrasees)"
+                    t("status.csv_merged_rows", file=dest.name, n=len(csv_report))
                 )
             else:
-                self.statusBar().showMessage(f"Fusionne (CSV) : {dest.name} -- aucun changement (deja a jour)")
+                self.statusBar().showMessage(t("status.csv_merged_none", file=dest.name))
         elif highlight and (highlight.new_blocks or highlight.changed_blocks):
             n_new = len(highlight.new_blocks)
             n_changed = len(highlight.changed_blocks)
-            msg = (f"Fusionne dans la copie de travail : {dest.name} -- "
-                   f"{n_new} bloc(s) nouveau(x), {n_changed} bloc(s) complete(s)")
+            msg = t("status.merged_working", file=dest.name, new=n_new, changed=n_changed)
             if id_conflicts:
-                msg += f", {len(id_conflicts)} conflit(s) d'Id a revoir"
+                msg += t("status.id_conflicts_suffix", n=len(id_conflicts))
             self.statusBar().showMessage(msg)
         else:
-            self.statusBar().showMessage(f"Copie vers la copie de travail : {dest}")
+            self.statusBar().showMessage(t("status.copied_to_working", dest=dest))
 
     def _duplicate_ecf_block_dialog(self, block: EcfBlock, parent_chain: list, source_file_path: Path,
                                      source_root: Path, source_label: str):
@@ -683,7 +677,7 @@ class MainWindow(QMainWindow):
             details.append("Id abandonne")
         if dialog.result_new_name:
             details.append(f"Name={dialog.result_new_name}")
-        self.statusBar().showMessage(f"Bloc duplique ({', '.join(details)}) dans {dest.name}")
+        self.statusBar().showMessage(t("status.block_duplicated", details=', '.join(details), file=dest.name))
 
     def _copy_block_into_working(self, block: EcfBlock, source_file_path: Path,
                                   source_root: Path, source_label: str):
@@ -707,16 +701,14 @@ class MainWindow(QMainWindow):
 
         if status == 'conflict':
             QMessageBox.warning(
-                self, "Conflit d'Id",
-                f"Ce bloc partage un Id deja utilise par un element DIFFERENT dans la "
-                f"copie de travail. Il n'a PAS ete fusionne -- ajoute en fin de fichier, "
-                f"desactive (commente), a traiter manuellement."
+                self, t("ecf.single_block_conflict_title"),
+                t("ecf.single_block_conflict_msg")
             )
-            self.statusBar().showMessage(f"Conflit d'Id detecte sur {dest.name} -- bloc ajoute desactive")
+            self.statusBar().showMessage(t("status.id_conflict_detected", file=dest.name))
         elif status == 'added':
-            self.statusBar().showMessage(f"Bloc ajoute dans {dest.name}")
+            self.statusBar().showMessage(t("status.block_added", file=dest.name))
         else:
-            self.statusBar().showMessage(f"Bloc fusionne (complete) dans {dest.name}")
+            self.statusBar().showMessage(t("status.block_merged", file=dest.name))
 
     def _copy_csv_row_into_working(self, row: list, source_file_path: Path,
                                     source_root: Path, source_label: str):
@@ -738,11 +730,11 @@ class MainWindow(QMainWindow):
 
         key = row[0] if row else "?"
         if status == 'added':
-            self.statusBar().showMessage(f"Ligne '{key}' ajoutee dans {dest.name}")
+            self.statusBar().showMessage(t("status.row_added", key=key, file=dest.name))
         elif status == 'merged':
-            self.statusBar().showMessage(f"Ligne '{key}' completee (cellules vides) dans {dest.name}")
+            self.statusBar().showMessage(t("status.row_merged", key=key, file=dest.name))
         else:
-            self.statusBar().showMessage(f"Ligne '{key}' deja a jour dans {dest.name} -- rien a changer")
+            self.statusBar().showMessage(t("status.row_unchanged", key=key, file=dest.name))
 
     def _duplicate_csv_row_dialog(self, row: list, source_file_path: Path,
                                    source_root: Path, source_label: str):
@@ -780,7 +772,7 @@ class MainWindow(QMainWindow):
                 self.open_file_tab(dest, read_only=False)
                 break
 
-        self.statusBar().showMessage(f"Ligne dupliquee avec la cle '{new_key.strip()}' dans {dest.name}")
+        self.statusBar().showMessage(t("status.row_duplicated", key=new_key.strip(), file=dest.name))
 
     def _copy_yaml_entry_into_working(self, entry, key_path: list, source_file_path: Path,
                                        source_root: Path, source_label: str):
@@ -800,11 +792,10 @@ class MainWindow(QMainWindow):
 
         if status == 'added_at_root':
             self.statusBar().showMessage(
-                f"Entree copiee dans {dest.name} -- emplacement d'origine introuvable, "
-                f"ajoutee a la racine du fichier (a repositionner si besoin)"
+                t("status.entry_copied_root", file=dest.name)
             )
         else:
-            self.statusBar().showMessage(f"Entree copiee dans {dest.name} (meme emplacement)")
+            self.statusBar().showMessage(t("status.entry_copied", file=dest.name))
 
     def _duplicate_yaml_entry_dialog(self, entry, key_path: list, source_file_path: Path,
                                       source_root: Path, source_label: str):
@@ -844,8 +835,8 @@ class MainWindow(QMainWindow):
                 self.open_file_tab(dest, read_only=False)
                 break
 
-        note = " (emplacement d'origine introuvable, ajoutee a la racine)" if status == 'added_at_root' else ""
-        self.statusBar().showMessage(f"Entree dupliquee avec '{new_value.strip()}' dans {dest.name}{note}")
+        note = t("status.entry_duplicated_note") if status == 'added_at_root' else ""
+        self.statusBar().showMessage(t("status.entry_duplicated", value=new_value.strip(), file=dest.name, note=note))
 
     def _translate_csv_cell_into_working(self, key: str, text: str, target_code: str, target_label: str,
                                           source_file_path: Path, source_root: Path, source_label: str):
@@ -879,13 +870,12 @@ class MainWindow(QMainWindow):
                 break
 
         if status == 'added':
-            self.statusBar().showMessage(f"Ligne '{key}' ajoutee avec la traduction ({target_label}) dans {dest.name}")
+            self.statusBar().showMessage(t("status.row_translated", key=key, lang=target_label, file=dest.name))
         elif status == 'merged':
-            self.statusBar().showMessage(f"Traduction ({target_label}) ajoutee pour '{key}' dans {dest.name}")
+            self.statusBar().showMessage(t("status.cell_translated", lang=target_label, key=key, file=dest.name))
         else:
             self.statusBar().showMessage(
-                f"'{key}' avait deja une valeur dans la colonne {target_label} -- "
-                f"rien change (copie de travail prioritaire)"
+                t("status.cell_already_has_value", key=key, lang=target_label)
             )
 
     # ------------------------------------------------------------------
@@ -933,7 +923,7 @@ class MainWindow(QMainWindow):
             self.tabs.setTabToolTip(index, str(path))
             self.tabs.setCurrentIndex(index)
             widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
-            widget.saved.connect(lambda w=widget: self.statusBar().showMessage(f"Enregistre : {w.path}"))
+            widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
             return
 
         if ext != '.ecf':
@@ -975,7 +965,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(index)
 
         widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
-        widget.saved.connect(lambda w=widget: self.statusBar().showMessage(f"Enregistre : {w.edit_widget.path}"))
+        widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.edit_widget.path)))
 
     def _update_tab_title(self, widget, modified: bool):
         idx = self.tabs.indexOf(widget)
@@ -1058,10 +1048,10 @@ class DuplicateBlockDialog(QDialog):
         current_name = block.get_property('Name')
 
         layout = QVBoxLayout(self)
+        none_placeholder = t("dup.none_placeholder")
         layout.addWidget(QLabel(
-            f"Bloc actuel : Id={current_id or '(aucun)'}, Name={current_name or '(aucun)'}\n\n"
-            f"Renseigne un nouvel Id, un nouveau Name, ou les deux -- au moins une "
-            f"valeur doit differer de l'original."
+            t("dup.current_block", id=current_id or none_placeholder, name=current_name or none_placeholder) +
+            "\n\n" + t("dup.instructions")
         ))
 
         id_row = QHBoxLayout()
@@ -1103,16 +1093,13 @@ class DuplicateBlockDialog(QDialog):
         remove_id = self.remove_id_checkbox.isChecked() if self.remove_id_checkbox else False
 
         if remove_id and not new_name:
-            QMessageBox.warning(self, t("dup.name_required"),
-                                 "Si tu abandonnes l'Id, il faut un nouveau Name pour identifier "
-                                 "ce bloc (sinon impossible de le distinguer de l'original).")
+            QMessageBox.warning(self, t("dup.name_required"), t("dup.name_required_msg"))
             return
 
         id_changed = new_id is not None and new_id != self._current_id
         name_changed = new_name is not None and new_name != self._current_name
         if not remove_id and not id_changed and not name_changed:
-            QMessageBox.warning(self, t("dup.no_change"),
-                                 "Indique un nouvel Id et/ou un nouveau Name, different de l'original.")
+            QMessageBox.warning(self, t("dup.no_change"), t("dup.no_change_msg"))
             return
 
         self.result_new_id = new_id
