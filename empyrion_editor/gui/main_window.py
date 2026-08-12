@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
         self._highlights: dict = {}  # Path -> MergeHighlight, pour colorer les ajouts de fusion
 
         self._build_menu()
+        self._build_toolbar()
         self._build_layout()
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage("Aucun projet ouvert -- Fichier > Nouveau projet...")
@@ -105,17 +106,14 @@ class MainWindow(QMainWindow):
         self.action_toggle_annotations.setCheckable(True)
         self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
         self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
-        self.menu_options.addSeparator()
-        self.action_language = self.menu_options.addAction(t("menu.options.language"))
-        self.action_language.triggered.connect(self._toggle_language)
 
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
         self.action_wiki_app = self.menu_help.addAction(t("menu.help.wiki_app"))
         self.action_wiki_app.triggered.connect(
-            lambda: open_wiki(self, t("menu.help.wiki_app").rstrip("."), "wiki_app.md"))
+            lambda: open_wiki(self, t("menu.help.wiki_app").rstrip("."), "wiki_app"))
         self.action_wiki_empyrion = self.menu_help.addAction(t("menu.help.wiki_empyrion"))
         self.action_wiki_empyrion.triggered.connect(
-            lambda: open_wiki(self, t("menu.help.wiki_empyrion").rstrip("."), "wiki_empyrion.md"))
+            lambda: open_wiki(self, t("menu.help.wiki_empyrion").rstrip("."), "wiki_empyrion"))
 
     def _toggle_language(self):
         current = i18n.get_language()
@@ -139,11 +137,22 @@ class MainWindow(QMainWindow):
         self.menu_options.setTitle(t("menu.options"))
         self.action_author.setText(t("menu.options.author"))
         self.action_toggle_annotations.setText(t("menu.options.annotations"))
-        self.action_language.setText(t("menu.options.language"))
 
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
         self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
+
+        self.btn_language.setText(i18n.get_language().upper())
+        self.btn_language.setToolTip(t("menu.options.language"))
+
+    def _build_toolbar(self):
+        toolbar = self.addToolBar("Langue / Language")
+        toolbar.setMovable(False)
+        self.btn_language = QPushButton(i18n.get_language().upper())
+        self.btn_language.setFixedWidth(50)
+        self.btn_language.setToolTip(t("menu.options.language"))
+        self.btn_language.clicked.connect(self._toggle_language)
+        toolbar.addWidget(self.btn_language)
 
     def _save_current_tab(self):
         widget = self.tabs.currentWidget()
