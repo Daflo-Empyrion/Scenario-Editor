@@ -7,7 +7,7 @@ seul scenario modifiable. Les sources A et B ne sont jamais touchees.
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from .scanner import scan_scenario
 from .models import Scenario
@@ -276,6 +276,39 @@ def translate_csv_cell_into_working(workspace: Workspace, working_relative_path:
     return dest, 'added'
 
 
+def duplicate_csv_row_into_working(workspace: Workspace, working_relative_path: Path,
+                                    row: List[str], new_key: str) -> Tuple[Path, str]:
+    """Duplique une ligne CSV (venant d'une source) avec une NOUVELLE cle, et l'ajoute
+    a la copie de travail comme un enregistrement INDEPENDANT (pas une fusion -- sert a
+    creer un nouvel element en partant d'un modele existant). Refuse si la cle existe
+    deja (evite un doublon accidentel).
+
+    Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'key_exists'.
+    """
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(f"Le fichier {dest} n'existe pas encore dans la copie de travail.")
+
+    from .csv_handler import CsvHandler, render_csv
+
+    handler = CsvHandler()
+    doc = handler.parse(handler.load(dest))
+
+    for existing_row in doc.rows:
+        if existing_row and existing_row[0] == new_key:
+            return dest, 'key_exists'
+
+    new_row = list(row)
+    if new_row:
+        new_row[0] = new_key
+    doc.rows.append(new_row)
+
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(render_csv(doc))
+
+    return dest, 'added'
+
+
 def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
                               block, source_label: str) -> Tuple[Path, str, Optional["MergeHighlight"]]:
     """
@@ -314,3 +347,146 @@ def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
         highlight = MergeHighlight(new_blocks=set(), changed_blocks={key: idents})
 
     return dest, status, highlight
+
+
+def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
+                                      block, new_id: str, new_name: Optional[str],
+                                      source_label: str) -> Tuple[Path, str]:
+    """
+    Duplique un bloc ECF (venant d'une source) avec un NOUVEL Id (et optionnellement
+    un nouveau Name), et l'ajoute a la copie de travail comme un bloc INDEPENDANT --
+    ne passe PAS par le moteur de fusion/garde-fou anti-collision, puisque le but est
+    justement de creer un nouvel element distinct base sur un modele existant (pas de
+    fusionner avec l'existant). Refuse si l'Id demande est deja utilise dans le fichier
+    de destination (evite un doublon accidentel).
+
+    Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'id_exists'.
+    """
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(f"Le fichier {dest} n'existe pas encore dans la copie de travail.")
+
+    from .ecf.parser import parse_ecf_file
+    from .ecf.model import duplicate_block, normalized_kind, block_identity
+
+    working_doc = parse_ecf_file(dest)
+
+    for node in working_doc.nodes:
+        if hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind) \
+                and block_identity(node) == new_id:
+            return dest, 'id_exists'
+
+    new_block = duplicate_block(block, new_id=new_id, new_name=new_name)
+    working_doc.nodes.append(new_block)
+
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(working_doc.render())
+
+    return dest, 'added'
+
+
+def _find_yaml_parent_path(doc, key_path: List[str]):
+    """Retrouve, dans un YamlDocument, la liste d'enfants correspondant a un chemin de
+    cles ancetres (ex: ['Playfield', 'POIs']) -- pour savoir ou inserer une entree
+    copiee au bon endroit. Retourne None si le chemin n'existe pas."""
+    from .yamllite.model import YamlEntry
+    current_nodes = doc.nodes
+    entry = None
+    for key in key_path:
+        entry = None
+        for n in current_nodes:
+            if isinstance(n, YamlEntry) and n.key == key:
+                entry = n
+                break
+        if entry is None:
+            return None
+        current_nodes = entry.children
+    return current_nodes
+
+
+def copy_yaml_entry_into_working(workspace: Workspace, working_relative_path: Path,
+                                  entry, key_path: List[str]) -> Tuple[Path, str]:
+    """Copie une entree YAML (venant d'une source) vers la copie de travail, au meme
+    emplacement (meme chemin de cles ancetres) si on le retrouve, sinon au niveau
+    racine. Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'added_at_root'."""
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(f"Le fichier {dest} n'existe pas encore dans la copie de travail.")
+
+    from .yamllite.parser import parse_yaml_file
+    from .yamllite.model import YamlDocument
+    import copy as _copy
+
+    doc: YamlDocument = parse_yaml_file(dest)
+    new_entry = _copy.deepcopy(entry)
+    new_entry.dirty = True
+
+    target_list = _find_yaml_parent_path(doc, key_path)
+    status = 'added'
+    if target_list is None:
+        target_list = doc.nodes
+        status = 'added_at_root'
+    target_list.append(new_entry)
+
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(doc.render())
+
+    return dest, status
+
+
+def duplicate_yaml_entry_into_working(workspace: Workspace, working_relative_path: Path,
+                                       entry, key_path: List[str], new_key: Optional[str]) -> Tuple[Path, str]:
+    """Duplique une entree YAML (venant d'une source) avec une NOUVELLE cle (si
+    applicable), et l'ajoute a la copie de travail comme une entree INDEPENDANTE, au
+    meme emplacement (meme chemin de cles ancetres) si on le retrouve. Refuse si la
+    nouvelle cle existe deja parmi les enfants directs du meme parent.
+
+    Retourne (chemin_du_fichier, statut) -- statut : 'added', 'added_at_root', ou
+    'key_exists'.
+    """
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(f"Le fichier {dest} n'existe pas encore dans la copie de travail.")
+
+    from .yamllite.parser import parse_yaml_file
+    from .yamllite.model import YamlDocument, YamlEntry
+    import copy as _copy
+
+    doc: YamlDocument = parse_yaml_file(dest)
+    target_list = _find_yaml_parent_path(doc, key_path)
+    status = 'added'
+    if target_list is None:
+        target_list = doc.nodes
+        status = 'added_at_root'
+
+    if new_key:
+        for n in target_list:
+            if not isinstance(n, YamlEntry):
+                continue
+            if n.key and n.key.strip().lower() in ('name', 'id'):
+                if n.value == new_key:
+                    return dest, 'key_exists'
+            elif n.key == new_key:
+                return dest, 'key_exists'
+
+    new_entry = _copy.deepcopy(entry)
+    new_entry.dirty = True
+    if new_key:
+        # Heuristique : si la cle de cette entree est 'Name' ou 'Id' (motif frequent
+        # pour un item de sequence identifie par un champ, ex: '- Name: BaseOne'), la
+        # VALEUR est le veritable identifiant -- on la renomme, pas la cle (qui est
+        # juste le nom du champ 'Name'). Sinon (mapping classique 'Cle: valeur'), la
+        # cle EST l'identifiant -- on la renomme directement.
+        if new_entry.key and new_entry.key.strip().lower() in ('name', 'id'):
+            new_entry.set_own_value(new_key)
+        elif new_entry.key is not None:
+            new_entry.key = new_key
+            new_entry.dirty = True
+        else:
+            new_entry.set_own_value(new_key)
+    target_list.append(new_entry)
+
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(doc.render())
+
+    return dest, status

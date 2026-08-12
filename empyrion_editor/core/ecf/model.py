@@ -241,6 +241,20 @@ def annotate_property(prop: EcfProperty, note_text: str) -> None:
     prop.dirty = True
 
 
+def duplicate_block(block: EcfBlock, new_id: Optional[str] = None, new_name: Optional[str] = None) -> EcfBlock:
+    """Copie profonde d'un bloc, avec Id (et Name) optionnellement remplaces -- pour
+    l'utiliser comme modele de depart pour un NOUVEL element distinct (pas une fusion :
+    le bloc obtenu est independant de l'original, aucun lien conserve)."""
+    import copy as _copy
+    new_block = _copy.deepcopy(block)
+    new_block.dirty = True
+    if new_id is not None:
+        new_block.set('Id', new_id)
+    if new_name is not None:
+        new_block.set('Name', new_name)
+    return new_block
+
+
 @dataclass
 class EcfDocument:
     nodes: List[EcfNode]

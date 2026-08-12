@@ -30,7 +30,9 @@ from core.models import Scenario, FileEntry
 from core.workspace import (
     Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
     merge_file_into_working, merge_folder_into_working, merge_block_into_working,
-    merge_csv_row_into_working, translate_csv_cell_into_working, MergeHighlight,
+    merge_csv_row_into_working, translate_csv_cell_into_working,
+    duplicate_ecf_block_into_working, duplicate_csv_row_into_working,
+    copy_yaml_entry_into_working, duplicate_yaml_entry_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.dependency_check import check_references
@@ -587,6 +589,66 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(f"Copie vers la copie de travail : {dest}")
 
+    def _duplicate_ecf_block_dialog(self, block: EcfBlock, source_file_path: Path,
+                                     source_root: Path, source_label: str):
+        """Duplique un bloc en lui donnant un NOUVEL Id, comme un element independant
+        (pas une fusion) -- utile pour partir d'un bloc existant comme modele pour en
+        creer un nouveau distinct (ex: variante d'un item)."""
+        from core.ecf.pending_conflicts import find_used_ids, suggest_free_ids
+
+        rel = source_file_path.relative_to(source_root)
+        dest_path = self.workspace.working_root / rel
+        if not dest_path.exists():
+            QMessageBox.warning(self, "Fichier absent",
+                                 f"{dest_path.name} n'existe pas encore dans la copie de travail -- "
+                                 f"importe d'abord le fichier entier.")
+            return
+
+        used_ids = find_used_ids([dest_path])
+        suggestions = suggest_free_ids(used_ids, 5)
+        current_name = block.get_property('Name') or ""
+
+        new_id, ok = QInputDialog.getText(
+            self, "Dupliquer avec un nouvel Id",
+            f"Id libres suggeres : {', '.join(str(s) for s in suggestions)}\n\nNouvel Id :",
+            text=str(suggestions[0])
+        )
+        if not ok or not new_id.strip():
+            return
+
+        new_name, ok = QInputDialog.getText(
+            self, "Dupliquer avec un nouvel Id",
+            "Nouveau Name (laisser tel quel pour garder le meme) :",
+            text=current_name
+        )
+        if not ok:
+            return
+        new_name = new_name.strip() or None
+        if new_name == current_name:
+            new_name = None  # pas de changement demande
+
+        try:
+            dest, status = duplicate_ecf_block_into_working(
+                self.workspace, rel, block, new_id.strip(), new_name, source_label)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer ce bloc :\n{e}")
+            return
+
+        if status == 'id_exists':
+            QMessageBox.warning(self, "Id deja utilise",
+                                 f"L'Id {new_id.strip()} est deja utilise dans {dest.name} -- "
+                                 f"choisis-en un autre.")
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        self.statusBar().showMessage(f"Bloc duplique avec Id={new_id.strip()} dans {dest.name}")
+
     def _copy_block_into_working(self, block: EcfBlock, source_file_path: Path,
                                   source_root: Path, source_label: str):
         """Fusionne UN SEUL bloc (point 3 : mise a jour ciblee sans tout refusionner)."""
@@ -645,6 +707,103 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Ligne '{key}' completee (cellules vides) dans {dest.name}")
         else:
             self.statusBar().showMessage(f"Ligne '{key}' deja a jour dans {dest.name} -- rien a changer")
+
+    def _duplicate_csv_row_dialog(self, row: list, source_file_path: Path,
+                                   source_root: Path, source_label: str):
+        """Duplique une ligne CSV avec une NOUVELLE cle, comme un enregistrement
+        independant (pas une fusion) -- utile pour partir d'une ligne existante comme
+        modele pour en creer une nouvelle."""
+        rel = source_file_path.relative_to(source_root)
+        old_key = row[0] if row else "?"
+
+        new_key, ok = QInputDialog.getText(
+            self, "Dupliquer avec une nouvelle cle",
+            f"Cle actuelle : '{old_key}'\n\nNouvelle cle :"
+        )
+        if not ok or not new_key.strip():
+            return
+
+        try:
+            dest, status = duplicate_csv_row_into_working(self.workspace, rel, row, new_key.strip())
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer cette ligne :\n{e}")
+            return
+
+        if status == 'key_exists':
+            QMessageBox.warning(self, "Cle deja utilisee",
+                                 f"La cle '{new_key.strip()}' existe deja dans {dest.name} -- choisis-en une autre.")
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        self.statusBar().showMessage(f"Ligne dupliquee avec la cle '{new_key.strip()}' dans {dest.name}")
+
+    def _copy_yaml_entry_into_working(self, entry, key_path: list, source_file_path: Path,
+                                       source_root: Path, source_label: str):
+        rel = source_file_path.relative_to(source_root)
+        try:
+            dest, status = copy_yaml_entry_into_working(self.workspace, rel, entry, key_path)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible de copier cette entree :\n{e}")
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        if status == 'added_at_root':
+            self.statusBar().showMessage(
+                f"Entree copiee dans {dest.name} -- emplacement d'origine introuvable, "
+                f"ajoutee a la racine du fichier (a repositionner si besoin)"
+            )
+        else:
+            self.statusBar().showMessage(f"Entree copiee dans {dest.name} (meme emplacement)")
+
+    def _duplicate_yaml_entry_dialog(self, entry, key_path: list, source_file_path: Path,
+                                      source_root: Path, source_label: str):
+        """Duplique une entree YAML avec une NOUVELLE cle/valeur, comme une entree
+        independante -- utile pour partir d'une entree existante comme modele."""
+        rel = source_file_path.relative_to(source_root)
+
+        current = entry.value if (entry.key and entry.key.strip().lower() in ('name', 'id')) \
+            else (entry.key or entry.value)
+
+        new_value, ok = QInputDialog.getText(
+            self, "Dupliquer avec une nouvelle cle/valeur",
+            f"Valeur actuelle : '{current}'\n\nNouvelle valeur :"
+        )
+        if not ok or not new_value.strip():
+            return
+
+        try:
+            dest, status = duplicate_yaml_entry_into_working(
+                self.workspace, rel, entry, key_path, new_value.strip())
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer cette entree :\n{e}")
+            return
+
+        if status == 'key_exists':
+            QMessageBox.warning(self, "Deja utilisee",
+                                 f"'{new_value.strip()}' existe deja dans {dest.name} -- choisis autre chose.")
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_file_tab(dest, read_only=False)
+                break
+
+        note = " (emplacement d'origine introuvable, ajoutee a la racine)" if status == 'added_at_root' else ""
+        self.statusBar().showMessage(f"Entree dupliquee avec '{new_value.strip()}' dans {dest.name}{note}")
 
     def _translate_csv_cell_into_working(self, key: str, text: str, target_code: str, target_label: str,
                                           source_file_path: Path, source_root: Path, source_label: str):
@@ -793,25 +952,40 @@ class MainWindow(QMainWindow):
             if ext == '.ecf':
                 highlight = self._highlights.get(path)
                 on_copy_block = None
+                on_duplicate_block = None
                 if read_only and source_root and source_label:
                     on_copy_block = lambda block: self._copy_block_into_working(
                         block, path, source_root, source_label)
+                    on_duplicate_block = lambda block: self._duplicate_ecf_block_dialog(
+                        block, path, source_root, source_label)
                 widget = EcfViewWidget(path, highlight=highlight, on_copy_block=on_copy_block,
-                                        copy_label=source_label)
+                                        copy_label=source_label, on_duplicate_block=on_duplicate_block)
             elif ext in ('.yaml', '.yml'):
-                widget = YamlEditWidget(path, editable=False)
+                on_copy_entry = None
+                on_duplicate_entry = None
+                if read_only and source_root and source_label:
+                    on_copy_entry = lambda entry, key_path: self._copy_yaml_entry_into_working(
+                        entry, key_path, path, source_root, source_label)
+                    on_duplicate_entry = lambda entry, key_path: self._duplicate_yaml_entry_dialog(
+                        entry, key_path, path, source_root, source_label)
+                widget = YamlEditWidget(path, editable=False, on_copy_entry=on_copy_entry,
+                                        on_duplicate_entry=on_duplicate_entry)
             elif ext == '.txt':
                 widget = TxtEditWidget(path, editable=False)
             elif ext == '.csv':
                 on_copy_row = None
                 on_translate_cell = None
+                on_duplicate_row = None
                 if read_only and source_root and source_label:
                     on_copy_row = lambda row: self._copy_csv_row_into_working(
                         row, path, source_root, source_label)
                     on_translate_cell = lambda key, text, code, label: self._translate_csv_cell_into_working(
                         key, text, code, label, path, source_root, source_label)
+                    on_duplicate_row = lambda row: self._duplicate_csv_row_dialog(
+                        row, path, source_root, source_label)
                 widget = CsvEditWidget(path, editable=False, on_copy_row=on_copy_row,
-                                        copy_label=source_label, on_translate_cell=on_translate_cell)
+                                        copy_label=source_label, on_translate_cell=on_translate_cell,
+                                        on_duplicate_row=on_duplicate_row)
             else:
                 QMessageBox.information(self, "Non supporte",
                                          f"Pas encore de vue pour les fichiers {ext}")
@@ -833,12 +1007,13 @@ class EcfViewWidget(QWidget):
     propose de le fusionner vers la copie de travail SANS toucher au reste du fichier."""
 
     def __init__(self, path: Path, highlight: Optional[MergeHighlight] = None,
-                 on_copy_block=None, copy_label: Optional[str] = None):
+                 on_copy_block=None, copy_label: Optional[str] = None, on_duplicate_block=None):
         super().__init__()
         self.path = path
         self.highlight = highlight
         self.on_copy_block = on_copy_block
         self.copy_label = copy_label
+        self.on_duplicate_block = on_duplicate_block
         self.doc: EcfDocument = parse_ecf_file(path)
 
         layout = QVBoxLayout(self)
@@ -875,7 +1050,7 @@ class EcfViewWidget(QWidget):
         self.tree.setHeaderLabels(["Bloc"])
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_block_selected)
-        if self.on_copy_block:
+        if self.on_copy_block or self.on_duplicate_block:
             self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self.tree.customContextMenuRequested.connect(self._show_block_context_menu)
         splitter.addWidget(self.tree)
@@ -951,10 +1126,17 @@ class EcfViewWidget(QWidget):
         label = f"{block.kind} [{ident}]" if ident else block.kind
 
         menu = QMenu(self)
-        action = menu.addAction(f"Copier / fusionner ce bloc ({label}) vers la copie de travail")
+        action_merge = None
+        if self.on_copy_block:
+            action_merge = menu.addAction(f"Copier / fusionner ce bloc ({label}) vers la copie de travail")
+        action_dup = None
+        if self.on_duplicate_block:
+            action_dup = menu.addAction(f"Dupliquer avec un nouvel Id vers la copie de travail...")
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if chosen == action:
+        if action_merge and chosen == action_merge:
             self.on_copy_block(block)
+        elif action_dup and chosen == action_dup:
+            self.on_duplicate_block(block)
 
     def _populate_tree(self):
         for node in self.doc.nodes:

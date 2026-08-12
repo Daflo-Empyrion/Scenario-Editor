@@ -110,13 +110,14 @@ class CsvEditWidget(QWidget):
     saved = pyqtSignal()
 
     def __init__(self, path: Path, editable: bool = True, on_copy_row=None, copy_label: Optional[str] = None,
-                 on_translate_cell=None):
+                 on_translate_cell=None, on_duplicate_row=None):
         super().__init__()
         self.path = path
         self.editable = editable
         self.on_copy_row = on_copy_row
         self.copy_label = copy_label
         self.on_translate_cell = on_translate_cell
+        self.on_duplicate_row = on_duplicate_row
         self._modified = False
 
         handler = CsvHandler()
@@ -250,6 +251,9 @@ class CsvEditWidget(QWidget):
             action_copy = None
             if self.on_copy_row:
                 action_copy = menu.addAction(f"Copier cette ligne (cle '{key}') vers la copie de travail")
+            action_dup = None
+            if self.on_duplicate_row:
+                action_dup = menu.addAction(f"Dupliquer avec une nouvelle cle vers la copie de travail...")
 
             lang_actions = {}
             if self.on_translate_cell and text.strip():
@@ -258,12 +262,14 @@ class CsvEditWidget(QWidget):
                     a = translate_menu.addAction(label)
                     lang_actions[a] = (code, label)
 
-            if not action_copy and not lang_actions:
+            if not action_copy and not action_dup and not lang_actions:
                 return
 
             chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
             if action_copy and chosen == action_copy:
                 self.on_copy_row(row_values)
+            elif action_dup and chosen == action_dup:
+                self.on_duplicate_row(row_values)
             elif chosen in lang_actions:
                 target_code, target_label = lang_actions[chosen]
                 self.on_translate_cell(key, text, target_code, target_label)

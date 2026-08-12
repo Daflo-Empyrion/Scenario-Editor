@@ -30,10 +30,12 @@ class YamlEditWidget(QWidget):
     modified_changed = pyqtSignal(bool)
     saved = pyqtSignal()
 
-    def __init__(self, path: Path, editable: bool = True):
+    def __init__(self, path: Path, editable: bool = True, on_copy_entry=None, on_duplicate_entry=None):
         super().__init__()
         self.path = path
         self.editable = editable
+        self.on_copy_entry = on_copy_entry
+        self.on_duplicate_entry = on_duplicate_entry
         self.doc: YamlDocument = parse_yaml_file(path)
         self._modified = False
         self._current_entry: Optional[YamlEntry] = None
@@ -79,6 +81,9 @@ class YamlEditWidget(QWidget):
         self.tree.setHeaderLabels(["Cle", "Apercu"])
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_entry_selected)
+        if self.on_copy_entry or self.on_duplicate_entry:
+            self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
         splitter.addWidget(self.tree)
 
         right = QWidget()
@@ -143,6 +148,43 @@ class YamlEditWidget(QWidget):
         self.value_edit.setPlainText(entry.value)
         self.value_edit.blockSignals(False)
         self.value_edit.setEnabled(self.editable)
+
+    def _get_key_path_for_item(self, item: QTreeWidgetItem) -> list:
+        """Chemin des cles ancetres (PAS l'entree elle-meme) menant a cet item -- pour
+        savoir ou la reinserer au meme endroit dans un autre document (copie de
+        travail)."""
+        path = []
+        parent = item.parent()
+        while parent is not None:
+            entry = parent.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(entry, YamlEntry) and entry.key:
+                path.insert(0, entry.key)
+            parent = parent.parent()
+        return path
+
+    def _show_tree_context_menu(self, pos):
+        item = self.tree.itemAt(pos)
+        if not item:
+            return
+        entry = item.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(entry, YamlEntry):
+            return
+        key_path = self._get_key_path_for_item(item)
+        label = entry.key or (entry.value[:30] if entry.value else "?")
+
+        menu = QMenu(self)
+        action_copy = None
+        if self.on_copy_entry:
+            action_copy = menu.addAction(f"Copier cette entree ({label}) vers la copie de travail")
+        action_dup = None
+        if self.on_duplicate_entry:
+            action_dup = menu.addAction("Dupliquer avec une nouvelle cle/valeur vers la copie de travail...")
+
+        chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
+        if action_copy and chosen == action_copy:
+            self.on_copy_entry(entry, key_path)
+        elif action_dup and chosen == action_dup:
+            self.on_duplicate_entry(entry, key_path)
 
     def _refresh_current_item_preview(self):
         it = QTreeWidgetItemIterator(self.tree)
