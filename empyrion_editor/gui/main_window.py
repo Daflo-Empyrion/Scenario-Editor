@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
     QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
-    QProgressDialog, QInputDialog, QPushButton, QSizePolicy,
+    QProgressDialog, QInputDialog, QPushButton, QSizePolicy, QDialog, QCheckBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -591,15 +591,13 @@ class MainWindow(QMainWindow):
 
     def _duplicate_ecf_block_dialog(self, block: EcfBlock, source_file_path: Path,
                                      source_root: Path, source_label: str):
-        """Duplique un bloc en lui donnant une NOUVELLE valeur d'identite, comme un
+        """Duplique un bloc en lui donnant un nouvel Id et/ou un nouveau Name, comme un
         element independant (pas une fusion) -- utile pour partir d'un bloc existant
         comme modele pour en creer un nouveau distinct (ex: variante d'un item).
-
-        Detecte dynamiquement quelle propriete identifie reellement ce bloc (Id, sinon
-        Name, sinon Ref -- certains blocs reels n'ont pas d'Id du tout, identifies
-        seulement par Name, ex: '{ Block Name: LegacyForcefield ...}')."""
+        L'utilisateur choisit librement : nouvel Id, nouveau Name, les deux, ou
+        abandonner l'Id pour n'identifier le nouveau bloc que par Name (certains blocs
+        reels n'ont pas d'Id du tout, ex: '{ Block Name: LegacyForcefield ...}')."""
         from core.ecf.pending_conflicts import find_used_ids, suggest_free_ids
-        from core.ecf.model import IDENTITY_KEYS
 
         rel = source_file_path.relative_to(source_root)
         dest_path = self.workspace.working_root / rel
@@ -609,67 +607,27 @@ class MainWindow(QMainWindow):
                                  f"importe d'abord le fichier entier.")
             return
 
-        identity_key = None
-        current_value = None
-        for key in IDENTITY_KEYS:
-            val = block.get_property(key)
-            if val is not None:
-                identity_key = key
-                current_value = val
-                break
+        used_ids = find_used_ids([dest_path])
+        suggestions = suggest_free_ids(used_ids, 5)
 
-        if identity_key is None:
-            QMessageBox.warning(self, "Bloc sans identifiant",
-                                 "Ce bloc n'a ni Id, ni Name, ni Ref -- impossible de le dupliquer "
-                                 "de facon fiable (aucun moyen de le distinguer de l'original).")
+        dialog = DuplicateBlockDialog(block, suggestions, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-
-        if identity_key == 'Id':
-            used_ids = find_used_ids([dest_path])
-            suggestions = suggest_free_ids(used_ids, 5)
-            prompt = f"Id libres suggeres : {', '.join(str(s) for s in suggestions)}\n\nNouvel Id :"
-            default_text = str(suggestions[0])
-        else:
-            prompt = f"{identity_key} actuel : '{current_value}'\n\nNouveau {identity_key} :"
-            default_text = ""
-
-        new_value, ok = QInputDialog.getText(
-            self, f"Dupliquer avec un nouveau {identity_key}", prompt, text=default_text)
-        if not ok:
-            return
-        if not new_value.strip():
-            QMessageBox.warning(self, f"{identity_key} requis",
-                                 f"Une valeur de {identity_key} est necessaire pour distinguer ce "
-                                 f"bloc de l'original (c'est ce qui identifie ce bloc precis pour "
-                                 f"le moteur du jeu).")
-            return
-
-        new_name = None
-        if identity_key != 'Name':
-            current_name = block.get_property('Name') or ""
-            new_name_input, ok2 = QInputDialog.getText(
-                self, "Dupliquer -- Name (optionnel)",
-                "Nouveau Name (laisser tel quel pour garder le meme, vide si le bloc n'en a pas) :",
-                text=current_name
-            )
-            if not ok2:
-                return
-            new_name = new_name_input.strip() or None
-            if new_name == current_name:
-                new_name = None  # pas de changement demande
 
         try:
             dest, status = duplicate_ecf_block_into_working(
-                self.workspace, rel, block, identity_key, new_value.strip(), new_name, source_label)
+                self.workspace, rel, block,
+                dialog.result_new_id, dialog.result_new_name, dialog.result_remove_id,
+                source_label)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer ce bloc :\n{e}")
             return
 
-        if status == 'id_exists':
-            QMessageBox.warning(self, f"{identity_key} deja utilise",
-                                 f"'{new_value.strip()}' est deja utilise comme {identity_key} dans "
-                                 f"{dest.name} -- choisis-en un autre.")
+        if status == 'exists':
+            QMessageBox.warning(self, "Deja utilise",
+                                 f"Cette identite (Id ou Name) est deja utilisee dans {dest.name} -- "
+                                 f"choisis une autre valeur.")
             return
 
         for i in range(self.tabs.count()):
@@ -678,7 +636,14 @@ class MainWindow(QMainWindow):
                 self.open_file_tab(dest, read_only=False)
                 break
 
-        self.statusBar().showMessage(f"Bloc duplique avec {identity_key}={new_value.strip()} dans {dest.name}")
+        details = []
+        if dialog.result_new_id:
+            details.append(f"Id={dialog.result_new_id}")
+        if dialog.result_remove_id:
+            details.append("Id abandonne")
+        if dialog.result_new_name:
+            details.append(f"Name={dialog.result_new_name}")
+        self.statusBar().showMessage(f"Bloc duplique ({', '.join(details)}) dans {dest.name}")
 
     def _copy_block_into_working(self, block: EcfBlock, source_file_path: Path,
                                   source_root: Path, source_label: str):
@@ -1039,6 +1004,85 @@ class MainWindow(QMainWindow):
         index = self.tabs.addTab(widget, prefix + path.name)
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
+
+
+class DuplicateBlockDialog(QDialog):
+    """Fenetre de duplication d'un bloc ECF : les deux champs (Id, Name) sont visibles
+    en meme temps, avec une case a cocher pour abandonner completement l'Id (certains
+    blocs reels n'ont pas d'Id du tout, identifies seulement par Name)."""
+
+    def __init__(self, block: EcfBlock, suggestions: list, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Dupliquer ce bloc")
+        self.setMinimumWidth(450)
+
+        current_id = block.get('Id')
+        current_name = block.get_property('Name')
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(
+            f"Bloc actuel : Id={current_id or '(aucun)'}, Name={current_name or '(aucun)'}\n\n"
+            f"Renseigne un nouvel Id, un nouveau Name, ou les deux -- au moins une "
+            f"valeur doit differer de l'original."
+        ))
+
+        id_row = QHBoxLayout()
+        id_row.addWidget(QLabel("Nouvel Id :"))
+        self.id_edit = QLineEdit(str(suggestions[0]) if current_id and suggestions else "")
+        id_row.addWidget(self.id_edit)
+        layout.addLayout(id_row)
+        if suggestions:
+            sugg_label = QLabel(f"Suggestions libres : {', '.join(str(s) for s in suggestions)}")
+            sugg_label.setStyleSheet("color: gray; font-size: 11px;")
+            layout.addWidget(sugg_label)
+
+        name_row = QHBoxLayout()
+        name_row.addWidget(QLabel("Nouveau Name :"))
+        self.name_edit = QLineEdit(current_name or "")
+        name_row.addWidget(self.name_edit)
+        layout.addLayout(name_row)
+
+        self.remove_id_checkbox = None
+        if current_id:
+            self.remove_id_checkbox = QCheckBox(
+                "Abandonner l'Id sur le nouveau bloc (l'identifier seulement par Name -- "
+                "necessite un nouveau Name ci-dessus)")
+            layout.addWidget(self.remove_id_checkbox)
+
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton("Dupliquer")
+        btn_ok.clicked.connect(self._on_accept)
+        buttons.addWidget(btn_ok)
+        btn_cancel = QPushButton("Annuler")
+        btn_cancel.clicked.connect(self.reject)
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+
+        self._current_id = current_id
+        self._current_name = current_name
+
+    def _on_accept(self):
+        new_id = self.id_edit.text().strip() or None
+        new_name = self.name_edit.text().strip() or None
+        remove_id = self.remove_id_checkbox.isChecked() if self.remove_id_checkbox else False
+
+        if remove_id and not new_name:
+            QMessageBox.warning(self, "Name requis",
+                                 "Si tu abandonnes l'Id, il faut un nouveau Name pour identifier "
+                                 "ce bloc (sinon impossible de le distinguer de l'original).")
+            return
+
+        id_changed = new_id is not None and new_id != self._current_id
+        name_changed = new_name is not None and new_name != self._current_name
+        if not remove_id and not id_changed and not name_changed:
+            QMessageBox.warning(self, "Aucun changement",
+                                 "Indique un nouvel Id et/ou un nouveau Name, different de l'original.")
+            return
+
+        self.result_new_id = new_id
+        self.result_new_name = new_name
+        self.result_remove_id = remove_id
+        self.accept()
 
 
 class EcfViewWidget(QWidget):

@@ -103,6 +103,16 @@ class EcfBlock:
                 return True
         return False
 
+    def remove(self, key: str) -> bool:
+        """Retire une propriete de la ligne d'ouverture du bloc (ex: pour dupliquer un
+        bloc en abandonnant son Id, pour ne le laisser identifie que par Name)."""
+        for i, (k, v) in enumerate(self.pairs):
+            if k == key:
+                del self.pairs[i]
+                self.dirty = True
+                return True
+        return False
+
     def get_property(self, key: str) -> Optional[str]:
         """Cherche une propriété parmi les enfants directs (lignes EcfProperty) du bloc,
         et si absente, dans les propriétés déclarées sur la ligne d'ouverture."""
@@ -241,11 +251,13 @@ def annotate_property(prop: EcfProperty, note_text: str) -> None:
     prop.dirty = True
 
 
-def duplicate_block(block: EcfBlock, overrides: Optional[dict] = None) -> EcfBlock:
+def duplicate_block(block: EcfBlock, overrides: Optional[dict] = None,
+                     remove_keys: Optional[List[str]] = None) -> EcfBlock:
     """Copie profonde d'un bloc, avec certaines proprietes d'en-tete optionnellement
-    remplacees (ex: {'Id': '700000'} ou {'Name': 'NouveauNom'}) -- pour l'utiliser comme
-    modele de depart pour un NOUVEL element distinct (pas une fusion : le bloc obtenu
-    est independant de l'original, aucun lien conserve)."""
+    remplacees (overrides, ex: {'Id': '700000'}) et/ou retirees (remove_keys, ex:
+    ['Id'] pour dupliquer un bloc en l'identifiant desormais seulement par Name) --
+    pour l'utiliser comme modele de depart pour un NOUVEL element distinct (pas une
+    fusion : le bloc obtenu est independant de l'original, aucun lien conserve)."""
     import copy as _copy
     new_block = _copy.deepcopy(block)
     new_block.dirty = True
@@ -253,6 +265,9 @@ def duplicate_block(block: EcfBlock, overrides: Optional[dict] = None) -> EcfBlo
         for key, value in overrides.items():
             if value is not None:
                 new_block.set(key, value)
+    if remove_keys:
+        for key in remove_keys:
+            new_block.remove(key)
     return new_block
 
 

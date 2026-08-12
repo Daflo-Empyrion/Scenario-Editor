@@ -350,20 +350,17 @@ def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
 
 
 def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
-                                      block, identity_key: str, new_value: str,
-                                      new_name: Optional[str],
-                                      source_label: str) -> Tuple[Path, str]:
+                                      block, new_id: Optional[str], new_name: Optional[str],
+                                      remove_id: bool, source_label: str) -> Tuple[Path, str]:
     """
-    Duplique un bloc ECF (venant d'une source) avec une NOUVELLE valeur pour sa
-    propriete d'identite (Id, Name, ou Ref -- selon celle que le bloc utilise
-    reellement ; certains blocs reels n'ont pas d'Id du tout et ne sont identifies que
-    par Name), et l'ajoute a la copie de travail comme un bloc INDEPENDANT -- ne passe
-    PAS par le moteur de fusion/garde-fou anti-collision, puisque le but est justement
-    de creer un nouvel element distinct base sur un modele existant. Refuse si la
-    valeur demandee est deja utilisee dans le fichier de destination pour cette meme
-    cle d'identite (evite un doublon accidentel).
+    Duplique un bloc ECF (venant d'une source) vers la copie de travail comme un bloc
+    INDEPENDANT (pas une fusion) -- l'utilisateur choisit librement : nouvel Id, nouveau
+    Name, les deux, ou abandonner l'Id pour n'identifier le nouveau bloc que par Name
+    (certains blocs reels n'ont pas d'Id du tout). Ne passe pas par le garde-fou de
+    fusion puisque le but est justement de creer un element distinct.
 
-    Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'id_exists'.
+    Verifie les collisions contre l'identite REELLE du bloc obtenu (Id si present,
+    sinon Name). Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'exists'.
     """
     dest = workspace.working_root / working_relative_path
     if not dest.exists():
@@ -374,15 +371,31 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
 
     working_doc = parse_ecf_file(dest)
 
-    for node in working_doc.nodes:
-        if hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind):
-            if node.get_property(identity_key) == new_value:
-                return dest, 'id_exists'
-
-    overrides = {identity_key: new_value}
-    if new_name is not None and identity_key != 'Name':
+    overrides = {}
+    if new_id:
+        overrides['Id'] = new_id
+    if new_name:
         overrides['Name'] = new_name
-    new_block = duplicate_block(block, overrides=overrides)
+    remove_keys = ['Id'] if remove_id else []
+
+    new_block = duplicate_block(block, overrides=overrides, remove_keys=remove_keys)
+
+    final_id = new_block.get('Id')
+    final_name = new_block.get_property('Name')
+
+    for node in working_doc.nodes:
+        if not (hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind)):
+            continue
+        if final_id is not None:
+            if node.get('Id') == final_id:
+                return dest, 'exists'
+        elif final_name is not None:
+            # Le nouveau bloc n'a pas d'Id -> ne compare qu'aux autres blocs SANS Id non plus,
+            # identifies par le meme Name (sinon on pourrait bloquer a tort sur un Name partage
+            # par un bloc different qui a lui un Id -- deux systemes d'identite distincts).
+            if node.get('Id') is None and node.get_property('Name') == final_name:
+                return dest, 'exists'
+
     working_doc.nodes.append(new_block)
 
     with open(dest, 'w', encoding='utf-8', newline='') as f:
