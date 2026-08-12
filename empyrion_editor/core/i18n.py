@@ -487,14 +487,19 @@ def set_language(lang: str) -> None:
     settings.set_language(lang)
 
 
-def t(key: str, **kwargs) -> str:
-    """Traduit `key` dans la langue active. Si la cle est absente, retourne la cle
-    elle-meme (visible et sans plantage -- signale qu'une chaine reste a traduire)."""
-    entry = STRINGS.get(key)
+def t(translation_key: str, **kwargs) -> str:
+    """Traduit `translation_key` dans la langue active. Si la cle est absente, retourne
+    la cle elle-meme (visible et sans plantage -- signale qu'une chaine reste a
+    traduire). Le parametre s'appelle volontairement `translation_key` et non `key` :
+    plusieurs chaines traduites ont elles-memes un placeholder nomme {key} (ex: la cle
+    d'une ligne CSV), et un appel comme t("...", key=ma_valeur) entrerait sinon en
+    collision avec le nom du premier parametre positionnel -- erreur reelle deja
+    rencontree en production (TypeError: t() got multiple values for argument 'key')."""
+    entry = STRINGS.get(translation_key)
     if entry is None:
-        return key
+        return translation_key
     lang = get_language()
-    text = entry.get(lang, entry.get("fr", key))
+    text = entry.get(lang, entry.get("fr", translation_key))
     if kwargs:
         try:
             text = text.format(**kwargs)
