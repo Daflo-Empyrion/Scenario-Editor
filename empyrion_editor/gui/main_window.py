@@ -93,6 +93,10 @@ class MainWindow(QMainWindow):
         self.menu_file.addSeparator()
         self.action_compare = self.menu_file.addAction(t("menu.file.compare"))
         self.action_compare.triggered.connect(self._open_compare_dialog)
+        self.action_backup_scenario = self.menu_file.addAction(t("menu.file.backup_scenario"))
+        self.action_backup_scenario.triggered.connect(lambda: self._open_backup_dialog('scenario'))
+        self.action_manage_saves = self.menu_file.addAction(t("menu.file.manage_saves"))
+        self.action_manage_saves.triggered.connect(lambda: self._open_backup_dialog('savegame'))
         self.menu_file.addSeparator()
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
@@ -133,6 +137,8 @@ class MainWindow(QMainWindow):
         self.action_recent.setText(t("menu.file.recent_projects"))
         self.action_save.setText(t("menu.file.save"))
         self.action_compare.setText(t("menu.file.compare"))
+        self.action_backup_scenario.setText(t("menu.file.backup_scenario"))
+        self.action_manage_saves.setText(t("menu.file.manage_saves"))
         self.action_quit.setText(t("menu.file.quit"))
 
         self.menu_check.setTitle(t("menu.verification"))
@@ -170,6 +176,11 @@ class MainWindow(QMainWindow):
     def _open_compare_dialog(self):
         from gui.scenario_compare_dialog import ScenarioCompareDialog
         dialog = ScenarioCompareDialog(self)
+        dialog.exec()
+
+    def _open_backup_dialog(self, kind: str):
+        from gui.backup_dialog import BackupManagerDialog
+        dialog = BackupManagerDialog(kind, self)
         dialog.exec()
 
     def _set_author_dialog(self):

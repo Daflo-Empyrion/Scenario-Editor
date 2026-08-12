@@ -395,6 +395,61 @@ STRINGS = {
                                  "binary content or unstructured format)"},
     "compare.error_title": {"fr": "Erreur de comparaison", "en": "Comparison error"},
 
+    # --- Menu Fichier : nouvelles entrees sauvegarde ---
+    "menu.file.backup_scenario": {"fr": "Sauvegarder un scenario (avant mise a jour)...",
+                                   "en": "Back up a scenario (before update)..."},
+    "menu.file.manage_saves": {"fr": "Gerer mes sauvegardes de partie...",
+                                "en": "Manage my savegame backups..."},
+
+    # --- Dialogue de sauvegarde generique (scenario ou partie) ---
+    "backup.title_scenario": {"fr": "Sauvegarder un scenario", "en": "Back up a scenario"},
+    "backup.title_savegame": {"fr": "Sauvegardes de partie", "en": "Savegame backups"},
+    "backup.source_scenario": {"fr": "Dossier du scenario a sauvegarder :", "en": "Scenario folder to back up:"},
+    "backup.source_savegame": {"fr": "Dossier de la partie a sauvegarder :", "en": "Savegame folder to back up:"},
+    "backup.storage_folder": {"fr": "Dossier ou stocker les sauvegardes :", "en": "Folder to store backups in:"},
+    "backup.label": {"fr": "Nom (optionnel, ex: 'avant maj 2.0') :", "en": "Name (optional, e.g. 'before update 2.0'):"},
+    "backup.create": {"fr": "Sauvegarder maintenant", "en": "Back up now"},
+    "backup.existing_list": {"fr": "Sauvegardes existantes :", "en": "Existing backups:"},
+    "backup.restore": {"fr": "Restaurer cette sauvegarde...", "en": "Restore this backup..."},
+    "backup.delete": {"fr": "Supprimer cette sauvegarde", "en": "Delete this backup"},
+    "backup.open_folder": {"fr": "Ouvrir le dossier", "en": "Open folder"},
+    "backup.compare_with": {"fr": "Comparer avec...", "en": "Compare with..."},
+    "backup.none_yet": {"fr": "Aucune sauvegarde pour l'instant.", "en": "No backups yet."},
+    "backup.source_required": {"fr": "Choisis le dossier a sauvegarder.", "en": "Choose the folder to back up."},
+    "backup.storage_required": {"fr": "Choisis un dossier ou stocker les sauvegardes.",
+                                 "en": "Choose a folder to store backups in."},
+    "backup.created_title": {"fr": "Sauvegarde creee", "en": "Backup created"},
+    "backup.created_msg": {"fr": "Sauvegarde creee avec succes dans :\n{path}",
+                            "en": "Backup successfully created in:\n{path}"},
+    "backup.error": {"fr": "Erreur pendant la sauvegarde", "en": "Error during backup"},
+    "backup.select_one": {"fr": "Selectionne d'abord une sauvegarde dans la liste.",
+                           "en": "Select a backup in the list first."},
+    "backup.confirm_delete_title": {"fr": "Confirmer la suppression", "en": "Confirm deletion"},
+    "backup.confirm_delete_msg": {"fr": "Supprimer definitivement la sauvegarde '{label}' ? "
+                                         "Cette action est irreversible.",
+                                   "en": "Permanently delete the backup '{label}'? "
+                                         "This action cannot be undone."},
+    "backup.restore_title": {"fr": "Restaurer la sauvegarde", "en": "Restore backup"},
+    "backup.restore_destination": {"fr": "Dossier de destination (sera entierement remplace) :",
+                                    "en": "Destination folder (will be entirely replaced):"},
+    "backup.restore_warning": {"fr": "Le contenu actuel du dossier de destination sera ENTIEREMENT "
+                                      "remplace par cette sauvegarde. Si le dossier de destination "
+                                      "contient deja quelque chose, une sauvegarde de securite automatique "
+                                      "sera creee avant, par precaution.",
+                                "en": "The current content of the destination folder will be ENTIRELY "
+                                      "replaced by this backup. If the destination folder already "
+                                      "contains something, an automatic safety backup will be created "
+                                      "first, just in case."},
+    "backup.confirm_restore": {"fr": "Confirmer la restauration", "en": "Confirm restore"},
+    "backup.restore_done_title": {"fr": "Restauration terminee", "en": "Restore complete"},
+    "backup.restore_done_msg": {"fr": "Sauvegarde restauree avec succes dans :\n{path}",
+                                 "en": "Backup successfully restored to:\n{path}"},
+    "backup.restore_done_with_safety": {"fr": "\n\nUne sauvegarde de securite de l'ancien contenu "
+                                                "a ete creee : '{label}'",
+                                         "en": "\n\nA safety backup of the previous content "
+                                               "was created: '{label}'"},
+    "backup.restore_error": {"fr": "Erreur pendant la restauration", "en": "Error during restore"},
+
     # --- Format de diff ECF (reutilise par comparaison de scenarios + blocs en attente) ---
     "diff.new": {"fr": "(nouveau)", "en": "(new)"},
     "diff.removed": {"fr": "(supprime)", "en": "(removed)"},

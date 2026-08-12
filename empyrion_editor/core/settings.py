@@ -77,3 +77,27 @@ def set_language(lang: str) -> None:
             pass
     data['language'] = lang
     SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+
+def get_backup_root(kind: str) -> str:
+    """Dernier dossier de sauvegardes utilise pour ce type ('scenario' ou 'savegame'),
+    ou chaine vide si jamais defini."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            return data.get(f'backup_root_{kind}', '')
+        except Exception:
+            pass
+    return ''
+
+
+def set_backup_root(kind: str, path: str) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    data[f'backup_root_{kind}'] = path
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
