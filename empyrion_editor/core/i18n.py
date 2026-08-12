@@ -68,6 +68,53 @@ STRINGS = {
     "ctx.bbcode": {"fr": "Mise en forme BBCode (couleur/gras/italique)...",
                    "en": "BBCode formatting (color/bold/italic)..."},
 
+    # --- Dialogue Nouveau projet ---
+    "newproj.title": {"fr": "Nouveau projet", "en": "New project"},
+    "newproj.scenario_a": {"fr": "Scenario A (base) :", "en": "Scenario A (base):"},
+    "newproj.scenario_a_placeholder": {"fr": "Dossier racine du scenario de base...",
+                                        "en": "Root folder of the base scenario..."},
+    "newproj.browse": {"fr": "Parcourir...", "en": "Browse..."},
+    "newproj.merge_mode": {"fr": "Mode fusion (ajouter un second scenario source B)",
+                            "en": "Merge mode (add a second source Scenario B)"},
+    "newproj.scenario_b": {"fr": "Scenario B (source, optionnel) :", "en": "Scenario B (source, optional):"},
+    "newproj.scenario_b_placeholder": {"fr": "Dossier racine du scenario B...",
+                                        "en": "Root folder of Scenario B..."},
+    "newproj.working_copy": {"fr": "Copie de travail (modifiable) :", "en": "Working copy (editable):"},
+    "newproj.working_copy_placeholder": {"fr": "Nouvel emplacement pour la copie de travail...",
+                                          "en": "New location for the working copy..."},
+    "newproj.info": {"fr": "La copie de travail sera une copie physique complete du scenario A, creee\n"
+                            "au nouvel emplacement choisi. Les scenarios A et B restent en lecture seule\n"
+                            "et ne seront jamais modifies.",
+                      "en": "The working copy will be a complete physical copy of Scenario A, created\n"
+                            "at the new location you choose. Scenarios A and B stay read-only\n"
+                            "and are never modified."},
+    "newproj.choose_scenario_folder": {"fr": "Choisir un dossier de scenario", "en": "Choose a scenario folder"},
+    "newproj.choose_parent_folder": {"fr": "Choisir le dossier PARENT de la copie de travail",
+                                      "en": "Choose the PARENT folder of the working copy"},
+    "err.missing_field": {"fr": "Champ manquant", "en": "Missing field"},
+    "err.invalid_path": {"fr": "Chemin invalide", "en": "Invalid path"},
+    "err.dest_exists": {"fr": "Destination existante", "en": "Destination already exists"},
+
+    # --- Dialogue Projets recents ---
+    "startup.title": {"fr": "Projets recents", "en": "Recent projects"},
+    "startup.subtitle": {"fr": "Reprendre un projet existant, ou en creer un nouveau :",
+                          "en": "Resume an existing project, or create a new one:"},
+    "startup.open_selected": {"fr": "Ouvrir le projet selectionne", "en": "Open selected project"},
+    "startup.remove": {"fr": "Retirer de la liste", "en": "Remove from list"},
+    "startup.new_project": {"fr": "Nouveau projet...", "en": "New project..."},
+
+    # --- Dialogue Dupliquer un bloc ---
+    "dup.title": {"fr": "Dupliquer ce bloc", "en": "Duplicate this block"},
+    "dup.new_id": {"fr": "Nouvel Id :", "en": "New Id:"},
+    "dup.new_name": {"fr": "Nouveau Name :", "en": "New Name:"},
+    "dup.remove_id": {"fr": "Abandonner l'Id sur le nouveau bloc (l'identifier seulement par Name -- "
+                             "necessite un nouveau Name ci-dessus)",
+                       "en": "Drop the Id on the new block (identify it by Name only -- "
+                             "requires a new Name above)"},
+    "dup.duplicate": {"fr": "Dupliquer", "en": "Duplicate"},
+    "dup.name_required": {"fr": "Name requis", "en": "Name required"},
+    "dup.no_change": {"fr": "Aucun changement", "en": "No change"},
+
     # --- Libelles communs ---
     "label.search": {"fr": "Rechercher :", "en": "Search:"},
     "label.value": {"fr": "Valeur :", "en": "Value:"},

@@ -10,12 +10,13 @@ from PyQt6.QtWidgets import (
 )
 
 from core.project_store import ProjectRecord
+from core.i18n import t
 
 
 class StartupDialog(QDialog):
     def __init__(self, projects: List[ProjectRecord], parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Projets recents")
+        self.setWindowTitle(t("startup.title"))
         self.setMinimumSize(560, 360)
 
         self.projects = projects
@@ -24,7 +25,7 @@ class StartupDialog(QDialog):
         self.project_to_remove: Optional[ProjectRecord] = None
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Reprendre un projet existant, ou en creer un nouveau :"))
+        layout.addWidget(QLabel(t("startup.subtitle")))
 
         self.list_widget = QListWidget()
         for p in projects:
@@ -39,19 +40,19 @@ class StartupDialog(QDialog):
         layout.addWidget(self.list_widget)
 
         btn_row = QHBoxLayout()
-        btn_open = QPushButton("Ouvrir le projet selectionne")
+        btn_open = QPushButton(t("startup.open_selected"))
         btn_open.clicked.connect(self._on_open)
         btn_row.addWidget(btn_open)
 
-        btn_remove = QPushButton("Retirer de la liste")
+        btn_remove = QPushButton(t("startup.remove"))
         btn_remove.clicked.connect(self._on_remove)
         btn_row.addWidget(btn_remove)
 
-        btn_new = QPushButton("Nouveau projet...")
+        btn_new = QPushButton(t("startup.new_project"))
         btn_new.clicked.connect(self._on_new)
         btn_row.addWidget(btn_new)
 
-        btn_close = QPushButton("Fermer")
+        btn_close = QPushButton(t("btn.close"))
         btn_close.clicked.connect(self.reject)
         btn_row.addWidget(btn_close)
 

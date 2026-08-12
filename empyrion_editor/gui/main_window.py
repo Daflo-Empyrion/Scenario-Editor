@@ -1071,7 +1071,7 @@ class DuplicateBlockDialog(QDialog):
 
     def __init__(self, block: EcfBlock, suggestions: list, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Dupliquer ce bloc")
+        self.setWindowTitle(t("dup.title"))
         self.setMinimumWidth(450)
 
         current_id = block.get('Id')
@@ -1085,7 +1085,7 @@ class DuplicateBlockDialog(QDialog):
         ))
 
         id_row = QHBoxLayout()
-        id_row.addWidget(QLabel("Nouvel Id :"))
+        id_row.addWidget(QLabel(t("dup.new_id")))
         self.id_edit = QLineEdit(str(suggestions[0]) if current_id and suggestions else "")
         id_row.addWidget(self.id_edit)
         layout.addLayout(id_row)
@@ -1095,23 +1095,21 @@ class DuplicateBlockDialog(QDialog):
             layout.addWidget(sugg_label)
 
         name_row = QHBoxLayout()
-        name_row.addWidget(QLabel("Nouveau Name :"))
+        name_row.addWidget(QLabel(t("dup.new_name")))
         self.name_edit = QLineEdit(current_name or "")
         name_row.addWidget(self.name_edit)
         layout.addLayout(name_row)
 
         self.remove_id_checkbox = None
         if current_id:
-            self.remove_id_checkbox = QCheckBox(
-                "Abandonner l'Id sur le nouveau bloc (l'identifier seulement par Name -- "
-                "necessite un nouveau Name ci-dessus)")
+            self.remove_id_checkbox = QCheckBox(t("dup.remove_id"))
             layout.addWidget(self.remove_id_checkbox)
 
         buttons = QHBoxLayout()
-        btn_ok = QPushButton("Dupliquer")
+        btn_ok = QPushButton(t("dup.duplicate"))
         btn_ok.clicked.connect(self._on_accept)
         buttons.addWidget(btn_ok)
-        btn_cancel = QPushButton("Annuler")
+        btn_cancel = QPushButton(t("btn.cancel"))
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)
@@ -1125,7 +1123,7 @@ class DuplicateBlockDialog(QDialog):
         remove_id = self.remove_id_checkbox.isChecked() if self.remove_id_checkbox else False
 
         if remove_id and not new_name:
-            QMessageBox.warning(self, "Name requis",
+            QMessageBox.warning(self, t("dup.name_required"),
                                  "Si tu abandonnes l'Id, il faut un nouveau Name pour identifier "
                                  "ce bloc (sinon impossible de le distinguer de l'original).")
             return
@@ -1133,7 +1131,7 @@ class DuplicateBlockDialog(QDialog):
         id_changed = new_id is not None and new_id != self._current_id
         name_changed = new_name is not None and new_name != self._current_name
         if not remove_id and not id_changed and not name_changed:
-            QMessageBox.warning(self, "Aucun changement",
+            QMessageBox.warning(self, t("dup.no_change"),
                                  "Indique un nouvel Id et/ou un nouveau Name, different de l'original.")
             return
 
