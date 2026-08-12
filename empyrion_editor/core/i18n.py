@@ -56,6 +56,18 @@ STRINGS = {
     "btn.cancel": {"fr": "Annuler", "en": "Cancel"},
     "btn.close": {"fr": "Fermer", "en": "Close"},
 
+    # --- Menu contextuel copier/coller ---
+    "ctx.copy": {"fr": "Copier", "en": "Copy"},
+    "ctx.cut": {"fr": "Couper", "en": "Cut"},
+    "ctx.paste": {"fr": "Coller", "en": "Paste"},
+    "ctx.clear_content": {"fr": "Supprimer le contenu (vide la/les cellule(s))",
+                           "en": "Clear content (empties the cell(s))"},
+    "ctx.delete_rows": {"fr": "Supprimer la/les ligne(s) entiere(s)", "en": "Delete entire row(s)"},
+    "ctx.translate_to": {"fr": "Traduire vers...", "en": "Translate to..."},
+    "ctx.translate_selection_to": {"fr": "Traduire la selection vers...", "en": "Translate selection to..."},
+    "ctx.bbcode": {"fr": "Mise en forme BBCode (couleur/gras/italique)...",
+                   "en": "BBCode formatting (color/bold/italic)..."},
+
     # --- Libelles communs ---
     "label.search": {"fr": "Rechercher :", "en": "Search:"},
     "label.value": {"fr": "Valeur :", "en": "Value:"},

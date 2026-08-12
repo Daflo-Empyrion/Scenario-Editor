@@ -14,6 +14,7 @@ from PyQt6.QtGui import QColor, QBrush
 
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
 from core import translation
+from core.i18n import t
 from gui.text_tools import (
     copy_selection, cut_selection, paste_into_selection, delete_selection, delete_selected_rows,
     install_clipboard_shortcuts, add_clipboard_menu_actions, open_bbcode_tool,
@@ -131,7 +132,7 @@ class CsvEditWidget(QWidget):
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(2)
 
-        mode_text = "copie de travail -- modifiable" if editable else "lecture seule"
+        mode_text = t("status.editable") if editable else t("status.readonly")
         info_label = QLabel(f"{path.name}  ({mode_text}) -- "
                              f"{len(self.doc.rows)} ligne(s), delimiteur '{self.doc.delimiter}'")
         info_label.setStyleSheet("font-size: 11px; color: gray;")
@@ -140,17 +141,17 @@ class CsvEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
-            btn_add_row = QPushButton("+ Ligne")
+            btn_add_row = QPushButton(t("btn.add_row"))
             btn_add_row.clicked.connect(self._add_row)
             toolbar.addWidget(btn_add_row)
-            btn_del_row = QPushButton("- Ligne selectionnee")
+            btn_del_row = QPushButton(t("btn.delete_selected_row"))
             btn_del_row.clicked.connect(self._delete_selected_row)
             toolbar.addWidget(btn_del_row)
-            self.btn_undo = QPushButton("Annuler (Ctrl+Z)")
+            self.btn_undo = QPushButton(t("btn.undo"))
             self.btn_undo.clicked.connect(self.undo)
             self.btn_undo.setEnabled(False)
             toolbar.addWidget(self.btn_undo)
-            btn_save = QPushButton("Enregistrer (Ctrl+S)")
+            btn_save = QPushButton(t("btn.save"))
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()
@@ -347,11 +348,11 @@ class CsvEditWidget(QWidget):
             item = self.table.currentItem()
 
         menu = QMenu(self)
-        menu.addAction("Copier", lambda: copy_selection(self.table))
-        menu.addAction("Couper", self._do_cut)
-        menu.addAction("Coller", self._do_paste)
-        menu.addAction("Supprimer le contenu (vide la/les cellule(s))", self._do_delete_content)
-        action_del_row = menu.addAction("Supprimer la/les ligne(s) entiere(s)")
+        menu.addAction(t("ctx.copy"), lambda: copy_selection(self.table))
+        menu.addAction(t("ctx.cut"), self._do_cut)
+        menu.addAction(t("ctx.paste"), self._do_paste)
+        menu.addAction(t("ctx.clear_content"), self._do_delete_content)
+        action_del_row = menu.addAction(t("ctx.delete_rows"))
         menu.addSeparator()
 
         text = item.text() if item else ""
@@ -359,11 +360,11 @@ class CsvEditWidget(QWidget):
         lang_actions = {}
         action_bbcode = None
         if item and text.strip():
-            translate_menu = menu.addMenu("Traduire vers...")
+            translate_menu = menu.addMenu(t("ctx.translate_to"))
             for label, code in translation.COMMON_LANGUAGES:
                 a = translate_menu.addAction(label)
                 lang_actions[a] = (code, label)
-            action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
+            action_bbcode = menu.addAction(t("ctx.bbcode"))
 
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
 

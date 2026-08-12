@@ -28,6 +28,7 @@ from core.ecf.model import (
 )
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
+from core.i18n import t
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
@@ -254,16 +255,16 @@ class EcfEditWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(2)
-        filename_label = QLabel(f"{path.name}  (copie de travail -- modifiable)")
+        filename_label = QLabel(f"{path.name}  ({t('status.editable')})")
         filename_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
         filename_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         layout.addWidget(filename_label, 0)
 
         search_row = QHBoxLayout()
         search_row.setSpacing(4)
-        search_row.addWidget(QLabel("Rechercher :"))
+        search_row.addWidget(QLabel(t("label.search")))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Id / Name / CustomIcon... puis Entree")
+        self.search_box.setPlaceholderText("Id / Name / CustomIcon...")
         self.search_box.returnPressed.connect(self._search_next)
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
@@ -272,20 +273,20 @@ class EcfEditWidget(QWidget):
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(4)
-        btn_add_block = QPushButton("+ Bloc")
+        btn_add_block = QPushButton(t("btn.add_block"))
         btn_add_block.clicked.connect(self._add_block_dialog)
         toolbar.addWidget(btn_add_block)
-        btn_add_prop = QPushButton("+ Propriete")
+        btn_add_prop = QPushButton(t("btn.add_property"))
         btn_add_prop.clicked.connect(self._add_property_dialog)
         toolbar.addWidget(btn_add_prop)
-        btn_filter = QPushButton("Filtrer par propriete...")
+        btn_filter = QPushButton(t("btn.filter_by_property"))
         btn_filter.clicked.connect(self._open_property_filter)
         toolbar.addWidget(btn_filter)
-        self.btn_undo = QPushButton("Annuler (Ctrl+Z)")
+        self.btn_undo = QPushButton(t("btn.undo"))
         self.btn_undo.clicked.connect(self.undo)
         self.btn_undo.setEnabled(False)
         toolbar.addWidget(self.btn_undo)
-        btn_save = QPushButton("Enregistrer (Ctrl+S)")
+        btn_save = QPushButton(t("btn.save"))
         btn_save.clicked.connect(self.save)
         toolbar.addWidget(btn_save)
         toolbar.addStretch()

@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QTreeWidgetItemIterator
 from core.yamllite.parser import parse_yaml_file, parse_yaml_text
 from core.yamllite.model import YamlDocument, YamlEntry, create_entry, remove_entry
 from core import translation, settings
+from core.i18n import t
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import open_bbcode_tool
 
@@ -46,16 +47,16 @@ class YamlEditWidget(QWidget):
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(2)
 
-        mode_text = "copie de travail -- modifiable" if editable else "lecture seule"
+        mode_text = t("status.editable") if editable else t("status.readonly")
         info_label = QLabel(f"{path.name}  ({mode_text})")
         info_label.setStyleSheet("font-size: 11px; color: gray;")
         layout.addWidget(info_label, 0)
 
         search_row = QHBoxLayout()
         search_row.setSpacing(4)
-        search_row.addWidget(QLabel("Rechercher :"))
+        search_row.addWidget(QLabel(t("label.search")))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Cle ou valeur... puis Entree")
+        self.search_box.setPlaceholderText("Cle ou valeur...")
         self.search_box.returnPressed.connect(self._search_next)
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
@@ -65,17 +66,17 @@ class YamlEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
-            btn_add = QPushButton("+ Entree")
+            btn_add = QPushButton(t("btn.add_entry"))
             btn_add.clicked.connect(self._add_entry_dialog)
             toolbar.addWidget(btn_add)
-            btn_del = QPushButton("Supprimer l'entree selectionnee")
+            btn_del = QPushButton(t("btn.delete_selected_entry"))
             btn_del.clicked.connect(self._delete_selected_entry)
             toolbar.addWidget(btn_del)
-            self.btn_undo = QPushButton("Annuler (Ctrl+Z)")
+            self.btn_undo = QPushButton(t("btn.undo"))
             self.btn_undo.clicked.connect(self.undo)
             self.btn_undo.setEnabled(False)
             toolbar.addWidget(self.btn_undo)
-            btn_save = QPushButton("Enregistrer (Ctrl+S)")
+            btn_save = QPushButton(t("btn.save"))
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()
@@ -96,14 +97,14 @@ class YamlEditWidget(QWidget):
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
-        right_layout.addWidget(QLabel("Valeur :"))
+        right_layout.addWidget(QLabel(t("label.value")))
         self.value_edit = QTextEdit()
         self.value_edit.setEnabled(False)
         self.value_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.value_edit.customContextMenuRequested.connect(self._show_value_context_menu)
         right_layout.addWidget(self.value_edit)
         if editable:
-            btn_apply = QPushButton("Appliquer cette valeur")
+            btn_apply = QPushButton(t("btn.apply_value"))
             btn_apply.clicked.connect(self._apply_value)
             right_layout.addWidget(btn_apply)
         splitter.addWidget(right)

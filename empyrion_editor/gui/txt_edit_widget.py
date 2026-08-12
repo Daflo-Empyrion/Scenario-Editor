@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from core import translation
+from core.i18n import t
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import open_bbcode_tool
 
@@ -39,7 +40,7 @@ class TxtEditWidget(QWidget):
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setSpacing(2)
 
-        mode_text = "copie de travail -- modifiable" if editable else "lecture seule"
+        mode_text = t("status.editable") if editable else t("status.readonly")
         info_label = QLabel(f"{path.name}  ({mode_text})")
         info_label.setStyleSheet("font-size: 11px; color: gray;")
         layout.addWidget(info_label, 0)
@@ -47,10 +48,10 @@ class TxtEditWidget(QWidget):
         if editable:
             toolbar = QHBoxLayout()
             toolbar.setSpacing(4)
-            btn_undo = QPushButton("Annuler (Ctrl+Z)")
+            btn_undo = QPushButton(t("btn.undo"))
             btn_undo.clicked.connect(lambda: self.text_edit.undo())
             toolbar.addWidget(btn_undo)
-            btn_save = QPushButton("Enregistrer (Ctrl+S)")
+            btn_save = QPushButton(t("btn.save"))
             btn_save.clicked.connect(self.save)
             toolbar.addWidget(btn_save)
             toolbar.addStretch()
@@ -102,11 +103,11 @@ class TxtEditWidget(QWidget):
         action_bbcode = None
         if self.editable and selected.strip():
             menu.addSeparator()
-            translate_menu = menu.addMenu("Traduire la selection vers...")
+            translate_menu = menu.addMenu(t("ctx.translate_selection_to"))
             for label, code in translation.COMMON_LANGUAGES:
                 a = translate_menu.addAction(label)
                 lang_actions[a] = code
-            action_bbcode = menu.addAction("Mise en forme BBCode (couleur/gras/italique)...")
+            action_bbcode = menu.addAction(t("ctx.bbcode"))
 
         chosen = menu.exec(self.text_edit.viewport().mapToGlobal(pos))
 
