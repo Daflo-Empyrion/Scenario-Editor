@@ -350,15 +350,18 @@ def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
 
 
 def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
-                                      block, new_id: str, new_name: Optional[str],
+                                      block, identity_key: str, new_value: str,
+                                      new_name: Optional[str],
                                       source_label: str) -> Tuple[Path, str]:
     """
-    Duplique un bloc ECF (venant d'une source) avec un NOUVEL Id (et optionnellement
-    un nouveau Name), et l'ajoute a la copie de travail comme un bloc INDEPENDANT --
-    ne passe PAS par le moteur de fusion/garde-fou anti-collision, puisque le but est
-    justement de creer un nouvel element distinct base sur un modele existant (pas de
-    fusionner avec l'existant). Refuse si l'Id demande est deja utilise dans le fichier
-    de destination (evite un doublon accidentel).
+    Duplique un bloc ECF (venant d'une source) avec une NOUVELLE valeur pour sa
+    propriete d'identite (Id, Name, ou Ref -- selon celle que le bloc utilise
+    reellement ; certains blocs reels n'ont pas d'Id du tout et ne sont identifies que
+    par Name), et l'ajoute a la copie de travail comme un bloc INDEPENDANT -- ne passe
+    PAS par le moteur de fusion/garde-fou anti-collision, puisque le but est justement
+    de creer un nouvel element distinct base sur un modele existant. Refuse si la
+    valeur demandee est deja utilisee dans le fichier de destination pour cette meme
+    cle d'identite (evite un doublon accidentel).
 
     Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'id_exists'.
     """
@@ -367,16 +370,19 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
         raise FileNotFoundError(f"Le fichier {dest} n'existe pas encore dans la copie de travail.")
 
     from .ecf.parser import parse_ecf_file
-    from .ecf.model import duplicate_block, normalized_kind, block_identity
+    from .ecf.model import duplicate_block, normalized_kind
 
     working_doc = parse_ecf_file(dest)
 
     for node in working_doc.nodes:
-        if hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind) \
-                and block_identity(node) == new_id:
-            return dest, 'id_exists'
+        if hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind):
+            if node.get_property(identity_key) == new_value:
+                return dest, 'id_exists'
 
-    new_block = duplicate_block(block, new_id=new_id, new_name=new_name)
+    overrides = {identity_key: new_value}
+    if new_name is not None and identity_key != 'Name':
+        overrides['Name'] = new_name
+    new_block = duplicate_block(block, overrides=overrides)
     working_doc.nodes.append(new_block)
 
     with open(dest, 'w', encoding='utf-8', newline='') as f:

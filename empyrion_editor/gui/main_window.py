@@ -591,10 +591,15 @@ class MainWindow(QMainWindow):
 
     def _duplicate_ecf_block_dialog(self, block: EcfBlock, source_file_path: Path,
                                      source_root: Path, source_label: str):
-        """Duplique un bloc en lui donnant un NOUVEL Id, comme un element independant
-        (pas une fusion) -- utile pour partir d'un bloc existant comme modele pour en
-        creer un nouveau distinct (ex: variante d'un item)."""
+        """Duplique un bloc en lui donnant une NOUVELLE valeur d'identite, comme un
+        element independant (pas une fusion) -- utile pour partir d'un bloc existant
+        comme modele pour en creer un nouveau distinct (ex: variante d'un item).
+
+        Detecte dynamiquement quelle propriete identifie reellement ce bloc (Id, sinon
+        Name, sinon Ref -- certains blocs reels n'ont pas d'Id du tout, identifies
+        seulement par Name, ex: '{ Block Name: LegacyForcefield ...}')."""
         from core.ecf.pending_conflicts import find_used_ids, suggest_free_ids
+        from core.ecf.model import IDENTITY_KEYS
 
         rel = source_file_path.relative_to(source_root)
         dest_path = self.workspace.working_root / rel
@@ -604,41 +609,67 @@ class MainWindow(QMainWindow):
                                  f"importe d'abord le fichier entier.")
             return
 
-        used_ids = find_used_ids([dest_path])
-        suggestions = suggest_free_ids(used_ids, 5)
-        current_name = block.get_property('Name') or ""
+        identity_key = None
+        current_value = None
+        for key in IDENTITY_KEYS:
+            val = block.get_property(key)
+            if val is not None:
+                identity_key = key
+                current_value = val
+                break
 
-        new_id, ok = QInputDialog.getText(
-            self, "Dupliquer avec un nouvel Id",
-            f"Id libres suggeres : {', '.join(str(s) for s in suggestions)}\n\nNouvel Id :",
-            text=str(suggestions[0])
-        )
-        if not ok or not new_id.strip():
+        if identity_key is None:
+            QMessageBox.warning(self, "Bloc sans identifiant",
+                                 "Ce bloc n'a ni Id, ni Name, ni Ref -- impossible de le dupliquer "
+                                 "de facon fiable (aucun moyen de le distinguer de l'original).")
             return
 
-        new_name, ok = QInputDialog.getText(
-            self, "Dupliquer avec un nouvel Id",
-            "Nouveau Name (laisser tel quel pour garder le meme) :",
-            text=current_name
-        )
+        if identity_key == 'Id':
+            used_ids = find_used_ids([dest_path])
+            suggestions = suggest_free_ids(used_ids, 5)
+            prompt = f"Id libres suggeres : {', '.join(str(s) for s in suggestions)}\n\nNouvel Id :"
+            default_text = str(suggestions[0])
+        else:
+            prompt = f"{identity_key} actuel : '{current_value}'\n\nNouveau {identity_key} :"
+            default_text = ""
+
+        new_value, ok = QInputDialog.getText(
+            self, f"Dupliquer avec un nouveau {identity_key}", prompt, text=default_text)
         if not ok:
             return
-        new_name = new_name.strip() or None
-        if new_name == current_name:
-            new_name = None  # pas de changement demande
+        if not new_value.strip():
+            QMessageBox.warning(self, f"{identity_key} requis",
+                                 f"Une valeur de {identity_key} est necessaire pour distinguer ce "
+                                 f"bloc de l'original (c'est ce qui identifie ce bloc precis pour "
+                                 f"le moteur du jeu).")
+            return
+
+        new_name = None
+        if identity_key != 'Name':
+            current_name = block.get_property('Name') or ""
+            new_name_input, ok2 = QInputDialog.getText(
+                self, "Dupliquer -- Name (optionnel)",
+                "Nouveau Name (laisser tel quel pour garder le meme, vide si le bloc n'en a pas) :",
+                text=current_name
+            )
+            if not ok2:
+                return
+            new_name = new_name_input.strip() or None
+            if new_name == current_name:
+                new_name = None  # pas de changement demande
 
         try:
             dest, status = duplicate_ecf_block_into_working(
-                self.workspace, rel, block, new_id.strip(), new_name, source_label)
+                self.workspace, rel, block, identity_key, new_value.strip(), new_name, source_label)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, "Erreur", f"Impossible de dupliquer ce bloc :\n{e}")
             return
 
         if status == 'id_exists':
-            QMessageBox.warning(self, "Id deja utilise",
-                                 f"L'Id {new_id.strip()} est deja utilise dans {dest.name} -- "
-                                 f"choisis-en un autre.")
+            QMessageBox.warning(self, f"{identity_key} deja utilise",
+                                 f"'{new_value.strip()}' est deja utilise comme {identity_key} dans "
+                                 f"{dest.name} -- choisis-en un autre.")
             return
 
         for i in range(self.tabs.count()):
@@ -647,7 +678,7 @@ class MainWindow(QMainWindow):
                 self.open_file_tab(dest, read_only=False)
                 break
 
-        self.statusBar().showMessage(f"Bloc duplique avec Id={new_id.strip()} dans {dest.name}")
+        self.statusBar().showMessage(f"Bloc duplique avec {identity_key}={new_value.strip()} dans {dest.name}")
 
     def _copy_block_into_working(self, block: EcfBlock, source_file_path: Path,
                                   source_root: Path, source_label: str):
@@ -720,7 +751,12 @@ class MainWindow(QMainWindow):
             self, "Dupliquer avec une nouvelle cle",
             f"Cle actuelle : '{old_key}'\n\nNouvelle cle :"
         )
-        if not ok or not new_key.strip():
+        if not ok:
+            return
+        if not new_key.strip():
+            QMessageBox.warning(self, "Cle requise",
+                                 "Une cle est necessaire pour identifier cette nouvelle ligne "
+                                 "(1ere colonne du fichier).")
             return
 
         try:
@@ -780,7 +816,12 @@ class MainWindow(QMainWindow):
             self, "Dupliquer avec une nouvelle cle/valeur",
             f"Valeur actuelle : '{current}'\n\nNouvelle valeur :"
         )
-        if not ok or not new_value.strip():
+        if not ok:
+            return
+        if not new_value.strip():
+            QMessageBox.warning(self, "Valeur requise",
+                                 "Une nouvelle cle/valeur est necessaire pour distinguer "
+                                 "cette entree de l'originale.")
             return
 
         try:
