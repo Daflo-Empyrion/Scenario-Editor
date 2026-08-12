@@ -43,7 +43,7 @@ class PendingConflictsDialog(QDialog):
     def __init__(self, entries: List[dict], used_ids: set, parent=None):
         """entries : liste de dict {path, conflict, pending_block, base_block}."""
         super().__init__(parent)
-        self.setWindowTitle("Blocs en attente (conflits d'Id)")
+        self.setWindowTitle(t("pending.title"))
         self.setMinimumSize(900, 600)
         self.entries = entries
         self.used_ids = used_ids
@@ -64,14 +64,14 @@ class PendingConflictsDialog(QDialog):
         right = QWidget()
         right_layout = QVBoxLayout(right)
 
-        right_layout.addWidget(QLabel("Comparaison (bloc actuel dans la copie de travail vs bloc en attente) :"))
+        right_layout.addWidget(QLabel(t("pending.compare_label")))
         self.diff_view = QTextEdit()
         self.diff_view.setReadOnly(True)
         self.diff_view.setFontFamily("Consolas, monospace")
         right_layout.addWidget(self.diff_view)
 
         id_row = QHBoxLayout()
-        id_row.addWidget(QLabel("Nouvel Id a assigner :"))
+        id_row.addWidget(QLabel(t("pending.new_id_label")))
         self.id_edit = QLineEdit()
         id_row.addWidget(self.id_edit)
         right_layout.addLayout(id_row)
@@ -85,10 +85,10 @@ class PendingConflictsDialog(QDialog):
         layout.addWidget(splitter)
 
         buttons = QHBoxLayout()
-        btn_activate = QPushButton("Activer avec cet Id")
+        btn_activate = QPushButton(t("pending.activate"))
         btn_activate.clicked.connect(self._on_activate)
         buttons.addWidget(btn_activate)
-        btn_cancel = QPushButton("Fermer")
+        btn_cancel = QPushButton(t("btn.close"))
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)
@@ -143,11 +143,11 @@ class PendingConflictsDialog(QDialog):
             return
         new_id = self.id_edit.text().strip()
         if not new_id:
-            QMessageBox.warning(self, "Id manquant", "Indique un Id.")
+            QMessageBox.warning(self, t("pending.id_missing"), t("pending.id_missing_msg"))
             return
         if new_id.isdigit() and int(new_id) in self.used_ids:
             confirm = QMessageBox.question(
-                self, "Id deja utilise",
+                self, t("pending.id_already_used"),
                 f"L'Id {new_id} semble deja utilise ailleurs dans le scenario. Continuer quand meme ?"
             )
             if confirm != QMessageBox.StandardButton.Yes:
@@ -181,7 +181,7 @@ class PropertyFilterDialog(QDialog):
 
     def __init__(self, doc: EcfDocument, on_filter_changed, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Filtrer par propriete")
+        self.setWindowTitle(t("propfilter.title"))
         self.setMinimumSize(400, 500)
         self.on_filter_changed = on_filter_changed
 
@@ -192,9 +192,7 @@ class PropertyFilterDialog(QDialog):
                 key_counts[k] = key_counts.get(k, 0) + 1
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Coche une ou plusieurs proprietes : seuls les blocs\n"
-                                 "possedant TOUTES les proprietes cochees restent visibles\n"
-                                 "dans l'arbre du fichier ouvert."))
+        layout.addWidget(QLabel(t("propfilter.instructions")))
 
         self.prop_list = QListWidget()
         for key in sorted(key_counts.keys()):
@@ -207,10 +205,10 @@ class PropertyFilterDialog(QDialog):
         layout.addWidget(self.prop_list)
 
         buttons = QHBoxLayout()
-        btn_clear = QPushButton("Tout decocher (afficher tous les blocs)")
+        btn_clear = QPushButton(t("propfilter.clear_all"))
         btn_clear.clicked.connect(self._clear_all)
         buttons.addWidget(btn_clear)
-        btn_close = QPushButton("Fermer")
+        btn_close = QPushButton(t("btn.close"))
         btn_close.clicked.connect(self.accept)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)

@@ -115,6 +115,27 @@ STRINGS = {
     "dup.name_required": {"fr": "Name requis", "en": "Name required"},
     "dup.no_change": {"fr": "Aucun changement", "en": "No change"},
 
+    # --- Dialogue Blocs en attente ---
+    "pending.title": {"fr": "Blocs en attente (conflits d'Id)", "en": "Pending blocks (Id conflicts)"},
+    "pending.compare_label": {"fr": "Comparaison (bloc actuel dans la copie de travail vs bloc en attente) :",
+                               "en": "Comparison (current block in working copy vs pending block):"},
+    "pending.new_id_label": {"fr": "Nouvel Id a assigner :", "en": "New Id to assign:"},
+    "pending.activate": {"fr": "Activer avec cet Id", "en": "Activate with this Id"},
+    "pending.id_missing": {"fr": "Id manquant", "en": "Missing Id"},
+    "pending.id_missing_msg": {"fr": "Indique un Id.", "en": "Enter an Id."},
+    "pending.id_already_used": {"fr": "Id deja utilise", "en": "Id already in use"},
+
+    # --- Dialogue Filtrer par propriete ---
+    "propfilter.title": {"fr": "Filtrer par propriete", "en": "Filter by property"},
+    "propfilter.instructions": {"fr": "Coche une ou plusieurs proprietes : seuls les blocs\n"
+                                       "possedant TOUTES les proprietes cochees restent visibles\n"
+                                       "dans l'arbre du fichier ouvert.",
+                                 "en": "Check one or more properties: only blocks that\n"
+                                       "have ALL checked properties stay visible\n"
+                                       "in the open file's tree."},
+    "propfilter.clear_all": {"fr": "Tout decocher (afficher tous les blocs)",
+                              "en": "Uncheck all (show all blocks)"},
+
     # --- Libelles communs ---
     "label.search": {"fr": "Rechercher :", "en": "Search:"},
     "label.value": {"fr": "Valeur :", "en": "Value:"},
