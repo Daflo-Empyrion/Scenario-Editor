@@ -277,7 +277,18 @@ class EcfDocument:
     source_path: Optional[str] = None
 
     def render(self) -> str:
-        return "".join(n.render() for n in self.nodes)
+        parts = []
+        for n in self.nodes:
+            text = n.render()
+            # Garde-fou : si un noeud precedent (typiquement un commentaire de fin de
+            # fichier sans retour a la ligne final, cas reel rencontre sur un fichier
+            # vanille Empyrion) ne se termine pas par un saut de ligne, on en ajoute un
+            # avant le noeud suivant -- sinon les deux se collent sur la meme ligne et
+            # le fichier redevient illisible au re-parsing (ex: '# }{ Item Id: ...').
+            if parts and parts[-1] and not parts[-1].endswith(('\n', '\r')):
+                parts.append('\n')
+            parts.append(text)
+        return "".join(parts)
 
     def iter_blocks(self, kind: Optional[str] = None):
         """Parcourt récursivement tous les blocs du document, filtrés par genre si précisé."""
