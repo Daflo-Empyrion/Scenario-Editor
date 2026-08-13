@@ -397,6 +397,32 @@ STRINGS = {
                                "en": "Folder '{name}' deleted from the working copy"},
     "delete.error": {"fr": "Impossible de supprimer", "en": "Could not delete"},
 
+    # --- Annulation globale (niveau espace de travail) ---
+    "wsundo.button": {"fr": "Annuler la derniere action", "en": "Undo last action"},
+    "wsundo.tooltip_empty": {"fr": "Rien a annuler pour l'instant", "en": "Nothing to undo yet"},
+    "wsundo.tooltip_action": {"fr": "Annuler : {label}", "en": "Undo: {label}"},
+    "wsundo.status_done": {"fr": "Annule : {label}", "en": "Undone: {label}"},
+    "wsundo.merge_file": {"fr": "Copie/fusion de '{name}'", "en": "Copy/merge of '{name}'"},
+    "wsundo.merge_folder": {"fr": "Fusion du dossier '{name}'", "en": "Merge of folder '{name}'"},
+    "wsundo.duplicate_file": {"fr": "Duplication de fichier '{name}'", "en": "File duplication '{name}'"},
+    "wsundo.delete_file": {"fr": "Suppression de '{name}'", "en": "Deletion of '{name}'"},
+    "wsundo.delete_folder": {"fr": "Suppression du dossier '{name}'", "en": "Deletion of folder '{name}'"},
+    "wsundo.duplicate_block": {"fr": "Duplication de bloc dans '{name}'", "en": "Block duplication in '{name}'"},
+    "wsundo.copy_block": {"fr": "Copie de bloc dans '{name}'", "en": "Block copy in '{name}'"},
+    "wsundo.copy_row": {"fr": "Copie de ligne dans '{name}'", "en": "Row copy in '{name}'"},
+    "wsundo.duplicate_row": {"fr": "Duplication de ligne dans '{name}'", "en": "Row duplication in '{name}'"},
+    "wsundo.copy_entry": {"fr": "Copie d'entree dans '{name}'", "en": "Entry copy in '{name}'"},
+    "wsundo.duplicate_entry": {"fr": "Duplication d'entree dans '{name}'", "en": "Entry duplication in '{name}'"},
+    "wsundo.translate_cell": {"fr": "Traduction dans '{name}'", "en": "Translation in '{name}'"},
+    "wsundo.activate_pending": {"fr": "Activation de bloc en attente dans '{name}'", "en": "Pending block activation in '{name}'"},
+
+    # --- Recherche CSV ---
+    "search.no_results": {"fr": "Aucun resultat", "en": "No results"},
+    "search.column_all": {"fr": "Toutes les colonnes", "en": "All columns"},
+    "search.in_column_action": {"fr": "Rechercher dans '{name}'...", "en": "Search in '{name}'..."},
+    "csv.search_placeholder": {"fr": "Rechercher... puis Entree", "en": "Search... then Enter"},
+    "csv.search_scope_label": {"fr": "dans :", "en": "in:"},
+
     # --- Comparaison de scenarios ---
     "menu.file.compare": {"fr": "Comparer deux scenarios...", "en": "Compare two scenarios..."},
     "compare.title": {"fr": "Comparer deux scenarios", "en": "Compare two scenarios"},

@@ -56,6 +56,7 @@ from gui.yaml_edit_widget import YamlEditWidget
 from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
 from gui.theme import NAVY, PRIMARY_DARK, PRIMARY, icon, icon_size
+from core.workspace_undo import WorkspaceUndoStack, FileStateUndo, MultiFileStateUndo, FolderStateUndo, capture_file, capture_folder
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
 COLOR_CHANGED_BLOCK = QBrush(QColor(255, 240, 200))   # orange clair : bloc complete partiellement
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Empyrion Scenario Editor")
         self.resize(1500, 800)
+        self.workspace_undo = WorkspaceUndoStack()
 
         self.workspace: Optional[Workspace] = None
         self._highlights: dict = {}  # Path -> MergeHighlight, pour colorer les ajouts de fusion
@@ -156,16 +158,56 @@ class MainWindow(QMainWindow):
 
         self.btn_language.setText(i18n.get_language().upper())
         self.btn_language.setToolTip(t("menu.options.language"))
+        self.btn_workspace_undo.setText(t("wsundo.button"))
+        self._refresh_workspace_undo_button()
 
     def _build_toolbar(self):
         toolbar = self.addToolBar("Langue / Language")
         toolbar.setMovable(False)
+        self.btn_workspace_undo = QPushButton(icon("fa5s.undo", "#ffffff"), t("wsundo.button"))
+        self.btn_workspace_undo.setIconSize(icon_size())
+        self.btn_workspace_undo.setToolTip(t("wsundo.tooltip_empty"))
+        self.btn_workspace_undo.setEnabled(False)
+        self.btn_workspace_undo.clicked.connect(self._undo_workspace_action)
+        toolbar.addWidget(self.btn_workspace_undo)
+        from PyQt6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self._undo_workspace_action)
+
         self.btn_language = QPushButton(icon("fa5s.globe", "#ffffff"), i18n.get_language().upper())
         self.btn_language.setIconSize(icon_size())
         self.btn_language.setFixedWidth(75)
         self.btn_language.setToolTip(t("menu.options.language"))
         self.btn_language.clicked.connect(self._toggle_language)
         toolbar.addWidget(self.btn_language)
+
+    def _push_workspace_undo(self, action):
+        self.workspace_undo.push(action)
+        self._refresh_workspace_undo_button()
+
+    def _refresh_workspace_undo_button(self):
+        if self.workspace_undo.can_undo():
+            self.btn_workspace_undo.setEnabled(True)
+            self.btn_workspace_undo.setToolTip(
+                t("wsundo.tooltip_action", label=self.workspace_undo.peek_label()))
+        else:
+            self.btn_workspace_undo.setEnabled(False)
+            self.btn_workspace_undo.setToolTip(t("wsundo.tooltip_empty"))
+
+    def _undo_workspace_action(self):
+        if not self.workspace_undo.can_undo():
+            return
+        label = self.workspace_undo.undo()
+        if not self.workspace:
+            return
+        self.workspace.rescan_working()
+        self._populate_tree(self.tree_working, self.workspace.working)
+        # Ferme tout onglet ouvert sur un fichier potentiellement touche par
+        # l'annulation -- plus sur de le rouvrir a froid que de tenter de
+        # rafraichir un editeur peut-etre desynchronise de son fichier.
+        for i in reversed(range(self.tabs.count())):
+            self.tabs.removeTab(i)
+        self._refresh_workspace_undo_button()
+        self.statusBar().showMessage(t("wsundo.status_done", label=label))
 
     def _save_current_tab(self):
         widget = self.tabs.currentWidget()
@@ -243,11 +285,15 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, t("err.title"), t("pending.cannot_activate_msg"))
                 return
 
+            prior = capture_file(target_path)
             with open(target_path, 'w', encoding='utf-8', newline='') as f:
                 f.write(doc.render())
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('pending.activation_error')} :\n{e}")
             return
+
+        self._push_workspace_undo(
+            FileStateUndo(target_path, prior, t("wsundo.activate_pending", name=target_path.name)))
 
         self.workspace.rescan_working()
         for i in range(self.tabs.count()):
@@ -577,11 +623,14 @@ class MainWindow(QMainWindow):
         if confirm != QMessageBox.StandardButton.Yes:
             return
         try:
+            prior = capture_file(path)
             path.unlink()
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("delete.error"), str(e))
             return
+
+        self._push_workspace_undo(FileStateUndo(path, prior, t("wsundo.delete_file", name=path.name)))
 
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(path):
@@ -597,11 +646,15 @@ class MainWindow(QMainWindow):
         if confirm != QMessageBox.StandardButton.Yes:
             return
         try:
+            existed, prior_files = capture_folder(folder)
             shutil.rmtree(folder)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("delete.error"), str(e))
             return
+
+        self._push_workspace_undo(
+            FolderStateUndo(folder, existed, prior_files, t("wsundo.delete_folder", name=folder.name)))
 
         folder_str = str(folder)
         for i in reversed(range(self.tabs.count())):
@@ -624,6 +677,10 @@ class MainWindow(QMainWindow):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
+        rel = folder.relative_to(source_root)
+        working_folder = self.workspace.working_root / rel
+        existed_before, prior_files = capture_folder(working_folder)
+
         progress = QProgressDialog(f"Fusion de {nb_files} fichier(s)...", None, 0, 0, self)
         progress.setWindowTitle(t("progress.please_wait"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -640,6 +697,10 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, t("err.title"), f"{t('merge.folder_error')} :\n{e}")
             return
         progress.close()
+
+        self._push_workspace_undo(
+            FolderStateUndo(working_folder, existed_before, prior_files,
+                             t("wsundo.merge_folder", name=folder.name)))
 
         self._highlights.update(highlights)
         self._populate_tree(self.tree_working, self.workspace.working)
@@ -668,6 +729,9 @@ class MainWindow(QMainWindow):
         )
 
     def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
+        rel = path.relative_to(source_root)
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, highlight, id_conflicts, csv_report = merge_file_into_working(
                 self.workspace, path, source_root, source_label)
@@ -675,6 +739,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=path.name)} :\n{e}")
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.merge_file", name=dest.name)))
 
         if highlight:
             self._highlights[dest] = highlight
@@ -745,6 +811,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=path.name)} :\n{e}")
             return
 
+        self._push_workspace_undo(FileStateUndo(dest, None, t("wsundo.duplicate_file", name=new_name)))
         self._populate_tree(self.tree_working, self.workspace.working)
         self.statusBar().showMessage(t("status.file_duplicated", name=new_name))
 
@@ -771,6 +838,7 @@ class MainWindow(QMainWindow):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
+        prior = capture_file(dest_path)
         try:
             dest, status = duplicate_ecf_block_into_working(
                 self.workspace, rel, block,
@@ -789,6 +857,8 @@ class MainWindow(QMainWindow):
         if status == 'exists':
             QMessageBox.warning(self, t("dup.already_used_title"), t("dup.already_used_msg", file=dest.name))
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.duplicate_block", name=dest.name)))
 
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
@@ -809,12 +879,16 @@ class MainWindow(QMainWindow):
                                   source_root: Path, source_label: str):
         """Fusionne UN SEUL bloc (point 3 : mise a jour ciblee sans tout refusionner)."""
         rel = source_file_path.relative_to(source_root)
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, status, highlight = merge_block_into_working(self.workspace, rel, block, source_label)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('copy.block_error')} :\n{e}")
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.copy_block", name=dest.name)))
 
         if highlight:
             self._highlights[dest] = highlight
@@ -841,12 +915,16 @@ class MainWindow(QMainWindow):
         """Copie UNE SEULE ligne CSV (par cle) vers le fichier correspondant de la
         copie de travail, sans toucher au reste du fichier."""
         rel = source_file_path.relative_to(source_root)
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, status = merge_csv_row_into_working(self.workspace, rel, row)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('copy.row_error')} :\n{e}")
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.copy_row", name=dest.name)))
 
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
@@ -880,6 +958,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, t("dup.key_required_title"), t("dup.key_required_msg"))
             return
 
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, status = duplicate_csv_row_into_working(self.workspace, rel, row, new_key.strip())
             self.workspace.rescan_working()
@@ -892,6 +972,8 @@ class MainWindow(QMainWindow):
                                  t("dup.key_exists_msg", key=new_key.strip(), file=dest.name))
             return
 
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.duplicate_row", name=dest.name)))
+
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
@@ -903,12 +985,16 @@ class MainWindow(QMainWindow):
     def _copy_yaml_entry_into_working(self, entry, key_path: list, source_file_path: Path,
                                        source_root: Path, source_label: str):
         rel = source_file_path.relative_to(source_root)
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, status = copy_yaml_entry_into_working(self.workspace, rel, entry, key_path)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('copy.entry_error')} :\n{e}")
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.copy_entry", name=dest.name)))
 
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
@@ -942,6 +1028,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, t("dup.value_required_title"), t("dup.value_required_msg"))
             return
 
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, status = duplicate_yaml_entry_into_working(
                 self.workspace, rel, entry, key_path, new_value.strip())
@@ -954,6 +1042,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, t("dup.value_exists_title"),
                                  t("dup.value_exists_msg", value=new_value.strip(), file=dest.name))
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.duplicate_entry", name=dest.name)))
 
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
@@ -981,6 +1071,8 @@ class MainWindow(QMainWindow):
             return
 
         rel = source_file_path.relative_to(source_root)
+        dest_before = self.workspace.working_root / rel
+        prior = capture_file(dest_before)
         try:
             dest, status = translate_csv_cell_into_working(
                 self.workspace, rel, key, target_code, target_label, translated)
@@ -988,6 +1080,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('trans.apply_error')} :\n{e}")
             return
+
+        self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.translate_cell", name=dest.name)))
 
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):

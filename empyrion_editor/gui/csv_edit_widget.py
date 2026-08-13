@@ -7,7 +7,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QLabel,
-    QPushButton, QMenu, QMessageBox, QDialog, QTextEdit,
+    QPushButton, QMenu, QMessageBox, QDialog, QTextEdit, QLineEdit, QComboBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush
@@ -123,6 +123,9 @@ class CsvEditWidget(QWidget):
         self._undo_stack: list = []
         self._undo_max = 20
         self._pre_edit_snapshot = None  # capture avant edition en double-clic
+        self._search_matches = []
+        self._search_index = -1
+        self._search_last_scope_key = None
 
         handler = CsvHandler()
         raw = handler.load(path)
@@ -137,6 +140,27 @@ class CsvEditWidget(QWidget):
                              f"{len(self.doc.rows)} ligne(s), delimiteur '{self.doc.delimiter}'")
         info_label.setStyleSheet("font-size: 11px; color: gray;")
         layout.addWidget(info_label, 0)
+
+        n_cols = len(self.doc.header) if self.doc.header else (len(self.doc.rows[0]) if self.doc.rows else 1)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(4)
+        search_row.addWidget(QLabel(t("label.search")))
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText(t("csv.search_placeholder"))
+        self.search_box.addAction(icon("fa5s.search", color="#7c859c"), QLineEdit.ActionPosition.LeadingPosition)
+        self.search_box.returnPressed.connect(self._search_next)
+        search_row.addWidget(self.search_box, 1)
+        search_row.addWidget(QLabel(t("csv.search_scope_label")))
+        self.search_scope = QComboBox()
+        self.search_scope.addItem(t("search.column_all"), None)
+        header_labels = self.doc.header or [str(i) for i in range(n_cols)]
+        for col_index, col_name in enumerate(header_labels):
+            self.search_scope.addItem(col_name, col_index)
+        search_row.addWidget(self.search_scope)
+        self.search_status = QLabel("")
+        search_row.addWidget(self.search_status)
+        layout.addLayout(search_row, 0)
 
         if editable:
             toolbar = QHBoxLayout()
@@ -163,11 +187,12 @@ class CsvEditWidget(QWidget):
             toolbar.addStretch()
             layout.addLayout(toolbar, 0)
 
-        n_cols = len(self.doc.header) if self.doc.header else (len(self.doc.rows[0]) if self.doc.rows else 1)
         self.table = QTableWidget(len(self.doc.rows), n_cols)
         if self.doc.header:
             self.table.setHorizontalHeaderLabels(self.doc.header)
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.horizontalHeader().customContextMenuRequested.connect(self._show_header_context_menu)
         self._populate_table()
         if not editable:
             from PyQt6.QtWidgets import QAbstractItemView
@@ -205,6 +230,53 @@ class CsvEditWidget(QWidget):
 
     def is_modified(self) -> bool:
         return self._modified
+
+    def _show_header_context_menu(self, pos):
+        col = self.table.horizontalHeader().logicalIndexAt(pos)
+        if col < 0:
+            return
+        col_name = self.doc.header[col] if self.doc.header and col < len(self.doc.header) else str(col)
+        menu = QMenu(self)
+        action_search = menu.addAction(t("search.in_column_action", name=col_name))
+        chosen = menu.exec(self.table.horizontalHeader().viewport().mapToGlobal(pos))
+        if chosen == action_search:
+            idx = self.search_scope.findData(col)
+            if idx >= 0:
+                self.search_scope.setCurrentIndex(idx)
+            self._search_matches = []  # force un recalcul avec la nouvelle portee
+            self.search_box.setFocus()
+            self.search_box.selectAll()
+
+    def _search_next(self):
+        query = self.search_box.text().strip().lower()
+        if not query:
+            self.search_status.setText("")
+            return
+
+        scope_col = self.search_scope.currentData()  # None = toutes les colonnes
+        scope_key = (query, scope_col)
+
+        if not self._search_matches or self._search_last_scope_key != scope_key:
+            self._search_matches = []
+            n_rows = self.table.rowCount()
+            cols = [scope_col] if scope_col is not None else list(range(self.table.columnCount()))
+            for r in range(n_rows):
+                for c in cols:
+                    item = self.table.item(r, c)
+                    if item and query in item.text().lower():
+                        self._search_matches.append((r, c))
+            self._search_index = -1
+            self._search_last_scope_key = scope_key
+
+        if not self._search_matches:
+            self.search_status.setText(t("search.no_results"))
+            return
+
+        self._search_index = (self._search_index + 1) % len(self._search_matches)
+        r, c = self._search_matches[self._search_index]
+        self.table.setCurrentCell(r, c)
+        self.table.scrollToItem(self.table.item(r, c))
+        self.search_status.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
     def save(self):
         if not self.editable:
