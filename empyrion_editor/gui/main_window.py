@@ -332,6 +332,8 @@ class MainWindow(QMainWindow):
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
+        self.tree_working.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree_working.customContextMenuRequested.connect(self._show_working_context_menu)
         layout_w.addWidget(self.label_working)
         layout_w.addWidget(self.tree_working)
         bottom_splitter.addWidget(self.panel_working)
@@ -542,6 +544,73 @@ class MainWindow(QMainWindow):
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
             if chosen == action:
                 self._merge_folder_into_working_ui(folder, source_root, source_label)
+
+    def _show_working_context_menu(self, pos):
+        if not self.workspace:
+            return
+        item = self.tree_working.itemAt(pos)
+        if not item:
+            return
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+
+        menu = QMenu(self)
+
+        if data[0] == "file":
+            path: Path = data[1]
+            action_delete = menu.addAction(t("file.delete_action", name=path.name))
+            chosen = menu.exec(self.tree_working.viewport().mapToGlobal(pos))
+            if chosen == action_delete:
+                self._delete_working_file(path)
+
+        elif data[0] == "folder":
+            folder: Path = data[1]
+            action_delete = menu.addAction(t("folder.delete_action", name=folder.name))
+            chosen = menu.exec(self.tree_working.viewport().mapToGlobal(pos))
+            if chosen == action_delete:
+                self._delete_working_folder(folder)
+
+    def _delete_working_file(self, path: Path):
+        confirm = QMessageBox.question(
+            self, t("backup.confirm_delete_title"), t("delete.confirm_file_msg", name=path.name))
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            path.unlink()
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, t("delete.error"), str(e))
+            return
+
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(path):
+                self.tabs.removeTab(i)
+                break
+
+        self._populate_tree(self.tree_working, self.workspace.working)
+        self.statusBar().showMessage(t("status.file_deleted", name=path.name))
+
+    def _delete_working_folder(self, folder: Path):
+        confirm = QMessageBox.question(
+            self, t("backup.confirm_delete_title"), t("delete.confirm_folder_msg", name=folder.name))
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            shutil.rmtree(folder)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, t("delete.error"), str(e))
+            return
+
+        folder_str = str(folder)
+        for i in reversed(range(self.tabs.count())):
+            tooltip = self.tabs.tabToolTip(i)
+            if tooltip and tooltip.startswith(folder_str):
+                self.tabs.removeTab(i)
+
+        self._populate_tree(self.tree_working, self.workspace.working)
+        self.statusBar().showMessage(t("status.folder_deleted", name=folder.name))
 
     def _merge_folder_into_working_ui(self, folder: Path, source_root: Path, source_label: str):
         nb_files = sum(1 for _ in folder.rglob('*') if _.is_file())

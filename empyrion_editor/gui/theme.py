@@ -167,6 +167,11 @@ QPushButton#secondaryButton:hover {{
     border-color: {PRIMARY};
     color: {PRIMARY_DARK};
 }}
+QPushButton#secondaryButton:disabled {{
+    background-color: {BG};
+    color: {BORDER_STRONG};
+    border: 1px solid {BORDER};
+}}
 
 /* --- Champs de saisie --- */
 QLineEdit, QTextEdit, QPlainTextEdit {{

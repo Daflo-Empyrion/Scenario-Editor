@@ -379,6 +379,23 @@ STRINGS = {
                             "en": "'{name}' already exists in the working copy -- choose another name."},
     "status.file_duplicated": {"fr": "Fichier duplique sous le nom '{name}' dans la copie de travail",
                                 "en": "File duplicated as '{name}' in the working copy"},
+    "file.delete_action": {"fr": "Supprimer '{name}'", "en": "Delete '{name}'"},
+    "folder.delete_action": {"fr": "Supprimer le dossier '{name}' (et son contenu)",
+                              "en": "Delete folder '{name}' (and its content)"},
+    "delete.confirm_file_msg": {"fr": "Supprimer definitivement '{name}' de la copie de travail ? "
+                                       "Cette action est irreversible (le fichier original de Scenario "
+                                       "A/B n'est pas touche, tu peux le refusionner si besoin).",
+                                 "en": "Permanently delete '{name}' from the working copy? "
+                                       "This action cannot be undone (the original file in Scenario "
+                                       "A/B is untouched, you can merge it again if needed)."},
+    "delete.confirm_folder_msg": {"fr": "Supprimer definitivement le dossier '{name}' et TOUT son contenu "
+                                         "de la copie de travail ? Cette action est irreversible.",
+                                   "en": "Permanently delete the folder '{name}' and ALL its content "
+                                         "from the working copy? This action cannot be undone."},
+    "status.file_deleted": {"fr": "'{name}' supprime de la copie de travail", "en": "'{name}' deleted from the working copy"},
+    "status.folder_deleted": {"fr": "Dossier '{name}' supprime de la copie de travail",
+                               "en": "Folder '{name}' deleted from the working copy"},
+    "delete.error": {"fr": "Impossible de supprimer", "en": "Could not delete"},
 
     # --- Comparaison de scenarios ---
     "menu.file.compare": {"fr": "Comparer deux scenarios...", "en": "Compare two scenarios..."},
