@@ -12,6 +12,7 @@ Clic droit sur un fichier de A ou B -> "Copier vers la copie de travail" pour y
 importer un fichier (mesh, icone, ECF, YAML...).
 """
 import sys
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -525,10 +526,13 @@ class MainWindow(QMainWindow):
 
         if data[0] == "file":
             path: Path = data[1]
-            action = menu.addAction(t("file.merge_action", name=path.name))
+            action_merge = menu.addAction(t("file.merge_action", name=path.name))
+            action_dup = menu.addAction(t("file.duplicate_action", name=path.name))
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
-            if chosen == action:
+            if chosen == action_merge:
                 self._copy_into_working(path, source_root, source_label)
+            elif chosen == action_dup:
+                self._duplicate_file_into_working(path, source_root, source_label)
 
         elif data[0] == "folder":
             folder: Path = data[1]
@@ -643,6 +647,37 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(msg)
         else:
             self.statusBar().showMessage(t("status.copied_to_working", dest=dest))
+
+    def _duplicate_file_into_working(self, path: Path, source_root: Path, source_label: str):
+        """Copie un fichier depuis Scenario A/B vers la copie de travail sous un
+        NOUVEAU nom, comme fichier independant -- ne fusionne PAS avec un fichier de
+        meme nom deja present. Utile pour garder deux versions distinctes d'un meme
+        fichier (ex: comparer manuellement Templates.ecf de A et de B cote a cote)."""
+        rel = path.relative_to(source_root)
+        suffix_letter = "A" if source_label == "Scenario A" else "B"
+        suggestion = f"{rel.stem}_{suffix_letter}{rel.suffix}"
+
+        new_name, ok = QInputDialog.getText(
+            self, t("dupfile.title"), t("dupfile.new_name_label"), text=suggestion)
+        if not ok or not new_name.strip():
+            return
+        new_name = new_name.strip()
+
+        dest = self.workspace.working_root / rel.parent / new_name
+        if dest.exists():
+            QMessageBox.warning(self, t("dupfile.exists_title"), t("dupfile.exists_msg", name=new_name))
+            return
+
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, dest)
+            self.workspace.rescan_working()
+        except Exception as e:
+            QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=path.name)} :\n{e}")
+            return
+
+        self._populate_tree(self.tree_working, self.workspace.working)
+        self.statusBar().showMessage(t("status.file_duplicated", name=new_name))
 
     def _duplicate_ecf_block_dialog(self, block: EcfBlock, parent_chain: list, source_file_path: Path,
                                      source_root: Path, source_label: str):

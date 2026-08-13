@@ -369,6 +369,16 @@ STRINGS = {
                            "en": "Copy / merge '{name}' to working copy"},
     "folder.merge_action": {"fr": "Fusionner le dossier '{name}' (et sous-dossiers) vers la copie de travail",
                              "en": "Merge folder '{name}' (and subfolders) to working copy"},
+    "file.duplicate_action": {"fr": "Dupliquer '{name}' avec un nouveau nom vers la copie de travail...",
+                               "en": "Duplicate '{name}' with a new name to working copy..."},
+    "dupfile.title": {"fr": "Dupliquer le fichier", "en": "Duplicate file"},
+    "dupfile.new_name_label": {"fr": "Nouveau nom de fichier (dans le meme dossier que l'original) :",
+                                "en": "New filename (in the same folder as the original):"},
+    "dupfile.exists_title": {"fr": "Fichier deja existant", "en": "File already exists"},
+    "dupfile.exists_msg": {"fr": "'{name}' existe deja dans la copie de travail -- choisis un autre nom.",
+                            "en": "'{name}' already exists in the working copy -- choose another name."},
+    "status.file_duplicated": {"fr": "Fichier duplique sous le nom '{name}' dans la copie de travail",
+                                "en": "File duplicated as '{name}' in the working copy"},
 
     # --- Comparaison de scenarios ---
     "menu.file.compare": {"fr": "Comparer deux scenarios...", "en": "Compare two scenarios..."},
