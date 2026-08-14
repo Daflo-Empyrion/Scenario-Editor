@@ -820,7 +820,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         if id_conflicts:
@@ -931,7 +931,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         details = []
@@ -964,7 +964,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         if status == 'conflict':
@@ -997,7 +997,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         key = row[0] if row else "?"
@@ -1045,7 +1045,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         self.statusBar().showMessage(t("status.row_duplicated", key=new_key.strip(), file=dest.name))
@@ -1067,7 +1067,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         if status == 'added_at_root':
@@ -1116,7 +1116,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         note = t("status.entry_duplicated_note") if status == 'added_at_root' else ""
@@ -1154,7 +1154,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
-                self.open_file_tab(dest, read_only=False)
+                self.open_working_file_tab(dest)
                 break
 
         if status == 'added':
