@@ -11,6 +11,7 @@ from typing import Optional, Tuple, List
 
 from .scanner import scan_scenario
 from .models import Scenario
+from .fsutil import clear_readonly
 
 
 @dataclass
@@ -47,6 +48,12 @@ def create_working_copy(source_root: Path, dest_root: Path) -> Path:
     if dest_root.exists():
         raise FileExistsError(f"Le dossier de destination existe deja : {dest_root}")
     shutil.copytree(source_root, dest_root, copy_function=shutil.copy2)
+    # La copie de travail doit TOUJOURS rester modifiable, meme si la source (souvent
+    # installee sous Program Files) a des fichiers marques lecture seule par Windows --
+    # sinon la copie entiere herite du verrou et devient elle-meme non modifiable/non
+    # supprimable ("permission de <utilisateur>" demandee par Windows, meme pour son
+    # propre compte).
+    clear_readonly(dest_root)
     return dest_root
 
 
@@ -92,6 +99,7 @@ def copy_file_into_working(workspace: Workspace, source_file: Path, source_root:
     dest = workspace.working_root / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_file, dest)
+    clear_readonly(dest)
     return dest
 
 
@@ -141,6 +149,7 @@ def merge_file_into_working(workspace: Workspace, source_file: Path, source_root
     if dest.suffix.lower() != '.ecf' or not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_file, dest)
+        clear_readonly(dest)
         return dest, None, [], None
 
     from .ecf.parser import parse_ecf_file
@@ -377,7 +386,8 @@ def _find_ecf_parent_children(nodes: list, parent_chain: list) -> Optional[list]
 def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
                                       block, new_id: Optional[str], new_name: Optional[str],
                                       remove_id: bool, source_label: str,
-                                      parent_chain: Optional[list] = None) -> Tuple[Path, str]:
+                                      parent_chain: Optional[list] = None,
+                                      annotation: Optional[str] = None) -> Tuple[Path, str]:
     """
     Duplique un bloc ECF (venant d'une source) vers la copie de travail comme un bloc
     INDEPENDANT (pas une fusion) -- l'utilisateur choisit librement : nouvel Id, nouveau
@@ -390,6 +400,10 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
     Item), le nouveau bloc est insere DANS LE MEME PARENT (retrouve dans la copie de
     travail par cette chaine), et pas au niveau racine -- sinon un sous-bloc duplique se
     retrouverait isole/orphelin en fin de fichier.
+
+    `annotation`, si fourni (ex: "# Duplique par Daflo"), est ajoute en fin de la ligne
+    Id/Name du nouveau bloc -- fusionne avec un commentaire deja present sur le bloc
+    d'origine (copie via deepcopy) plutot que de l'ecraser.
 
     Verifie les collisions contre l'identite REELLE du bloc obtenu (Id si present,
     sinon Name), au sein du meme conteneur (racine ou parent). Retourne
@@ -423,6 +437,9 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
     # copie garde sinon l'indentation de sa position d'origine, qui peut ne pas
     # correspondre si le contexte differe).
     new_block.indent = "  " * len(parent_chain) if parent_chain else ""
+
+    if annotation:
+        new_block.comment = (new_block.comment + "  " + annotation) if new_block.comment else annotation
 
     final_id = new_block.get('Id')
     final_name = new_block.get_property('Name')
@@ -495,11 +512,15 @@ def copy_yaml_entry_into_working(workspace: Workspace, working_relative_path: Pa
 
 
 def duplicate_yaml_entry_into_working(workspace: Workspace, working_relative_path: Path,
-                                       entry, key_path: List[str], new_key: Optional[str]) -> Tuple[Path, str]:
+                                       entry, key_path: List[str], new_key: Optional[str],
+                                       annotation: Optional[str] = None) -> Tuple[Path, str]:
     """Duplique une entree YAML (venant d'une source) avec une NOUVELLE cle (si
     applicable), et l'ajoute a la copie de travail comme une entree INDEPENDANTE, au
     meme emplacement (meme chemin de cles ancetres) si on le retrouve. Refuse si la
     nouvelle cle existe deja parmi les enfants directs du meme parent.
+
+    `annotation`, si fourni, est fusionne avec le commentaire existant de l'entree
+    (comme pour la duplication de bloc ECF).
 
     Retourne (chemin_du_fichier, statut) -- statut : 'added', 'added_at_root', ou
     'key_exists'.
@@ -531,6 +552,8 @@ def duplicate_yaml_entry_into_working(workspace: Workspace, working_relative_pat
 
     new_entry = _copy.deepcopy(entry)
     new_entry.dirty = True
+    if annotation:
+        new_entry.comment = (new_entry.comment + "  " + annotation) if new_entry.comment else annotation
     if new_key:
         # Heuristique : si la cle de cette entree est 'Name' ou 'Id' (motif frequent
         # pour un item de sequence identifie par un champ, ex: '- Name: BaseOne'), la

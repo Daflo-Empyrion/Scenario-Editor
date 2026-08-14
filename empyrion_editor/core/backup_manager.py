@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+from .fsutil import clear_readonly
+
 INFO_FILENAME = "_backup_info.json"
 
 
@@ -68,6 +70,7 @@ def create_backup(source: Path, backup_root: Path, label: Optional[str], kind: s
 
     content_path = backup_path / "content"
     shutil.copytree(source, content_path)
+    clear_readonly(content_path)
 
     record = BackupRecord(
         backup_path=backup_path,
@@ -148,12 +151,14 @@ def restore_backup(record: BackupRecord, destination: Path,
     if destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(record.content_path(), destination)
+    clear_readonly(destination)
 
     return safety_record
 
 
 def delete_backup(record: BackupRecord) -> None:
     if record.backup_path.exists():
+        clear_readonly(record.backup_path)  # au cas ou une sauvegarde anterieure a ce correctif soit verrouillee
         shutil.rmtree(record.backup_path)
 
 

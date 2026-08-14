@@ -479,9 +479,36 @@ STRINGS = {
     "status.scenario_b_set": {"fr": "Scenario B defini : {name}", "en": "Scenario B set: {name}"},
     "status.scenario_b_removed": {"fr": "Scenario B retire", "en": "Scenario B removed"},
 
+    # --- Desactivation manuelle de bloc (test d'elimination de causes) ---
+    "ecf.disable_block_action": {"fr": "Desactiver ce bloc (test)", "en": "Disable this block (test)"},
+    "ecf.confirm_disable_block": {"fr": "Desactiver '{name}' ? Le bloc sera commente (garde dans le fichier, "
+                                         "inactif en jeu) -- reactivable a tout moment via 'Blocs desactives (test)'.",
+                                   "en": "Disable '{name}'? The block will be commented out (kept in the "
+                                         "file, inactive in-game) -- can be re-enabled anytime via "
+                                         "'Disabled blocks (test)'."},
+    "status.block_disabled": {"fr": "'{name}' desactive (commente)", "en": "'{name}' disabled (commented out)"},
+    "ecf.disabled_blocks_menu": {"fr": "Blocs desactives (test)...", "en": "Disabled blocks (test)..."},
+    "ecf.disabled_blocks_title": {"fr": "Blocs desactives (test)", "en": "Disabled blocks (test)"},
+    "ecf.disabled_blocks_intro": {"fr": "Blocs actuellement desactives (commentes) dans ce fichier -- "
+                                         "utile pour tester l'elimination de causes probables d'un bug. "
+                                         "Selectionne-en un puis clique 'Reactiver' pour le remettre.",
+                                   "en": "Blocks currently disabled (commented out) in this file -- "
+                                         "useful for testing to eliminate probable causes of a bug. "
+                                         "Select one then click 'Re-enable' to restore it."},
+    "ecf.disabled_blocks_none": {"fr": "Aucun bloc desactive dans ce fichier.", "en": "No disabled blocks in this file."},
+    "ecf.reactivate_block": {"fr": "Reactiver", "en": "Re-enable"},
+    "status.block_reenabled": {"fr": "'{name}' reactive", "en": "'{name}' re-enabled"},
+
     # --- Menu Fichier : nouvelles entrees sauvegarde ---
     "menu.file.backup_scenario": {"fr": "Sauvegarder un scenario (avant mise a jour)...",
                                    "en": "Back up a scenario (before update)..."},
+    "menu.file.repair_permissions": {"fr": "Reparer les permissions de la copie de travail",
+                                      "en": "Repair working copy permissions"},
+    "repair.no_project_msg": {"fr": "Ouvre d'abord un projet.", "en": "Open a project first."},
+    "repair.done_title": {"fr": "Permissions reparees", "en": "Permissions repaired"},
+    "repair.done_msg": {"fr": "La copie de travail est de nouveau entierement modifiable "
+                              "(et supprimable).",
+                         "en": "The working copy is fully writable (and deletable) again."},
     "menu.file.manage_saves": {"fr": "Gerer mes sauvegardes de partie...",
                                 "en": "Manage my savegame backups..."},
 

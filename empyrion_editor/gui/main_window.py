@@ -106,6 +106,8 @@ class MainWindow(QMainWindow):
         self.action_backup_scenario.triggered.connect(lambda: self._open_backup_dialog('scenario'))
         self.action_manage_saves = self.menu_file.addAction(t("menu.file.manage_saves"))
         self.action_manage_saves.triggered.connect(lambda: self._open_backup_dialog('savegame'))
+        self.action_repair_permissions = self.menu_file.addAction(t("menu.file.repair_permissions"))
+        self.action_repair_permissions.triggered.connect(self._repair_working_copy_permissions)
         self.menu_file.addSeparator()
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
@@ -153,6 +155,7 @@ class MainWindow(QMainWindow):
         self._refresh_scenario_b_menu_text()
         self.action_backup_scenario.setText(t("menu.file.backup_scenario"))
         self.action_manage_saves.setText(t("menu.file.manage_saves"))
+        self.action_repair_permissions.setText(t("menu.file.repair_permissions"))
         self.action_quit.setText(t("menu.file.quit"))
 
         self.menu_check.setTitle(t("menu.verification"))
@@ -284,6 +287,14 @@ class MainWindow(QMainWindow):
         from gui.backup_dialog import BackupManagerDialog
         dialog = BackupManagerDialog(kind, self)
         dialog.exec()
+
+    def _repair_working_copy_permissions(self):
+        if not self.workspace:
+            QMessageBox.information(self, t("err.missing_field"), t("repair.no_project_msg"))
+            return
+        from core.fsutil import clear_readonly
+        clear_readonly(self.workspace.working_root)
+        QMessageBox.information(self, t("repair.done_title"), t("repair.done_msg"))
 
     def _set_author_dialog(self):
         current = settings.get_author()
@@ -692,6 +703,8 @@ class MainWindow(QMainWindow):
             return
         try:
             prior = capture_file(path)
+            from core.fsutil import clear_readonly
+            clear_readonly(path)
             path.unlink()
             self.workspace.rescan_working()
         except Exception as e:
@@ -715,6 +728,8 @@ class MainWindow(QMainWindow):
             return
         try:
             existed, prior_files = capture_folder(folder)
+            from core.fsutil import clear_readonly
+            clear_readonly(folder)
             shutil.rmtree(folder)
             self.workspace.rescan_working()
         except Exception as e:
@@ -874,6 +889,8 @@ class MainWindow(QMainWindow):
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, dest)
+            from core.fsutil import clear_readonly
+            clear_readonly(dest)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=path.name)} :\n{e}")
@@ -907,11 +924,14 @@ class MainWindow(QMainWindow):
             return
 
         prior = capture_file(dest_path)
+        annotation = None
+        if settings.get_annotations_enabled():
+            annotation = f"# Duplique par {settings.get_author()}"
         try:
             dest, status = duplicate_ecf_block_into_working(
                 self.workspace, rel, block,
                 dialog.result_new_id, dialog.result_new_name, dialog.result_remove_id,
-                source_label, parent_chain=parent_chain)
+                source_label, parent_chain=parent_chain, annotation=annotation)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('dup.block_error')} :\n{e}")
@@ -1098,9 +1118,12 @@ class MainWindow(QMainWindow):
 
         dest_before = self.workspace.working_root / rel
         prior = capture_file(dest_before)
+        annotation = None
+        if settings.get_annotations_enabled():
+            annotation = f"# Duplique par {settings.get_author()}"
         try:
             dest, status = duplicate_yaml_entry_into_working(
-                self.workspace, rel, entry, key_path, new_value.strip())
+                self.workspace, rel, entry, key_path, new_value.strip(), annotation=annotation)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('dup.entry_error')} :\n{e}")

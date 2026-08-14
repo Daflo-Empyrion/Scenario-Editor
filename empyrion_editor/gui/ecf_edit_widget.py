@@ -36,6 +36,66 @@ from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcu
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
 
 
+class DisabledBlocksDialog(QDialog):
+    """Liste les blocs desactives (commentes) manuellement dans le fichier ouvert,
+    avec un bouton pour les reactiver un par un -- utile pour tester l'elimination
+    de causes probables d'un bug de lancement sans avoir a editer le fichier a la
+    main."""
+
+    def __init__(self, doc, parent=None):
+        super().__init__(parent)
+        self.doc = doc
+        self.reactivated = False
+        self.setWindowTitle(t("ecf.disabled_blocks_title"))
+        self.resize(500, 400)
+
+        layout = QVBoxLayout(self)
+        intro = QLabel(t("ecf.disabled_blocks_intro"))
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self.btn_reactivate = QPushButton(icon("fa5s.undo", "#ffffff"), t("ecf.reactivate_block"))
+        self.btn_reactivate.setIconSize(icon_size())
+        self.btn_reactivate.clicked.connect(self._reactivate_selected)
+        btn_row.addWidget(self.btn_reactivate)
+        btn_close = QPushButton(t("btn.close"))
+        btn_close.setObjectName("secondaryButton")
+        btn_close.clicked.connect(self.accept)
+        btn_row.addWidget(btn_close)
+        layout.addLayout(btn_row)
+
+        self._refresh_list()
+
+    def _refresh_list(self):
+        from core.ecf.disable_block import find_disabled_blocks
+        self.list_widget.clear()
+        self.entries = find_disabled_blocks(self.doc)
+        if not self.entries:
+            item = QListWidgetItem(t("ecf.disabled_blocks_none"))
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.list_widget.addItem(item)
+            self.btn_reactivate.setEnabled(False)
+            return
+        self.btn_reactivate.setEnabled(True)
+        for entry in self.entries:
+            self.list_widget.addItem(entry.label)
+
+    def _reactivate_selected(self):
+        from core.ecf.disable_block import enable_disabled_block
+        row = self.list_widget.currentRow()
+        if row < 0 or row >= len(self.entries):
+            return
+        entry = self.entries[row]
+        if enable_disabled_block(self.doc, entry):
+            self.reactivated = True
+            self._refresh_list()
+
+
 class PendingConflictsDialog(QDialog):
     """Fenetre de revue des blocs en attente : liste a gauche, comparaison detaillee
     (bloc actuel vs bloc en attente, via le moteur de diff) a droite, avec suggestion
@@ -285,6 +345,11 @@ class EcfEditWidget(QWidget):
         btn_filter.setObjectName("secondaryButton")
         btn_filter.clicked.connect(self._open_property_filter)
         toolbar.addWidget(btn_filter)
+        btn_disabled_blocks = QPushButton(icon("fa5s.ban", "#4a7dfc"), t("ecf.disabled_blocks_menu"))
+        btn_disabled_blocks.setIconSize(icon_size())
+        btn_disabled_blocks.setObjectName("secondaryButton")
+        btn_disabled_blocks.clicked.connect(self._open_disabled_blocks_dialog)
+        toolbar.addWidget(btn_disabled_blocks)
         self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
         self.btn_undo.setIconSize(icon_size())
         self.btn_undo.setObjectName("secondaryButton")
@@ -604,9 +669,22 @@ class EcfEditWidget(QWidget):
         if not isinstance(block, EcfBlock):
             return
         menu = QMenu(self)
+        action_disable = menu.addAction(t("ecf.disable_block_action"))
         action_del = menu.addAction(t("ecf.delete_block_action"))
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if chosen == action_del:
+        if chosen == action_disable:
+            confirm = QMessageBox.question(self, t("merge.confirm_title"),
+                                            t("ecf.confirm_disable_block", name=item.text(0)))
+            if confirm == QMessageBox.StandardButton.Yes:
+                self._snapshot_undo()
+                from core.ecf.disable_block import disable_block
+                disable_block(self.doc, block, settings.get_author())
+                self._set_modified(True)
+                if self._current_block is block:
+                    self._current_block = None
+                    self.props_table.setRowCount(0)
+                self._populate_tree()
+        elif chosen == action_del:
             confirm = QMessageBox.question(self, t("merge.confirm_title"),
                                             t("ecf.confirm_delete_block", name=item.text(0)))
             if confirm == QMessageBox.StandardButton.Yes:
@@ -617,6 +695,13 @@ class EcfEditWidget(QWidget):
                     self._current_block = None
                     self.props_table.setRowCount(0)
                 self._populate_tree()
+
+    def _open_disabled_blocks_dialog(self):
+        from core.ecf.disable_block import find_disabled_blocks, enable_disabled_block
+        dialog = DisabledBlocksDialog(self.doc, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.reactivated:
+            self._set_modified(True)
+            self._populate_tree()
 
     def _open_property_filter(self):
         dialog = PropertyFilterDialog(self.doc, on_filter_changed=self._apply_property_filter, parent=self)
