@@ -31,6 +31,13 @@ class Workspace:
         copie d'un fichier depuis une source) pour rafraichir l'inventaire."""
         self.working = scan_scenario(self.working_root)
 
+    def set_scenario_b(self, source_b_root: Optional[Path]) -> None:
+        """Definit ou change le Scenario B a tout moment, meme si le projet a ete
+        ouvert sans (ou avec un autre). Passer None retire le Scenario B (retour au
+        mode simple, sans comparaison)."""
+        self.source_b_root = source_b_root
+        self.source_b = scan_scenario(source_b_root) if source_b_root else None
+
 
 def create_working_copy(source_root: Path, dest_root: Path) -> Path:
     """Copie physiquement TOUT le contenu du scenario source vers un nouvel

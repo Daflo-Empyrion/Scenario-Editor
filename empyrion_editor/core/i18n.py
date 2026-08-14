@@ -448,6 +448,37 @@ STRINGS = {
                                  "binary content or unstructured format)"},
     "compare.error_title": {"fr": "Erreur de comparaison", "en": "Comparison error"},
 
+    # --- Fusion desactivable ---
+    "menu.options.merge_enabled": {"fr": "Autoriser la fusion (experimental, desactive par defaut)",
+                                    "en": "Allow merging (experimental, disabled by default)"},
+    "merge.disabled_title": {"fr": "Fusion desactivee", "en": "Merging disabled"},
+    "merge.disabled_msg": {"fr": "La fusion est desactivee par defaut (trop de cas particuliers pour "
+                                  "etre fiable a 100%, risque de casser le scenario). Utilise plutot "
+                                  "'Dupliquer', qui cree toujours une entree nouvelle et independante, "
+                                  "sans risque d'ecraser quoi que ce soit.\n\n"
+                                  "Tu peux reactiver la fusion dans Options si tu en as vraiment besoin.",
+                            "en": "Merging is disabled by default (too many edge cases to be 100% "
+                                  "reliable, risk of breaking the scenario). Use 'Duplicate' instead, "
+                                  "which always creates a new, independent entry with no risk of "
+                                  "overwriting anything.\n\n"
+                                  "You can re-enable merging in Options if you really need it."},
+
+    # --- Ouverture/changement du Scenario B a tout moment ---
+    "menu.file.open_scenario_b": {"fr": "Ouvrir un Scenario B...", "en": "Open a Scenario B..."},
+    "menu.file.change_scenario_b": {"fr": "Changer le Scenario B...", "en": "Change Scenario B..."},
+    "menu.file.remove_scenario_b": {"fr": "Retirer le Scenario B", "en": "Remove Scenario B"},
+    "scenariob.choose_folder": {"fr": "Choisir le dossier du Scenario B", "en": "Choose the Scenario B folder"},
+    "scenariob.confirm_change_title": {"fr": "Changer le Scenario B", "en": "Change Scenario B"},
+    "scenariob.confirm_change_msg": {"fr": "Remplacer le Scenario B actuel ('{old}') par '{new}' ?",
+                                      "en": "Replace the current Scenario B ('{old}') with '{new}'?"},
+    "scenariob.confirm_remove_title": {"fr": "Retirer le Scenario B", "en": "Remove Scenario B"},
+    "scenariob.confirm_remove_msg": {"fr": "Retirer le Scenario B ('{name}') de ce projet ? "
+                                            "La copie de travail n'est pas affectee.",
+                                      "en": "Remove Scenario B ('{name}') from this project? "
+                                            "The working copy is not affected."},
+    "status.scenario_b_set": {"fr": "Scenario B defini : {name}", "en": "Scenario B set: {name}"},
+    "status.scenario_b_removed": {"fr": "Scenario B retire", "en": "Scenario B removed"},
+
     # --- Menu Fichier : nouvelles entrees sauvegarde ---
     "menu.file.backup_scenario": {"fr": "Sauvegarder un scenario (avant mise a jour)...",
                                    "en": "Back up a scenario (before update)..."},

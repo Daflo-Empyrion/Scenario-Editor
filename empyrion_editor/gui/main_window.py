@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
 
         self._build_menu()
         self._build_toolbar()
+        self._refresh_scenario_b_menu_text()
         self._build_layout()
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage(t("status.no_project"))
@@ -96,6 +97,11 @@ class MainWindow(QMainWindow):
         self.menu_file.addSeparator()
         self.action_compare = self.menu_file.addAction(t("menu.file.compare"))
         self.action_compare.triggered.connect(self._open_compare_dialog)
+        self.action_manage_scenario_b = self.menu_file.addAction(t("menu.file.open_scenario_b"))
+        self.action_manage_scenario_b.triggered.connect(self._open_or_change_scenario_b)
+        self.action_remove_scenario_b = self.menu_file.addAction(t("menu.file.remove_scenario_b"))
+        self.action_remove_scenario_b.triggered.connect(self._remove_scenario_b)
+        self.action_remove_scenario_b.setEnabled(False)
         self.action_backup_scenario = self.menu_file.addAction(t("menu.file.backup_scenario"))
         self.action_backup_scenario.triggered.connect(lambda: self._open_backup_dialog('scenario'))
         self.action_manage_saves = self.menu_file.addAction(t("menu.file.manage_saves"))
@@ -117,6 +123,10 @@ class MainWindow(QMainWindow):
         self.action_toggle_annotations.setCheckable(True)
         self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
         self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
+        self.action_toggle_merge = self.menu_options.addAction(t("menu.options.merge_enabled"))
+        self.action_toggle_merge.setCheckable(True)
+        self.action_toggle_merge.setChecked(settings.get_merge_enabled())
+        self.action_toggle_merge.toggled.connect(settings.set_merge_enabled)
 
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
         self.action_wiki_app = self.menu_help.addAction(t("menu.help.wiki_app"))
@@ -140,6 +150,7 @@ class MainWindow(QMainWindow):
         self.action_recent.setText(t("menu.file.recent_projects"))
         self.action_save.setText(t("menu.file.save"))
         self.action_compare.setText(t("menu.file.compare"))
+        self._refresh_scenario_b_menu_text()
         self.action_backup_scenario.setText(t("menu.file.backup_scenario"))
         self.action_manage_saves.setText(t("menu.file.manage_saves"))
         self.action_quit.setText(t("menu.file.quit"))
@@ -151,6 +162,7 @@ class MainWindow(QMainWindow):
         self.menu_options.setTitle(t("menu.options"))
         self.action_author.setText(t("menu.options.author"))
         self.action_toggle_annotations.setText(t("menu.options.annotations"))
+        self.action_toggle_merge.setText(t("menu.options.merge_enabled"))
 
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
@@ -220,6 +232,53 @@ class MainWindow(QMainWindow):
         from gui.scenario_compare_dialog import ScenarioCompareDialog
         dialog = ScenarioCompareDialog(self)
         dialog.exec()
+
+    def _refresh_scenario_b_menu_text(self):
+        """Met a jour le libelle du menu Scenario B selon l'etat actuel (aucun projet
+        ouvert / pas de Scenario B / Scenario B deja defini) et active/desactive le
+        retrait en consequence."""
+        if self.workspace and self.workspace.is_merge_mode:
+            self.action_manage_scenario_b.setText(t("menu.file.change_scenario_b"))
+            self.action_remove_scenario_b.setEnabled(True)
+        else:
+            self.action_manage_scenario_b.setText(t("menu.file.open_scenario_b"))
+            self.action_remove_scenario_b.setEnabled(False)
+        self.action_remove_scenario_b.setText(t("menu.file.remove_scenario_b"))
+
+    def _open_or_change_scenario_b(self):
+        if not self.workspace:
+            QMessageBox.information(self, t("err.missing_field"), t("status.no_project"))
+            return
+        folder = QFileDialog.getExistingDirectory(self, t("scenariob.choose_folder"))
+        if not folder:
+            return
+        new_root = Path(folder)
+
+        if self.workspace.is_merge_mode:
+            confirm = QMessageBox.question(
+                self, t("scenariob.confirm_change_title"),
+                t("scenariob.confirm_change_msg", old=self.workspace.source_b_root.name, new=new_root.name)
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+
+        self.workspace.set_scenario_b(new_root)
+        self._refresh_all_trees()
+        self._refresh_scenario_b_menu_text()
+        self.statusBar().showMessage(t("status.scenario_b_set", name=new_root.name))
+
+    def _remove_scenario_b(self):
+        if not self.workspace or not self.workspace.is_merge_mode:
+            return
+        name = self.workspace.source_b_root.name
+        confirm = QMessageBox.question(
+            self, t("scenariob.confirm_remove_title"), t("scenariob.confirm_remove_msg", name=name))
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self.workspace.set_scenario_b(None)
+        self._refresh_all_trees()
+        self._refresh_scenario_b_menu_text()
+        self.statusBar().showMessage(t("status.scenario_b_removed"))
 
     def _open_backup_dialog(self, kind: str):
         from gui.backup_dialog import BackupManagerDialog
@@ -524,6 +583,8 @@ class MainWindow(QMainWindow):
         else:
             self.panel_b.setVisible(False)
 
+        self._refresh_scenario_b_menu_text()
+
     def _populate_tree(self, tree: QTreeWidget, scenario: Scenario):
         """Reconstruit l'arborescence EXACTE du disque (comme un explorateur de
         fichiers classique), plutot qu'une vue categorisee -- plus previsible et plus
@@ -571,13 +632,17 @@ class MainWindow(QMainWindow):
 
         source_label = "Scenario A" if source_root == self.workspace.source_a_root else "Scenario B"
         menu = QMenu(self)
+        merge_enabled = settings.get_merge_enabled()
 
         if data[0] == "file":
             path: Path = data[1]
             action_merge = menu.addAction(t("file.merge_action", name=path.name))
+            if not merge_enabled:
+                action_merge.setEnabled(False)
+                action_merge.setToolTip(t("merge.disabled_msg"))
             action_dup = menu.addAction(t("file.duplicate_action", name=path.name))
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
-            if chosen == action_merge:
+            if chosen == action_merge and merge_enabled:
                 self._copy_into_working(path, source_root, source_label)
             elif chosen == action_dup:
                 self._duplicate_file_into_working(path, source_root, source_label)
@@ -587,8 +652,11 @@ class MainWindow(QMainWindow):
             if not folder.exists():
                 return
             action = menu.addAction(t("folder.merge_action", name=folder.name))
+            if not merge_enabled:
+                action.setEnabled(False)
+                action.setToolTip(t("merge.disabled_msg"))
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
-            if chosen == action:
+            if chosen == action and merge_enabled:
                 self._merge_folder_into_working_ui(folder, source_root, source_label)
 
     def _show_working_context_menu(self, pos):
@@ -1174,7 +1242,7 @@ class MainWindow(QMainWindow):
 
         try:
             widget = CompareWidget(path, compare_sources, EcfViewWidget,
-                                    copy_block_callback=_copy_block_cb,
+                                    copy_block_callback=_copy_block_cb if settings.get_merge_enabled() else None,
                                     duplicate_block_callback=_duplicate_block_cb)
         except Exception as e:
             QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
@@ -1209,8 +1277,9 @@ class MainWindow(QMainWindow):
                 on_copy_block = None
                 on_duplicate_block = None
                 if read_only and source_root and source_label:
-                    on_copy_block = lambda block: self._copy_block_into_working(
-                        block, path, source_root, source_label)
+                    if settings.get_merge_enabled():
+                        on_copy_block = lambda block: self._copy_block_into_working(
+                            block, path, source_root, source_label)
                     on_duplicate_block = lambda block, parent_chain: self._duplicate_ecf_block_dialog(
                         block, parent_chain, path, source_root, source_label)
                 widget = EcfViewWidget(path, highlight=highlight, on_copy_block=on_copy_block,
@@ -1219,8 +1288,9 @@ class MainWindow(QMainWindow):
                 on_copy_entry = None
                 on_duplicate_entry = None
                 if read_only and source_root and source_label:
-                    on_copy_entry = lambda entry, key_path: self._copy_yaml_entry_into_working(
-                        entry, key_path, path, source_root, source_label)
+                    if settings.get_merge_enabled():
+                        on_copy_entry = lambda entry, key_path: self._copy_yaml_entry_into_working(
+                            entry, key_path, path, source_root, source_label)
                     on_duplicate_entry = lambda entry, key_path: self._duplicate_yaml_entry_dialog(
                         entry, key_path, path, source_root, source_label)
                 widget = YamlEditWidget(path, editable=False, on_copy_entry=on_copy_entry,
@@ -1232,8 +1302,9 @@ class MainWindow(QMainWindow):
                 on_translate_cell = None
                 on_duplicate_row = None
                 if read_only and source_root and source_label:
-                    on_copy_row = lambda row: self._copy_csv_row_into_working(
-                        row, path, source_root, source_label)
+                    if settings.get_merge_enabled():
+                        on_copy_row = lambda row: self._copy_csv_row_into_working(
+                            row, path, source_root, source_label)
                     on_translate_cell = lambda key, text, code, label: self._translate_csv_cell_into_working(
                         key, text, code, label, path, source_root, source_label)
                     on_duplicate_row = lambda row: self._duplicate_csv_row_dialog(

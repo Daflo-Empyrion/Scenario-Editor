@@ -79,7 +79,30 @@ def set_language(lang: str) -> None:
     SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
 
 
-def get_backup_root(kind: str) -> str:
+def get_merge_enabled() -> bool:
+    """La fusion (copier/fusionner fichier, dossier, bloc, ligne) est DESACTIVEE par
+    defaut : trop de cas particuliers pour etre fiable a 100%, source de scenarios
+    casses. La duplication (creation d'une entree nouvelle et independante) reste
+    toujours disponible, elle. Peut etre reactivee via Options si besoin."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            return data.get('merge_enabled', False)
+        except Exception:
+            pass
+    return False
+
+
+def set_merge_enabled(enabled: bool) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    data['merge_enabled'] = enabled
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
     """Dernier dossier de sauvegardes utilise pour ce type ('scenario' ou 'savegame'),
     ou chaine vide si jamais defini."""
     if SETTINGS_FILE.exists():
