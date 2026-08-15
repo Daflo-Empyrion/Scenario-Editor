@@ -334,6 +334,61 @@ class EcfDocument:
             result.append(l)
         return "\n".join(result).strip('\n')
 
+    def scan_section_groups_and_labels(self):
+        """Detecte deux motifs de documentation courants dans les vrais fichiers ECF :
+
+        1. Groupe de section : trois commentaires consecutifs a un seul '#' formant
+           'separateur / titre / separateur' (ex: lignes de '='), qui introduisent une
+           categorie visuelle regroupant tous les blocs suivants jusqu'au prochain
+           groupe (ou la fin du fichier). Exemple reel (Containers.ecf) :
+               # ==================================================================
+               # Gigas
+               # ==================================================================
+
+        2. Etiquette de bloc : un commentaire a DOUBLE '#' ('##') place juste avant un
+           bloc (lignes vides tolerees entre les deux), qui lui donne un nom lisible
+           complementaire a son Id/Name technique. Exemple reel :
+               ## GolemSwamp
+               { +Container Id: 5
+
+        Retourne (group_before_index: {index dans self.nodes: titre du groupe},
+                  label_by_block_id: {id(bloc): etiquette}) -- utilise l'id Python du
+        bloc comme cle plutot que le bloc lui-meme pour rester utilisable meme si le
+        bloc n'est pas hashable de facon fiable."""
+        def _clean(raw: str) -> str:
+            return raw.strip('\r\n').lstrip('#').strip()
+
+        def _is_separator(text: str) -> bool:
+            s = text.strip()
+            return len(s) >= 5 and len(set(s)) == 1 and s[0] in '=-*'
+
+        nodes = self.nodes
+        group_before = {}
+        label_by_block_id = {}
+        i, n = 0, len(nodes)
+        while i < n:
+            node = nodes[i]
+            is_plain_comment = isinstance(node, EcfComment) and not node.raw.lstrip().startswith('##')
+            if (is_plain_comment and _is_separator(_clean(node.raw)) and i + 2 < n
+                    and isinstance(nodes[i + 1], EcfComment)
+                    and not nodes[i + 1].raw.lstrip().startswith('##')
+                    and not _is_separator(_clean(nodes[i + 1].raw))
+                    and isinstance(nodes[i + 2], EcfComment)
+                    and not nodes[i + 2].raw.lstrip().startswith('##')
+                    and _is_separator(_clean(nodes[i + 2].raw))):
+                group_before[i] = _clean(nodes[i + 1].raw)
+                i += 3
+                continue
+            if (isinstance(node, EcfComment) and node.raw.lstrip().startswith('##')
+                    and not _is_separator(_clean(node.raw))):
+                j = i + 1
+                while j < n and isinstance(nodes[j], EcfBlank):
+                    j += 1
+                if j < n and isinstance(nodes[j], EcfBlock):
+                    label_by_block_id[id(nodes[j])] = _clean(node.raw)
+            i += 1
+        return group_before, label_by_block_id
+
     def iter_blocks(self, kind: Optional[str] = None):
         """Parcourt récursivement tous les blocs du document, filtrés par genre si précisé."""
         def _walk(nodes):

@@ -330,7 +330,12 @@ STRINGS = {
     # --- ECF : ajout bloc/propriete (QInputDialog) ---
     "ecf.add_property_title": {"fr": "Ajouter une propriete", "en": "Add a property"},
     "ecf.property_name_label": {"fr": "Nom de la propriete :", "en": "Property name:"},
-    "ecf.property_value_label": {"fr": "Valeur de '{key}' :", "en": "Value of '{key}':"},
+    "ecf.property_value_label": {"fr": "Valeur de '{key}' :\n(pour ajouter d'autres proprietes sur la meme ligne, "
+                                        "ex: Name_X -> param1/param2, tape 'valeur, param1: X, param2: \"Y,Z\"' "
+                                        "-- guillemets obligatoires si une valeur contient une virgule)",
+                                  "en": "Value of '{key}':\n(to add more properties on the same line, "
+                                        "e.g. Name_X -> param1/param2, type 'value, param1: X, param2: \"Y,Z\"' "
+                                        "-- quotes required if a value contains a comma)"},
     "ecf.add_block_title": {"fr": "Ajouter un bloc", "en": "Add a block"},
     "ecf.block_kind_label": {"fr": "Genre du bloc (ex: Block) :", "en": "Block kind (e.g. Block):"},
     "ecf.id_label": {"fr": "Id :", "en": "Id:"},

@@ -1580,9 +1580,22 @@ class EcfViewWidget(QWidget):
             self.on_duplicate_block(block, parent_chain)
 
     def _populate_tree(self):
-        for node in self.doc.nodes:
+        group_before, label_by_block_id = self.doc.scan_section_groups_and_labels()
+        self._label_by_block_id = label_by_block_id
+        for index, node in enumerate(self.doc.nodes):
+            if index in group_before:
+                self.tree.addTopLevelItem(self._make_group_header_item(group_before[index]))
             if isinstance(node, EcfBlock):
                 self.tree.addTopLevelItem(self._make_block_item(node))
+
+    def _make_group_header_item(self, title: str) -> QTreeWidgetItem:
+        item = QTreeWidgetItem([f"\u25a0 {title}"])
+        item.setFlags(Qt.ItemFlag.NoItemFlags)
+        item.setForeground(0, QBrush(QColor(PRIMARY_DARK)))
+        font = item.font(0)
+        font.setBold(True)
+        item.setFont(0, font)
+        return item
 
     def _make_block_item(self, block: EcfBlock) -> QTreeWidgetItem:
         ident = block_identity(block)
@@ -1590,6 +1603,9 @@ class EcfViewWidget(QWidget):
         name = block.get_property('Name')
         if name and name != ident:
             label += f"  - {name}"
+        friendly = self._label_by_block_id.get(id(block)) if hasattr(self, '_label_by_block_id') else None
+        if friendly:
+            label += f"   ({friendly})"
         item = QTreeWidgetItem([label])
         item.setData(0, Qt.ItemDataRole.UserRole, block)
 

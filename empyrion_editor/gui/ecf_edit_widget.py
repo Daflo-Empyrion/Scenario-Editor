@@ -30,7 +30,7 @@ from core.ecf.model import (
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
 from core.i18n import t
-from gui.theme import icon, icon_size
+from gui.theme import icon, icon_size, PRIMARY_DARK
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
@@ -296,17 +296,18 @@ class PropertyFilterDialog(QDialog):
 class EcfHeaderExplanationPanel(QWidget):
     """Panneau retractable (replie par defaut) affichant une explication claire des
     commentaires techniques d'en-tete d'un fichier ECF -- place entre le nom du fichier
-    et la barre de recherche. Pour BlocksConfig.ecf, utilise un glossaire francais
-    clarifie fait main (core/ecf_header_glossary.py) ; pour les autres fichiers, montre
-    le texte original brut avec un bouton de traduction automatique a la demande
-    (reutilise le meme moteur de traduction que l'onglet CSV)."""
-
-    _GLOSSARY_FILES = {"BlocksConfig.ecf"}
+    et la barre de recherche. Pour les fichiers ayant un glossaire dedie (voir
+    core/ecf_header_glossary.py -- GLOSSARY_BY_FILE), affiche une explication francaise
+    clarifiee faite main ; pour les autres, montre le texte original brut avec un
+    bouton de traduction automatique a la demande (reutilise le meme moteur de
+    traduction que l'onglet CSV)."""
 
     def __init__(self, doc: EcfDocument, filename: str, parent=None):
         super().__init__(parent)
+        from core.ecf_header_glossary import GLOSSARY_BY_FILE
         self._header_text = doc.extract_header_comment()
-        self._has_glossary = filename in self._GLOSSARY_FILES
+        self._glossary = GLOSSARY_BY_FILE.get(filename)
+        self._has_glossary = self._glossary is not None
         self._showing_raw = False
         self._translated_cache: Optional[str] = None
 
@@ -362,9 +363,8 @@ class EcfHeaderExplanationPanel(QWidget):
             self.content.setPlainText(self._header_text)
 
     def _render_glossary(self):
-        from core.ecf_header_glossary import BLOCKS_CONFIG_GLOSSARY
         parts = [f"<p><i>{t('ecf.header_glossary_intro')}</i></p>"]
-        for section_title, entries in BLOCKS_CONFIG_GLOSSARY:
+        for section_title, entries in self._glossary:
             parts.append(f"<p style='margin-top:8px'><b>{section_title}</b></p><ul style='margin-top:0'>")
             for term, explanation in entries:
                 parts.append(f"<li><b>{term}</b> : {explanation}</li>")
@@ -547,9 +547,27 @@ class EcfEditWidget(QWidget):
 
     def _populate_tree(self):
         self.tree.clear()
-        for node in self.doc.nodes:
+        group_before, label_by_block_id = self.doc.scan_section_groups_and_labels()
+        self._label_by_block_id = label_by_block_id
+        for index, node in enumerate(self.doc.nodes):
+            if index in group_before:
+                self.tree.addTopLevelItem(self._make_group_header_item(group_before[index]))
             if isinstance(node, EcfBlock):
                 self.tree.addTopLevelItem(self._make_block_item(node))
+
+    def _make_group_header_item(self, title: str) -> QTreeWidgetItem:
+        """Ligne de section non selectionnable (juste un repere visuel), pour les
+        groupes de blocs annonces par un commentaire '# === Titre ===' dans le fichier
+        source -- aide a s'y retrouver dans les tres longs fichiers (ex: Containers.ecf
+        classe ses centaines de blocs en categories comme 'Gigas', 'Dinosaurs',
+        'Zirax'...)."""
+        item = QTreeWidgetItem([f"\u25a0 {title}"])
+        item.setFlags(Qt.ItemFlag.NoItemFlags)
+        item.setForeground(0, QBrush(QColor(PRIMARY_DARK)))
+        font = item.font(0)
+        font.setBold(True)
+        item.setFont(0, font)
+        return item
 
     def _make_block_item(self, block: EcfBlock) -> QTreeWidgetItem:
         ident = block_identity(block)
@@ -557,6 +575,9 @@ class EcfEditWidget(QWidget):
         name = block.get_property('Name')
         if name and name != ident:
             label += f"  - {name}"
+        friendly = self._label_by_block_id.get(id(block)) if hasattr(self, '_label_by_block_id') else None
+        if friendly:
+            label += f"   ({friendly})"
         item = QTreeWidgetItem([label])
         item.setData(0, Qt.ItemDataRole.UserRole, block)
         for child in block.children:
@@ -757,11 +778,28 @@ class EcfEditWidget(QWidget):
         key, ok = QInputDialog.getText(self, t("ecf.add_property_title"), t("ecf.property_name_label"))
         if not ok or not key.strip():
             return
-        value, ok = QInputDialog.getText(self, t("ecf.add_property_title"), t("ecf.property_value_label", key=key))
+        value, ok = QInputDialog.getText(self, t("ecf.add_property_title"),
+                                          t("ecf.property_value_label", key=key))
         if not ok:
             return
         self._snapshot_undo()
-        new_prop = add_property_line(self._current_block, [(key.strip(), value.strip())])
+
+        # Permet de taper directement plusieurs paires a la suite, EXACTEMENT comme
+        # dans le fichier (ex: valeur = 'AlienParts04, param1: 0.6, param2: "1,3"') --
+        # sinon chaque propriete ajoutee une par une finissait sur SA PROPRE ligne au
+        # lieu d'etre regroupee comme ses voisines (Name_X, param1, param2...), ce qui
+        # cassait le format attendu par le jeu pour ce genre de structure repetitive.
+        # Les valeurs contenant une virgule doivent etre entre guillemets, comme
+        # partout ailleurs dans le fichier (ex: "1,3") -- une virgule NON protegee y
+        # serait sinon interpretee a tort comme separant une propriete supplementaire.
+        from core.ecf.parser import _parse_pairs
+        extra = _parse_pairs(value.strip())
+        if len(extra) > 1 and extra[0][0] is None:
+            pairs = [(key.strip(), extra[0][1])] + extra[1:]
+        else:
+            pairs = [(key.strip(), value.strip())]
+
+        new_prop = add_property_line(self._current_block, pairs)
         if settings.get_annotations_enabled():
             author = settings.get_author()
             annotate_property(new_prop, f"# Ajoute par {author}")
