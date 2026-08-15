@@ -117,6 +117,33 @@ def get_backup_root(kind: str) -> str:
     return ''
 
 
+def get_default_translation_language() -> tuple:
+    """Langue utilisee par le bouton de traduction rapide (une seule cellule ou une
+    selection, sans passer par le sous-menu de choix de langue). Retourne
+    (code_iso, libelle) -- Francais par defaut."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            saved = data.get('default_translation_language')
+            if saved and len(saved) == 2:
+                return tuple(saved)
+        except Exception:
+            pass
+    return ('fr', 'Francais')
+
+
+def set_default_translation_language(code: str, label: str) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    data['default_translation_language'] = [code, label]
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+
 def set_backup_root(kind: str, path: str) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     data = {}

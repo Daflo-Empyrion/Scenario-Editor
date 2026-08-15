@@ -125,14 +125,28 @@ def translate_text(text: str, target: str = "fr", source: str = "auto") -> str:
     """Traduit `text` vers la langue `target` (code ISO, ex: 'fr', 'en'), en preservant
     le BBCode et les placeholders. Leve une exception explicite si la bibliotheque
     n'est pas installee ou si la requete echoue (ex: pas de connexion internet) -- a
-    capturer et afficher clairement cote GUI."""
+    capturer et afficher clairement cote GUI.
+
+    Consulte d'abord la memoire de traduction (core/translation_memory.py) : si ce
+    texte exact a deja ete traduit vers cette langue, renvoie directement le resultat
+    memorise (aucun appel reseau) -- plus rapide et garantit une traduction coherente
+    du meme texte partout dans le fichier. La memoire est indexee par langue SOURCE
+    reelle, jamais 'auto' (sinon deux appels 'auto' pourraient a tort partager un cache
+    alors que le texte source n'etait pas dans la meme langue)."""
     if not _AVAILABLE:
         raise RuntimeError("deep-translator n'est pas installe. Lance : pip install deep-translator")
     if not text or not text.strip():
         return text
 
+    from . import translation_memory
+    cached = translation_memory.get_cached(text, source, target)
+    if cached is not None:
+        return cached
+
     protected, segments = protect_segments(text)
     translated = GoogleTranslator(source=source, target=target).translate(protected)
     if segments:
         translated = restore_segments(translated, segments)
+
+    translation_memory.store(text, source, target, translated)
     return translated

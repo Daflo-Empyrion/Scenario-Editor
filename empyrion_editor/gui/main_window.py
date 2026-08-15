@@ -129,6 +129,8 @@ class MainWindow(QMainWindow):
         self.action_toggle_merge.setCheckable(True)
         self.action_toggle_merge.setChecked(settings.get_merge_enabled())
         self.action_toggle_merge.toggled.connect(settings.set_merge_enabled)
+        self.action_default_language = self.menu_options.addAction(t("menu.options.default_language"))
+        self.action_default_language.triggered.connect(self._pick_default_translation_language)
 
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
         self.action_wiki_app = self.menu_help.addAction(t("menu.help.wiki_app"))
@@ -166,6 +168,7 @@ class MainWindow(QMainWindow):
         self.action_author.setText(t("menu.options.author"))
         self.action_toggle_annotations.setText(t("menu.options.annotations"))
         self.action_toggle_merge.setText(t("menu.options.merge_enabled"))
+        self.action_default_language.setText(t("menu.options.default_language"))
 
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
@@ -295,6 +298,23 @@ class MainWindow(QMainWindow):
         from core.fsutil import clear_readonly
         clear_readonly(self.workspace.working_root)
         QMessageBox.information(self, t("repair.done_title"), t("repair.done_msg"))
+
+    def _pick_default_translation_language(self):
+        from core import translation
+        current_code, current_label = settings.get_default_translation_language()
+        labels = [label for label, code in translation.COMMON_LANGUAGES]
+        codes = [code for label, code in translation.COMMON_LANGUAGES]
+        try:
+            current_index = codes.index(current_code)
+        except ValueError:
+            current_index = 0
+        label, ok = QInputDialog.getItem(
+            self, t("trans.pick_default_language_title"), t("trans.pick_default_language_label"),
+            labels, current_index, editable=False)
+        if not ok:
+            return
+        code = codes[labels.index(label)]
+        settings.set_default_translation_language(code, label)
 
     def _set_author_dialog(self):
         current = settings.get_author()

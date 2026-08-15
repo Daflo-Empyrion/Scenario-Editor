@@ -8,12 +8,13 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QLabel,
     QPushButton, QMenu, QMessageBox, QDialog, QTextEdit, QLineEdit, QComboBox,
+    QApplication, QFormLayout,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush
 
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
-from core import translation
+from core import translation, settings
 from core.i18n import t
 from gui.theme import icon, icon_size
 from gui.text_tools import (
@@ -65,6 +66,122 @@ class TranslationResultDialog(QDialog):
 
     def result_text(self) -> str:
         return self.translated_view.toPlainText()
+
+
+class BatchTranslationReviewDialog(QDialog):
+    """Revue et validation d'un lot de traductions avant application -- reutilise pour
+    la traduction en lot (selection multiple) et le comblement des langues manquantes.
+    Chaque ligne : case a cocher pour l'inclure ou non, cle/reference, texte original,
+    traduction (modifiable avant validation)."""
+
+    def __init__(self, items: list, parent=None):
+        """items : liste de dicts {'label': str, 'original': str, 'translated': str}"""
+        super().__init__(parent)
+        self.setWindowTitle(t("trans.batch_review_title"))
+        self.resize(750, 450)
+
+        layout = QVBoxLayout(self)
+        intro = QLabel(t("trans.batch_review_intro"))
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(
+            ["", t("trans.col_key"), t("trans.col_original"), t("trans.col_translated")])
+        self.table.setRowCount(len(items))
+        for i, item in enumerate(items):
+            check_item = QTableWidgetItem()
+            check_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            check_item.setCheckState(Qt.CheckState.Checked)
+            self.table.setItem(i, 0, check_item)
+
+            key_item = QTableWidgetItem(item['label'])
+            key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(i, 1, key_item)
+
+            orig_item = QTableWidgetItem(item['original'])
+            orig_item.setFlags(orig_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(i, 2, orig_item)
+
+            self.table.setItem(i, 3, QTableWidgetItem(item['translated']))
+
+        self.table.resizeColumnsToContents()
+        self.table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.table)
+
+        btn_row = QHBoxLayout()
+        btn_check_all = QPushButton(t("trans.check_all"))
+        btn_check_all.setObjectName("secondaryButton")
+        btn_check_all.clicked.connect(lambda: self._set_all_checked(True))
+        btn_row.addWidget(btn_check_all)
+        btn_uncheck_all = QPushButton(t("trans.uncheck_all"))
+        btn_uncheck_all.setObjectName("secondaryButton")
+        btn_uncheck_all.clicked.connect(lambda: self._set_all_checked(False))
+        btn_row.addWidget(btn_uncheck_all)
+        btn_row.addStretch()
+        self.btn_apply = QPushButton(t("trans.apply_checked", count=len(items)))
+        self.btn_apply.clicked.connect(self.accept)
+        btn_row.addWidget(self.btn_apply)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addWidget(btn_cancel)
+        layout.addLayout(btn_row)
+
+        self.table.itemChanged.connect(self._update_apply_count)
+
+    def _set_all_checked(self, checked: bool):
+        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        for i in range(self.table.rowCount()):
+            self.table.item(i, 0).setCheckState(state)
+
+    def _update_apply_count(self, item):
+        if item.column() == 0:
+            count = sum(1 for i in range(self.table.rowCount())
+                        if self.table.item(i, 0).checkState() == Qt.CheckState.Checked)
+            self.btn_apply.setText(t("trans.apply_checked", count=count))
+
+    def get_accepted_results(self) -> list:
+        """Retourne [(index_dans_la_liste_items_d_origine, texte_final), ...] pour les
+        lignes cochees -- le texte final tient compte d'un eventuel ajustement manuel
+        de l'utilisateur dans le tableau avant validation."""
+        results = []
+        for i in range(self.table.rowCount()):
+            if self.table.item(i, 0).checkState() == Qt.CheckState.Checked:
+                results.append((i, self.table.item(i, 3).text()))
+        return results
+
+
+class FillMissingTranslationsDialog(QDialog):
+    """Choix de la colonne source (deja remplie) et de la colonne cible (a completer)
+    parmi les colonnes REELLEMENT presentes dans le fichier -- pas une liste generique
+    de langues, pour eviter de proposer une langue absente du fichier."""
+
+    def __init__(self, column_headers: list, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("trans.fill_missing_title"))
+
+        layout = QFormLayout(self)
+        self.source_combo = QComboBox()
+        self.source_combo.addItems(column_headers)
+        layout.addRow(t("trans.fill_source_label"), self.source_combo)
+
+        self.target_combo = QComboBox()
+        self.target_combo.addItems(column_headers)
+        if len(column_headers) > 1:
+            self.target_combo.setCurrentIndex(1)
+        layout.addRow(t("trans.fill_target_label"), self.target_combo)
+
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton(t("trans.fill_scan_btn"))
+        btn_ok.clicked.connect(self.accept)
+        btn_row.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addWidget(btn_cancel)
+        layout.addRow(btn_row)
 
 
 def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
@@ -174,6 +291,16 @@ class CsvEditWidget(QWidget):
             btn_del_row.setObjectName("secondaryButton")
             btn_del_row.clicked.connect(self._delete_selected_row)
             toolbar.addWidget(btn_del_row)
+            btn_fill_missing = QPushButton(icon("fa5s.language", "#4a7dfc"), t("btn.fill_missing_translations"))
+            btn_fill_missing.setIconSize(icon_size())
+            btn_fill_missing.setObjectName("secondaryButton")
+            btn_fill_missing.clicked.connect(self._open_fill_missing_dialog)
+            toolbar.addWidget(btn_fill_missing)
+            btn_quick_translate = QPushButton(icon("fa5s.globe", "#4a7dfc"), t("btn.quick_translate"))
+            btn_quick_translate.setIconSize(icon_size())
+            btn_quick_translate.setObjectName("secondaryButton")
+            btn_quick_translate.clicked.connect(self._quick_translate)
+            toolbar.addWidget(btn_quick_translate)
             self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
             self.btn_undo.setIconSize(icon_size())
             self.btn_undo.setObjectName("secondaryButton")
@@ -451,10 +578,24 @@ class CsvEditWidget(QWidget):
                 lang_actions[a] = (code, label)
             action_bbcode = menu.addAction(t("ctx.bbcode"))
 
+        selected_items = self.table.selectedItems()
+        batch_menu = None
+        batch_lang_actions = {}
+        if len(selected_items) > 1 and any(it.text().strip() for it in selected_items):
+            batch_menu = menu.addMenu(t("trans.batch_title"))
+            for label, code in translation.COMMON_LANGUAGES:
+                a = batch_menu.addAction(label)
+                batch_lang_actions[a] = (code, label)
+
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
 
         if chosen == action_del_row:
             self._do_delete_rows()
+            return
+
+        if chosen in batch_lang_actions:
+            target_code, target_label = batch_lang_actions[chosen]
+            self._batch_translate_selection(selected_items, target_code, target_label)
             return
 
         if item is None:
@@ -471,7 +612,14 @@ class CsvEditWidget(QWidget):
         if chosen not in lang_actions:
             return
         target_code, target_label = lang_actions[chosen]
+        self._translate_single_cell(item, text, target_code, target_label)
 
+    def _translate_single_cell(self, item: QTableWidgetItem, text: str, target_code: str, target_label: str):
+        """Traduit une cellule et propose de remplacer soit la cellule elle-meme, soit
+        la colonne correspondant a la langue cible sur la meme ligne si elle existe --
+        logique partagee entre le menu contextuel (clic droit -> Traduire vers) et le
+        bouton 'Traduire' rapide de la barre d'outils."""
+        row = item.row()
         if not translation.is_available():
             QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
             return
@@ -503,3 +651,183 @@ class CsvEditWidget(QWidget):
             # Pas de colonne correspondant a cette langue trouvee dans l'en-tete ->
             # on remplace la cellule d'origine par defaut, comme avant.
             item.setText(result_text)
+
+    def _quick_translate(self):
+        """Bouton 'Traduire' de la barre d'outils : traduit directement la selection
+        actuelle vers la langue par defaut (Options > 'Langue de traduction par
+        defaut...'), sans passer par le sous-menu de choix de langue -- une seule
+        cellule utilise le flux normal (avec apercu avant remplacement), plusieurs
+        cellules basculent automatiquement sur la traduction en lot avec revue."""
+        selected = self.table.selectedItems()
+        target_code, target_label = settings.get_default_translation_language()
+
+        if len(selected) > 1:
+            self._batch_translate_selection(selected, target_code, target_label)
+            return
+
+        item = selected[0] if selected else self.table.currentItem()
+        if not item or not item.text().strip():
+            QMessageBox.information(self, t("err.missing_field"), t("trans.no_cells_selected"))
+            return
+        self._translate_single_cell(item, item.text(), target_code, target_label)
+
+    def _batch_translate_selection(self, selected_items: list, target_code: str, target_label: str):
+        """Traduit toutes les cellules non vides de la selection vers la langue
+        choisie, avec une barre de progression (la memoire de traduction -- voir
+        core/translation_memory.py -- rend les repetitions quasi instantanees), puis
+        propose une revue avant d'appliquer quoi que ce soit."""
+        if not translation.is_available():
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            return
+
+        candidates = [it for it in selected_items if it.text().strip()]
+        if not candidates:
+            QMessageBox.information(self, t("err.missing_field"), t("trans.no_cells_selected"))
+            return
+
+        from PyQt6.QtWidgets import QProgressDialog
+        progress = QProgressDialog(t("trans.translating_progress", done=0, total=len(candidates)),
+                                    t("btn.cancel"), 0, len(candidates), self)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(300)
+
+        items_for_review = []
+        source_items = []
+        dest_items = []
+        for i, it in enumerate(candidates):
+            progress.setValue(i)
+            progress.setLabelText(t("trans.translating_progress", done=i, total=len(candidates)))
+            QApplication.processEvents()
+            if progress.wasCanceled():
+                break
+            header = self.table.horizontalHeaderItem(it.column())
+            header_text = header.text() if header else str(it.column())
+            key_item = self.table.item(it.row(), 0)
+            row_key = key_item.text() if key_item else str(it.row() + 1)
+            try:
+                translated = translation.translate_text(it.text(), target=target_code)
+            except Exception as e:
+                translated = f"[{t('trans.error_title')}: {e}]"
+            items_for_review.append({
+                'label': f"{row_key} / {header_text}",
+                'original': it.text(),
+                'translated': translated,
+            })
+            source_items.append(it)
+            # Comme pour la traduction cellule par cellule : si une colonne correspond
+            # deja a la langue cible, le resultat y va (meme ligne) plutot que
+            # d'ecraser la cellule source qui a servi de texte d'origine.
+            target_col = self._find_language_column(target_code, target_label)
+            if target_col is not None and target_col != it.column():
+                dest_item = self.table.item(it.row(), target_col)
+                if dest_item is None:
+                    dest_item = QTableWidgetItem("")
+                    self.table.setItem(it.row(), target_col, dest_item)
+                dest_items.append(dest_item)
+            else:
+                dest_items.append(it)
+        progress.setValue(len(candidates))
+
+        if not items_for_review:
+            return
+
+        dialog = BatchTranslationReviewDialog(items_for_review, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        accepted = dialog.get_accepted_results()
+        if not accepted:
+            return
+
+        self._snapshot_undo()
+        for idx, final_text in accepted:
+            dest_items[idx].setText(final_text)
+
+    def _open_fill_missing_dialog(self):
+        """Combler les traductions manquantes : choisit une colonne source (deja
+        remplie) et une colonne cible (a completer), scanne TOUT le fichier pour les
+        lignes ou la cible est vide mais la source ne l'est pas, traduit, et propose
+        une revue avant application -- comme la traduction en lot, mais sur tout le
+        fichier plutot que sur une selection."""
+        if not translation.is_available():
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            return
+        headers = [self.table.horizontalHeaderItem(c).text() if self.table.horizontalHeaderItem(c) else str(c)
+                   for c in range(self.table.columnCount())]
+        if len(headers) < 2:
+            return
+
+        dialog = FillMissingTranslationsDialog(headers, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        source_col = dialog.source_combo.currentIndex()
+        target_col = dialog.target_combo.currentIndex()
+        if source_col == target_col:
+            return
+        target_label = headers[target_col]
+        target_code = None
+        for label, code in translation.COMMON_LANGUAGES:
+            if translation._normalize(label) == translation._normalize(target_label):
+                target_code = code
+                break
+        if target_code is None:
+            target_code = target_label  # tente le libelle brut comme code -- deep-translator
+                                         # accepte aussi certains noms de langue directement
+
+        missing_rows = []
+        for row in range(self.table.rowCount()):
+            source_item = self.table.item(row, source_col)
+            target_item = self.table.item(row, target_col)
+            source_text = source_item.text().strip() if source_item else ""
+            target_text = target_item.text().strip() if target_item else ""
+            if source_text and not target_text:
+                missing_rows.append(row)
+
+        if not missing_rows:
+            QMessageBox.information(self, t("trans.fill_missing_title"), t("trans.fill_none_found"))
+            return
+
+        from PyQt6.QtWidgets import QProgressDialog
+        progress = QProgressDialog(t("trans.fill_found_count", count=len(missing_rows)),
+                                    t("btn.cancel"), 0, len(missing_rows), self)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(300)
+
+        items_for_review = []
+        dest_items = []
+        for i, row in enumerate(missing_rows):
+            progress.setValue(i)
+            QApplication.processEvents()
+            if progress.wasCanceled():
+                break
+            key_item = self.table.item(row, 0)
+            row_key = key_item.text() if key_item else str(row + 1)
+            source_text = self.table.item(row, source_col).text()
+            try:
+                translated = translation.translate_text(source_text, target=target_code)
+            except Exception as e:
+                translated = f"[{t('trans.error_title')}: {e}]"
+            items_for_review.append({
+                'label': row_key,
+                'original': source_text,
+                'translated': translated,
+            })
+            dest_item = self.table.item(row, target_col)
+            if dest_item is None:
+                dest_item = QTableWidgetItem("")
+                self.table.setItem(row, target_col, dest_item)
+            dest_items.append(dest_item)
+        progress.setValue(len(missing_rows))
+
+        if not items_for_review:
+            return
+
+        review = BatchTranslationReviewDialog(items_for_review, self)
+        if review.exec() != QDialog.DialogCode.Accepted:
+            return
+        accepted = review.get_accepted_results()
+        if not accepted:
+            return
+
+        self._snapshot_undo()
+        for idx, final_text in accepted:
+            dest_items[idx].setText(final_text)

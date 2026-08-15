@@ -726,6 +726,47 @@ STRINGS = {
                          "en": "Translation failed:\n{error}\n\nCheck your internet connection."},
     "trans.apply_error": {"fr": "Impossible d'appliquer la traduction", "en": "Could not apply the translation"},
 
+    # --- Traduction en lot (selection multiple) ---
+    "trans.batch_title": {"fr": "Traduire la selection vers...", "en": "Translate selection to..."},
+    "trans.batch_review_title": {"fr": "Revue des traductions", "en": "Review translations"},
+    "trans.batch_review_intro": {"fr": "Verifie et ajuste si besoin, puis applique. Decoche les lignes a ignorer.",
+                                  "en": "Review and adjust if needed, then apply. Uncheck rows to skip."},
+    "trans.col_include": {"fr": "Inclure", "en": "Include"},
+    "trans.col_key": {"fr": "Cle", "en": "Key"},
+    "trans.col_original": {"fr": "Original", "en": "Original"},
+    "trans.col_translated": {"fr": "Traduction", "en": "Translation"},
+    "trans.check_all": {"fr": "Tout cocher", "en": "Check all"},
+    "trans.uncheck_all": {"fr": "Tout decocher", "en": "Uncheck all"},
+    "trans.apply_checked": {"fr": "Appliquer la selection ({count})", "en": "Apply selection ({count})"},
+    "trans.no_cells_selected": {"fr": "Selectionne au moins une cellule contenant du texte.",
+                                 "en": "Select at least one cell containing text."},
+    "trans.translating_progress": {"fr": "Traduction en cours... ({done}/{total})",
+                                    "en": "Translating... ({done}/{total})"},
+    "trans.from_memory_badge": {"fr": " (memoire)", "en": " (memory)"},
+    "status.batch_applied": {"fr": "{count} traduction(s) appliquee(s)", "en": "{count} translation(s) applied"},
+
+    # --- Combler les langues manquantes ---
+    "btn.fill_missing_translations": {"fr": "Combler les langues manquantes...", "en": "Fill missing translations..."},
+    "trans.fill_missing_title": {"fr": "Combler les traductions manquantes", "en": "Fill missing translations"},
+    "trans.fill_source_label": {"fr": "Langue source (deja remplie) :", "en": "Source language (already filled):"},
+    "trans.fill_target_label": {"fr": "Langue cible (a completer) :", "en": "Target language (to complete):"},
+    "trans.fill_scan_btn": {"fr": "Chercher les cellules manquantes", "en": "Find missing cells"},
+    "trans.fill_none_found": {"fr": "Aucune cellule manquante trouvee pour cette combinaison -- "
+                                     "cette colonne est deja complete (ou la langue source aussi est vide "
+                                     "pour ces lignes).",
+                               "en": "No missing cells found for this combination -- this column is "
+                                     "already complete (or the source language is also empty for these rows)."},
+    "trans.fill_found_count": {"fr": "{count} cellule(s) manquante(s) trouvee(s). Traduction en cours...",
+                                "en": "{count} missing cell(s) found. Translating..."},
+    "trans.col_row": {"fr": "Ligne", "en": "Row"},
+
+    # --- Bouton traduction rapide ---
+    "btn.quick_translate": {"fr": "Traduire", "en": "Translate"},
+    "menu.options.default_language": {"fr": "Langue de traduction par defaut...", "en": "Default translation language..."},
+    "trans.pick_default_language_title": {"fr": "Langue par defaut", "en": "Default language"},
+    "trans.pick_default_language_label": {"fr": "Traduire vers (utilisee par le bouton 'Traduire' rapide) :",
+                                           "en": "Translate to (used by the quick 'Translate' button):"},
+
     # --- Ouverture de fichiers ---
     "open.error": {"fr": "Impossible d'ouvrir {file}", "en": "Could not open {file}"},
     "open.not_supported_title": {"fr": "Non supporte", "en": "Not supported"},
