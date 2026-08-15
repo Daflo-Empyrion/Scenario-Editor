@@ -134,6 +134,13 @@ class YamlEditWidget(QWidget):
     def save(self):
         if not self.editable:
             return
+        # Applique d'abord toute edition en cours dans la boite de valeur qui n'aurait
+        # pas ete explicitement validee via "Appliquer cette valeur" -- sinon un clic
+        # direct sur Enregistrer semble ne rien faire (le texte tape reste dans la
+        # boite mais n'a jamais atteint le document), et le texte revient a l'original
+        # des qu'on change de ligne. Enregistrer doit toujours capturer ce qui est
+        # visible a l'ecran, pas seulement ce qui a deja ete explicitement applique.
+        self._apply_value()
         try:
             from core.fsutil import clear_readonly
             clear_readonly(self.path)
@@ -187,6 +194,11 @@ class YamlEditWidget(QWidget):
         entry = item.data(0, Qt.ItemDataRole.UserRole)
         if not isinstance(entry, YamlEntry):
             return
+        # Applique d'abord toute edition en attente sur l'entree PRECEDENTE avant de
+        # changer de selection -- sinon un texte tape mais jamais explicitement
+        # "Applique" est silencieusement perdu des qu'on clique une autre ligne.
+        if self.editable and self._current_entry is not None and self._current_entry is not entry:
+            self._apply_value()
         self._current_entry = entry
         self.value_edit.blockSignals(True)
         self.value_edit.setPlainText(entry.value)
