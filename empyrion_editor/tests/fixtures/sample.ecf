@@ -1,0 +1,27 @@
+# ==================================================
+# Fichier de test ECF - fixture pour les tests pytest
+# ==================================================
+
+## ContainerPrincipal
+{ +Container Id: 5
+  Count: "3,4"
+  Size: "8,1"
+  Name: TestContainer
+
+  { Child Items
+    Name_0: IronOre, param1: 0.5
+    Name_1: CopperOre, param1: 0.3, param2: "1,2"
+  }
+}
+
+{ Block Id: 399, Name: ConcreteBlocks
+  Material: concrete
+  BlockColor: "170,170,170"
+  HitPoints: 600
+  Mass: 1100
+}
+
+{ Block Name: LegacyForcefield
+  Material: metal
+  HitPoints: 9999
+}

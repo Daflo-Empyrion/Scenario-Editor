@@ -103,6 +103,9 @@ def set_merge_enabled(enabled: bool) -> None:
             pass
     data['merge_enabled'] = enabled
     SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+
+def get_backup_root(kind: str) -> str:
     """Dernier dossier de sauvegardes utilise pour ce type ('scenario' ou 'savegame'),
     ou chaine vide si jamais defini."""
     if SETTINGS_FILE.exists():

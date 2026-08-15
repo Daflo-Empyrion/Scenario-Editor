@@ -1,0 +1,14 @@
+# Playfield de test - fixture pour les tests pytest
+PlayfieldType: Planet
+PlayfieldName: TestPlanet
+
+Atmosphere:
+  Enabled: True
+  Density: 1.0
+  Color: "0.5,0.6,0.8"
+
+POIs:
+  Random:
+    - GroupName: JunkT1
+      CountMinMax: [4, 5]
+      DroneProb: 0

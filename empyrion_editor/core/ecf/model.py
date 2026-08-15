@@ -16,6 +16,7 @@ Un fichier ECF est une séquence de "nœuds" au niveau racine, où un nœud est 
                   des propriétés déclarées sur la ligne d'ouverture, et des enfants
                   (récursivement les mêmes types de nœuds) jusqu'à la accolade fermante.
 """
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
@@ -210,6 +211,66 @@ def add_property_line(block: EcfBlock, pairs: List[Tuple[Optional[str], str]]) -
         if isinstance(child, EcfBlock):
             insert_at = i
             break
+    block.children.insert(insert_at, new_prop)
+    return new_prop
+
+
+_ITEM_KEY_RE = re.compile(r'^([A-Za-z]+)_(\d+)$')
+
+
+def add_repeating_item_row(block: EcfBlock, item_type: str, first_value: str,
+                            extra_pairs: List[Tuple[str, str]]) -> EcfProperty:
+    """Ajoute une NOUVELLE ligne a une structure repetitive de type 'Child Items'
+    (Name_0/Name_1/..., Group_0/Group_1/...) -- utilise par le mode tableau de
+    l'interface. Calcule automatiquement le PROCHAIN NUMERO libre pour le type demande
+    (Name ou Group) et insere la ligne juste APRES la derniere entree du MEME type
+    (ou, a defaut, apres la derniere entree du type oppose, ou en dernier recours a la
+    position habituelle de add_property_line) -- jamais a l'aveugle en toute fin de
+    bloc, ce qui casserait la numerotation sequentielle et l'ordre attendu par le
+    moteur du jeu (constate sensible a l'ordre pour ce genre de structure).
+
+    `item_type` doit etre 'Name' ou 'Group'. Retourne le noeud cree."""
+    same_type_max = -1
+    same_type_last_index = -1
+    other_type_last_index = -1
+    last_prop_index = -1
+    indent = "  "
+
+    for i, child in enumerate(block.children):
+        if not isinstance(child, EcfProperty):
+            continue
+        last_prop_index = i
+        indent = child.indent
+        if not child.pairs:
+            continue
+        m = _ITEM_KEY_RE.match(child.pairs[0][0] or "")
+        if not m:
+            continue
+        if m.group(1) == item_type:
+            same_type_max = max(same_type_max, int(m.group(2)))
+            same_type_last_index = i
+        else:
+            other_type_last_index = i
+
+    next_number = same_type_max + 1
+    new_key = f"{item_type}_{next_number}"
+    pairs = [(new_key, first_value)] + list(extra_pairs)
+    new_prop = EcfProperty(raw="", indent=indent, pairs=pairs, comment=None,
+                            eol=block.eol or "\r\n", dirty=True)
+
+    if same_type_last_index >= 0:
+        insert_at = same_type_last_index + 1
+    elif other_type_last_index >= 0:
+        insert_at = other_type_last_index + 1
+    elif last_prop_index >= 0:
+        insert_at = last_prop_index + 1
+    else:
+        insert_at = len(block.children)
+        for i, child in enumerate(block.children):
+            if isinstance(child, EcfBlock):
+                insert_at = i
+                break
+
     block.children.insert(insert_at, new_prop)
     return new_prop
 

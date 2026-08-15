@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
     QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
-    QApplication,
+    QApplication, QComboBox, QFormLayout,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -27,6 +27,7 @@ from core.ecf.parser import parse_ecf_file, parse_ecf_text
 from core.ecf.model import (
     EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
     add_property_line, remove_property_line, remove_block, create_block, annotate_property,
+    add_repeating_item_row,
 )
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
@@ -394,6 +395,61 @@ class EcfHeaderExplanationPanel(QWidget):
         self.content.setPlainText(self._translated_cache)
 
 
+class AddTableRowDialog(QDialog):
+    """Formulaire d'ajout d'une ligne au mode tableau (Child Items, Child Inputs, mais
+    aussi Item_x dans LootGroups.ecf, DamageMultiplier_N dans DamageMultiplierConfig.ecf,
+    et toute autre structure suivant la meme convention 'Prefixe_N') : un champ par
+    colonne detectee, plus le choix du prefixe (Type) -- la numerotation (Name_6,
+    Item_3, DamageMultiplier_7...) est calculee automatiquement par l'appli, jamais
+    saisie a la main."""
+
+    def __init__(self, param_columns: List[str], prefixes: List[str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("ecf.add_row_title"))
+        self.param_columns = param_columns
+
+        layout = QFormLayout(self)
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(prefixes if prefixes else ["Name", "Group"])
+        self.type_combo.setEditable(True)  # au cas ou l'utilisateur veut un NOUVEAU
+                                            # prefixe absent du bloc jusqu'ici
+        layout.addRow(t("ecf.add_row_type_label"), self.type_combo)
+
+        self.value_edit = QLineEdit()
+        layout.addRow(t("ecf.add_row_value_label"), self.value_edit)
+
+        self.param_edits: Dict[str, QLineEdit] = {}
+        for col in param_columns:
+            edit = QLineEdit()
+            self.param_edits[col] = edit
+            layout.addRow(f"{col} :", edit)
+
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton(t("ecf.add_row_title"))
+        btn_ok.clicked.connect(self._on_accept)
+        btn_row.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addWidget(btn_cancel)
+        layout.addRow(btn_row)
+
+        self.result_type = None
+        self.result_value = None
+        self.result_extra_pairs: List[tuple] = []
+
+    def _on_accept(self):
+        if not self.value_edit.text().strip():
+            QMessageBox.warning(self, t("err.missing_field"), t("ecf.add_row_value_required"))
+            return
+        self.result_type = self.type_combo.currentText()
+        self.result_value = self.value_edit.text().strip()
+        self.result_extra_pairs = [
+            (col, edit.text().strip()) for col, edit in self.param_edits.items() if edit.text().strip()
+        ]
+        self.accept()
+
+
 class EcfEditWidget(QWidget):
     """Editeur d'un fichier .ecf de la copie de travail. Emet `modified_changed(bool)`
     quand l'etat 'modifications non enregistrees' change, pour que le conteneur (onglet)
@@ -408,6 +464,7 @@ class EcfEditWidget(QWidget):
         self.doc: EcfDocument = parse_ecf_file(path)
         self._modified = False
         self._current_block: Optional[EcfBlock] = None
+        self._table_mode = False
         self._edited_prop_nodes = set()  # ids Python des EcfProperty touches cette session
         self._undo_stack: list = []  # textes serialises (fidelite deja prouvee par le parser)
         self._undo_max = 20
@@ -441,10 +498,15 @@ class EcfEditWidget(QWidget):
         btn_add_block.setIconSize(icon_size())
         btn_add_block.clicked.connect(self._add_block_dialog)
         toolbar.addWidget(btn_add_block)
-        btn_add_prop = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_property"))
-        btn_add_prop.setIconSize(icon_size())
-        btn_add_prop.clicked.connect(self._add_property_dialog)
-        toolbar.addWidget(btn_add_prop)
+        self.btn_add_prop = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_property"))
+        self.btn_add_prop.setIconSize(icon_size())
+        self.btn_add_prop.clicked.connect(self._add_property_dialog)
+        toolbar.addWidget(self.btn_add_prop)
+        self.btn_add_row = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_row_table"))
+        self.btn_add_row.setIconSize(icon_size())
+        self.btn_add_row.clicked.connect(self._add_table_row_dialog)
+        self.btn_add_row.setVisible(False)
+        toolbar.addWidget(self.btn_add_row)
         btn_filter = QPushButton(icon("fa5s.filter", "#4a7dfc"), t("btn.filter_by_property"))
         btn_filter.setIconSize(icon_size())
         btn_filter.setObjectName("secondaryButton")
@@ -629,29 +691,38 @@ class EcfEditWidget(QWidget):
         self._current_block = block
         self._refresh_props_table()
 
-    _ITEM_KEY_RE = re.compile(r'^(Name|Group)_(\d+)$')
+    _ITEM_KEY_RE = re.compile(r'^([A-Za-z]+)_(\d+)$')
 
     def _detect_repeating_items(self, block: EcfBlock):
-        """Detecte les sous-blocs type 'Child Items'/'Child Inputs' : une suite de
-        lignes de propriete dont la PREMIERE paire est 'Name_N: X' ou 'Group_N: X'
-        (N croissant), suivie d'un jeu de parametres (param1, param2...) globalement
-        coherent d'une ligne a l'autre. Tres courant dans les tables de butin
-        (Containers.ecf, LootGroups.ecf) et les recettes (Templates.ecf).
+        """Detecte les sous-blocs a structure repetitive : une suite de lignes de
+        propriete dont la PREMIERE paire suit le motif 'Prefixe_N: valeur' (N
+        croissant -- Name_0/Name_1, Group_0/Group_1, mais aussi Item_0/Item_1
+        (LootGroups.ecf), DamageMultiplier_1/DamageMultiplier_2
+        (DamageMultiplierConfig.ecf), et tout autre prefixe suivant la meme
+        convention), suivie d'un jeu de parametres (param1, param2, display...)
+        globalement coherent d'une ligne a l'autre.
 
-        Retourne la liste ordonnee des noms de colonnes 'paramX' si detecte (peut etre
-        vide si aucun param, mais Name_N/Group_N est present), sinon None (retombe sur
-        l'affichage classique cle/valeur)."""
+        Retourne (param_columns, prefixes) si detecte -- param_columns : liste
+        ordonnee des noms de colonnes parametres (peut etre vide) ; prefixes : liste
+        ordonnee des prefixes distincts vus (ex: ['Name', 'Group'] ou ['Item'] ou
+        ['DamageMultiplier']), utilisee pour peupler le choix 'Type' du formulaire
+        d'ajout de ligne. Retourne None si la structure ne correspond pas (retombe
+        alors sur l'affichage classique cle/valeur)."""
         prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
         if len(prop_children) < 2:
             return None
         matches = 0
         param_keys_seen = []
+        prefixes_seen = []
         for prop in prop_children:
             if not prop.pairs:
                 continue
             first_key = prop.pairs[0][0]
-            if first_key and self._ITEM_KEY_RE.match(first_key):
+            m = self._ITEM_KEY_RE.match(first_key) if first_key else None
+            if m:
                 matches += 1
+                if m.group(1) not in prefixes_seen:
+                    prefixes_seen.append(m.group(1))
                 for k, v in prop.pairs[1:]:
                     if k and k not in param_keys_seen:
                         param_keys_seen.append(k)
@@ -663,7 +734,7 @@ class EcfEditWidget(QWidget):
             m = re.search(r'(\d+)$', k)
             return (k[:m.start()] if m else k, int(m.group(1)) if m else 0)
         param_keys_seen.sort(key=_natural_key)
-        return param_keys_seen
+        return param_keys_seen, prefixes_seen
 
     def _refresh_props_table(self):
         if not self._current_block:
@@ -672,10 +743,13 @@ class EcfEditWidget(QWidget):
         self.props_table.blockSignals(True)
         self.props_table.setSortingEnabled(False)
 
-        param_columns = self._detect_repeating_items(block)
-        self._table_mode = param_columns is not None
+        detected = self._detect_repeating_items(block)
+        self._table_mode = detected is not None
+        self.btn_add_row.setVisible(self._table_mode)
+        self.btn_add_prop.setVisible(not self._table_mode)
 
         if self._table_mode:
+            param_columns, prefixes = detected
             self._refresh_props_table_grid(block, param_columns)
         else:
             self._refresh_props_table_flat(block)
@@ -770,9 +844,10 @@ class EcfEditWidget(QWidget):
             m = self._ITEM_KEY_RE.match(old_first_key) if old_first_key else None
             suffix = m.group(2) if m else "0"
             new_type = new_value.strip()
-            if new_type not in ("Name", "Group"):
-                # Valeur non reconnue : remet l'affichage precedent plutot que de
-                # laisser une cle invalide silencieusement
+            if not new_type or not re.match(r'^[A-Za-z]+$', new_type):
+                # Valeur non reconnue (vide ou contient des caracteres invalides pour
+                # une cle ECF) : remet l'affichage precedent plutot que de laisser une
+                # cle invalide silencieusement
                 self._refresh_props_table()
                 return
             new_first_key = f"{new_type}_{suffix}"
@@ -919,6 +994,31 @@ class EcfEditWidget(QWidget):
             pairs = [(key.strip(), value.strip())]
 
         new_prop = add_property_line(self._current_block, pairs)
+        if settings.get_annotations_enabled():
+            author = settings.get_author()
+            annotate_property(new_prop, f"# Ajoute par {author}")
+        self._set_modified(True)
+        self._refresh_props_table()
+
+    def _add_table_row_dialog(self):
+        """Ajoute une ligne au mode tableau (Child Items...) -- la numerotation
+        (Name_N/Group_N) et la position (a la suite des entrees du meme type) sont
+        entierement automatiques, jamais laissees a la saisie manuelle : c'est
+        precisement ce qui posait probleme avec le dialogue generique '+ Propriete'
+        (cle non numerotee, ligne ajoutee en toute fin de bloc plutot qu'au bon
+        endroit)."""
+        if not self._current_block or not self._table_mode:
+            QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
+            return
+        detected = self._detect_repeating_items(self._current_block)
+        param_columns, prefixes = detected if detected else ([], ["Name", "Group"])
+        dialog = AddTableRowDialog(param_columns, prefixes, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        self._snapshot_undo()
+        new_prop = add_repeating_item_row(
+            self._current_block, dialog.result_type, dialog.result_value, dialog.result_extra_pairs)
         if settings.get_annotations_enabled():
             author = settings.get_author()
             annotate_property(new_prop, f"# Ajoute par {author}")
