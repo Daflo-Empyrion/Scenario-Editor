@@ -299,6 +299,41 @@ class EcfDocument:
             parts.append(text)
         return "".join(parts)
 
+    def extract_header_comment(self) -> str:
+        """Texte brut de TOUTES les lignes (commentaires, vides, ou meme mal
+        classees a cause d'un BOM en tout debut de fichier) qui precedent le tout
+        premier bloc/item reel -- typiquement la documentation technique en tete des
+        fichiers ECF officiels (BlocksConfig.ecf en particulier). Retire le '#' de
+        debut de chaque ligne commentaire pour un affichage plus lisible."""
+        lines = []
+        for node in self.nodes:
+            if isinstance(node, EcfBlock):
+                break
+            raw = getattr(node, 'raw', None)
+            if raw is None:
+                continue
+            # Retire un BOM eventuel en tout debut de fichier (premiere ligne)
+            raw = raw.lstrip('\ufeff')
+            stripped = raw.strip('\r\n')
+            if stripped.startswith('#'):
+                cleaned = stripped.lstrip('#').strip()
+                lines.append(cleaned)
+            elif stripped == '':
+                lines.append('')
+        # Retire les lignes vides en trop (plus de 2 consecutives) pour un affichage
+        # plus compact
+        result = []
+        blank_run = 0
+        for l in lines:
+            if l == '':
+                blank_run += 1
+                if blank_run > 1:
+                    continue
+            else:
+                blank_run = 0
+            result.append(l)
+        return "\n".join(result).strip('\n')
+
     def iter_blocks(self, kind: Optional[str] = None):
         """Parcourt récursivement tous les blocs du document, filtrés par genre si précisé."""
         def _walk(nodes):

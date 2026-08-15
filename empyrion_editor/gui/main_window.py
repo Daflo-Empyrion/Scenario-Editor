@@ -50,7 +50,7 @@ from core.project_store import ProjectRecord
 
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
-from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys
+from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys, EcfHeaderExplanationPanel
 from gui.csv_edit_widget import CsvEditWidget
 from gui.yaml_edit_widget import YamlEditWidget
 from gui.txt_edit_widget import TxtEditWidget
@@ -1449,6 +1449,9 @@ class EcfViewWidget(QWidget):
         title_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
         title_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         layout.addWidget(title_label, 0)
+
+        self.header_panel = EcfHeaderExplanationPanel(self.doc, path.name)
+        layout.addWidget(self.header_panel, 0)
 
         # -- Barre de recherche : indispensable des que le fichier a beaucoup de blocs
         # (certains ECF reels en ont plus de 5000 au niveau racine, impossible a

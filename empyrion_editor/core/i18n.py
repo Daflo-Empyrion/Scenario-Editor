@@ -516,6 +516,27 @@ STRINGS = {
                         "en": "Could not save '{name}':\n{error}\n\n"
                               "If this is a permission error, try File > "
                               "'Repair working copy permissions'."},
+
+    # --- Explication de l'en-tete ECF (glossaire) ---
+    "ecf.header_toggle_show": {"fr": "Voir l'explication des proprietes de ce fichier",
+                                "en": "Show property explanations for this file"},
+    "ecf.header_toggle_hide": {"fr": "Masquer l'explication des proprietes",
+                                "en": "Hide property explanations"},
+    "ecf.header_none": {"fr": "Ce fichier ne contient pas de commentaires d'en-tete.",
+                         "en": "This file has no header comments."},
+    "ecf.header_glossary_intro": {"fr": "Explication clarifiee (pas une traduction mot a "
+                                         "mot) des commentaires techniques presents en "
+                                         "tete de ce fichier :",
+                                   "en": "Clarified explanation (not a word-for-word "
+                                         "translation) of the technical comments found "
+                                         "at the top of this file:"},
+    "ecf.header_raw_toggle": {"fr": "Voir le texte original (anglais)",
+                               "en": "Show original text (English)"},
+    "ecf.header_translate_btn": {"fr": "Traduire automatiquement en francais",
+                                  "en": "Auto-translate to French"},
+    "ecf.header_translating": {"fr": "Traduction en cours...", "en": "Translating..."},
+    "ecf.header_translate_error": {"fr": "Echec de la traduction automatique : {error}",
+                                    "en": "Automatic translation failed: {error}"},
     "menu.file.manage_saves": {"fr": "Gerer mes sauvegardes de partie...",
                                 "en": "Manage my savegame backups..."},
 

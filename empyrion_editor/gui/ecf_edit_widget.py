@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
     QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
+    QApplication,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -292,6 +293,106 @@ class PropertyFilterDialog(QDialog):
         self.on_filter_changed([])
 
 
+class EcfHeaderExplanationPanel(QWidget):
+    """Panneau retractable (replie par defaut) affichant une explication claire des
+    commentaires techniques d'en-tete d'un fichier ECF -- place entre le nom du fichier
+    et la barre de recherche. Pour BlocksConfig.ecf, utilise un glossaire francais
+    clarifie fait main (core/ecf_header_glossary.py) ; pour les autres fichiers, montre
+    le texte original brut avec un bouton de traduction automatique a la demande
+    (reutilise le meme moteur de traduction que l'onglet CSV)."""
+
+    _GLOSSARY_FILES = {"BlocksConfig.ecf"}
+
+    def __init__(self, doc: EcfDocument, filename: str, parent=None):
+        super().__init__(parent)
+        self._header_text = doc.extract_header_comment()
+        self._has_glossary = filename in self._GLOSSARY_FILES
+        self._showing_raw = False
+        self._translated_cache: Optional[str] = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        if not self._header_text:
+            self.setVisible(False)
+            return
+
+        self.toggle_btn = QPushButton(icon("fa5s.info-circle", "#4a7dfc"), t("ecf.header_toggle_show"))
+        self.toggle_btn.setObjectName("secondaryButton")
+        self.toggle_btn.clicked.connect(self._toggle)
+        layout.addWidget(self.toggle_btn)
+
+        self.content = QTextEdit()
+        self.content.setReadOnly(True)
+        self.content.setVisible(False)
+        self.content.setMaximumHeight(220)
+        layout.addWidget(self.content)
+
+        btn_row = QHBoxLayout()
+        self.btn_raw_toggle = QPushButton(t("ecf.header_raw_toggle"))
+        self.btn_raw_toggle.setObjectName("secondaryButton")
+        self.btn_raw_toggle.setVisible(False)
+        self.btn_raw_toggle.clicked.connect(self._toggle_raw)
+        btn_row.addWidget(self.btn_raw_toggle)
+
+        self.btn_translate = QPushButton(icon("fa5s.language", "#4a7dfc"), t("ecf.header_translate_btn"))
+        self.btn_translate.setObjectName("secondaryButton")
+        self.btn_translate.setVisible(False)
+        self.btn_translate.clicked.connect(self._translate)
+        btn_row.addWidget(self.btn_translate)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+    def _toggle(self):
+        expanded = not self.content.isVisible()
+        self.content.setVisible(expanded)
+        self.toggle_btn.setText(t("ecf.header_toggle_hide") if expanded else t("ecf.header_toggle_show"))
+        self.btn_raw_toggle.setVisible(expanded and self._has_glossary)
+        self.btn_translate.setVisible(expanded and not self._has_glossary)
+        if expanded:
+            self._render_content()
+
+    def _render_content(self):
+        if self._has_glossary and not self._showing_raw:
+            self._render_glossary()
+        elif self._translated_cache:
+            self.content.setPlainText(self._translated_cache)
+        else:
+            self.content.setPlainText(self._header_text)
+
+    def _render_glossary(self):
+        from core.ecf_header_glossary import BLOCKS_CONFIG_GLOSSARY
+        parts = [f"<p><i>{t('ecf.header_glossary_intro')}</i></p>"]
+        for section_title, entries in BLOCKS_CONFIG_GLOSSARY:
+            parts.append(f"<p style='margin-top:8px'><b>{section_title}</b></p><ul style='margin-top:0'>")
+            for term, explanation in entries:
+                parts.append(f"<li><b>{term}</b> : {explanation}</li>")
+            parts.append("</ul>")
+        self.content.setHtml("".join(parts))
+
+    def _toggle_raw(self):
+        self._showing_raw = not self._showing_raw
+        self.btn_raw_toggle.setText(
+            t("ecf.header_toggle_show") if self._showing_raw else t("ecf.header_raw_toggle"))
+        self._render_content()
+
+    def _translate(self):
+        from core import translation
+        if not translation.is_available():
+            QMessageBox.warning(self, t("err.title"), "deep-translator n'est pas installe.")
+            return
+        self.content.setPlainText(t("ecf.header_translating"))
+        QApplication.processEvents()
+        try:
+            self._translated_cache = translation.translate_text(self._header_text, target="fr")
+        except Exception as e:
+            QMessageBox.warning(self, t("err.title"), t("ecf.header_translate_error", error=str(e)))
+            self.content.setPlainText(self._header_text)
+            return
+        self.content.setPlainText(self._translated_cache)
+
+
 class EcfEditWidget(QWidget):
     """Editeur d'un fichier .ecf de la copie de travail. Emet `modified_changed(bool)`
     quand l'etat 'modifications non enregistrees' change, pour que le conteneur (onglet)
@@ -317,6 +418,9 @@ class EcfEditWidget(QWidget):
         filename_label.setStyleSheet("font-size: 11px; color: gray; padding: 0px;")
         filename_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         layout.addWidget(filename_label, 0)
+
+        self.header_panel = EcfHeaderExplanationPanel(self.doc, path.name)
+        layout.addWidget(self.header_panel, 0)
 
         search_row = QHBoxLayout()
         search_row.setSpacing(4)
