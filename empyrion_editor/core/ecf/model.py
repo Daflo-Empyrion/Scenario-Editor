@@ -257,10 +257,19 @@ def duplicate_block(block: EcfBlock, overrides: Optional[dict] = None,
     remplacees (overrides, ex: {'Id': '700000'}) et/ou retirees (remove_keys, ex:
     ['Id'] pour dupliquer un bloc en l'identifiant desormais seulement par Name) --
     pour l'utiliser comme modele de depart pour un NOUVEL element distinct (pas une
-    fusion : le bloc obtenu est independant de l'original, aucun lien conserve)."""
+    fusion : le bloc obtenu est independant de l'original, aucun lien conserve).
+
+    Le genre est TOUJOURS normalise (+Block/-Block -> Block, +Item -> Item, etc.),
+    meme si l'original etait un patch (+). Un bloc duplique porte par definition un
+    nouvel Id/Name qui n'existe nulle part ailleurs -- le prefixe '+' n'a de sens que
+    pour completer une entree deja existante (souvent une entree du jeu de base,
+    invisible dans les fichiers texte). Le conserver ferait du duplicata un patch
+    orphelin, ignore silencieusement par le jeu ou source de plantage (deja rencontre
+    concretement : IdMapping/NullReferenceException sur un item duplique)."""
     import copy as _copy
     new_block = _copy.deepcopy(block)
     new_block.dirty = True
+    new_block.kind = normalized_kind(new_block.kind)
     if overrides:
         for key, value in overrides.items():
             if value is not None:
