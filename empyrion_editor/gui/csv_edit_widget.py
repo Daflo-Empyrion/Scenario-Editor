@@ -283,8 +283,15 @@ class CsvEditWidget(QWidget):
             return
         self._sync_doc_from_table()
         rendered = render_csv(self.doc)
-        with open(self.path, 'w', encoding='utf-8', newline='') as f:
-            f.write(rendered)
+        try:
+            from core.fsutil import clear_readonly
+            clear_readonly(self.path)
+            with open(self.path, 'w', encoding='utf-8', newline='') as f:
+                f.write(rendered)
+        except OSError as e:
+            QMessageBox.critical(self, t("save.error_title"),
+                                  t("save.error_msg", name=self.path.name, error=str(e)))
+            return
         self._set_modified(False)
         self.saved.emit()
 

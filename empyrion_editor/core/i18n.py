@@ -509,6 +509,13 @@ STRINGS = {
     "repair.done_msg": {"fr": "La copie de travail est de nouveau entierement modifiable "
                               "(et supprimable).",
                          "en": "The working copy is fully writable (and deletable) again."},
+    "save.error_title": {"fr": "Erreur d'enregistrement", "en": "Save error"},
+    "save.error_msg": {"fr": "Impossible d'enregistrer '{name}' :\n{error}\n\n"
+                              "Si c'est une erreur de permission, essaie Fichier > "
+                              "'Reparer les permissions de la copie de travail'.",
+                        "en": "Could not save '{name}':\n{error}\n\n"
+                              "If this is a permission error, try File > "
+                              "'Repair working copy permissions'."},
     "menu.file.manage_saves": {"fr": "Gerer mes sauvegardes de partie...",
                                 "en": "Manage my savegame backups..."},
 

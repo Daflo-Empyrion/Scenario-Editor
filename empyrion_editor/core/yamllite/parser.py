@@ -165,16 +165,34 @@ def _parse_block(lines: List[str], start: int, end: int, base_indent: int) -> Li
                 raw_k = lines[k]
                 content_k, eol_k, _ = _split_line(raw_k)
                 continuation_raw_parts.append(raw_k)
-                folded_parts.append(content_k.strip())
+                stripped_k = content_k.strip()
+                if stripped_k == '':
+                    # Ligne vide entre guillemets : en YAML, un saut de ligne simple se
+                    # replie en espace, mais une ligne VIDE cree un veritable retour a
+                    # la ligne dans la chaine resultante (souvent utilise pour separer
+                    # des paragraphes dans un texte affiche en jeu). On le represente
+                    # par la sequence d'echappement '\n' -- valide dans une chaine YAML
+                    # entre guillemets doubles, et interpretee comme un vrai retour a
+                    # la ligne par le moteur du jeu a l'affichage.
+                    folded_parts.append('\\n')
+                else:
+                    folded_parts.append(stripped_k)
                 if _count_unescaped_quotes(content_k) % 2 == 1:
                     closed = True
                     k += 1
                     break
                 k += 1
             if closed:
+                # Assemble en evitant un espace superflu autour d'un '\n' insere.
+                folded = folded_parts[0]
+                for part in folded_parts[1:]:
+                    if part == '\\n' or folded.endswith('\\n'):
+                        folded += part
+                    else:
+                        folded += ' ' + part
                 entry = YamlEntry(
                     raw=raw, indent=indent, is_sequence_item=is_seq, key=key,
-                    value=" ".join(p for p in folded_parts if p != "").strip(),
+                    value=folded,
                     comment=comment, eol=eol, children=[],
                     quoted_continuation_raw="".join(continuation_raw_parts),
                 )

@@ -405,8 +405,15 @@ class EcfEditWidget(QWidget):
         return self._modified
 
     def save(self):
-        with open(self.path, 'w', encoding='utf-8', newline='') as f:
-            f.write(self.doc.render())
+        try:
+            from core.fsutil import clear_readonly
+            clear_readonly(self.path)
+            with open(self.path, 'w', encoding='utf-8', newline='') as f:
+                f.write(self.doc.render())
+        except OSError as e:
+            QMessageBox.critical(self, t("save.error_title"),
+                                  t("save.error_msg", name=self.path.name, error=str(e)))
+            return
         self._set_modified(False)
         self.saved.emit()
 
