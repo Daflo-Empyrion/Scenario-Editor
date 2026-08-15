@@ -120,7 +120,19 @@ class BatchTranslationReviewDialog(QDialog):
                 trans_item.setBackground(QBrush(QColor(255, 220, 220)))
             self.table.setItem(i, 3, trans_item)
 
-        self.table.resizeColumnsToContents()
+        # Largeurs FIXES plutot que resizeColumnsToContents() : un texte source long
+        # (frequent dans un vrai Localization.csv -- phrases completes, descriptions)
+        # ferait sinon deborder la colonne 'Original' sur toute la largeur de la
+        # fenetre, poussant la colonne 'Traduction' hors du champ visible (seul un
+        # ascenseur horizontal, facile a manquer, permettait alors de la voir). Le
+        # retour a la ligne dans les cellules compense en gardant tout le texte
+        # visible verticalement.
+        self.table.setColumnWidth(0, 30)
+        self.table.setColumnWidth(1, 90)
+        self.table.setColumnWidth(2, 280)
+        self.table.setColumnWidth(3, 280)
+        self.table.setWordWrap(True)
+        self.table.resizeRowsToContents()
         self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table)
 
