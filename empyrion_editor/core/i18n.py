@@ -542,6 +542,10 @@ STRINGS = {
     "ecf.header_translating": {"fr": "Traduction en cours...", "en": "Translating..."},
     "ecf.header_translate_error": {"fr": "Echec de la traduction automatique : {error}",
                                     "en": "Automatic translation failed: {error}"},
+    "ecf.col_property": {"fr": "Propriete", "en": "Property"},
+    "ecf.col_value": {"fr": "Valeur", "en": "Value"},
+    "ecf.col_type": {"fr": "Type", "en": "Type"},
+    "ecf.col_item_value": {"fr": "Nom / Groupe", "en": "Name / Group"},
     "menu.file.manage_saves": {"fr": "Gerer mes sauvegardes de partie...",
                                 "en": "Manage my savegame backups..."},
 

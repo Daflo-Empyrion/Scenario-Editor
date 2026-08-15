@@ -11,6 +11,7 @@ d'affichage a switcher entre onglets separes.
 """
 from pathlib import Path
 from typing import Dict, List, Optional
+import re
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
@@ -628,14 +629,65 @@ class EcfEditWidget(QWidget):
         self._current_block = block
         self._refresh_props_table()
 
+    _ITEM_KEY_RE = re.compile(r'^(Name|Group)_(\d+)$')
+
+    def _detect_repeating_items(self, block: EcfBlock):
+        """Detecte les sous-blocs type 'Child Items'/'Child Inputs' : une suite de
+        lignes de propriete dont la PREMIERE paire est 'Name_N: X' ou 'Group_N: X'
+        (N croissant), suivie d'un jeu de parametres (param1, param2...) globalement
+        coherent d'une ligne a l'autre. Tres courant dans les tables de butin
+        (Containers.ecf, LootGroups.ecf) et les recettes (Templates.ecf).
+
+        Retourne la liste ordonnee des noms de colonnes 'paramX' si detecte (peut etre
+        vide si aucun param, mais Name_N/Group_N est present), sinon None (retombe sur
+        l'affichage classique cle/valeur)."""
+        prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
+        if len(prop_children) < 2:
+            return None
+        matches = 0
+        param_keys_seen = []
+        for prop in prop_children:
+            if not prop.pairs:
+                continue
+            first_key = prop.pairs[0][0]
+            if first_key and self._ITEM_KEY_RE.match(first_key):
+                matches += 1
+                for k, v in prop.pairs[1:]:
+                    if k and k not in param_keys_seen:
+                        param_keys_seen.append(k)
+        if matches < 2 or matches < len(prop_children) * 0.5:
+            return None
+        # Trie les colonnes param naturellement (param1, param2, ..., param10) plutot
+        # qu'alphabetiquement (qui mettrait param10 avant param2)
+        def _natural_key(k):
+            m = re.search(r'(\d+)$', k)
+            return (k[:m.start()] if m else k, int(m.group(1)) if m else 0)
+        param_keys_seen.sort(key=_natural_key)
+        return param_keys_seen
+
     def _refresh_props_table(self):
         if not self._current_block:
             return
         block = self._current_block
         self.props_table.blockSignals(True)
+        self.props_table.setSortingEnabled(False)
+
+        param_columns = self._detect_repeating_items(block)
+        self._table_mode = param_columns is not None
+
+        if self._table_mode:
+            self._refresh_props_table_grid(block, param_columns)
+        else:
+            self._refresh_props_table_flat(block)
+
+        self.props_table.blockSignals(False)
+
+    def _refresh_props_table_flat(self, block: EcfBlock):
+        """Affichage classique : une ligne par paire cle/valeur (utilise pour la
+        grande majorite des blocs, qui n'ont pas de structure repetitive)."""
+        self.props_table.setColumnCount(2)
+        self.props_table.setHorizontalHeaderLabels([t("ecf.col_property"), t("ecf.col_value")])
         rows = []
-        # Proprietes declarees sur la ligne d'ouverture du bloc (Id, Name, Ref...) --
-        # marquees avec le bloc lui-meme comme reference, distinct des lignes enfants.
         for k, v in block.pairs:
             if k:
                 rows.append((k, v, block))
@@ -647,9 +699,10 @@ class EcfEditWidget(QWidget):
         self.props_table.setRowCount(len(rows))
         for i, (k, v, prop_node) in enumerate(rows):
             item_k = QTableWidgetItem(k)
-            item_k.setFlags(item_k.flags() & ~Qt.ItemFlag.ItemIsEditable)  # la cle n'est pas editable ici
+            item_k.setFlags(item_k.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item_k.setData(Qt.ItemDataRole.UserRole, (prop_node, k))
             item_v = QTableWidgetItem(v)
-            item_v.setData(Qt.ItemDataRole.UserRole, prop_node)
+            item_v.setData(Qt.ItemDataRole.UserRole, (prop_node, k))
             if prop_node is block:
                 item_k.setToolTip(t("ecf.header_property_tooltip"))
             if id(prop_node) in self._edited_prop_nodes:
@@ -657,64 +710,130 @@ class EcfEditWidget(QWidget):
                 item_v.setBackground(COLOR_MODIFIED_ROW)
             self.props_table.setItem(i, 0, item_k)
             self.props_table.setItem(i, 1, item_v)
-        self.props_table.blockSignals(False)
+
+    def _refresh_props_table_grid(self, block: EcfBlock, param_columns: List[str]):
+        """Affichage en tableau pour les structures repetitives (Child Items, Child
+        Inputs...) : une LIGNE par entree (Name_X/Group_X), une COLONNE par parametre
+        -- bien plus lisible qu'une longue liste plate ou les param1/param2 de
+        chaque entree se retrouvaient meles a la suite les uns des autres."""
+        columns = [t("ecf.col_type"), t("ecf.col_item_value")] + param_columns
+        self.props_table.setColumnCount(len(columns))
+        self.props_table.setHorizontalHeaderLabels(columns)
+
+        prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
+        self.props_table.setRowCount(len(prop_children))
+        for row, prop in enumerate(prop_children):
+            if not prop.pairs:
+                continue
+            first_key, first_value = prop.pairs[0]
+            m = self._ITEM_KEY_RE.match(first_key) if first_key else None
+            item_type = QTableWidgetItem(m.group(1) if m else (first_key or ""))
+            item_type.setData(Qt.ItemDataRole.UserRole, (prop, "__TYPE__"))
+            item_value = QTableWidgetItem(first_value)
+            item_value.setData(Qt.ItemDataRole.UserRole, (prop, first_key))
+            modified = id(prop) in self._edited_prop_nodes
+            if modified:
+                item_type.setBackground(COLOR_MODIFIED_ROW)
+                item_value.setBackground(COLOR_MODIFIED_ROW)
+            self.props_table.setItem(row, 0, item_type)
+            self.props_table.setItem(row, 1, item_value)
+
+            pairs_by_key = {k: v for k, v in prop.pairs[1:] if k}
+            for col_idx, param_key in enumerate(param_columns):
+                cell = QTableWidgetItem(pairs_by_key.get(param_key, ""))
+                cell.setData(Qt.ItemDataRole.UserRole, (prop, param_key))
+                if modified:
+                    cell.setBackground(COLOR_MODIFIED_ROW)
+                self.props_table.setItem(row, 2 + col_idx, cell)
 
     def _on_cell_changed(self, item: QTableWidgetItem):
-        if item.column() != 1:
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
             return
-        prop_node = item.data(Qt.ItemDataRole.UserRole)
-        row = item.row()
-        key_item = self.props_table.item(row, 0)
-        key = key_item.text()
+        prop_node, pair_key = data
         new_value = item.text()
 
         if isinstance(prop_node, EcfBlock):
-            # Propriete d'en-tete (Id, Name...) -- vit sur block.pairs, pas sur une
-            # ligne enfant. Attention particuliere : modifier l'Id peut casser des
-            # references ailleurs dans le fichier -- on laisse faire (l'utilisateur est
-            # averti via le tooltip) mais on ne l'empeche pas.
-            old_value = prop_node.get(key)
+            old_value = prop_node.get(pair_key)
             if old_value == new_value:
                 return
             self._snapshot_undo()
-            prop_node.set(key, new_value)
-            annotate_target = None  # les proprietes d'en-tete n'ont pas de 'comment' individuel simple a annoter
+            prop_node.set(pair_key, new_value)
+            annotate_target = None
+            key_for_annotation = pair_key
+        elif pair_key == "__TYPE__":
+            # Colonne 'Type' en mode tableau : bascule Name_N <-> Group_N en gardant le
+            # meme N et la meme valeur -- reconstruit juste la cle de la 1ere paire.
+            if not isinstance(prop_node, EcfProperty) or not prop_node.pairs:
+                return
+            old_first_key, first_value = prop_node.pairs[0]
+            m = self._ITEM_KEY_RE.match(old_first_key) if old_first_key else None
+            suffix = m.group(2) if m else "0"
+            new_type = new_value.strip()
+            if new_type not in ("Name", "Group"):
+                # Valeur non reconnue : remet l'affichage precedent plutot que de
+                # laisser une cle invalide silencieusement
+                self._refresh_props_table()
+                return
+            new_first_key = f"{new_type}_{suffix}"
+            if new_first_key == old_first_key:
+                return
+            self._snapshot_undo()
+            prop_node.pairs[0] = (new_first_key, first_value)
+            prop_node.dirty = True
+            annotate_target = prop_node
+            old_value = old_first_key
+            key_for_annotation = "Type"
         else:
             if not isinstance(prop_node, EcfProperty):
                 return
             old_value = None
             idx = None
             for i, (k, v) in enumerate(prop_node.pairs):
-                if k == key:
+                if k == pair_key:
                     old_value = v
                     idx = i
                     break
-            if idx is None or old_value == new_value:
-                return
-            self._snapshot_undo()
-            prop_node.pairs[idx] = (key, new_value)
-            prop_node.dirty = True
-            annotate_target = prop_node
+            if idx is None:
+                if new_value.strip() == "":
+                    return
+                # Nouvelle colonne param pour cette ligne precise (ex: on tape une
+                # valeur dans param2 pour une ligne qui n'avait que param1 jusque la)
+                self._snapshot_undo()
+                prop_node.pairs.append((pair_key, new_value))
+                prop_node.dirty = True
+                annotate_target = prop_node
+                old_value = "(absent)"
+            else:
+                if old_value == new_value:
+                    return
+                self._snapshot_undo()
+                prop_node.pairs[idx] = (pair_key, new_value)
+                prop_node.dirty = True
+                annotate_target = prop_node
+            key_for_annotation = pair_key
 
         if settings.get_annotations_enabled() and annotate_target is not None:
             author = settings.get_author()
-            annotate_property(annotate_target, f"# original {key}: {old_value} -- Mod par {author}")
+            annotate_property(annotate_target, f"# original {key_for_annotation}: {old_value} -- Mod par {author}")
 
         self._edited_prop_nodes.add(id(prop_node))
         self._set_modified(True)
         self.props_table.blockSignals(True)
         item.setBackground(COLOR_MODIFIED_ROW)
-        key_item.setBackground(COLOR_MODIFIED_ROW)
         self.props_table.blockSignals(False)
 
     def _show_table_context_menu(self, pos):
         item = self.props_table.itemAt(pos)
         if not item or not self._current_block:
             return
-        row = item.row()
-        value_item = self.props_table.item(row, 1)
-        key_item = self.props_table.item(row, 0)
-        prop_node = value_item.data(Qt.ItemDataRole.UserRole)
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        prop_node, pair_key = data
+        value_item = item  # la cellule cliquee elle-meme porte le texte pertinent
+        # traduire/bbcode agissent sur n'importe quelle cellule cliquee ; supprimer agit
+        # sur toute la LIGNE (le prop_node entier), peu importe la colonne cliquee
 
         is_header_prop = isinstance(prop_node, EcfBlock)
         global_pos = self.props_table.viewport().mapToGlobal(pos)
@@ -743,7 +862,7 @@ class EcfEditWidget(QWidget):
             if new_text is not None:
                 value_item.setText(new_text)
         elif chosen in lang_actions:
-            self._translate_cell(value_item, key_item, prop_node, lang_actions[chosen])
+            self._translate_cell(value_item, None, prop_node, lang_actions[chosen])
         elif chosen == action_del and isinstance(prop_node, EcfProperty):
             self._snapshot_undo()
             remove_property_line(self._current_block, prop_node)
