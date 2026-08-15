@@ -55,6 +55,14 @@ class YamlEntry:
     eol: str
     children: List["YamlNode"] = field(default_factory=list)
     dirty: bool = False
+    quoted_continuation_raw: Optional[str] = None  # si la valeur est une chaine entre
+        # guillemets s'etalant sur plusieurs lignes (YAML valide : les sauts de ligne
+        # sont autorises entre guillemets, ex: Description: "...\n\n...suite...")  --
+        # texte brut des lignes suivantes (a partir de celle qui suit la premiere),
+        # jusqu'a et y compris la ligne qui referme le guillemet. `value` contient alors
+        # une version repliee (lignes jointes par un espace, guillemets retires) pour un
+        # affichage/edition lisibles ; `raw` + `quoted_continuation_raw` reproduit le
+        # texte source EXACT tant que l'entree n'est pas modifiee.
 
     def get(self, key: str) -> Optional[str]:
         """Cherche une valeur parmi les enfants directs (mapping imbrique)."""
@@ -79,6 +87,8 @@ class YamlEntry:
 
     def render(self) -> str:
         parts = [self._render_self_line()]
+        if self.quoted_continuation_raw and not self.dirty:
+            parts.append(self.quoted_continuation_raw)
         for child in self.children:
             parts.append(child.render())
         return "".join(parts)

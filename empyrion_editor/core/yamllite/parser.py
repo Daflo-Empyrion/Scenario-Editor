@@ -100,6 +100,19 @@ def _classify(stripped: str) -> Tuple[bool, Optional[str], str, Optional[str]]:
     return is_seq, key, value, comment
 
 
+def _count_unescaped_quotes(s: str) -> int:
+    count = 0
+    i = 0
+    while i < len(s):
+        if s[i] == '\\':
+            i += 2
+            continue
+        if s[i] == '"':
+            count += 1
+        i += 1
+    return count
+
+
 def _parse_block(lines: List[str], start: int, end: int, base_indent: int) -> List[YamlNode]:
     nodes: List[YamlNode] = []
     i = start
@@ -134,6 +147,46 @@ def _parse_block(lines: List[str], start: int, end: int, base_indent: int) -> Li
             continue
 
         is_seq, key, value, comment = _classify(stripped)
+
+        # Chaine entre guillemets non refermee sur cette ligne : YAML autorise une
+        # valeur entre guillemets doubles de s'etaler sur plusieurs lignes (y compris
+        # des lignes vides -- ex: 'Description: "texte...\n\n...suite."'). Traite AVANT
+        # le calcul normal des enfants (qui se tromperait sinon en absorbant les lignes
+        # vides intermediaires comme si c'etaient des enfants structurels de l'entree).
+        # On consomme les lignes suivantes TELLES QUELLES (pour un round-trip exact)
+        # jusqu'a celle qui referme le guillemet, et on construit une version "repliee"
+        # (lignes jointes par un espace) dans `value` pour un affichage/edition lisibles.
+        if value.startswith('"') and _count_unescaped_quotes(value) % 2 == 1:
+            continuation_raw_parts = []
+            folded_parts = [value]
+            k = i + 1
+            closed = False
+            while k < end:
+                raw_k = lines[k]
+                content_k, eol_k, _ = _split_line(raw_k)
+                continuation_raw_parts.append(raw_k)
+                folded_parts.append(content_k.strip())
+                if _count_unescaped_quotes(content_k) % 2 == 1:
+                    closed = True
+                    k += 1
+                    break
+                k += 1
+            if closed:
+                entry = YamlEntry(
+                    raw=raw, indent=indent, is_sequence_item=is_seq, key=key,
+                    value=" ".join(p for p in folded_parts if p != "").strip(),
+                    comment=comment, eol=eol, children=[],
+                    quoted_continuation_raw="".join(continuation_raw_parts),
+                )
+                nodes.append(entry)
+                if _BLOCK_SCALAR_RE.match(value.strip()):
+                    in_block_scalar = True
+                    block_scalar_indent = indent_len
+                i = k
+                continue
+            # Pas de guillemet fermant trouve avant la fin du bloc : cas degenere/
+            # fichier tronque -- on abandonne le repliage et retombe sur le comportement
+            # normal ci-dessous (identique a avant ce correctif, pas pire qu'auparavant).
 
         # Les enfants (imbrication) sont toutes les lignes suivantes plus indentees que
         # la ligne courante elle-meme (son indentation de depart, PAS la position apres
