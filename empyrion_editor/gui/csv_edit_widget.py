@@ -75,7 +75,10 @@ class BatchTranslationReviewDialog(QDialog):
     traduction (modifiable avant validation)."""
 
     def __init__(self, items: list, parent=None):
-        """items : liste de dicts {'label': str, 'original': str, 'translated': str}"""
+        """items : liste de dicts {'label': str, 'original': str, 'translated': str,
+        'failed': bool (optionnel, defaut False)} -- une entree 'failed' est affichee
+        decochee par defaut et surlignee en rouge clair, pour ne jamais l'appliquer
+        par erreur (ex: le service de traduction a echoue/bloque sur cette cellule)."""
         super().__init__(parent)
         self.setWindowTitle(t("trans.batch_review_title"))
         self.resize(750, 450)
@@ -85,15 +88,23 @@ class BatchTranslationReviewDialog(QDialog):
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
+        failed_count = sum(1 for it in items if it.get('failed'))
+        if failed_count:
+            warn = QLabel(t("trans.batch_some_failed", count=failed_count))
+            warn.setStyleSheet("color: #b02a2a; font-weight: 600;")
+            warn.setWordWrap(True)
+            layout.addWidget(warn)
+
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(
             ["", t("trans.col_key"), t("trans.col_original"), t("trans.col_translated")])
         self.table.setRowCount(len(items))
         for i, item in enumerate(items):
+            failed = item.get('failed', False)
             check_item = QTableWidgetItem()
             check_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-            check_item.setCheckState(Qt.CheckState.Checked)
+            check_item.setCheckState(Qt.CheckState.Unchecked if failed else Qt.CheckState.Checked)
             self.table.setItem(i, 0, check_item)
 
             key_item = QTableWidgetItem(item['label'])
@@ -104,7 +115,10 @@ class BatchTranslationReviewDialog(QDialog):
             orig_item.setFlags(orig_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(i, 2, orig_item)
 
-            self.table.setItem(i, 3, QTableWidgetItem(item['translated']))
+            trans_item = QTableWidgetItem(item['translated'])
+            if failed:
+                trans_item.setBackground(QBrush(QColor(255, 220, 220)))
+            self.table.setItem(i, 3, trans_item)
 
         self.table.resizeColumnsToContents()
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -120,7 +134,8 @@ class BatchTranslationReviewDialog(QDialog):
         btn_uncheck_all.clicked.connect(lambda: self._set_all_checked(False))
         btn_row.addWidget(btn_uncheck_all)
         btn_row.addStretch()
-        self.btn_apply = QPushButton(t("trans.apply_checked", count=len(items)))
+        initial_checked = sum(1 for it in items if not it.get('failed'))
+        self.btn_apply = QPushButton(t("trans.apply_checked", count=initial_checked))
         self.btn_apply.clicked.connect(self.accept)
         btn_row.addWidget(self.btn_apply)
         btn_cancel = QPushButton(t("btn.cancel"))
@@ -694,6 +709,9 @@ class CsvEditWidget(QWidget):
         items_for_review = []
         source_items = []
         dest_items = []
+        MAX_CONSECUTIVE_FAILURES = 5
+        consecutive_failures = 0
+        stopped_early = False
         for i, it in enumerate(candidates):
             progress.setValue(i)
             progress.setLabelText(t("trans.translating_progress", done=i, total=len(candidates)))
@@ -704,14 +722,19 @@ class CsvEditWidget(QWidget):
             header_text = header.text() if header else str(it.column())
             key_item = self.table.item(it.row(), 0)
             row_key = key_item.text() if key_item else str(it.row() + 1)
+            failed = False
             try:
                 translated = translation.translate_text(it.text(), target=target_code)
+                consecutive_failures = 0
             except Exception as e:
                 translated = f"[{t('trans.error_title')}: {e}]"
+                failed = True
+                consecutive_failures += 1
             items_for_review.append({
                 'label': f"{row_key} / {header_text}",
                 'original': it.text(),
                 'translated': translated,
+                'failed': failed,
             })
             source_items.append(it)
             # Comme pour la traduction cellule par cellule : si une colonne correspond
@@ -726,7 +749,16 @@ class CsvEditWidget(QWidget):
                 dest_items.append(dest_item)
             else:
                 dest_items.append(it)
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                stopped_early = True
+                break
         progress.setValue(len(candidates))
+
+        if stopped_early:
+            QMessageBox.warning(
+                self, t("trans.batch_stopped_early_title"),
+                t("trans.batch_stopped_early_msg", failed=consecutive_failures,
+                  done=len(items_for_review), remaining=len(candidates) - len(items_for_review)))
 
         if not items_for_review:
             return
@@ -792,6 +824,14 @@ class CsvEditWidget(QWidget):
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(300)
 
+        # Arret automatique si le service de traduction semble bloque/indisponible --
+        # sans ca, un gros lot (des milliers de cellules) continuerait a marteler un
+        # service en panne pendant potentiellement des heures, pour ne produire au
+        # bout du compte que des milliers de lignes d'erreur a trier a la main.
+        MAX_CONSECUTIVE_FAILURES = 5
+        consecutive_failures = 0
+        stopped_early = False
+
         items_for_review = []
         dest_items = []
         for i, row in enumerate(missing_rows):
@@ -802,21 +842,36 @@ class CsvEditWidget(QWidget):
             key_item = self.table.item(row, 0)
             row_key = key_item.text() if key_item else str(row + 1)
             source_text = self.table.item(row, source_col).text()
+            failed = False
             try:
                 translated = translation.translate_text(source_text, target=target_code)
+                consecutive_failures = 0
             except Exception as e:
                 translated = f"[{t('trans.error_title')}: {e}]"
+                failed = True
+                consecutive_failures += 1
             items_for_review.append({
                 'label': row_key,
                 'original': source_text,
                 'translated': translated,
+                'failed': failed,
             })
             dest_item = self.table.item(row, target_col)
             if dest_item is None:
                 dest_item = QTableWidgetItem("")
                 self.table.setItem(row, target_col, dest_item)
             dest_items.append(dest_item)
+
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                stopped_early = True
+                break
         progress.setValue(len(missing_rows))
+
+        if stopped_early:
+            QMessageBox.warning(
+                self, t("trans.batch_stopped_early_title"),
+                t("trans.batch_stopped_early_msg", failed=consecutive_failures,
+                  done=len(items_for_review), remaining=len(missing_rows) - len(items_for_review)))
 
         if not items_for_review:
             return

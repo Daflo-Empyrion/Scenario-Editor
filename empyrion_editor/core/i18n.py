@@ -744,6 +744,20 @@ STRINGS = {
                                     "en": "Translating... ({done}/{total})"},
     "trans.from_memory_badge": {"fr": " (memoire)", "en": " (memory)"},
     "status.batch_applied": {"fr": "{count} traduction(s) appliquee(s)", "en": "{count} translation(s) applied"},
+    "trans.batch_some_failed": {"fr": "{count} traduction(s) ont echoue (surlignees en rouge, decochees par defaut) -- "
+                                       "verifie ta connexion, le service de traduction est peut-etre temporairement bloque.",
+                                 "en": "{count} translation(s) failed (highlighted in red, unchecked by default) -- "
+                                       "check your connection, the translation service may be temporarily blocked."},
+    "trans.batch_stopped_early_title": {"fr": "Arret automatique", "en": "Stopped automatically"},
+    "trans.batch_stopped_early_msg": {"fr": "{failed} echecs consecutifs detectes (sur {done} cellules traitees, "
+                                             "{remaining} restantes non tentees) -- le service de traduction semble "
+                                             "bloque ou indisponible. Arret automatique pour ne pas t'en tenir "
+                                             "rigueur inutilement. Les traductions deja reussies restent "
+                                             "disponibles pour revue ci-apres.",
+                                       "en": "{failed} consecutive failures detected (out of {done} cells "
+                                             "processed, {remaining} remaining untried) -- the translation "
+                                             "service seems blocked or unavailable. Stopped automatically. "
+                                             "Translations already completed remain available for review below."},
 
     # --- Combler les langues manquantes ---
     "btn.fill_missing_translations": {"fr": "Combler les langues manquantes...", "en": "Fill missing translations..."},
