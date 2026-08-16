@@ -781,6 +781,23 @@ STRINGS = {
     "trans.pick_default_language_label": {"fr": "Traduire vers (utilisee par le bouton 'Traduire' rapide) :",
                                            "en": "Translate to (used by the quick 'Translate' button):"},
 
+    # --- Rechercher et remplacer (CSV) ---
+    "btn.find_replace": {"fr": "Rechercher et remplacer...", "en": "Find and replace..."},
+    "csv.find_replace_title": {"fr": "Rechercher et remplacer", "en": "Find and replace"},
+    "csv.find_label": {"fr": "Rechercher :", "en": "Find:"},
+    "csv.replace_label": {"fr": "Remplacer par :", "en": "Replace with:"},
+    "csv.find_replace_column_label": {"fr": "Dans la colonne :", "en": "In column:"},
+    "csv.find_replace_case_sensitive": {"fr": "Respecter la casse", "en": "Case sensitive"},
+    "csv.find_replace_whole_word": {"fr": "Mot entier seulement", "en": "Whole word only"},
+    "csv.find_replace_search_btn": {"fr": "Chercher les correspondances", "en": "Find matches"},
+    "csv.find_replace_empty_search": {"fr": "Indique un texte a rechercher.", "en": "Enter text to search for."},
+    "csv.find_replace_none_found": {"fr": "Aucune correspondance trouvee.", "en": "No matches found."},
+    "csv.find_replace_review_title": {"fr": "Revue des remplacements", "en": "Review replacements"},
+    "csv.find_replace_review_intro": {"fr": "Verifie et ajuste si besoin, puis applique. Decoche les lignes a ignorer.",
+                                       "en": "Review and adjust if needed, then apply. Uncheck rows to skip."},
+    "csv.col_after_replace": {"fr": "Apres remplacement", "en": "After replacement"},
+    "status.find_replace_applied": {"fr": "{count} remplacement(s) applique(s)", "en": "{count} replacement(s) applied"},
+
     # --- Ouverture de fichiers ---
     "open.error": {"fr": "Impossible d'ouvrir {file}", "en": "Could not open {file}"},
     "open.not_supported_title": {"fr": "Non supporte", "en": "Not supported"},

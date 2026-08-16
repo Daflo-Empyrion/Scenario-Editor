@@ -8,7 +8,7 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QLabel,
     QPushButton, QMenu, QMessageBox, QDialog, QTextEdit, QLineEdit, QComboBox,
-    QApplication, QFormLayout,
+    QApplication, QFormLayout, QCheckBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush
@@ -74,19 +74,24 @@ class BatchTranslationReviewDialog(QDialog):
     Chaque ligne : case a cocher pour l'inclure ou non, cle/reference, texte original,
     traduction (modifiable avant validation)."""
 
-    def __init__(self, items: list, parent=None):
+    def __init__(self, items: list, parent=None, title: Optional[str] = None,
+                 intro: Optional[str] = None, translated_column_label: Optional[str] = None):
         """items : liste de dicts {'label': str, 'original': str, 'translated': str,
         'failed': bool (optionnel, defaut False)} -- une entree 'failed' est affichee
         decochee par defaut et surlignee en rouge clair, pour ne jamais l'appliquer
-        par erreur (ex: le service de traduction a echoue/bloque sur cette cellule)."""
+        par erreur (ex: le service de traduction a echoue/bloque sur cette cellule).
+
+        title/intro/translated_column_label : personnalisation optionnelle du texte
+        affiche -- ce dialogue est reutilise tel quel pour Rechercher/Remplacer (voir
+        _open_find_replace_dialog), pas seulement pour la traduction."""
         super().__init__(parent)
-        self.setWindowTitle(t("trans.batch_review_title"))
+        self.setWindowTitle(title or t("trans.batch_review_title"))
         self.resize(750, 450)
 
         layout = QVBoxLayout(self)
-        intro = QLabel(t("trans.batch_review_intro"))
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        intro_label = QLabel(intro or t("trans.batch_review_intro"))
+        intro_label.setWordWrap(True)
+        layout.addWidget(intro_label)
 
         failed_count = sum(1 for it in items if it.get('failed'))
         if failed_count:
@@ -98,7 +103,7 @@ class BatchTranslationReviewDialog(QDialog):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(
-            ["", t("trans.col_key"), t("trans.col_original"), t("trans.col_translated")])
+            ["", t("trans.col_key"), t("trans.col_original"), translated_column_label or t("trans.col_translated")])
         self.table.setRowCount(len(items))
         for i, item in enumerate(items):
             failed = item.get('failed', False)
@@ -209,6 +214,51 @@ class FillMissingTranslationsDialog(QDialog):
         btn_cancel.clicked.connect(self.reject)
         btn_row.addWidget(btn_cancel)
         layout.addRow(btn_row)
+
+
+class FindReplaceDialog(QDialog):
+    """Recherche/remplacement de texte sur une colonne (ou toutes) d'un fichier CSV --
+    typiquement utilise pour corriger a la volee une traduction automatique
+    approximative repetee sur plusieurs lignes (ex: 'Dos' pour 'Back' quand le sens
+    voulu etait 'Retour'). Ne remplace jamais directement : chaque correspondance
+    trouvee passe par le meme tableau de revue que la traduction, une par une."""
+
+    def __init__(self, column_headers: list, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("csv.find_replace_title"))
+
+        layout = QFormLayout(self)
+        self.find_edit = QLineEdit()
+        layout.addRow(t("csv.find_label"), self.find_edit)
+        self.replace_edit = QLineEdit()
+        layout.addRow(t("csv.replace_label"), self.replace_edit)
+
+        self.column_combo = QComboBox()
+        self.column_combo.addItem(t("search.column_all"), None)
+        for i, h in enumerate(column_headers):
+            self.column_combo.addItem(h, i)
+        layout.addRow(t("csv.find_replace_column_label"), self.column_combo)
+
+        self.case_sensitive_check = QCheckBox(t("csv.find_replace_case_sensitive"))
+        layout.addRow("", self.case_sensitive_check)
+        self.whole_word_check = QCheckBox(t("csv.find_replace_whole_word"))
+        layout.addRow("", self.whole_word_check)
+
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton(t("csv.find_replace_search_btn"))
+        btn_ok.clicked.connect(self._on_accept)
+        btn_row.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addWidget(btn_cancel)
+        layout.addRow(btn_row)
+
+    def _on_accept(self):
+        if not self.find_edit.text():
+            QMessageBox.warning(self, t("err.missing_field"), t("csv.find_replace_empty_search"))
+            return
+        self.accept()
 
 
 def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
@@ -328,6 +378,11 @@ class CsvEditWidget(QWidget):
             btn_quick_translate.setObjectName("secondaryButton")
             btn_quick_translate.clicked.connect(self._quick_translate)
             toolbar.addWidget(btn_quick_translate)
+            btn_find_replace = QPushButton(icon("fa5s.exchange-alt", "#4a7dfc"), t("btn.find_replace"))
+            btn_find_replace.setIconSize(icon_size())
+            btn_find_replace.setObjectName("secondaryButton")
+            btn_find_replace.clicked.connect(self._open_find_replace_dialog)
+            toolbar.addWidget(btn_find_replace)
             self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
             self.btn_undo.setIconSize(icon_size())
             self.btn_undo.setObjectName("secondaryButton")
@@ -889,6 +944,75 @@ class CsvEditWidget(QWidget):
             return
 
         review = BatchTranslationReviewDialog(items_for_review, self)
+        if review.exec() != QDialog.DialogCode.Accepted:
+            return
+        accepted = review.get_accepted_results()
+        if not accepted:
+            return
+
+        self._snapshot_undo()
+        for idx, final_text in accepted:
+            dest_items[idx].setText(final_text)
+
+    def _open_find_replace_dialog(self):
+        """Recherche/remplacement avec revue individuelle -- utile par exemple pour
+        corriger a la volee une traduction automatique repetee sur plusieurs lignes
+        (ex: 'Dos' utilise a tort pour 'Back' au sens de 'Retour'), sans avoir a
+        remplacer chaque cellule a la main ni a tout ecraser en aveugle."""
+        import re as _re
+        headers = [self.table.horizontalHeaderItem(c).text() if self.table.horizontalHeaderItem(c) else str(c)
+                   for c in range(self.table.columnCount())]
+        dialog = FindReplaceDialog(headers, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        find_text = dialog.find_edit.text()
+        replace_text = dialog.replace_edit.text()
+        scope_col = dialog.column_combo.currentData()
+        case_sensitive = dialog.case_sensitive_check.isChecked()
+        whole_word = dialog.whole_word_check.isChecked()
+
+        flags = 0 if case_sensitive else _re.IGNORECASE
+        pattern_text = _re.escape(find_text)
+        if whole_word:
+            pattern_text = r'\b' + pattern_text + r'\b'
+        try:
+            pattern = _re.compile(pattern_text, flags)
+        except _re.error:
+            return
+
+        columns = [scope_col] if scope_col is not None else list(range(self.table.columnCount()))
+        items_for_review = []
+        dest_items = []
+        for row in range(self.table.rowCount()):
+            key_item = self.table.item(row, 0)
+            row_key = key_item.text() if key_item else str(row + 1)
+            for col in columns:
+                cell = self.table.item(row, col)
+                if cell is None or not cell.text():
+                    continue
+                if not pattern.search(cell.text()):
+                    continue
+                new_text = pattern.sub(replace_text, cell.text())
+                header = self.table.horizontalHeaderItem(col)
+                header_text = header.text() if header else str(col)
+                items_for_review.append({
+                    'label': f"{row_key} / {header_text}",
+                    'original': cell.text(),
+                    'translated': new_text,
+                })
+                dest_items.append(cell)
+
+        if not items_for_review:
+            QMessageBox.information(self, t("csv.find_replace_title"), t("csv.find_replace_none_found"))
+            return
+
+        review = BatchTranslationReviewDialog(
+            items_for_review, self,
+            title=t("csv.find_replace_review_title"),
+            intro=t("csv.find_replace_review_intro"),
+            translated_column_label=t("csv.col_after_replace"),
+        )
         if review.exec() != QDialog.DialogCode.Accepted:
             return
         accepted = review.get_accepted_results()
