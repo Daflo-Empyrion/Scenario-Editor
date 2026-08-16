@@ -555,6 +555,31 @@ STRINGS = {
     "tutorials.btn_next": {"fr": "Suivant \u2192", "en": "Next \u2192"},
     "tutorials.select_prompt": {"fr": "Choisis un tutoriel dans la liste a gauche pour commencer.",
                                  "en": "Choose a tutorial from the list on the left to begin."},
+    "tutorials.auto_open_banner": {"fr": "Bienvenue ! Ce tutoriel s'ouvre automatiquement au premier "
+                                          "lancement. Tu peux le retrouver a tout moment via le menu "
+                                          "<b>Aide &gt; Tutoriels...</b>",
+                                    "en": "Welcome! This tutorial opens automatically on first launch. "
+                                          "You can find it again anytime via <b>Help &gt; Tutorials...</b>"},
+    "tutorials.dont_show_again": {"fr": "Ne plus afficher automatiquement au demarrage",
+                                   "en": "Don't show automatically on startup"},
+
+    "menu.help.check_updates": {"fr": "Verifier les mises a jour...",
+                                 "en": "Check for updates..."},
+    "menu.help.about": {"fr": "A propos...", "en": "About..."},
+    "about.version": {"fr": "Version", "en": "Version"},
+    "update.title": {"fr": "Mise a jour", "en": "Update"},
+    "update.available_title": {"fr": "Mise a jour disponible",
+                                "en": "Update available"},
+    "update.available_msg": {"fr": "Une nouvelle version ({version}) est disponible !\n\n"
+                                    "{url}",
+                              "en": "A new version ({version}) is available!\n\n{url}"},
+    "update.up_to_date": {"fr": "Tu utilises deja la derniere version.",
+                           "en": "You're already using the latest version."},
+    "update.not_configured": {"fr": "La verification de mise a jour n'est pas encore "
+                                     "configuree pour cette application.",
+                               "en": "Update checking isn't configured for this "
+                                     "application yet."},
+
     "save.error_title": {"fr": "Erreur d'enregistrement", "en": "Save error"},
     "save.error_msg": {"fr": "Impossible d'enregistrer '{name}' :\n{error}\n\n"
                               "Si c'est une erreur de permission, essaie Fichier > "

@@ -1,0 +1,18 @@
+# Artefacts de construction (regeneres par build.bat -- voir BUILD.md)
+build/
+dist/
+installer_output/
+*.spec.bak
+
+# Environnement virtuel Python
+venv/
+.venv/
+
+# Cache Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Reglages locaux de l'application (jamais a versionner -- propres a chaque
+# utilisateur, contiennent projets recents, langue choisie, etc.)
+.empyrion_editor/

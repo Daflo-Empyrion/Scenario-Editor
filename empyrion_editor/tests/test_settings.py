@@ -42,3 +42,29 @@ def test_settings_file_is_valid_json(tmp_path, monkeypatch):
     settings.set_author('Testeur')
     data = json.loads(settings_file.read_text(encoding='utf-8'))
     assert data.get('author') == 'Testeur'
+
+
+def test_language_chosen_default_false(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
+    assert settings.get_language_chosen() is False
+
+
+def test_language_chosen_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
+    settings.set_language_chosen(True)
+    assert settings.get_language_chosen() is True
+
+
+def test_auto_open_tutorial_default_true(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
+    assert settings.get_auto_open_tutorial() is True
+
+
+def test_auto_open_tutorial_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
+    settings.set_auto_open_tutorial(False)
+    assert settings.get_auto_open_tutorial() is False

@@ -67,7 +67,8 @@ COLOR_NEW_PROPERTY = QBrush(QColor(200, 255, 200))    # vert clair : ligne de pr
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Empyrion Scenario Editor")
+        from core.version import APP_VERSION
+        self.setWindowTitle(f"Empyrion Scenario Editor — v{APP_VERSION}")
         self.resize(1500, 800)
         self.workspace_undo = WorkspaceUndoStack()
 
@@ -144,6 +145,50 @@ class MainWindow(QMainWindow):
         self.action_wiki_empyrion = self.menu_help.addAction(t("menu.help.wiki_empyrion"))
         self.action_wiki_empyrion.triggered.connect(
             lambda: open_wiki(self, t("menu.help.wiki_empyrion").rstrip("."), "wiki_empyrion"))
+        self.menu_help.addSeparator()
+        self.action_check_updates = self.menu_help.addAction(t("menu.help.check_updates"))
+        self.action_check_updates.triggered.connect(lambda: self._check_for_updates(manual=True))
+        self.action_about = self.menu_help.addAction(t("menu.help.about"))
+        self.action_about.triggered.connect(self._show_about_dialog)
+
+    def _show_about_dialog(self):
+        from core.version import APP_VERSION
+        QMessageBox.information(self, t("menu.help.about").rstrip("."),
+                                 f"Empyrion Scenario Editor\n{t('about.version')} {APP_VERSION}")
+
+    def _check_for_updates(self, manual: bool = False):
+        """Verifie la presence d'une mise a jour sur GitHub, en tache de fond pour ne
+        jamais bloquer l'interface (la requete reseau peut prendre jusqu'a quelques
+        secondes, voire echouer silencieusement -- voir core/update_checker.py).
+        Si manual=True (declenche depuis le menu Aide), un message s'affiche meme en
+        l'absence de mise a jour ou en cas d'echec ; si manual=False (verification
+        automatique au demarrage), rien ne s'affiche sauf mise a jour reellement
+        disponible -- pour ne jamais interrompre un demarrage normal."""
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class _UpdateCheckThread(QThread):
+            finished_with_result = pyqtSignal(object)
+
+            def run(self):
+                from core.update_checker import check_for_update
+                self.finished_with_result.emit(check_for_update())
+
+        def handle_result(result):
+            if result is not None:
+                QMessageBox.information(
+                    self, t("update.available_title"),
+                    t("update.available_msg", version=result["version"], url=result["url"]))
+            elif manual:
+                from core.version import is_update_check_configured
+                if not is_update_check_configured():
+                    QMessageBox.information(self, t("update.title"), t("update.not_configured"))
+                else:
+                    QMessageBox.information(self, t("update.title"), t("update.up_to_date"))
+            self._update_check_thread = None
+
+        self._update_check_thread = _UpdateCheckThread(self)
+        self._update_check_thread.finished_with_result.connect(handle_result)
+        self._update_check_thread.start()
 
     def _toggle_language(self):
         current = i18n.get_language()
@@ -180,6 +225,8 @@ class MainWindow(QMainWindow):
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
         self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
         self.action_tutorials.setText(t("menu.help.tutorials"))
+        self.action_check_updates.setText(t("menu.help.check_updates"))
+        self.action_about.setText(t("menu.help.about"))
 
         self.btn_language.setText(i18n.get_language().upper())
         self.btn_language.setToolTip(t("menu.options.language"))
@@ -1475,27 +1522,49 @@ class TutorialDialog(QDialog):
     """Fenetre des tutoriels : liste a gauche (lue dynamiquement depuis
     core/tutorials.py -- aucune modification necessaire ici pour ajouter un nouveau
     tutoriel), navigation pas a pas a droite (titre d'etape, contenu, Precedent/
-    Suivant, compteur)."""
+    Suivant, compteur).
 
-    def __init__(self, parent=None):
+    Peut s'ouvrir automatiquement au demarrage (auto_opened=True, voir main()) :
+    dans ce cas, un bandeau rappelle ou retrouver ce tutoriel plus tard (chemin de
+    menu exact), avec une case a cocher pour ne plus l'ouvrir automatiquement aux
+    prochains lancements -- jamais affiche quand ouvert manuellement depuis le
+    menu Aide, ou l'utilisateur sait deja qu'il vient de choisir de le voir."""
+
+    def __init__(self, parent=None, auto_opened: bool = False):
         super().__init__(parent)
         from core.tutorials import TUTORIALS
+        from core import i18n, settings as _settings
         self.tutorials = TUTORIALS
         self.current_tutorial = None
         self.current_step_index = 0
+        self._lang = i18n.get_language()
 
         self.setWindowTitle(t("tutorials.dialog_title"))
-        self.resize(800, 550)
+        self.resize(800, 620 if auto_opened else 550)
 
-        layout = QHBoxLayout(self)
+        outer = QVBoxLayout(self)
+
+        if auto_opened:
+            banner = QLabel(t("tutorials.auto_open_banner"))
+            banner.setWordWrap(True)
+            banner.setStyleSheet(
+                "background: #eef1f6; border: 1px solid #d0d7e5; border-radius: 6px; padding: 8px;")
+            outer.addWidget(banner)
+            self.checkbox_dont_show = QCheckBox(t("tutorials.dont_show_again"))
+            self.checkbox_dont_show.toggled.connect(
+                lambda checked: _settings.set_auto_open_tutorial(not checked))
+            outer.addWidget(self.checkbox_dont_show)
+
+        layout = QHBoxLayout()
+        outer.addLayout(layout, 1)
 
         left_col = QVBoxLayout()
         left_col.addWidget(QLabel(t("tutorials.list_title")))
         self.list_widget = QListWidget()
         self.list_widget.setMaximumWidth(220)
         for tut in self.tutorials:
-            item = QListWidgetItem(tut.title)
-            item.setToolTip(tut.summary)
+            item = QListWidgetItem(tut.title(self._lang))
+            item.setToolTip(tut.summary(self._lang))
             self.list_widget.addItem(item)
         self.list_widget.currentRowChanged.connect(self._on_tutorial_selected)
         left_col.addWidget(self.list_widget, 1)
@@ -1550,8 +1619,8 @@ class TutorialDialog(QDialog):
         step = steps[self.current_step_index]
         self.step_counter_label.setText(
             t("tutorials.step_counter", current=self.current_step_index + 1, total=len(steps)))
-        self.step_title_label.setText(step.title)
-        self.content_browser.setHtml(step.content_html)
+        self.step_title_label.setText(step.title(self._lang))
+        self.content_browser.setHtml(step.content_html(self._lang))
         self.btn_previous.setEnabled(self.current_step_index > 0)
         self.btn_next.setEnabled(self.current_step_index < len(steps) - 1)
 
@@ -1902,16 +1971,84 @@ class YamlViewWidget(QWidget):
         return item
 
 
+def _show_first_launch_language_picker():
+    """Affiche, au tout premier lancement seulement (jamais si une langue a deja ete
+    choisie), un choix de langue bilingue AVANT la construction du reste de
+    l'interface -- pas besoin de reellement relancer le processus : l'application
+    sait deja changer de langue a chaud (bouton FR/EN), donc definir la langue ici,
+    juste avant de construire la fenetre principale, produit exactement le meme
+    resultat (tout s'affiche d'emblee dans la bonne langue) de facon plus simple et
+    plus fiable qu'un vrai redemarrage de processus.
+
+    Le texte de ce dialogue precis est volontairement ecrit en dur dans LES DEUX
+    LANGUES A LA FOIS (pas de t()) puisqu'aucune langue n'est encore choisie a ce
+    stade."""
+    if settings.get_language_chosen():
+        return
+
+    dialog = QDialog()
+    dialog.setWindowTitle("Choisissez votre langue / Choose your language")
+    dialog.setMinimumWidth(420)
+    layout = QVBoxLayout(dialog)
+
+    label = QLabel(
+        "Bienvenue dans Empyrion Scenario Editor !\n"
+        "Welcome to Empyrion Scenario Editor!\n\n"
+        "Choisissez la langue de l'application\n"
+        "(modifiable a tout moment ensuite via le bouton FR/EN) :\n\n"
+        "Choose the application's language\n"
+        "(changeable anytime afterward via the FR/EN button):"
+    )
+    label.setWordWrap(True)
+    layout.addWidget(label)
+
+    btn_row = QHBoxLayout()
+    chosen = {}
+
+    def pick(lang: str):
+        chosen['lang'] = lang
+        dialog.accept()
+
+    btn_fr = QPushButton("Francais")
+    btn_fr.clicked.connect(lambda: pick("fr"))
+    btn_row.addWidget(btn_fr)
+    btn_en = QPushButton("English")
+    btn_en.clicked.connect(lambda: pick("en"))
+    btn_row.addWidget(btn_en)
+    layout.addLayout(btn_row)
+
+    dialog.exec()
+    lang = chosen.get('lang', 'fr')
+    i18n.set_language(lang)
+    settings.set_language_chosen(True)
+
+
 def main():
     app = QApplication(sys.argv)
     from gui.theme import apply_theme
     apply_theme(app)
+
+    _show_first_launch_language_picker()
+
     window = MainWindow()
     window.show()
 
-    # Propose de reprendre un projet recent des le lancement, s'il y en a
+    # Propose de reprendre un projet recent des le lancement, s'il y en a ; une fois
+    # cette etape terminee (projet choisi, cree, ou dialogue ferme), ouvre le
+    # tutoriel automatiquement si l'utilisateur n'a jamais decoche cette option.
     from PyQt6.QtCore import QTimer
-    QTimer.singleShot(0, lambda: window.show_startup_dialog(auto_at_launch=True))
+
+    def _launch_sequence():
+        window.show_startup_dialog(auto_at_launch=True)
+        if settings.get_auto_open_tutorial():
+            tutorial_dialog = TutorialDialog(window, auto_opened=True)
+            tutorial_dialog.exec()
+        # Verification silencieuse : ne s'affiche que si une mise a jour existe
+        # reellement (voir _check_for_updates, manual=False) ; ne bloque jamais le
+        # demarrage puisqu'elle tourne dans un thread separe.
+        window._check_for_updates(manual=False)
+
+    QTimer.singleShot(0, _launch_sequence)
 
     sys.exit(app.exec())
 

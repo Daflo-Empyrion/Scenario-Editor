@@ -7,15 +7,22 @@ UTILISATION :
 import sys
 from pathlib import Path
 
-_ici = Path(__file__).resolve().parent
-_candidats = [_ici, _ici / "empyrion_editor", _ici.parent, _ici.parent / "empyrion_editor"]
-for _c in _candidats:
-    if (_c / "core" / "scanner.py").exists():
-        sys.path.insert(0, str(_c))
-        break
+if getattr(sys, 'frozen', False):
+    # Executable construit par PyInstaller (voir empyrion_editor.spec) : 'core' et
+    # 'gui' sont deja compiles dans l'archive et directement importables, aucune
+    # recherche de dossier necessaire -- la detection ci-dessous ne s'applique
+    # qu'a une execution depuis les sources.
+    pass
 else:
-    print("ERREUR : impossible de trouver le dossier 'core'.")
-    sys.exit(1)
+    _ici = Path(__file__).resolve().parent
+    _candidats = [_ici, _ici / "empyrion_editor", _ici.parent, _ici.parent / "empyrion_editor"]
+    for _c in _candidats:
+        if (_c / "core" / "scanner.py").exists():
+            sys.path.insert(0, str(_c))
+            break
+    else:
+        print("ERREUR : impossible de trouver le dossier 'core'.")
+        sys.exit(1)
 
 from gui.main_window import main
 

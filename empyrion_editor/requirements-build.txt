@@ -1,0 +1,3 @@
+# Dependances necessaires UNIQUEMENT pour construire l'executable (pas pour
+# faire tourner l'application depuis les sources -- voir requirements.txt pour ca).
+pyinstaller>=6.0

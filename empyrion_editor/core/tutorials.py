@@ -1,403 +1,286 @@
 """
-Tutoriels integres a l'application -- pas a pas, avec navigation par etapes.
+Tutoriels integres a l'application -- pas a pas, avec navigation par etapes,
+bilingue (FR/EN, suit la langue active de l'application).
 
 Concu pour etre facilement etendu : chaque tutoriel est un objet Tutorial (titre,
-resume court affiche dans la liste, liste ordonnee d'etapes). Pour ajouter un nouveau
+resume court affiche dans la liste, liste ordonnee d'etapes), avec le contenu fourni
+dans les DEUX langues directement (pas besoin de passer par core/i18n.py, qui
+deviendrait illisible avec des blocs HTML aussi longs). Pour ajouter un nouveau
 tutoriel, il suffit de construire un nouvel objet Tutorial (voir TUTORIAL_CREATE_BLOCK
 ci-dessous comme modele) et de l'ajouter a la liste TUTORIALS en bas de ce fichier --
 aucune modification necessaire cote interface graphique, qui lit cette liste
-dynamiquement.
-"""
+dynamiquement et choisit la langue via title()/content_html()."""
 from dataclasses import dataclass, field
 from typing import List
 
 
 @dataclass
 class TutorialStep:
-    title: str
-    content_html: str  # HTML simple (gras, listes, code) -- affiche dans un QTextBrowser
+    title_fr: str
+    content_fr: str
+    title_en: str
+    content_en: str
+
+    def title(self, lang: str) -> str:
+        return self.title_fr if lang == "fr" else self.title_en
+
+    def content_html(self, lang: str) -> str:
+        return self.content_fr if lang == "fr" else self.content_en
 
 
 @dataclass
 class Tutorial:
     id: str
-    title: str
-    summary: str
+    title_fr: str
+    summary_fr: str
+    title_en: str
+    summary_en: str
     steps: List[TutorialStep] = field(default_factory=list)
 
+    def title(self, lang: str) -> str:
+        return self.title_fr if lang == "fr" else self.title_en
+
+    def summary(self, lang: str) -> str:
+        return self.summary_fr if lang == "fr" else self.summary_en
+
 
 # ============================================================================
-# Tutoriel : Creer un bloc, pas a pas
+# Tutoriel 1 : Creer un bloc, pas a pas
 # ============================================================================
 TUTORIAL_CREATE_BLOCK = Tutorial(
-    id="create_block",
-    title="Creer un bloc, pas a pas",
-    summary="Du choix du point de depart jusqu'au test en jeu -- tout ce qu'il faut "
-            "savoir pour ajouter un nouveau bloc a un scenario sans rien oublier.",
+    id='create_block',
+    title_fr='Creer un bloc, pas a pas',
+    summary_fr="Du choix du point de depart jusqu'au test en jeu -- tout ce qu'il faut savoir pour ajouter un nouveau bloc a un scenario sans rien oublier.",
+    title_en='Create a block, step by step',
+    summary_en='From choosing a starting point to testing in-game -- everything you need to know to add a new block to a scenario without missing anything.',
     steps=[
         TutorialStep(
-            title="Avant de commencer",
-            content_html="""
-<p>Un bloc est une entree dans <b>BlocksConfig.ecf</b> -- le fichier qui definit
-absolument tous les blocs du jeu (blocs de construction, portes, tourelles,
-constructeurs, panneaux solaires...). Un <b>item</b> (objet d'inventaire, arme,
-ressource) fonctionne sur le meme principe mais vit dans <b>ItemsConfig.ecf</b> --
-tout ce tutoriel s'applique aux deux, seul le fichier change.</p>
-
-<p><b>Travaille toujours sur la copie de travail</b>, jamais directement sur les
-fichiers sources -- c'est le seul endroit modifiable de l'application, et elle reste
-comparable au scenario d'origine a tout moment (menu Fichier > Comparer deux
-scenarios...).</p>
-
-<p><b>Recommandation avant de commencer une session de creation de bloc</b> :
-fais une sauvegarde du scenario (Fichier > Sauvegarder un scenario) si tu n'en as
-pas de recente. Un bloc mal forme peut empecher le jeu de charger -- avoir un point
-de retour rapide t'evite de tout reconstruire a la main.</p>
-""",
+            title_fr='Avant de commencer',
+            content_fr="\n<p>Un bloc est une entree dans <b>BlocksConfig.ecf</b> -- le fichier qui definit\nabsolument tous les blocs du jeu (blocs de construction, portes, tourelles,\nconstructeurs, panneaux solaires...). Un <b>item</b> (objet d'inventaire, arme,\nressource) fonctionne sur le meme principe mais vit dans <b>ItemsConfig.ecf</b> --\ntout ce tutoriel s'applique aux deux, seul le fichier change.</p>\n\n<p><b>Travaille toujours sur la copie de travail</b>, jamais directement sur les\nfichiers sources -- c'est le seul endroit modifiable de l'application, et elle reste\ncomparable au scenario d'origine a tout moment (menu Fichier > Comparer deux\nscenarios...).</p>\n\n<p><b>Recommandation avant de commencer une session de creation de bloc</b> :\nfais une sauvegarde du scenario (Fichier > Sauvegarder un scenario) si tu n'en as\npas de recente. Un bloc mal forme peut empecher le jeu de charger -- avoir un point\nde retour rapide t'evite de tout reconstruire a la main.</p>\n",
+            title_en='Before you start',
+            content_en="\n<p>A block is an entry in <b>BlocksConfig.ecf</b> -- the file that defines\nabsolutely every block in the game (building blocks, doors, turrets, constructors,\nsolar panels...). An <b>item</b> (inventory object, weapon, resource) works on the\nsame principle but lives in <b>ItemsConfig.ecf</b> -- this whole tutorial applies to\nboth, only the file changes.</p>\n\n<p><b>Always work on the working copy</b>, never directly on the source files --\nit's the only editable location in the application, and it stays comparable to the\noriginal scenario at any time (File menu > Compare two scenarios...).</p>\n\n<p><b>Recommendation before starting a block-creation session</b>: back up the\nscenario (File > Back up a scenario) if you don't have a recent one. A malformed\nblock can prevent the game from loading -- having a quick restore point saves you\nfrom rebuilding everything by hand.</p>\n",
         ),
         TutorialStep(
-            title="Etape 1 -- Choisir son point de depart",
-            content_html="""
-<p>Deux approches possibles :</p>
-
-<p><b>A. Dupliquer un bloc existant proche</b> (recommande dans la grande majorite des
-cas) -- trouve dans Scenario A (ou B) un bloc qui ressemble deja a ce que tu veux
-(meme materiau, meme famille de forme), clic droit dessus dans l'arbre, puis
-"Dupliquer avec un nouvel Id...". Tu herites automatiquement de toutes ses
-proprietes correctement formees -- texture, categorie, forme, collision -- et tu
-n'as plus qu'a ajuster ce qui doit changer.</p>
-
-<p><b>B. Partir de zero</b> avec le bouton "+ Bloc" de la copie de travail -- utile
-seulement si aucun bloc existant ne s'en approche. Dans ce cas, prevois de renseigner
-TOUTES les proprietes des etapes suivantes toi-meme : rien n'est herite.</p>
-
-<p style="color:#b02a2a"><b>Piege frequent (verifie et corrige plusieurs fois pendant
-la construction de cette application) :</b> dans le fichier vanille du jeu, beaucoup
-de blocs existants sont eux-memes des <b>patchs</b> (genre <code>+Block</code>, avec
-un <code>+</code>) qui completent une entree de base invisible, geree par le moteur
-du jeu. Si tu dupliques un tel bloc, le nouveau doit <b>toujours</b> perdre ce
-<code>+</code> -- un patch sans rien a patcher est ignore par le jeu ou provoque un
-plantage au chargement. L'application s'en occupe desormais automatiquement a chaque
-duplication, mais garde ce principe en tete si tu crees une entree a la main dans un
-editeur externe.</p>
-""",
+            title_fr='Etape 1 -- Choisir son point de depart',
+            content_fr='\n<p>Deux approches possibles :</p>\n\n<p><b>A. Dupliquer un bloc existant proche</b> (recommande dans la grande majorite des\ncas) -- trouve dans Scenario A (ou B) un bloc qui ressemble deja a ce que tu veux\n(meme materiau, meme famille de forme), clic droit dessus dans l\'arbre, puis\n"Dupliquer avec un nouvel Id...". Tu herites automatiquement de toutes ses\nproprietes correctement formees -- texture, categorie, forme, collision -- et tu\nn\'as plus qu\'a ajuster ce qui doit changer.</p>\n\n<p><b>B. Partir de zero</b> avec le bouton "+ Bloc" de la copie de travail -- utile\nseulement si aucun bloc existant ne s\'en approche. Dans ce cas, prevois de renseigner\nTOUTES les proprietes des etapes suivantes toi-meme : rien n\'est herite.</p>\n\n<p style="color:#b02a2a"><b>Piege frequent (verifie et corrige plusieurs fois pendant\nla construction de cette application) :</b> dans le fichier vanille du jeu, beaucoup\nde blocs existants sont eux-memes des <b>patchs</b> (genre <code>+Block</code>, avec\nun <code>+</code>) qui completent une entree de base invisible, geree par le moteur\ndu jeu. Si tu dupliques un tel bloc, le nouveau doit <b>toujours</b> perdre ce\n<code>+</code> -- un patch sans rien a patcher est ignore par le jeu ou provoque un\nplantage au chargement. L\'application s\'en occupe desormais automatiquement a chaque\nduplication, mais garde ce principe en tete si tu crees une entree a la main dans un\nediteur externe.</p>\n',
+            title_en='Step 1 -- Choosing your starting point',
+            content_en='\n<p>Two possible approaches:</p>\n\n<p><b>A. Duplicate an existing similar block</b> (recommended in the vast majority\nof cases) -- find a block in Scenario A (or B) that already resembles what you want\n(same material, same shape family), right-click it in the tree, then "Duplicate with\na new Id...". You automatically inherit all its correctly-formed properties --\ntexture, category, shape, collision -- and only need to adjust what should\nchange.</p>\n\n<p><b>B. Start from scratch</b> with the "+ Block" button of the working copy --\nonly useful if no existing block comes close. In that case, plan on filling in ALL\nthe properties from the following steps yourself: nothing is inherited.</p>\n\n<p style="color:#b02a2a"><b>Common trap (verified and fixed several times while\nbuilding this application):</b> in the game\'s vanilla file, many existing blocks are\nthemselves <b>patches</b> (kind <code>+Block</code>, with a <code>+</code>) that\ncomplete an invisible base entry managed by the game engine. If you duplicate such a\nblock, the new one must <b>always</b> lose that <code>+</code> -- a patch with\nnothing to patch is either ignored by the game or causes a crash on load. The\napplication now handles this automatically on every duplication, but keep this\nprinciple in mind if you create an entry by hand in an external editor.</p>\n',
         ),
         TutorialStep(
-            title="Etape 2 -- L'identification : Id ou Name ?",
-            content_html="""
-<p>Chaque bloc a besoin d'un identifiant unique, sous une des deux formes :</p>
-
-<p><b><code>Id: 1234</code></b> -- un numero. Les blocs numerotes doivent rester
-<b>sous 2048</b> (le jeu refuse categoriquement tout nouvel Id au-dessus, avec un
-message d'erreur explicite au chargement).</p>
-
-<p><b><code>Name: MonBloc</code></b> (sans Id du tout) -- pour tout bloc cree
-au-dela de la limite des 2048, c'est la SEULE facon valide de l'identifier. C'est
-d'ailleurs la methode la plus simple et la plus sure pour un bloc entierement
-nouveau.</p>
-
-<p style="color:#b02a2a"><b>Regles a ne jamais enfreindre :</b></p>
-<ul>
-<li>Ne <b>jamais</b> changer l'Id ou le Name d'un bloc <b>deja existant</b> -- ca
-casse toutes les parties/blueprints deja sauvegardees qui l'utilisent.</li>
-<li>Un nouvel Id doit etre <b>libre</b> (non utilise ailleurs dans le fichier).
-L'application vérifie ça automatiquement lors de la duplication et te propose des
-Id libres.</li>
-<li>Le <code>Ref:</code> d'un bloc (heritage de proprietes depuis un autre bloc) ne
-peut pointer que vers un bloc <b>deja defini plus haut</b> dans le fichier, jamais
-plus bas.</li>
-</ul>
-""",
+            title_fr="Etape 2 -- L'identification : Id ou Name ?",
+            content_fr='\n<p>Chaque bloc a besoin d\'un identifiant unique, sous une des deux formes :</p>\n\n<p><b><code>Id: 1234</code></b> -- un numero. Les blocs numerotes doivent rester\n<b>sous 2048</b> (le jeu refuse categoriquement tout nouvel Id au-dessus, avec un\nmessage d\'erreur explicite au chargement).</p>\n\n<p><b><code>Name: MonBloc</code></b> (sans Id du tout) -- pour tout bloc cree\nau-dela de la limite des 2048, c\'est la SEULE facon valide de l\'identifier. C\'est\nd\'ailleurs la methode la plus simple et la plus sure pour un bloc entierement\nnouveau.</p>\n\n<p style="color:#b02a2a"><b>Regles a ne jamais enfreindre :</b></p>\n<ul>\n<li>Ne <b>jamais</b> changer l\'Id ou le Name d\'un bloc <b>deja existant</b> -- ca\ncasse toutes les parties/blueprints deja sauvegardees qui l\'utilisent.</li>\n<li>Un nouvel Id doit etre <b>libre</b> (non utilise ailleurs dans le fichier).\nL\'application vérifie ça automatiquement lors de la duplication et te propose des\nId libres.</li>\n<li>Le <code>Ref:</code> d\'un bloc (heritage de proprietes depuis un autre bloc) ne\npeut pointer que vers un bloc <b>deja defini plus haut</b> dans le fichier, jamais\nplus bas.</li>\n</ul>\n',
+            title_en='Step 2 -- Identification: Id or Name?',
+            content_en='\n<p>Every block needs a unique identifier, in one of two forms:</p>\n\n<p><b><code>Id: 1234</code></b> -- a number. Numbered blocks must stay <b>below\n2048</b> (the game flatly refuses any new Id above that, with an explicit error\nmessage on load).</p>\n\n<p><b><code>Name: MyBlock</code></b> (with no Id at all) -- for any block created\nbeyond the 2048 limit, this is the ONLY valid way to identify it. It\'s also the\nsimplest and safest method for an entirely new block.</p>\n\n<p style="color:#b02a2a"><b>Rules never to break:</b></p>\n<ul>\n<li><b>Never</b> change the Id or Name of an <b>already existing</b> block -- it\nbreaks every already-saved game/blueprint that uses it.</li>\n<li>A new Id must be <b>free</b> (not used elsewhere in the file). The application\nautomatically checks this during duplication and suggests free Ids.</li>\n<li>A block\'s <code>Ref:</code> (inheriting properties from another block) can only\npoint to a block <b>already defined earlier</b> in the file, never further down.</li>\n</ul>\n',
         ),
         TutorialStep(
-            title="Etape 3 -- Les proprietes essentielles",
-            content_html="""
-<p>Un bloc de construction minimal a besoin de :</p>
-
-<p><b>Material</b> -- determine l'apparence de base ET les points de vie/degats
-(concrete, metal, hullarmored, wood...). Verifie MaterialConfig.ecf pour la liste
-complete disponible dans ton scenario.</p>
-
-<p><b>Category</b> -- range le bloc dans le bon groupe du menu de construction
-(BuildingBlocks, Devices, Cockpits...).</p>
-
-<p><b>Texture</b> -- une liste de 6 numeros de texture, dans l'ordre : dessus,
-dessous, nord, sud, ouest, est.</p>
-
-<p><b>Mass</b> -- attention, la valeur indiquee correspond a un bloc de 1 metre, le
-jeu l'ajuste ensuite automatiquement selon la taille reelle :</p>
-<ul>
-<li>Petite grille (HV, SV) : masse reelle = valeur x 0.125 (bloc de 0.5m)</li>
-<li>Grande grille (BA, CV) : masse reelle = valeur x 8 (bloc de 2m)</li>
-</ul>
-
-<p><b>HitPoints</b> -- points de vie du bloc.</p>
-
-<p><b>BlockColor</b> -- couleur RVB, ex: <code>"170,170,170"</code>.</p>
-
-<p style="color:#7c859c"><i>Astuce : le panneau "Voir l'explication des proprietes
-de ce fichier" (juste au-dessus de la barre de recherche quand tu ouvres
-BlocksConfig.ecf) donne un glossaire complet de toutes ces proprietes et bien
-d'autres, directement dans l'application.</i></p>
-""",
+            title_fr='Etape 3 -- Les proprietes essentielles',
+            content_fr='\n<p>Un bloc de construction minimal a besoin de :</p>\n\n<p><b>Material</b> -- determine l\'apparence de base ET les points de vie/degats\n(concrete, metal, hullarmored, wood...). Verifie MaterialConfig.ecf pour la liste\ncomplete disponible dans ton scenario.</p>\n\n<p><b>Category</b> -- range le bloc dans le bon groupe du menu de construction\n(BuildingBlocks, Devices, Cockpits...).</p>\n\n<p><b>Texture</b> -- une liste de 6 numeros de texture, dans l\'ordre : dessus,\ndessous, nord, sud, ouest, est.</p>\n\n<p><b>Mass</b> -- attention, la valeur indiquee correspond a un bloc de 1 metre, le\njeu l\'ajuste ensuite automatiquement selon la taille reelle :</p>\n<ul>\n<li>Petite grille (HV, SV) : masse reelle = valeur x 0.125 (bloc de 0.5m)</li>\n<li>Grande grille (BA, CV) : masse reelle = valeur x 8 (bloc de 2m)</li>\n</ul>\n\n<p><b>HitPoints</b> -- points de vie du bloc.</p>\n\n<p><b>BlockColor</b> -- couleur RVB, ex: <code>"170,170,170"</code>.</p>\n\n<p style="color:#7c859c"><i>Astuce : le panneau "Voir l\'explication des proprietes\nde ce fichier" (juste au-dessus de la barre de recherche quand tu ouvres\nBlocksConfig.ecf) donne un glossaire complet de toutes ces proprietes et bien\nd\'autres, directement dans l\'application.</i></p>\n',
+            title_en='Step 3 -- Essential properties',
+            content_en='\n<p>A minimal building block needs:</p>\n\n<p><b>Material</b> -- determines the base look AND hit points/damage (concrete,\nmetal, hullarmored, wood...). Check MaterialConfig.ecf for the full list available\nin your scenario.</p>\n\n<p><b>Category</b> -- places the block in the right building-menu group\n(BuildingBlocks, Devices, Cockpits...).</p>\n\n<p><b>Texture</b> -- a list of 6 texture numbers, in order: top, bottom, north,\nsouth, west, east.</p>\n\n<p><b>Mass</b> -- careful, the given value corresponds to a 1-meter block; the game\nthen automatically scales it based on the actual size:</p>\n<ul>\n<li>Small grid (HV, SV): actual mass = value x 0.125 (0.5m block)</li>\n<li>Large grid (BA, CV): actual mass = value x 8 (2m block)</li>\n</ul>\n\n<p><b>HitPoints</b> -- the block\'s health.</p>\n\n<p><b>BlockColor</b> -- RGB color, e.g. <code>"170,170,170"</code>.</p>\n\n<p style="color:#7c859c"><i>Tip: the "Show property explanations for this file"\npanel (just above the search bar when you open BlocksConfig.ecf) gives a complete\nglossary of all these properties and more, right inside the application.</i></p>\n',
         ),
         TutorialStep(
-            title="Etape 4 -- Ou et comment il apparait en jeu",
-            content_html="""
-<p><b>Group</b> -- regroupe des blocs qui partagent une meme mecanique (ex:
-<code>cpgCore</code> pour les Core, <code>cpgSolar</code> pour les panneaux
-solaires) -- optionnel pour un bloc de construction simple.</p>
-
-<p><b>ChildBlocks</b> -- liste les <b>variantes de forme</b> de ce bloc (plein,
-fin, pente, coin...). Bonne nouvelle : tu n'as <b>pas besoin de creer de nouveaux
-modeles 3D</b> pour ca -- le moteur du jeu fournit deja une bibliotheque standard
-de formes (accessible par clic droit lors de la pose en jeu) qui s'applique
-automatiquement a toute famille de blocs du meme materiau. ChildBlocks se contente
-de lister les noms que ces variantes auto-generees porteront.</p>
-
-<p><b>SymType</b> -- type de symetrie de la forme (utile surtout pour les formes en
-coin/pente) :</p>
-<ul>
-<li><code>1</code> : quart de rond (par defaut)</li>
-<li><code>2</code> : coin</li>
-<li><code>3</code> : mur incline</li>
-<li><code>4</code> : coin biseau (rotation par defaut particuliere)</li>
-</ul>
-
-<p><b>Shape</b> -- forme de base du bloc.</p>
-""",
+            title_fr='Etape 4 -- Ou et comment il apparait en jeu',
+            content_fr="\n<p><b>Group</b> -- regroupe des blocs qui partagent une meme mecanique (ex:\n<code>cpgCore</code> pour les Core, <code>cpgSolar</code> pour les panneaux\nsolaires) -- optionnel pour un bloc de construction simple.</p>\n\n<p><b>ChildBlocks</b> -- liste les <b>variantes de forme</b> de ce bloc (plein,\nfin, pente, coin...). Bonne nouvelle : tu n'as <b>pas besoin de creer de nouveaux\nmodeles 3D</b> pour ca -- le moteur du jeu fournit deja une bibliotheque standard\nde formes (accessible par clic droit lors de la pose en jeu) qui s'applique\nautomatiquement a toute famille de blocs du meme materiau. ChildBlocks se contente\nde lister les noms que ces variantes auto-generees porteront.</p>\n\n<p><b>SymType</b> -- type de symetrie de la forme (utile surtout pour les formes en\ncoin/pente) :</p>\n<ul>\n<li><code>1</code> : quart de rond (par defaut)</li>\n<li><code>2</code> : coin</li>\n<li><code>3</code> : mur incline</li>\n<li><code>4</code> : coin biseau (rotation par defaut particuliere)</li>\n</ul>\n\n<p><b>Shape</b> -- forme de base du bloc.</p>\n",
+            title_en='Step 4 -- Where and how it appears in-game',
+            content_en="\n<p><b>Group</b> -- groups blocks that share a common mechanic (e.g.\n<code>cpgCore</code> for Cores, <code>cpgSolar</code> for solar panels) --\noptional for a simple building block.</p>\n\n<p><b>ChildBlocks</b> -- lists the <b>shape variants</b> of this block (full, thin,\nslope, corner...). Good news: you <b>don't need to create new 3D models</b> for this\n-- the game engine already provides a standard shape library (accessible by\nright-clicking while placing in-game) that automatically applies to any block family\nof the same material. ChildBlocks simply lists the names these auto-generated\nvariants will carry.</p>\n\n<p><b>SymType</b> -- symmetry type of the shape (mostly useful for corner/slope\nshapes):</p>\n<ul>\n<li><code>1</code>: quarter-round (default)</li>\n<li><code>2</code>: corner</li>\n<li><code>3</code>: sloped wall</li>\n<li><code>4</code>: bevel corner (unusual default rotation)</li>\n</ul>\n\n<p><b>Shape</b> -- the block's base shape.</p>\n",
         ),
         TutorialStep(
-            title="Etape 5 -- Le rendre placable et solide",
-            content_html="""
-<p><b>AllowPlacingAt</b> -- sur quels types de structure ce bloc peut etre pose,
-ex: <code>"Base,MS,SS,GV"</code> (Base, petite grille, station spatiale, grande
-grille).</p>
-
-<p><b>Place</b> -- comment il se positionne a la pose :</p>
-<ul>
-<li><code>NoRotation</code> : ne peut pas etre tourne</li>
-<li><code>Face</code> : s'oriente automatiquement selon la surface visee</li>
-<li><code>Free</code> : pose libre, toutes rotations possibles</li>
-</ul>
-
-<p><b>Collide</b> -- quels types d'objets entrent en collision avec ce bloc
-(mouvement du joueur, balles, roquettes...). Retirer 'movement' rend le bloc
-traversable a pied tout en restant touchable par les armes -- utile pour des
-elements decoratifs fins comme des grilles ou du feuillage.</p>
-
-<p><b>IsPhysicsColliders</b> -- collisions physiques fines, parfois desactivees sur
-les formes tres minces (rampes fines) pour eviter des comportements etranges.</p>
-""",
+            title_fr='Etape 5 -- Le rendre placable et solide',
+            content_fr='\n<p><b>AllowPlacingAt</b> -- sur quels types de structure ce bloc peut etre pose,\nex: <code>"Base,MS,SS,GV"</code> (Base, petite grille, station spatiale, grande\ngrille).</p>\n\n<p><b>Place</b> -- comment il se positionne a la pose :</p>\n<ul>\n<li><code>NoRotation</code> : ne peut pas etre tourne</li>\n<li><code>Face</code> : s\'oriente automatiquement selon la surface visee</li>\n<li><code>Free</code> : pose libre, toutes rotations possibles</li>\n</ul>\n\n<p><b>Collide</b> -- quels types d\'objets entrent en collision avec ce bloc\n(mouvement du joueur, balles, roquettes...). Retirer \'movement\' rend le bloc\ntraversable a pied tout en restant touchable par les armes -- utile pour des\nelements decoratifs fins comme des grilles ou du feuillage.</p>\n\n<p><b>IsPhysicsColliders</b> -- collisions physiques fines, parfois desactivees sur\nles formes tres minces (rampes fines) pour eviter des comportements etranges.</p>\n',
+            title_en='Step 5 -- Making it placeable and solid',
+            content_en='\n<p><b>AllowPlacingAt</b> -- which structure types this block can be placed on, e.g.\n<code>"Base,MS,SS,GV"</code> (Base, small grid, space station, large grid).</p>\n\n<p><b>Place</b> -- how it positions itself when placed:</p>\n<ul>\n<li><code>NoRotation</code>: cannot be rotated</li>\n<li><code>Face</code>: automatically orients based on the targeted surface</li>\n<li><code>Free</code>: free placement, any rotation possible</li>\n</ul>\n\n<p><b>Collide</b> -- which object types collide with this block (player movement,\nbullets, rockets...). Removing \'movement\' makes the block walkable while remaining\nhittable by weapons -- useful for thin decorative elements like grates or\nfoliage.</p>\n\n<p><b>IsPhysicsColliders</b> -- fine physics collisions, sometimes disabled on very\nthin shapes (thin ramps) to avoid odd behavior.</p>\n',
         ),
         TutorialStep(
-            title="Etape 6 -- Le rendre fabricable",
-            content_html="""
-<p>Un bloc sans recette de craft ne pourra <b>jamais</b> etre construit en jeu (sauf
-s'il est purement decoratif/place uniquement dans des POI). La recette vit dans
-<b>Templates.ecf</b>, un fichier <b>separe</b> de BlocksConfig.ecf.</p>
-
-<p>Structure d'une recette minimale :</p>
-<pre style="background:#f0f0f0; padding:8px; border-radius:4px;">
-{ Template Name: MonBloc
-  CraftTime: 10
-  Target: "BaseC,LargeC,AdvC"
-  { Child Inputs
-    SteelPlate: 5
-    Electronics: 1
-  }
-}</pre>
-
-<p><b>Target</b> liste les constructeurs capables de le fabriquer (SuitC, SurvC,
-SmallC, HoverC, BaseC, LargeC, AdvC...). <b>Le Name de la recette doit correspondre
-exactement au Name du bloc.</b></p>
-
-<p style="color:#b02a2a"><b>Piege identique a l'etape 1</b> : si tu t'inspires
-d'une recette existante en la dupliquant/copiant a la main, verifie qu'elle n'est
-pas en <code>+Template</code> -- un patch orphelin ici provoque exactement le meme
-type de plantage (rencontre concretement pendant le developpement de cette
-application : le constructeur plante a l'ouverture si sa recette est mal formee de
-cette facon).</p>
-
-<p><b>TemplateRoot</b> -- si ton bloc fait partie d'une famille avec mise a niveau
-(Upgrade), indique quelle recette utiliser pour le sous-groupe. Le bloc parent n'en
-a pas besoin, il utilise toujours la recette portant son propre nom.</p>
-""",
+            title_fr='Etape 6 -- Le rendre fabricable',
+            content_fr='\n<p>Un bloc sans recette de craft ne pourra <b>jamais</b> etre construit en jeu (sauf\ns\'il est purement decoratif/place uniquement dans des POI). La recette vit dans\n<b>Templates.ecf</b>, un fichier <b>separe</b> de BlocksConfig.ecf.</p>\n\n<p>Structure d\'une recette minimale :</p>\n<pre style="background:#f0f0f0; padding:8px; border-radius:4px;">\n{ Template Name: MonBloc\n  CraftTime: 10\n  Target: "BaseC,LargeC,AdvC"\n  { Child Inputs\n    SteelPlate: 5\n    Electronics: 1\n  }\n}</pre>\n\n<p><b>Target</b> liste les constructeurs capables de le fabriquer (SuitC, SurvC,\nSmallC, HoverC, BaseC, LargeC, AdvC...). <b>Le Name de la recette doit correspondre\nexactement au Name du bloc.</b></p>\n\n<p style="color:#b02a2a"><b>Piege identique a l\'etape 1</b> : si tu t\'inspires\nd\'une recette existante en la dupliquant/copiant a la main, verifie qu\'elle n\'est\npas en <code>+Template</code> -- un patch orphelin ici provoque exactement le meme\ntype de plantage (rencontre concretement pendant le developpement de cette\napplication : le constructeur plante a l\'ouverture si sa recette est mal formee de\ncette facon).</p>\n\n<p><b>TemplateRoot</b> -- si ton bloc fait partie d\'une famille avec mise a niveau\n(Upgrade), indique quelle recette utiliser pour le sous-groupe. Le bloc parent n\'en\na pas besoin, il utilise toujours la recette portant son propre nom.</p>\n',
+            title_en='Step 6 -- Making it craftable',
+            content_en='\n<p>A block without a crafting recipe can <b>never</b> be built in-game (unless it\'s\npurely decorative/only placed in POIs). The recipe lives in <b>Templates.ecf</b>, a\nfile <b>separate</b> from BlocksConfig.ecf.</p>\n\n<p>Structure of a minimal recipe:</p>\n<pre style="background:#f0f0f0; padding:8px; border-radius:4px;">\n{ Template Name: MyBlock\n  CraftTime: 10\n  Target: "BaseC,LargeC,AdvC"\n  { Child Inputs\n    SteelPlate: 5\n    Electronics: 1\n  }\n}</pre>\n\n<p><b>Target</b> lists the constructors able to craft it (SuitC, SurvC, SmallC,\nHoverC, BaseC, LargeC, AdvC...). <b>The recipe\'s Name must exactly match the\nblock\'s Name.</b></p>\n\n<p style="color:#b02a2a"><b>Same trap as step 1</b>: if you\'re basing this on an\nexisting recipe by duplicating/copying it by hand, check that it\'s not\n<code>+Template</code> -- an orphaned patch here causes exactly the same kind of\ncrash (concretely encountered while developing this application: the constructor\ncrashes on open if its recipe is malformed this way).</p>\n\n<p><b>TemplateRoot</b> -- if your block is part of an upgrade family, indicates\nwhich recipe to use for the sub-group. The parent block doesn\'t need it, it always\nuses the recipe carrying its own name.</p>\n',
         ),
         TutorialStep(
-            title="Etape 7 -- Verifier avant de tester en jeu",
-            content_html="""
-<p>Ne teste jamais directement en jeu sans ces verifications rapides dans
-l'application -- elles prennent quelques secondes et evitent le plus gros des
-plantages :</p>
-
-<ul>
-<li><b>Round-trip automatique</b> : l'application le fait deja a chaque
-sauvegarde -- si une erreur de syntaxe existe, elle te sera signalee.</li>
-<li><b>Verification > Blocs en attente / References</b> : verifie qu'aucune
-reference (Ref:, TemplateRoot...) ne pointe vers un nom introuvable.</li>
-<li><b>Relis les proprietes une derniere fois</b> dans le tableau -- une valeur
-mal placee (ex: un texte la ou un nombre est attendu) est la cause la plus
-frequente de plantage au chargement.</li>
-</ul>
-
-<p style="color:#7c859c"><i>Si tu dois tester plusieurs hypotheses sans savoir
-laquelle pose probleme, la fonction "Blocs desactives (test)" (clic droit sur un
-bloc dans l'arbre) permet de le desactiver temporairement sans le supprimer -- tres
-utile pour isoler une cause de plantage par elimination, sans jamais perdre ton
-travail.</i></p>
-""",
+            title_fr='Etape 7 -- Verifier avant de tester en jeu',
+            content_fr='\n<p>Ne teste jamais directement en jeu sans ces verifications rapides dans\nl\'application -- elles prennent quelques secondes et evitent le plus gros des\nplantages :</p>\n\n<ul>\n<li><b>Round-trip automatique</b> : l\'application le fait deja a chaque\nsauvegarde -- si une erreur de syntaxe existe, elle te sera signalee.</li>\n<li><b>Verification > Blocs en attente / References</b> : verifie qu\'aucune\nreference (Ref:, TemplateRoot...) ne pointe vers un nom introuvable.</li>\n<li><b>Relis les proprietes une derniere fois</b> dans le tableau -- une valeur\nmal placee (ex: un texte la ou un nombre est attendu) est la cause la plus\nfrequente de plantage au chargement.</li>\n</ul>\n\n<p style="color:#7c859c"><i>Si tu dois tester plusieurs hypotheses sans savoir\nlaquelle pose probleme, la fonction "Blocs desactives (test)" (clic droit sur un\nbloc dans l\'arbre) permet de le desactiver temporairement sans le supprimer -- tres\nutile pour isoler une cause de plantage par elimination, sans jamais perdre ton\ntravail.</i></p>\n',
+            title_en='Step 7 -- Checking before testing in-game',
+            content_en='\n<p>Never test directly in-game without these quick checks in the application --\nthey take a few seconds and prevent most crashes:</p>\n\n<ul>\n<li><b>Automatic round-trip</b>: the application already does this on every save --\nif a syntax error exists, you\'ll be alerted.</li>\n<li><b>Verification > Pending blocks / References</b>: checks that no reference\n(Ref:, TemplateRoot...) points to a name that doesn\'t exist.</li>\n<li><b>Re-read the properties one last time</b> in the table -- a misplaced value\n(e.g. text where a number is expected) is the most frequent cause of a crash on\nload.</li>\n</ul>\n\n<p style="color:#7c859c"><i>If you need to test several hypotheses without knowing\nwhich one is the problem, the "Disable this block (test)" function (right-click a\nblock in the tree) lets you temporarily disable it without deleting it -- very\nuseful for isolating a crash cause by elimination, without ever losing your\nwork.</i></p>\n',
         ),
         TutorialStep(
-            title="Etape 8 -- Tester en jeu",
-            content_html="""
-<p><b>Lance toujours une nouvelle partie de test</b> (jamais ta sauvegarde
-principale en premier essai) -- une erreur de configuration peut empecher le
-chargement completement.</p>
-
-<p>Si le jeu se lance mais que le bloc ne se comporte pas comme prevu :</p>
-<ul>
-<li>Ouvre la console en jeu avec la touche <b>` (accent grave)</b> pour voir les
-erreurs de chargement en detail.</li>
-<li>Verifie que le bloc apparait bien dans le menu de construction, dans la bonne
-categorie.</li>
-<li>Ouvre <b>tous</b> les constructeurs listes dans <code>Target</code> de sa
-recette pour confirmer qu'il y est proposé.</li>
-</ul>
-
-<p>Si le jeu plante ou affiche un message d'erreur au chargement, le nom du bloc ou
-de la propriete en cause apparait generalement dans le message -- reviens dans
-l'application, relis attentivement cette entree precise.</p>
-""",
+            title_fr='Etape 8 -- Tester en jeu',
+            content_fr="\n<p><b>Lance toujours une nouvelle partie de test</b> (jamais ta sauvegarde\nprincipale en premier essai) -- une erreur de configuration peut empecher le\nchargement completement.</p>\n\n<p>Si le jeu se lance mais que le bloc ne se comporte pas comme prevu :</p>\n<ul>\n<li>Ouvre la console en jeu avec la touche <b>` (accent grave)</b> pour voir les\nerreurs de chargement en detail.</li>\n<li>Verifie que le bloc apparait bien dans le menu de construction, dans la bonne\ncategorie.</li>\n<li>Ouvre <b>tous</b> les constructeurs listes dans <code>Target</code> de sa\nrecette pour confirmer qu'il y est proposé.</li>\n</ul>\n\n<p>Si le jeu plante ou affiche un message d'erreur au chargement, le nom du bloc ou\nde la propriete en cause apparait generalement dans le message -- reviens dans\nl'application, relis attentivement cette entree precise.</p>\n",
+            title_en='Step 8 -- Testing in-game',
+            content_en="\n<p><b>Always launch a new test game</b> (never your main save on the first try) --\na configuration error can prevent loading entirely.</p>\n\n<p>If the game launches but the block doesn't behave as expected:</p>\n<ul>\n<li>Open the in-game console with the <b>` (backtick)</b> key to see loading errors\nin detail.</li>\n<li>Check that the block appears in the building menu, in the right category.</li>\n<li>Open <b>all</b> constructors listed in its recipe's <code>Target</code> to\nconfirm it's offered there.</li>\n</ul>\n\n<p>If the game crashes or shows an error message on load, the name of the block or\nproperty involved usually appears in the message -- go back to the application and\ncarefully re-read that specific entry.</p>\n",
         ),
         TutorialStep(
-            title="Recapitulatif -- check-list finale",
-            content_html="""
-<p>Avant de considerer ton nouveau bloc termine :</p>
-<ul>
-<li>&#9744; Id (sous 2048) OU Name seul -- jamais les deux regles mélangées</li>
-<li>&#9744; Aucun <code>+</code> devant le genre du bloc (sauf s'il patche
-reellement une entree existante)</li>
-<li>&#9744; Material, Category, Texture, Mass, HitPoints, BlockColor renseignes</li>
-<li>&#9744; AllowPlacingAt et Place coherents avec l'usage prevu</li>
-<li>&#9744; Recette de craft creee dans Templates.ecf (Name identique, sans
-<code>+</code>), avec un Target coherent</li>
-<li>&#9744; Verification des references faite dans l'application</li>
-<li>&#9744; Testé sur une nouvelle partie de test, console verifiee</li>
-</ul>
-<p>Une fois tout ça coché, ton bloc est prêt à rejoindre ton scénario.</p>
-""",
+            title_fr='Recapitulatif -- check-list finale',
+            content_fr="\n<p>Avant de considerer ton nouveau bloc termine :</p>\n<ul>\n<li>&#9744; Id (sous 2048) OU Name seul -- jamais les deux regles mélangées</li>\n<li>&#9744; Aucun <code>+</code> devant le genre du bloc (sauf s'il patche\nreellement une entree existante)</li>\n<li>&#9744; Material, Category, Texture, Mass, HitPoints, BlockColor renseignes</li>\n<li>&#9744; AllowPlacingAt et Place coherents avec l'usage prevu</li>\n<li>&#9744; Recette de craft creee dans Templates.ecf (Name identique, sans\n<code>+</code>), avec un Target coherent</li>\n<li>&#9744; Verification des references faite dans l'application</li>\n<li>&#9744; Testé sur une nouvelle partie de test, console verifiee</li>\n</ul>\n<p>Une fois tout ça coché, ton bloc est prêt à rejoindre ton scénario.</p>\n",
+            title_en='Summary -- final checklist',
+            content_en="\n<p>Before considering your new block finished:</p>\n<ul>\n<li>&#9744; Id (below 2048) OR Name alone -- never mix both rules</li>\n<li>&#9744; No <code>+</code> before the block's kind (unless it genuinely patches\nan existing entry)</li>\n<li>&#9744; Material, Category, Texture, Mass, HitPoints, BlockColor filled in</li>\n<li>&#9744; AllowPlacingAt and Place consistent with the intended use</li>\n<li>&#9744; Crafting recipe created in Templates.ecf (matching Name, no\n<code>+</code>), with a coherent Target</li>\n<li>&#9744; Reference check done in the application</li>\n<li>&#9744; Tested on a new test game, console checked</li>\n</ul>\n<p>Once all of that is checked off, your block is ready to join your scenario.</p>\n",
         ),
     ],
 )
 
+
+# ============================================================================
+# Tutoriel 2 : Prise en main complete de l'application
+# ============================================================================
 TUTORIAL_APP_OVERVIEW = Tutorial(
     id='app_overview',
-    title="Prise en main complete de l'application",
-    summary="Chaque menu, chaque bouton, chaque fonction -- un tour complet et detaille de tout ce que l'application permet de faire.",
+    title_fr="Prise en main complete de l'application",
+    summary_fr="Chaque menu, chaque bouton, chaque fonction -- un tour complet et detaille de tout ce que l'application permet de faire.",
+    title_en='Complete application walkthrough',
+    summary_en='Every menu, every button, every function -- a complete and detailed tour of everything the application lets you do.',
     steps=[
         TutorialStep(
-            title="Vue d'ensemble",
-            content_html="\n<p>Cette application accompagne la modification de scenarios Empyrion Galactic\nSurvival : lecture et edition des fichiers <b>.ecf</b>, <b>.yaml</b> et <b>.csv</b>,\navec verification de coherence, comparaison de scenarios, sauvegardes, traduction et\nbien plus. Ce tutoriel couvre <b>chaque menu, chaque bouton, chaque fonction</b> de\nl'application, dans l'ordre ou tu les rencontres naturellement.</p>\n\n<p>Trois zones structurent toujours l'interface :</p>\n<ul>\n<li><b>Scenario A</b> (a gauche) -- la source d'origine, en <b>lecture seule</b>,\njamais modifiee</li>\n<li><b>Copie de travail</b> (au centre) -- la seule zone modifiable, c'est ici que\ntout ton travail se fait</li>\n<li><b>Scenario B</b> (a droite, optionnel) -- une deuxieme source de reference,\negalement en lecture seule, utile pour comparer ou fusionner depuis deux scenarios\ndifferents</li>\n</ul>\n",
+            title_fr="Vue d'ensemble",
+            content_fr="\n<p>Cette application accompagne la modification de scenarios Empyrion Galactic\nSurvival : lecture et edition des fichiers <b>.ecf</b>, <b>.yaml</b> et <b>.csv</b>,\navec verification de coherence, comparaison de scenarios, sauvegardes, traduction et\nbien plus. Ce tutoriel couvre <b>chaque menu, chaque bouton, chaque fonction</b> de\nl'application, dans l'ordre ou tu les rencontres naturellement.</p>\n\n<p>Trois zones structurent toujours l'interface :</p>\n<ul>\n<li><b>Scenario A</b> (a gauche) -- la source d'origine, en <b>lecture seule</b>,\njamais modifiee</li>\n<li><b>Copie de travail</b> (au centre) -- la seule zone modifiable, c'est ici que\ntout ton travail se fait</li>\n<li><b>Scenario B</b> (a droite, optionnel) -- une deuxieme source de reference,\negalement en lecture seule, utile pour comparer ou fusionner depuis deux scenarios\ndifferents</li>\n</ul>\n",
+            title_en='Overview',
+            content_en="\n<p>This application supports modifying Empyrion Galactic Survival scenarios: reading\nand editing <b>.ecf</b>, <b>.yaml</b> and <b>.csv</b> files, with consistency\nchecking, scenario comparison, backups, translation, and much more. This tutorial\ncovers <b>every menu, every button, every function</b> of the application, in the\norder you'd naturally encounter them.</p>\n\n<p>Three zones always structure the interface:</p>\n<ul>\n<li><b>Scenario A</b> (left) -- the original source, <b>read-only</b>, never\nmodified</li>\n<li><b>Working copy</b> (center) -- the only editable zone, this is where all your\nwork happens</li>\n<li><b>Scenario B</b> (right, optional) -- a second reference source, also\nread-only, useful for comparing or merging from two different scenarios</li>\n</ul>\n",
         ),
         TutorialStep(
-            title='Demarrer : nouveau projet ou projet recent',
-            content_html='\n<p>Au lancement, une fenetre propose la liste de tes <b>projets recents</b> --\nselectionne-en un puis clique <b>"Ouvrir la selection"</b>, ou clique\n<b>"Nouveau projet..."</b> pour en creer un.</p>\n\n<p><b>Fichier > Nouveau projet...</b> ouvre un formulaire avec trois champs :</p>\n<ul>\n<li><b>Scenario A</b> (obligatoire) -- le dossier du scenario source</li>\n<li><b>Scenario B</b> (optionnel) -- un deuxieme scenario de reference</li>\n<li><b>Destination de la copie de travail</b> -- ou sera creee la copie modifiable\n(ne doit pas deja exister)</li>\n</ul>\n\n<p><b>Fichier > Projets recents...</b> rouvre la meme liste a tout moment pour\nretourner sur un projet deja configure.</p>\n\n<p style="color:#7c859c"><i>Astuce : la copie de travail est une VRAIE copie\nphysique sur le disque, independante du scenario source -- tu peux la deplacer,\nla sauvegarder, ou meme la supprimer sans jamais affecter la source.</i></p>\n',
+            title_fr='Demarrer : nouveau projet ou projet recent',
+            content_fr='\n<p>Au lancement, une fenetre propose la liste de tes <b>projets recents</b> --\nselectionne-en un puis clique <b>"Ouvrir la selection"</b>, ou clique\n<b>"Nouveau projet..."</b> pour en creer un.</p>\n\n<p><b>Fichier > Nouveau projet...</b> ouvre un formulaire avec trois champs :</p>\n<ul>\n<li><b>Scenario A</b> (obligatoire) -- le dossier du scenario source</li>\n<li><b>Scenario B</b> (optionnel) -- un deuxieme scenario de reference</li>\n<li><b>Destination de la copie de travail</b> -- ou sera creee la copie modifiable\n(ne doit pas deja exister)</li>\n</ul>\n\n<p><b>Fichier > Projets recents...</b> rouvre la meme liste a tout moment pour\nretourner sur un projet deja configure.</p>\n\n<p style="color:#7c859c"><i>Astuce : la copie de travail est une VRAIE copie\nphysique sur le disque, independante du scenario source -- tu peux la deplacer,\nla sauvegarder, ou meme la supprimer sans jamais affecter la source.</i></p>\n',
+            title_en='Starting: new project or recent project',
+            content_en='\n<p>On launch, a window offers the list of your <b>recent projects</b> -- select one\nthen click <b>"Open selection"</b>, or click <b>"New project..."</b> to create\none.</p>\n\n<p><b>File > New project...</b> opens a form with three fields:</p>\n<ul>\n<li><b>Scenario A</b> (required) -- the source scenario folder</li>\n<li><b>Scenario B</b> (optional) -- a second reference scenario</li>\n<li><b>Working copy destination</b> -- where the editable copy will be created\n(must not already exist)</li>\n</ul>\n\n<p><b>File > Recent projects...</b> reopens the same list at any time to go back to\nan already-configured project.</p>\n\n<p style="color:#7c859c"><i>Tip: the working copy is a REAL physical copy on disk,\nindependent from the source scenario -- you can move it, back it up, or even delete\nit without ever affecting the source.</i></p>\n',
         ),
         TutorialStep(
-            title='Le Scenario B : ouvrir, changer, retirer',
-            content_html="\n<p>Le Scenario B est <b>entierement optionnel</b> et peut etre gere a tout moment,\nmeme en cours de travail sur un projet deja ouvert :</p>\n\n<ul>\n<li><b>Fichier > Ouvrir un Scenario B...</b> -- apparait quand aucun Scenario B\nn'est actif ; choisis un dossier pour l'activer</li>\n<li><b>Fichier > Changer le Scenario B...</b> -- le meme menu, renomme\nautomatiquement une fois un Scenario B actif ; demande confirmation avant de\nremplacer l'actuel</li>\n<li><b>Fichier > Retirer le Scenario B</b> -- desactive le panneau B (grise tant\nqu'aucun B n'est actif) ; ta copie de travail n'est jamais affectee par ce retrait</li>\n</ul>\n\n<p>Utilite typique : comparer une ancienne et une nouvelle version d'un meme\nscenario, ou piocher des elements dans deux scenarios differents pour ta propre\ncreation.</p>\n",
+            title_fr='Le Scenario B : ouvrir, changer, retirer',
+            content_fr="\n<p>Le Scenario B est <b>entierement optionnel</b> et peut etre gere a tout moment,\nmeme en cours de travail sur un projet deja ouvert :</p>\n\n<ul>\n<li><b>Fichier > Ouvrir un Scenario B...</b> -- apparait quand aucun Scenario B\nn'est actif ; choisis un dossier pour l'activer</li>\n<li><b>Fichier > Changer le Scenario B...</b> -- le meme menu, renomme\nautomatiquement une fois un Scenario B actif ; demande confirmation avant de\nremplacer l'actuel</li>\n<li><b>Fichier > Retirer le Scenario B</b> -- desactive le panneau B (grise tant\nqu'aucun B n'est actif) ; ta copie de travail n'est jamais affectee par ce retrait</li>\n</ul>\n\n<p>Utilite typique : comparer une ancienne et une nouvelle version d'un meme\nscenario, ou piocher des elements dans deux scenarios differents pour ta propre\ncreation.</p>\n",
+            title_en='Scenario B: opening, changing, removing',
+            content_en='\n<p>Scenario B is <b>entirely optional</b> and can be managed at any time, even while\nalready working on an open project:</p>\n\n<ul>\n<li><b>File > Open a Scenario B...</b> -- appears when no Scenario B is active;\nchoose a folder to activate it</li>\n<li><b>File > Change Scenario B...</b> -- the same menu, automatically renamed once\na Scenario B is active; asks for confirmation before replacing the current one</li>\n<li><b>File > Remove Scenario B</b> -- disables the B panel (greyed out while no B\nis active); your working copy is never affected by this removal</li>\n</ul>\n\n<p>Typical use: comparing an old and a new version of the same scenario, or picking\nelements from two different scenarios for your own creation.</p>\n',
         ),
         TutorialStep(
-            title='Ouvrir un fichier',
-            content_html="\n<p><b>Double-clique sur n'importe quel fichier</b> dans l'un des trois panneaux\n(Scenario A, Copie de travail, ou Scenario B) pour l'ouvrir dans un nouvel onglet\nen haut de la fenetre.</p>\n\n<ul>\n<li>Les fichiers ouverts depuis <b>Scenario A ou B</b> s'ouvrent en <b>lecture\nseule</b> (tu peux les consulter, chercher dedans, copier/dupliquer vers la copie\nde travail, mais jamais les modifier directement)</li>\n<li>Les fichiers ouverts depuis la <b>copie de travail</b> s'ouvrent en mode\n<b>editable</b>, avec tous les outils de modification disponibles</li>\n</ul>\n\n<p>Types de fichiers geres : <b>.ecf</b> (blocs, items, config), <b>.yaml/.yml</b>\n(playfields, planetes...), <b>.csv</b> (traductions, tables de donnees),\n<b>.txt</b> (texte brut, lecture simple).</p>\n\n<p>Un onglet deja ouvert pour un fichier se selectionne au lieu de s'ouvrir en\ndouble si tu re-double-cliques dessus.</p>\n",
+            title_fr='Ouvrir un fichier',
+            content_fr="\n<p><b>Double-clique sur n'importe quel fichier</b> dans l'un des trois panneaux\n(Scenario A, Copie de travail, ou Scenario B) pour l'ouvrir dans un nouvel onglet\nen haut de la fenetre.</p>\n\n<ul>\n<li>Les fichiers ouverts depuis <b>Scenario A ou B</b> s'ouvrent en <b>lecture\nseule</b> (tu peux les consulter, chercher dedans, copier/dupliquer vers la copie\nde travail, mais jamais les modifier directement)</li>\n<li>Les fichiers ouverts depuis la <b>copie de travail</b> s'ouvrent en mode\n<b>editable</b>, avec tous les outils de modification disponibles</li>\n</ul>\n\n<p>Types de fichiers geres : <b>.ecf</b> (blocs, items, config), <b>.yaml/.yml</b>\n(playfields, planetes...), <b>.csv</b> (traductions, tables de donnees),\n<b>.txt</b> (texte brut, lecture simple).</p>\n\n<p>Un onglet deja ouvert pour un fichier se selectionne au lieu de s'ouvrir en\ndouble si tu re-double-cliques dessus.</p>\n",
+            title_en='Opening a file',
+            content_en='\n<p><b>Double-click any file</b> in one of the three panels (Scenario A, Working\ncopy, or Scenario B) to open it in a new tab at the top of the window.</p>\n\n<ul>\n<li>Files opened from <b>Scenario A or B</b> open in <b>read-only</b> mode (you can\nview them, search inside, copy/duplicate to the working copy, but never edit them\ndirectly)</li>\n<li>Files opened from the <b>working copy</b> open in <b>editable</b> mode, with\nall editing tools available</li>\n</ul>\n\n<p>Handled file types: <b>.ecf</b> (blocks, items, config), <b>.yaml/.yml</b>\n(playfields, planets...), <b>.csv</b> (translations, data tables), <b>.txt</b>\n(plain text, simple viewing).</p>\n\n<p>A tab already open for a file gets selected instead of opening a duplicate if you\ndouble-click it again.</p>\n',
         ),
         TutorialStep(
-            title='La barre superieure : langue et annuler global',
-            content_html='\n<p><b>Bouton de langue</b> (FR/EN, en haut a droite) -- bascule toute l\'interface\nde l\'application entre francais et anglais instantanement, sans perdre ton travail\nen cours.</p>\n\n<p><b>Annuler la derniere action</b> (bouton global, pas celui d\'un onglet) --\nannule la derniere operation de type <i>fusion/duplication/copie depuis Scenario A\nou B</i> vers la copie de travail. C\'est different du bouton "Annuler (Ctrl+Z)"\npresent dans chaque onglet editable, qui n\'annule que les modifications DANS ce\nfichier precis. Le bouton global reste grise tant qu\'aucune fusion/duplication n\'a\neu lieu depuis Scenario A/B.</p>\n',
+            title_fr='La barre superieure : langue et annuler global',
+            content_fr='\n<p><b>Bouton de langue</b> (FR/EN, en haut a droite) -- bascule toute l\'interface\nde l\'application entre francais et anglais instantanement, sans perdre ton travail\nen cours.</p>\n\n<p><b>Annuler la derniere action</b> (bouton global, pas celui d\'un onglet) --\nannule la derniere operation de type <i>fusion/duplication/copie depuis Scenario A\nou B</i> vers la copie de travail. C\'est different du bouton "Annuler (Ctrl+Z)"\npresent dans chaque onglet editable, qui n\'annule que les modifications DANS ce\nfichier precis. Le bouton global reste grise tant qu\'aucune fusion/duplication n\'a\neu lieu depuis Scenario A/B.</p>\n',
+            title_en='The top bar: language and global undo',
+            content_en='\n<p><b>Language button</b> (FR/EN, top right) -- switches the entire application\ninterface between French and English instantly, without losing your current\nwork.</p>\n\n<p><b>Undo last action</b> (global button, not a tab\'s own) -- undoes the last\n<i>merge/duplicate/copy from Scenario A or B</i> operation into the working copy.\nThis is different from the "Undo (Ctrl+Z)" button present in each editable tab,\nwhich only undoes changes WITHIN that specific file. The global button stays greyed\nout as long as no merge/duplicate has happened from Scenario A/B.</p>\n',
         ),
         TutorialStep(
-            title="Editer un fichier ECF -- l'arbre des blocs",
-            content_html='\n<p>L\'arbre a gauche de chaque onglet ECF liste tous les blocs/items du fichier.\nClique sur un bloc pour afficher ses proprietes a droite.</p>\n\n<p><b>Groupes de section</b> -- si le fichier source utilise des commentaires de\nseparation (frequent dans Containers.ecf, BlocksConfig.ecf...), l\'arbre affiche des\n<b>en-tetes de categorie</b> en gras (ex: "Gigas", "Dinosaurs") pour naviguer plus\nfacilement dans les tres longs fichiers -- ce sont de simples reperes visuels, pas\ndes blocs cliquables.</p>\n\n<p><b>Etiquettes lisibles</b> -- quand le fichier source annote un bloc juste avant\nlui (ex: <code>## GolemSwamp</code>), ce nom apparait entre parentheses a cote de\nl\'identifiant technique du bloc dans l\'arbre.</p>\n\n<p><b>Recherche</b> -- tape dans la barre "Rechercher :" (par Id, Name, ou\nCustomIcon) puis appuie sur Entree pour sauter au premier resultat ; re-appuie pour\npasser au suivant.</p>\n',
+            title_fr="Editer un fichier ECF -- l'arbre des blocs",
+            content_fr='\n<p>L\'arbre a gauche de chaque onglet ECF liste tous les blocs/items du fichier.\nClique sur un bloc pour afficher ses proprietes a droite.</p>\n\n<p><b>Groupes de section</b> -- si le fichier source utilise des commentaires de\nseparation (frequent dans Containers.ecf, BlocksConfig.ecf...), l\'arbre affiche des\n<b>en-tetes de categorie</b> en gras (ex: "Gigas", "Dinosaurs") pour naviguer plus\nfacilement dans les tres longs fichiers -- ce sont de simples reperes visuels, pas\ndes blocs cliquables.</p>\n\n<p><b>Etiquettes lisibles</b> -- quand le fichier source annote un bloc juste avant\nlui (ex: <code>## GolemSwamp</code>), ce nom apparait entre parentheses a cote de\nl\'identifiant technique du bloc dans l\'arbre.</p>\n\n<p><b>Recherche</b> -- tape dans la barre "Rechercher :" (par Id, Name, ou\nCustomIcon) puis appuie sur Entree pour sauter au premier resultat ; re-appuie pour\npasser au suivant.</p>\n',
+            title_en='Editing an ECF file -- the block tree',
+            content_en='\n<p>The tree on the left of each ECF tab lists all blocks/items in the file. Click a\nblock to show its properties on the right.</p>\n\n<p><b>Section groups</b> -- if the source file uses separator comments (common in\nContainers.ecf, BlocksConfig.ecf...), the tree shows bold <b>category headers</b>\n(e.g. "Gigas", "Dinosaurs") to navigate very long files more easily -- these are\nplain visual markers, not clickable blocks.</p>\n\n<p><b>Readable labels</b> -- when the source file annotates a block right before it\n(e.g. <code>## GolemSwamp</code>), that name appears in parentheses next to the\nblock\'s technical identifier in the tree.</p>\n\n<p><b>Search</b> -- type in the "Search:" bar (by Id, Name, or CustomIcon) then\npress Enter to jump to the first result; press again to move to the next one.</p>\n',
         ),
         TutorialStep(
-            title='Editer un fichier ECF -- le tableau de proprietes',
-            content_html='\n<p>Une fois un bloc selectionne, ses proprietes s\'affichent a droite sous deux\nformes possibles :</p>\n\n<p><b>Mode liste classique</b> (la grande majorite des blocs) -- une ligne par\npropriete (cle a gauche non editable, valeur a droite editable). Double-clique dans\nla colonne Valeur pour modifier.</p>\n\n<p><b>Mode tableau</b> (structures repetitives type <i>Child Items</i>,\n<i>LootGroups</i>...) -- detecte automatiquement quand un bloc contient une suite\nd\'entrees numerotees (Name_0, Name_1... ou Item_0, DamageMultiplier_1...) : affiche\nalors un vrai tableau avec une colonne par parametre, bien plus lisible qu\'une\nlongue liste plate. Le bouton "+ Ligne" (au lieu de "+ Propriete") s\'active\nautomatiquement dans ce mode -- voir l\'etape dediee plus loin.</p>\n\n<p>Chaque cellule modifiee est surlignee pour te rappeler ce qui a change dans la\nsession en cours.</p>\n',
+            title_fr='Editer un fichier ECF -- le tableau de proprietes',
+            content_fr='\n<p>Une fois un bloc selectionne, ses proprietes s\'affichent a droite sous deux\nformes possibles :</p>\n\n<p><b>Mode liste classique</b> (la grande majorite des blocs) -- une ligne par\npropriete (cle a gauche non editable, valeur a droite editable). Double-clique dans\nla colonne Valeur pour modifier.</p>\n\n<p><b>Mode tableau</b> (structures repetitives type <i>Child Items</i>,\n<i>LootGroups</i>...) -- detecte automatiquement quand un bloc contient une suite\nd\'entrees numerotees (Name_0, Name_1... ou Item_0, DamageMultiplier_1...) : affiche\nalors un vrai tableau avec une colonne par parametre, bien plus lisible qu\'une\nlongue liste plate. Le bouton "+ Ligne" (au lieu de "+ Propriete") s\'active\nautomatiquement dans ce mode -- voir l\'etape dediee plus loin.</p>\n\n<p>Chaque cellule modifiee est surlignee pour te rappeler ce qui a change dans la\nsession en cours.</p>\n',
+            title_en='Editing an ECF file -- the property table',
+            content_en='\n<p>Once a block is selected, its properties show on the right in one of two\nforms:</p>\n\n<p><b>Classic list mode</b> (the vast majority of blocks) -- one row per property\n(key on the left, non-editable, value on the right, editable). Double-click in the\nValue column to edit.</p>\n\n<p><b>Table mode</b> (repeating structures like <i>Child Items</i>,\n<i>LootGroups</i>...) -- automatically detected when a block contains a sequence of\nnumbered entries (Name_0, Name_1... or Item_0, DamageMultiplier_1...): shows a real\ntable with one column per parameter, much more readable than a long flat list. The\n"+ Row" button (instead of "+ Property") activates automatically in this mode -- see\nthe dedicated step below.</p>\n\n<p>Every edited cell is highlighted to remind you what changed in the current\nsession.</p>\n',
         ),
         TutorialStep(
-            title='Editer un fichier ECF -- ajouter un bloc ou une propriete',
-            content_html='\n<p><b>+ Bloc</b> -- cree un nouveau bloc entierement vide dans le fichier ouvert ;\ndemande le genre (Block, Item...), puis tu renseignes toi-meme toutes les\nproprietes voulues.</p>\n\n<p><b>+ Propriete</b> -- ajoute une propriete au bloc actuellement selectionne.\nTu peux taper plusieurs paires en une seule fois en respectant la syntaxe du\nfichier (ex: <code>AlienParts04, param1: 0.6, param2: "1,3"</code>) pour les\nregrouper sur la meme ligne comme le fait le jeu -- important pour les structures\nou l\'ordre/le regroupement compte.</p>\n\n<p><b>+ Ligne</b> (visible seulement en mode tableau) -- ajoute une nouvelle\nentree a une structure repetitive (Child Items...) via un petit formulaire dedie\n: <b>Type</b> (Name/Group/Item selon ce que le fichier utilise deja), <b>Valeur</b>,\net un champ par colonne de parametre detectee. La numerotation (Name_6, Item_3...)\net la position (juste apres la derniere entree du meme type) sont calculees\nautomatiquement -- tu n\'as jamais a y reflechir toi-meme.</p>\n',
+            title_fr='Editer un fichier ECF -- ajouter un bloc ou une propriete',
+            content_fr='\n<p><b>+ Bloc</b> -- cree un nouveau bloc entierement vide dans le fichier ouvert ;\ndemande le genre (Block, Item...), puis tu renseignes toi-meme toutes les\nproprietes voulues.</p>\n\n<p><b>+ Propriete</b> -- ajoute une propriete au bloc actuellement selectionne.\nTu peux taper plusieurs paires en une seule fois en respectant la syntaxe du\nfichier (ex: <code>AlienParts04, param1: 0.6, param2: "1,3"</code>) pour les\nregrouper sur la meme ligne comme le fait le jeu -- important pour les structures\nou l\'ordre/le regroupement compte.</p>\n\n<p><b>+ Ligne</b> (visible seulement en mode tableau) -- ajoute une nouvelle\nentree a une structure repetitive (Child Items...) via un petit formulaire dedie\n: <b>Type</b> (Name/Group/Item selon ce que le fichier utilise deja), <b>Valeur</b>,\net un champ par colonne de parametre detectee. La numerotation (Name_6, Item_3...)\net la position (juste apres la derniere entree du meme type) sont calculees\nautomatiquement -- tu n\'as jamais a y reflechir toi-meme.</p>\n',
+            title_en='Editing an ECF file -- adding a block or a property',
+            content_en='\n<p><b>+ Block</b> -- creates a brand new, entirely empty block in the open file;\nasks for the kind (Block, Item...), then you fill in all the desired properties\nyourself.</p>\n\n<p><b>+ Property</b> -- adds a property to the currently selected block. You can\ntype several pairs at once following the file\'s syntax (e.g.\n<code>AlienParts04, param1: 0.6, param2: "1,3"</code>) to group them on the same\nline as the game does -- important for structures where order/grouping matters.</p>\n\n<p><b>+ Row</b> (visible only in table mode) -- adds a new entry to a repeating\nstructure (Child Items...) via a small dedicated form: <b>Type</b> (Name/Group/Item\ndepending on what the file already uses), <b>Value</b>, and one field per detected\nparameter column. Numbering (Name_6, Item_3...) and position (right after the last\nentry of the same type) are calculated automatically -- you never have to think\nabout it yourself.</p>\n',
         ),
         TutorialStep(
-            title='Editer un fichier ECF -- supprimer et desactiver un bloc',
-            content_html='\n<p><b>Supprimer</b> (clic droit sur un bloc dans l\'arbre, ou sur une propriete\ndans le tableau) -- retire definitivement l\'element du fichier. Une confirmation\nest toujours demandee pour un bloc entier.</p>\n\n<p><b>Desactiver ce bloc (test)</b> (clic droit sur un bloc) -- alternative plus\nsure a la suppression : commente le bloc <b>a sa position exacte</b> dans le\nfichier (jamais deplace en fin de fichier, important pour l\'ordre de chargement),\nsans le supprimer. Tres utile pour tester "et si ce bloc precis causait mon\nprobleme ?" sans perdre son contenu.</p>\n\n<p><b>Bouton "Blocs desactives (test)"</b> -- ouvre la liste de tous les blocs\nactuellement desactives dans ce fichier, avec un bouton <b>"Reactiver"</b> par\nentree pour les remettre exactement comme avant.</p>\n',
+            title_fr='Editer un fichier ECF -- supprimer et desactiver un bloc',
+            content_fr='\n<p><b>Supprimer</b> (clic droit sur un bloc dans l\'arbre, ou sur une propriete\ndans le tableau) -- retire definitivement l\'element du fichier. Une confirmation\nest toujours demandee pour un bloc entier.</p>\n\n<p><b>Desactiver ce bloc (test)</b> (clic droit sur un bloc) -- alternative plus\nsure a la suppression : commente le bloc <b>a sa position exacte</b> dans le\nfichier (jamais deplace en fin de fichier, important pour l\'ordre de chargement),\nsans le supprimer. Tres utile pour tester "et si ce bloc precis causait mon\nprobleme ?" sans perdre son contenu.</p>\n\n<p><b>Bouton "Blocs desactives (test)"</b> -- ouvre la liste de tous les blocs\nactuellement desactives dans ce fichier, avec un bouton <b>"Reactiver"</b> par\nentree pour les remettre exactement comme avant.</p>\n',
+            title_en='Editing an ECF file -- deleting and disabling a block',
+            content_en='\n<p><b>Delete</b> (right-click a block in the tree, or a property in the table) --\npermanently removes the element from the file. Confirmation is always requested for\nan entire block.</p>\n\n<p><b>Disable this block (test)</b> (right-click a block) -- a safer alternative to\ndeletion: comments out the block <b>at its exact position</b> in the file (never\nmoved to the end of the file, important for load order), without deleting it. Very\nuseful for testing "what if this specific block is causing my problem?" without\nlosing its content.</p>\n\n<p><b>"Disabled blocks (test)" button</b> -- opens the list of all currently\ndisabled blocks in this file, with a <b>"Re-enable"</b> button per entry to restore\nthem exactly as before.</p>\n',
         ),
         TutorialStep(
-            title="Editer un fichier ECF -- filtrer et le panneau d'explication",
-            content_html='\n<p><b>Filtrer par propriete...</b> -- affiche uniquement les blocs possedant (ou\nnon) certaines proprietes precises que tu choisis -- utile pour retrouver\nrapidement "tous les blocs qui ont une texture X" dans un tres gros fichier.</p>\n\n<p><b>Panneau "Voir l\'explication des proprietes de ce fichier"</b> (juste sous le\nnom du fichier, au-dessus de la recherche) -- replie par defaut, il s\'ouvre sur un\nglossaire clarifie en francais des commentaires techniques d\'en-tete du fichier.\nDix-sept fichiers (BlocksConfig.ecf, ItemsConfig.ecf, Templates.ecf, Factions.ecf,\nTokenConfig.ecf...) ont un glossaire fait main ; pour les autres, un bouton\n<b>"Traduire automatiquement en francais"</b> traduit le texte original a la\ndemande.</p>\n',
+            title_fr="Editer un fichier ECF -- filtrer et le panneau d'explication",
+            content_fr='\n<p><b>Filtrer par propriete...</b> -- affiche uniquement les blocs possedant (ou\nnon) certaines proprietes precises que tu choisis -- utile pour retrouver\nrapidement "tous les blocs qui ont une texture X" dans un tres gros fichier.</p>\n\n<p><b>Panneau "Voir l\'explication des proprietes de ce fichier"</b> (juste sous le\nnom du fichier, au-dessus de la recherche) -- replie par defaut, il s\'ouvre sur un\nglossaire clarifie en francais des commentaires techniques d\'en-tete du fichier.\nDix-sept fichiers (BlocksConfig.ecf, ItemsConfig.ecf, Templates.ecf, Factions.ecf,\nTokenConfig.ecf...) ont un glossaire fait main ; pour les autres, un bouton\n<b>"Traduire automatiquement en francais"</b> traduit le texte original a la\ndemande.</p>\n',
+            title_en='Editing an ECF file -- filtering and the explanation panel',
+            content_en='\n<p><b>Filter by property...</b> -- shows only blocks having (or not having) certain\nspecific properties you choose -- useful for quickly finding "all blocks with\ntexture X" in a very large file.</p>\n\n<p><b>"Show property explanations for this file" panel</b> (just below the file\nname, above the search bar) -- collapsed by default, it opens onto a clarified\nglossary of the file\'s technical header comments. Seventeen files (BlocksConfig.ecf,\nItemsConfig.ecf, Templates.ecf, Factions.ecf, TokenConfig.ecf...) have a hand-made\nglossary; for others, an "Auto-translate" button translates the original text on\ndemand.</p>\n',
         ),
         TutorialStep(
-            title='Editer un fichier YAML',
-            content_html="\n<p>Le fonctionnement general ressemble a l'ECF, adapte a la structure YAML (cles\nimbriquees, listes) :</p>\n\n<ul>\n<li><b>+ Entree</b> / <b>Supprimer l'entree selectionnee</b></li>\n<li>Selectionne une entree dans l'arbre : sa valeur s'affiche dans une zone de\ntexte a droite, modifiable</li>\n<li><b>Appliquer cette valeur</b> -- valide le texte tape. Note : cliquer\ndirectement sur <b>Enregistrer</b> ou changer de ligne applique aussi\nautomatiquement le texte en attente, tu ne peux plus perdre une modification par\noubli</li>\n</ul>\n\n<p><b>Chaines entre guillemets sur plusieurs lignes</b> -- le parseur gere\ncorrectement les valeurs qui s'etendent sur plusieurs lignes avec des lignes\nvides au milieu (frequent pour les descriptions de playfield) : une ligne vide a\nl'interieur des guillemets devient un vrai retour a la ligne, pour un affichage\ncorrect en jeu.</p>\n",
+            title_fr='Editer un fichier YAML',
+            content_fr="\n<p>Le fonctionnement general ressemble a l'ECF, adapte a la structure YAML (cles\nimbriquees, listes) :</p>\n\n<ul>\n<li><b>+ Entree</b> / <b>Supprimer l'entree selectionnee</b></li>\n<li>Selectionne une entree dans l'arbre : sa valeur s'affiche dans une zone de\ntexte a droite, modifiable</li>\n<li><b>Appliquer cette valeur</b> -- valide le texte tape. Note : cliquer\ndirectement sur <b>Enregistrer</b> ou changer de ligne applique aussi\nautomatiquement le texte en attente, tu ne peux plus perdre une modification par\noubli</li>\n</ul>\n\n<p><b>Chaines entre guillemets sur plusieurs lignes</b> -- le parseur gere\ncorrectement les valeurs qui s'etendent sur plusieurs lignes avec des lignes\nvides au milieu (frequent pour les descriptions de playfield) : une ligne vide a\nl'interieur des guillemets devient un vrai retour a la ligne, pour un affichage\ncorrect en jeu.</p>\n",
+            title_en='Editing a YAML file',
+            content_en='\n<p>The general behavior resembles ECF, adapted to YAML structure (nested keys,\nlists):</p>\n\n<ul>\n<li><b>+ Entry</b> / <b>Delete selected entry</b></li>\n<li>Select an entry in the tree: its value shows in a text area on the right,\neditable</li>\n<li><b>Apply this value</b> -- confirms the typed text. Note: clicking\n<b>Save</b> directly or switching lines also automatically applies the pending\ntext, you can no longer lose an edit by forgetting to click Apply</li>\n</ul>\n\n<p><b>Multi-line quoted strings</b> -- the parser correctly handles values that\nspan multiple lines with blank lines in between (common for playfield\ndescriptions): a blank line inside the quotes becomes an actual line break, for\ncorrect in-game display.</p>\n',
         ),
         TutorialStep(
-            title='Editer un fichier CSV -- les bases',
-            content_html='\n<p><b>Recherche</b> -- tape un texte puis choisis la portee dans le menu\nderoulant "dans :" (une colonne precise, ou toutes) ; Entree pour sauter au\nresultat suivant. Clic droit sur un <b>en-tete de colonne</b> pour lancer\ndirectement une recherche limitee a cette colonne.</p>\n\n<p><b>+ Ligne</b> / <b>Ligne selectionnee</b> (suppression) -- gestion classique\ndes lignes.</p>\n\n<p><b>Presse-papier</b> (clic droit sur une ou plusieurs cellules) : Copier,\nCouper, Coller, Effacer le contenu -- fonctionne sur une selection multiple,\ncomme dans un tableur.</p>\n\n<p><b>Annuler / Enregistrer</b> comme partout ailleurs.</p>\n',
+            title_fr='Editer un fichier CSV -- les bases',
+            content_fr='\n<p><b>Recherche</b> -- tape un texte puis choisis la portee dans le menu\nderoulant "dans :" (une colonne precise, ou toutes) ; Entree pour sauter au\nresultat suivant. Clic droit sur un <b>en-tete de colonne</b> pour lancer\ndirectement une recherche limitee a cette colonne.</p>\n\n<p><b>+ Ligne</b> / <b>Ligne selectionnee</b> (suppression) -- gestion classique\ndes lignes.</p>\n\n<p><b>Presse-papier</b> (clic droit sur une ou plusieurs cellules) : Copier,\nCouper, Coller, Effacer le contenu -- fonctionne sur une selection multiple,\ncomme dans un tableur.</p>\n\n<p><b>Annuler / Enregistrer</b> comme partout ailleurs.</p>\n',
+            title_en='Editing a CSV file -- the basics',
+            content_en='\n<p><b>Search</b> -- type text then choose the scope in the "in:" dropdown (a\nspecific column, or all); Enter to jump to the next result. Right-click a\n<b>column header</b> to directly launch a search limited to that column.</p>\n\n<p><b>+ Row</b> / <b>Selected row</b> (delete) -- classic row management.</p>\n\n<p><b>Clipboard</b> (right-click one or more cells): Copy, Cut, Paste, Clear\ncontent -- works on a multi-selection, like in a spreadsheet.</p>\n\n<p><b>Undo / Save</b> like everywhere else.</p>\n',
         ),
         TutorialStep(
-            title="La traduction -- vue d'ensemble et memoire",
-            content_html="\n<p>Toutes les fonctions de traduction (decrites dans les etapes suivantes)\npartagent une <b>memoire de traduction</b> commune, entierement automatique et\ninvisible : des qu'un texte est traduit une fois vers une langue donnee, la meme\ntraduction est reutilisee instantanement (sans nouvel appel reseau) si ce texte\nexact revient ailleurs -- plus rapide, et garantit que le meme mot ne se traduit\njamais differemment a deux endroits du meme fichier.</p>\n\n<p>Toutes les traductions en lot passent par un <b>tableau de revue</b> avant\nd'etre appliquees : rien n'est jamais ecrit dans le fichier sans validation. Tu\npeux decocher une ligne, ou modifier directement le texte propose avant de\nvalider.</p>\n",
+            title_fr="La traduction -- vue d'ensemble et memoire",
+            content_fr="\n<p>Toutes les fonctions de traduction (decrites dans les etapes suivantes)\npartagent une <b>memoire de traduction</b> commune, entierement automatique et\ninvisible : des qu'un texte est traduit une fois vers une langue donnee, la meme\ntraduction est reutilisee instantanement (sans nouvel appel reseau) si ce texte\nexact revient ailleurs -- plus rapide, et garantit que le meme mot ne se traduit\njamais differemment a deux endroits du meme fichier.</p>\n\n<p>Toutes les traductions en lot passent par un <b>tableau de revue</b> avant\nd'etre appliquees : rien n'est jamais ecrit dans le fichier sans validation. Tu\npeux decocher une ligne, ou modifier directement le texte propose avant de\nvalider.</p>\n",
+            title_en='Translation -- overview and memory',
+            content_en='\n<p>All translation functions (described in the following steps) share a common\n<b>translation memory</b>, entirely automatic and invisible: once a text is\ntranslated to a given language, the same translation is reused instantly (no new\nnetwork call) if that exact text appears again elsewhere -- faster, and guarantees\nthe same word never gets translated differently in two places of the same file.</p>\n\n<p>All batch translations go through a <b>review table</b> before being applied:\nnothing is ever written to the file without validation. You can uncheck a row, or\ndirectly edit the proposed text before confirming.</p>\n',
         ),
         TutorialStep(
-            title='La traduction -- cellule par cellule et rapide',
-            content_html='\n<p><b>Clic droit sur une cellule > Traduire vers > (choisir une langue)</b> --\ntraduit cette seule cellule, montre un apercu avant/apres, et propose de\nremplacer soit la cellule elle-meme, soit la colonne correspondant a la langue\ncible sur la meme ligne si elle existe deja dans le fichier.</p>\n\n<p><b>Bouton "Traduire"</b> (barre d\'outils) -- traduit directement la cellule ou\nla selection courante vers ta <b>langue par defaut</b> (configurable dans Options\n> "Langue de traduction par defaut..."), sans passer par le sous-menu de choix de\nlangue a chaque fois. Si plusieurs cellules sont selectionnees, bascule\nautomatiquement sur la traduction en lot (etape suivante).</p>\n',
+            title_fr='La traduction -- cellule par cellule et rapide',
+            content_fr='\n<p><b>Clic droit sur une cellule > Traduire vers > (choisir une langue)</b> --\ntraduit cette seule cellule, montre un apercu avant/apres, et propose de\nremplacer soit la cellule elle-meme, soit la colonne correspondant a la langue\ncible sur la meme ligne si elle existe deja dans le fichier.</p>\n\n<p><b>Bouton "Traduire"</b> (barre d\'outils) -- traduit directement la cellule ou\nla selection courante vers ta <b>langue par defaut</b> (configurable dans Options\n> "Langue de traduction par defaut..."), sans passer par le sous-menu de choix de\nlangue a chaque fois. Si plusieurs cellules sont selectionnees, bascule\nautomatiquement sur la traduction en lot (etape suivante).</p>\n',
+            title_en='Translation -- cell by cell and quick',
+            content_en='\n<p><b>Right-click a cell > Translate to > (choose a language)</b> -- translates\nthat single cell, shows a before/after preview, and offers to replace either the\ncell itself or the column matching the target language on the same row if it\nalready exists in the file.</p>\n\n<p><b>"Translate" button</b> (toolbar) -- directly translates the current cell or\nselection to your <b>default language</b> (configurable in Options > "Default\ntranslation language..."), without going through the language-choice submenu each\ntime. If multiple cells are selected, automatically switches to batch translation\n(next step).</p>\n',
         ),
         TutorialStep(
-            title='La traduction -- en lot et combler les langues manquantes',
-            content_html='\n<p><b>Selection multiple + clic droit > "Traduire la selection vers..."</b> --\nselectionne plusieurs cellules (comme dans un tableur), choisis une langue : une\nbarre de progression traduit chaque cellule, puis le tableau de revue s\'ouvre\npour tout valider d\'un coup (ou cellule par cellule).</p>\n\n<p><b>Bouton "Combler les langues manquantes..."</b> -- pour un fichier entier :\nchoisis une colonne source (deja remplie) et une colonne cible (a completer), et\nl\'application scanne TOUT le fichier pour ne traduire que les cellules vraiment\nvides -- celles deja remplies restent intactes.</p>\n\n<p style="color:#b02a2a"><b>Sur un tres gros lot</b> (des milliers de cellules),\nsi le service de traduction se bloque temporairement (limite d\'usage), l\'arret\nest <b>automatique apres 5 echecs consecutifs</b>, avec un message clair -- les\ntraductions deja reussies restent disponibles pour revue, jamais perdues. Les\nechecs sont surlignes en rouge et decoches par defaut dans le tableau, impossible\nde les appliquer par erreur.</p>\n',
+            title_fr='La traduction -- en lot et combler les langues manquantes',
+            content_fr='\n<p><b>Selection multiple + clic droit > "Traduire la selection vers..."</b> --\nselectionne plusieurs cellules (comme dans un tableur), choisis une langue : une\nbarre de progression traduit chaque cellule, puis le tableau de revue s\'ouvre\npour tout valider d\'un coup (ou cellule par cellule).</p>\n\n<p><b>Bouton "Combler les langues manquantes..."</b> -- pour un fichier entier :\nchoisis une colonne source (deja remplie) et une colonne cible (a completer), et\nl\'application scanne TOUT le fichier pour ne traduire que les cellules vraiment\nvides -- celles deja remplies restent intactes.</p>\n\n<p style="color:#b02a2a"><b>Sur un tres gros lot</b> (des milliers de cellules),\nsi le service de traduction se bloque temporairement (limite d\'usage), l\'arret\nest <b>automatique apres 5 echecs consecutifs</b>, avec un message clair -- les\ntraductions deja reussies restent disponibles pour revue, jamais perdues. Les\nechecs sont surlignes en rouge et decoches par defaut dans le tableau, impossible\nde les appliquer par erreur.</p>\n',
+            title_en='Translation -- batch and filling missing translations',
+            content_en='\n<p><b>Multi-select + right-click > "Translate selection to..."</b> -- select\nseveral cells (like in a spreadsheet), choose a language: a progress bar\ntranslates each cell, then the review table opens to confirm everything at once\n(or cell by cell).</p>\n\n<p><b>"Fill missing translations..." button</b> -- for an entire file: choose a\nsource column (already filled) and a target column (to complete), and the\napplication scans the WHOLE file to only translate genuinely empty cells -- already\nfilled ones stay untouched.</p>\n\n<p style="color:#b02a2a"><b>On a very large batch</b> (thousands of cells), if the\ntranslation service temporarily blocks (usage limit), it stops <b>automatically\nafter 5 consecutive failures</b>, with a clear message -- translations already\ncompleted remain available for review, never lost. Failures are highlighted in red\nand unchecked by default in the table, impossible to apply by mistake.</p>\n',
         ),
         TutorialStep(
-            title='Rechercher et remplacer (CSV)',
-            content_html='\n<p><b>Bouton "Rechercher et remplacer..."</b> -- pour corriger un texte repete a\nplusieurs endroits (typiquement une traduction automatique approximative) :</p>\n\n<ul>\n<li><b>Rechercher</b> / <b>Remplacer par</b> -- les deux textes</li>\n<li><b>Dans la colonne</b> -- une colonne precise, ou toutes</li>\n<li><b>Respecter la casse</b> -- coche pour distinguer majuscules/minuscules</li>\n<li><b>Mot entier seulement</b> -- coche pour eviter de toucher un mot qui\ncontient seulement le texte cherche comme fragment (ex: "Dos" ne touchera pas\n"Dossier" avec cette option)</li>\n</ul>\n\n<p>Comme pour la traduction, chaque correspondance trouvee passe par le meme\ntableau de revue avant d\'etre appliquee -- jamais de remplacement a l\'aveugle.</p>\n',
+            title_fr='Rechercher et remplacer (CSV)',
+            content_fr='\n<p><b>Bouton "Rechercher et remplacer..."</b> -- pour corriger un texte repete a\nplusieurs endroits (typiquement une traduction automatique approximative) :</p>\n\n<ul>\n<li><b>Rechercher</b> / <b>Remplacer par</b> -- les deux textes</li>\n<li><b>Dans la colonne</b> -- une colonne precise, ou toutes</li>\n<li><b>Respecter la casse</b> -- coche pour distinguer majuscules/minuscules</li>\n<li><b>Mot entier seulement</b> -- coche pour eviter de toucher un mot qui\ncontient seulement le texte cherche comme fragment (ex: "Dos" ne touchera pas\n"Dossier" avec cette option)</li>\n</ul>\n\n<p>Comme pour la traduction, chaque correspondance trouvee passe par le meme\ntableau de revue avant d\'etre appliquee -- jamais de remplacement a l\'aveugle.</p>\n',
+            title_en='Find and replace (CSV)',
+            content_en='\n<p><b>"Find and replace..." button</b> -- to fix text repeated in several places\n(typically an approximate machine translation):</p>\n\n<ul>\n<li><b>Find</b> / <b>Replace with</b> -- the two texts</li>\n<li><b>In column</b> -- a specific column, or all</li>\n<li><b>Case sensitive</b> -- check to distinguish upper/lowercase</li>\n<li><b>Whole word only</b> -- check to avoid touching a word that only contains\nthe searched text as a fragment (e.g. "Dos" won\'t touch "Dossier" with this\noption)</li>\n</ul>\n\n<p>Just like translation, each match found goes through the same review table\nbefore being applied -- never a blind replacement.</p>\n',
         ),
         TutorialStep(
-            title='Copier ou dupliquer depuis Scenario A ou B',
-            content_html='\n<p>Sur les panneaux Scenario A et B (lecture seule), le clic droit propose deux\nfamilles d\'actions differentes :</p>\n\n<p><b>Copier/fusionner</b> (fichier, dossier, bloc, ligne, entree) -- combine le\ncontenu source dans la copie de travail, en fusionnant avec ce qui existe deja si\nbesoin. <b>Desactive par defaut</b> (trop de cas particuliers pour etre fiable a\n100%) -- reactivable dans Options > "Autoriser la fusion" si tu en as vraiment\nbesoin.</p>\n\n<p><b>Dupliquer</b> (fichier, bloc, ligne, entree) -- <b>toujours disponible</b>,\ncree systematiquement une copie <b>independante</b> (nouvel Id/nouveau nom), sans\njamais ecraser quoi que ce soit. C\'est l\'action recommandee dans l\'immense\nmajorite des cas -- voir aussi le tutoriel "Creer un bloc, pas a pas" pour le\ndetail complet de la duplication de bloc.</p>\n\n<p>Chaque duplication/fusion (si activee) est annulable via le bouton global\n"Annuler la derniere action" en haut de la fenetre.</p>\n',
+            title_fr='Copier ou dupliquer depuis Scenario A ou B',
+            content_fr='\n<p>Sur les panneaux Scenario A et B (lecture seule), le clic droit propose deux\nfamilles d\'actions differentes :</p>\n\n<p><b>Copier/fusionner</b> (fichier, dossier, bloc, ligne, entree) -- combine le\ncontenu source dans la copie de travail, en fusionnant avec ce qui existe deja si\nbesoin. <b>Desactive par defaut</b> (trop de cas particuliers pour etre fiable a\n100%) -- reactivable dans Options > "Autoriser la fusion" si tu en as vraiment\nbesoin.</p>\n\n<p><b>Dupliquer</b> (fichier, bloc, ligne, entree) -- <b>toujours disponible</b>,\ncree systematiquement une copie <b>independante</b> (nouvel Id/nouveau nom), sans\njamais ecraser quoi que ce soit. C\'est l\'action recommandee dans l\'immense\nmajorite des cas -- voir aussi le tutoriel "Creer un bloc, pas a pas" pour le\ndetail complet de la duplication de bloc.</p>\n\n<p>Chaque duplication/fusion (si activee) est annulable via le bouton global\n"Annuler la derniere action" en haut de la fenetre.</p>\n',
+            title_en='Copying or duplicating from Scenario A or B',
+            content_en='\n<p>On the Scenario A and B panels (read-only), right-clicking offers two different\nfamilies of actions:</p>\n\n<p><b>Copy/merge</b> (file, folder, block, row, entry) -- combines the source\ncontent into the working copy, merging with what already exists if needed.\n<b>Disabled by default</b> (too many edge cases to be 100% reliable) -- can be\nre-enabled in Options > "Allow merging" if you really need it.</p>\n\n<p><b>Duplicate</b> (file, block, row, entry) -- <b>always available</b>,\nsystematically creates an <b>independent</b> copy (new Id/new name), never\noverwriting anything. This is the recommended action in the vast majority of cases\n-- see also the "Create a block, step by step" tutorial for the full detail of\nblock duplication.</p>\n\n<p>Every duplication/merge (if enabled) can be undone via the global "Undo last\naction" button at the top of the window.</p>\n',
         ),
         TutorialStep(
-            title='Verifier les references et les blocs en attente',
-            content_html="\n<p><b>Verification > Verifier les references</b> -- controle que chaque\n<code>Ref:</code>, <code>TemplateRoot</code> et reference similaire pointe bien\nvers un nom qui existe reellement dans le fichier -- signale toute reference\ncassee avant que le jeu ne le fasse a ta place au chargement.</p>\n\n<p><b>Verification > Blocs en attente</b> -- lors d'une fusion, si un conflit\nd'Id est detecte (meme Id deja utilise par un autre bloc), le bloc en conflit est\nautomatiquement commente plutot que d'ecraser l'existant. Cette fenetre liste tous\nces blocs en attente, avec une comparaison detaillee (bloc actuel vs bloc en\nattente) et des suggestions d'Id libres pour l'activer proprement.</p>\n",
+            title_fr='Verifier les references et les blocs en attente',
+            content_fr="\n<p><b>Verification > Verifier les references</b> -- controle que chaque\n<code>Ref:</code>, <code>TemplateRoot</code> et reference similaire pointe bien\nvers un nom qui existe reellement dans le fichier -- signale toute reference\ncassee avant que le jeu ne le fasse a ta place au chargement.</p>\n\n<p><b>Verification > Blocs en attente</b> -- lors d'une fusion, si un conflit\nd'Id est detecte (meme Id deja utilise par un autre bloc), le bloc en conflit est\nautomatiquement commente plutot que d'ecraser l'existant. Cette fenetre liste tous\nces blocs en attente, avec une comparaison detaillee (bloc actuel vs bloc en\nattente) et des suggestions d'Id libres pour l'activer proprement.</p>\n",
+            title_en='Checking references and pending blocks',
+            content_en='\n<p><b>Verification > Check references</b> -- checks that every <code>Ref:</code>,\n<code>TemplateRoot</code> and similar reference actually points to a name that\nexists in the file -- flags any broken reference before the game does it for you on\nload.</p>\n\n<p><b>Verification > Pending blocks</b> -- during a merge, if an Id conflict is\ndetected (same Id already used by another block), the conflicting block is\nautomatically commented out rather than overwriting the existing one. This window\nlists all these pending blocks, with a detailed comparison (current block vs\npending block) and free-Id suggestions to activate it properly.</p>\n',
         ),
         TutorialStep(
-            title='Sauvegardes de scenario et de partie',
-            content_html="\n<p><b>Fichier > Sauvegarder un scenario (avant mise a jour)...</b> -- garde une\ncopie complete d'un scenario avant qu'une mise a jour Steam Workshop ne l'ecrase\nen place, pour pouvoir comparer l'ancienne et la nouvelle version ensuite.</p>\n\n<p><b>Fichier > Gerer mes sauvegardes de partie...</b> -- meme principe pour tes\nsauvegardes de progression de partie, avec possibilite de <b>restaurer</b> (une\nsauvegarde de securite est automatiquement creee avant toute restauration).</p>\n\n<p>Dans les deux cas, le gestionnaire de sauvegardes propose : <b>Sauvegarder\nmaintenant</b>, <b>Restaurer</b>, <b>Ouvrir le dossier</b>, <b>Supprimer</b> (avec\nconfirmation), et pour les scenarios uniquement, <b>Comparer avec...</b> qui\nouvre directement l'outil de comparaison avec cette sauvegarde pre-remplie.</p>\n",
+            title_fr='Sauvegardes de scenario et de partie',
+            content_fr="\n<p><b>Fichier > Sauvegarder un scenario (avant mise a jour)...</b> -- garde une\ncopie complete d'un scenario avant qu'une mise a jour Steam Workshop ne l'ecrase\nen place, pour pouvoir comparer l'ancienne et la nouvelle version ensuite.</p>\n\n<p><b>Fichier > Gerer mes sauvegardes de partie...</b> -- meme principe pour tes\nsauvegardes de progression de partie, avec possibilite de <b>restaurer</b> (une\nsauvegarde de securite est automatiquement creee avant toute restauration).</p>\n\n<p>Dans les deux cas, le gestionnaire de sauvegardes propose : <b>Sauvegarder\nmaintenant</b>, <b>Restaurer</b>, <b>Ouvrir le dossier</b>, <b>Supprimer</b> (avec\nconfirmation), et pour les scenarios uniquement, <b>Comparer avec...</b> qui\nouvre directement l'outil de comparaison avec cette sauvegarde pre-remplie.</p>\n",
+            title_en='Scenario and savegame backups',
+            content_en='\n<p><b>File > Back up a scenario (before update)...</b> -- keeps a full copy of a\nscenario before a Steam Workshop update overwrites it in place, so you can compare\nthe old and new version afterward.</p>\n\n<p><b>File > Manage my savegame backups...</b> -- same principle for your game\nprogress saves, with the ability to <b>restore</b> (a safety backup is\nautomatically created before any restore).</p>\n\n<p>In both cases, the backup manager offers: <b>Back up now</b>, <b>Restore</b>,\n<b>Open folder</b>, <b>Delete</b> (with confirmation), and for scenarios only,\n<b>Compare with...</b> which directly opens the comparison tool pre-filled with\nthis backup.</p>\n',
         ),
         TutorialStep(
-            title='Comparer deux scenarios',
-            content_html="\n<p><b>Fichier > Comparer deux scenarios...</b> -- independant du projet\nactuellement ouvert, permet de comparer <b>n'importe quels deux dossiers de\nscenario</b> :</p>\n\n<ul>\n<li>Choisis les dossiers A (reference) et B (mise a jour), clique\n<b>Comparer</b></li>\n<li>Resultat : arbre colore par statut (ajoute / retire / modifie / identique),\navec le detail precis des changements pour le fichier selectionne (comparaison\nbloc par bloc pour l'ECF, ligne par ligne pour le CSV, cle par cle pour le\nYAML)</li>\n<li><b>Afficher aussi les fichiers identiques</b> -- coche pour voir la liste\ncomplete, pas seulement ce qui a change</li>\n<li><b>Exporter le rapport...</b> -- sauvegarde un fichier texte complet de la\ncomparaison</li>\n</ul>\n",
+            title_fr='Comparer deux scenarios',
+            content_fr="\n<p><b>Fichier > Comparer deux scenarios...</b> -- independant du projet\nactuellement ouvert, permet de comparer <b>n'importe quels deux dossiers de\nscenario</b> :</p>\n\n<ul>\n<li>Choisis les dossiers A (reference) et B (mise a jour), clique\n<b>Comparer</b></li>\n<li>Resultat : arbre colore par statut (ajoute / retire / modifie / identique),\navec le detail precis des changements pour le fichier selectionne (comparaison\nbloc par bloc pour l'ECF, ligne par ligne pour le CSV, cle par cle pour le\nYAML)</li>\n<li><b>Afficher aussi les fichiers identiques</b> -- coche pour voir la liste\ncomplete, pas seulement ce qui a change</li>\n<li><b>Exporter le rapport...</b> -- sauvegarde un fichier texte complet de la\ncomparaison</li>\n</ul>\n",
+            title_en='Comparing two scenarios',
+            content_en='\n<p><b>File > Compare two scenarios...</b> -- independent from the currently open\nproject, lets you compare <b>any two scenario folders</b>:</p>\n\n<ul>\n<li>Choose folders A (reference) and B (update), click <b>Compare</b></li>\n<li>Result: a tree color-coded by status (added / removed / modified /\nunchanged), with precise change details for the selected file (block-by-block\ncomparison for ECF, row-by-row for CSV, key-by-key for YAML)</li>\n<li><b>Also show identical files</b> -- check to see the full list, not just what\nchanged</li>\n<li><b>Export report...</b> -- saves a complete text file of the comparison</li>\n</ul>\n',
         ),
         TutorialStep(
-            title='Extraire les proprietes du scenario',
-            content_html='\n<p><b>Fichier > Extraire les proprietes du scenario...</b> -- parcourt tous les\nfichiers .ecf d\'une source (copie de travail, Scenario A ou B) et construit un\nglossaire de travail complet :</p>\n\n<ul>\n<li>Chaque propriete rencontree, avec son nombre d\'occurrences, les fichiers\nconcernes, quelques exemples de valeurs vues, et une description automatique\nquand la propriete est reconnue sans ambiguite</li>\n<li>Les cles numerotees (Name_0, Name_1...) sont regroupees sous une seule entree\ngenerique (Name_N) plutot que de noyer le resultat de milliers de quasi-doublons</li>\n<li>Une colonne <b>"Valeur cible"</b> vide, a completer toi-meme au fil de ta\nreflexion de conception</li>\n</ul>\n\n<p>Le resultat est un fichier CSV que l\'application propose d\'ouvrir\nimmediatement, directement modifiable comme n\'importe quel autre CSV.</p>\n',
+            title_fr='Extraire les proprietes du scenario',
+            content_fr='\n<p><b>Fichier > Extraire les proprietes du scenario...</b> -- parcourt tous les\nfichiers .ecf d\'une source (copie de travail, Scenario A ou B) et construit un\nglossaire de travail complet :</p>\n\n<ul>\n<li>Chaque propriete rencontree, avec son nombre d\'occurrences, les fichiers\nconcernes, quelques exemples de valeurs vues, et une description automatique\nquand la propriete est reconnue sans ambiguite</li>\n<li>Les cles numerotees (Name_0, Name_1...) sont regroupees sous une seule entree\ngenerique (Name_N) plutot que de noyer le resultat de milliers de quasi-doublons</li>\n<li>Une colonne <b>"Valeur cible"</b> vide, a completer toi-meme au fil de ta\nreflexion de conception</li>\n</ul>\n\n<p>Le resultat est un fichier CSV que l\'application propose d\'ouvrir\nimmediatement, directement modifiable comme n\'importe quel autre CSV.</p>\n',
+            title_en='Extracting scenario properties',
+            content_en='\n<p><b>File > Extract scenario properties...</b> -- scans every .ecf file from a\nsource (working copy, Scenario A or B) and builds a complete working glossary:</p>\n\n<ul>\n<li>Every property encountered, with its occurrence count, the files involved, a\nfew example values seen, and an automatic description when the property is\nrecognized unambiguously</li>\n<li>Numbered keys (Name_0, Name_1...) are grouped under a single generic entry\n(Name_N) rather than flooding the result with thousands of near-duplicates</li>\n<li>An empty <b>"Target value"</b> column, for you to fill in yourself as you work\nthrough your design</li>\n</ul>\n\n<p>The result is a CSV file that the application offers to open immediately,\ndirectly editable like any other CSV.</p>\n',
         ),
         TutorialStep(
-            title='Reparer les permissions et resoudre les blocages',
-            content_html='\n<p><b>Fichier > Reparer les permissions de la copie de travail</b> -- si la copie\nde travail devient soudainement impossible a modifier ou a supprimer (Windows\ndemande une "autorisation" meme pour ton propre compte), c\'est generalement du a\nun attribut lecture-seule herite de la source (frequent avec les scenarios\ninstalles sous Program Files). Ce bouton deverrouille tout instantanement.</p>\n\n<p style="color:#7c859c"><i>Note : chaque sauvegarde de fichier tente desormais\nautomatiquement ce deverrouillage en arriere-plan avant d\'ecrire -- ce bouton\nn\'est donc utile que dans de rares cas residuels ou meme cette auto-reparation ne\nsuffit pas.</i></p>\n',
+            title_fr='Reparer les permissions et resoudre les blocages',
+            content_fr='\n<p><b>Fichier > Reparer les permissions de la copie de travail</b> -- si la copie\nde travail devient soudainement impossible a modifier ou a supprimer (Windows\ndemande une "autorisation" meme pour ton propre compte), c\'est generalement du a\nun attribut lecture-seule herite de la source (frequent avec les scenarios\ninstalles sous Program Files). Ce bouton deverrouille tout instantanement.</p>\n\n<p style="color:#7c859c"><i>Note : chaque sauvegarde de fichier tente desormais\nautomatiquement ce deverrouillage en arriere-plan avant d\'ecrire -- ce bouton\nn\'est donc utile que dans de rares cas residuels ou meme cette auto-reparation ne\nsuffit pas.</i></p>\n',
+            title_en='Repairing permissions and resolving lock-ups',
+            content_en='\n<p><b>File > Repair working copy permissions</b> -- if the working copy suddenly\nbecomes impossible to modify or delete (Windows asks for "permission" even for your\nown account), it\'s usually due to a read-only attribute inherited from the source\n(common with scenarios installed under Program Files). This button unlocks\neverything instantly.</p>\n\n<p style="color:#7c859c"><i>Note: every file save now automatically attempts this\nunlock in the background before writing -- this button is therefore only useful in\nrare residual cases where even this auto-repair isn\'t enough.</i></p>\n',
         ),
         TutorialStep(
-            title="Les options de l'application",
-            content_html='\n<p>Le menu <b>Options</b> regroupe les reglages globaux, valables pour tous les\nprojets :</p>\n\n<ul>\n<li><b>Nom pour les annotations...</b> -- ton nom, utilise dans les commentaires\nautomatiques ajoutes lors d\'une modification (ex: <code># Modifie par Toi</code>)</li>\n<li><b>Annoter les modifications automatiquement</b> (case a cocher) -- active\nou desactive ces commentaires automatiques</li>\n<li><b>Autoriser la fusion</b> (case a cocher, <b>desactivee par defaut</b>) --\nvoir l\'etape "Copier ou dupliquer depuis Scenario A ou B"</li>\n<li><b>Langue de traduction par defaut...</b> -- la langue utilisee par le\nbouton "Traduire" rapide</li>\n</ul>\n',
+            title_fr="Les options de l'application",
+            content_fr='\n<p>Le menu <b>Options</b> regroupe les reglages globaux, valables pour tous les\nprojets :</p>\n\n<ul>\n<li><b>Nom pour les annotations...</b> -- ton nom, utilise dans les commentaires\nautomatiques ajoutes lors d\'une modification (ex: <code># Modifie par Toi</code>)</li>\n<li><b>Annoter les modifications automatiquement</b> (case a cocher) -- active\nou desactive ces commentaires automatiques</li>\n<li><b>Autoriser la fusion</b> (case a cocher, <b>desactivee par defaut</b>) --\nvoir l\'etape "Copier ou dupliquer depuis Scenario A ou B"</li>\n<li><b>Langue de traduction par defaut...</b> -- la langue utilisee par le\nbouton "Traduire" rapide</li>\n</ul>\n',
+            title_en='Application options',
+            content_en='\n<p>The <b>Options</b> menu groups the global settings, valid for all projects:</p>\n\n<ul>\n<li><b>Name for annotations...</b> -- your name, used in the automatic comments\nadded when making a change (e.g. <code># Modified by You</code>)</li>\n<li><b>Automatically annotate changes</b> (checkbox) -- enables or disables these\nautomatic comments</li>\n<li><b>Allow merging</b> (checkbox, <b>disabled by default</b>) -- see the\n"Copying or duplicating from Scenario A or B" step</li>\n<li><b>Default translation language...</b> -- the language used by the quick\n"Translate" button</li>\n</ul>\n',
         ),
         TutorialStep(
-            title='Le menu Aide : tutoriels et wiki de reference',
-            content_html="\n<p><b>Aide > Tutoriels...</b> -- ouvre cette meme fenetre de tutoriels pas a pas,\naccessible a tout moment.</p>\n\n<p><b>Aide > Wiki de l'application (fonctions)...</b> -- un document de reference\ncomplet, organise par theme, a consulter en cherchant plutot qu'en suivant un\nparcours guide -- complementaire aux tutoriels : viens ici pour un parcours\nd'apprentissage complet une premiere fois, reviens au wiki ensuite pour\nretrouver rapidement un detail precis.</p>\n\n<p><b>Aide > Wiki Empyrion (proprietes, fichiers, structure)...</b> -- meme\nprincipe, mais pour la documentation du <b>jeu lui-meme</b> (structure des\nfichiers ECF/YAML, conventions, pieges connus) plutot que de l'application.</p>\n",
+            title_fr='Le menu Aide : tutoriels et wiki de reference',
+            content_fr="\n<p><b>Aide > Tutoriels...</b> -- ouvre cette meme fenetre de tutoriels pas a pas,\naccessible a tout moment.</p>\n\n<p><b>Aide > Wiki de l'application (fonctions)...</b> -- un document de reference\ncomplet, organise par theme, a consulter en cherchant plutot qu'en suivant un\nparcours guide -- complementaire aux tutoriels : viens ici pour un parcours\nd'apprentissage complet une premiere fois, reviens au wiki ensuite pour\nretrouver rapidement un detail precis.</p>\n\n<p><b>Aide > Wiki Empyrion (proprietes, fichiers, structure)...</b> -- meme\nprincipe, mais pour la documentation du <b>jeu lui-meme</b> (structure des\nfichiers ECF/YAML, conventions, pieges connus) plutot que de l'application.</p>\n",
+            title_en='The Help menu: tutorials and reference wiki',
+            content_en='\n<p><b>Help > Tutorials...</b> -- opens this same step-by-step tutorial window,\naccessible at any time.</p>\n\n<p><b>Help > Application wiki (functions)...</b> -- a complete reference document,\norganized by theme, meant to be searched rather than followed as a guided path --\ncomplementary to the tutorials: come here for a full learning path the first time,\ncome back to the wiki afterward to quickly find a specific detail.</p>\n\n<p><b>Help > Empyrion wiki (properties, files, structure)...</b> -- same\nprinciple, but for the documentation of the <b>game itself</b> (ECF/YAML file\nstructure, conventions, known pitfalls) rather than the application.</p>\n',
         ),
         TutorialStep(
-            title='Recapitulatif -- ou trouver quoi',
-            content_html='\n<p>Un dernier reperage rapide, par intention :</p>\n<ul>\n<li><b>"Je veux commencer un nouveau projet"</b> -> Fichier > Nouveau projet...</li>\n<li><b>"Je veux comparer deux versions"</b> -> Fichier > Comparer deux\nscenarios...</li>\n<li><b>"Je veux ajouter/modifier un bloc"</b> -> ouvre le fichier ECF dans la\ncopie de travail, utilise + Bloc / + Propriete / la duplication depuis Scenario\nA</li>\n<li><b>"Je veux traduire mes textes"</b> -> ouvre le CSV, utilise le bouton\nTraduire, la traduction en lot, ou "Combler les langues manquantes..."</li>\n<li><b>"Mon jeu plante au chargement"</b> -> Verification > Verifier les\nreferences, et la fonction "Desactiver ce bloc (test)" pour isoler la cause par\nelimination</li>\n<li><b>"Ma copie de travail est bloquee"</b> -> Fichier > Reparer les\npermissions</li>\n<li><b>"Je veux documenter mon scenario"</b> -> Fichier > Extraire les\nproprietes du scenario...</li>\n</ul>\n<p>Tu connais maintenant l\'integralite de l\'application -- bon travail sur ton\nscenario !</p>\n',
+            title_fr='Recapitulatif -- ou trouver quoi',
+            content_fr='\n<p>Un dernier reperage rapide, par intention :</p>\n<ul>\n<li><b>"Je veux commencer un nouveau projet"</b> -> Fichier > Nouveau projet...</li>\n<li><b>"Je veux comparer deux versions"</b> -> Fichier > Comparer deux\nscenarios...</li>\n<li><b>"Je veux ajouter/modifier un bloc"</b> -> ouvre le fichier ECF dans la\ncopie de travail, utilise + Bloc / + Propriete / la duplication depuis Scenario\nA</li>\n<li><b>"Je veux traduire mes textes"</b> -> ouvre le CSV, utilise le bouton\nTraduire, la traduction en lot, ou "Combler les langues manquantes..."</li>\n<li><b>"Mon jeu plante au chargement"</b> -> Verification > Verifier les\nreferences, et la fonction "Desactiver ce bloc (test)" pour isoler la cause par\nelimination</li>\n<li><b>"Ma copie de travail est bloquee"</b> -> Fichier > Reparer les\npermissions</li>\n<li><b>"Je veux documenter mon scenario"</b> -> Fichier > Extraire les\nproprietes du scenario...</li>\n</ul>\n<p>Tu connais maintenant l\'integralite de l\'application -- bon travail sur ton\nscenario !</p>\n',
+            title_en='Summary -- where to find what',
+            content_en='\n<p>One last quick lookup, by intent:</p>\n<ul>\n<li><b>"I want to start a new project"</b> -> File > New project...</li>\n<li><b>"I want to compare two versions"</b> -> File > Compare two scenarios...</li>\n<li><b>"I want to add/modify a block"</b> -> open the ECF file in the working\ncopy, use + Block / + Property / duplication from Scenario A</li>\n<li><b>"I want to translate my text"</b> -> open the CSV, use the Translate\nbutton, batch translation, or "Fill missing translations..."</li>\n<li><b>"My game crashes on load"</b> -> Verification > Check references, and the\n"Disable this block (test)" function to isolate the cause by elimination</li>\n<li><b>"My working copy is locked"</b> -> File > Repair permissions</li>\n<li><b>"I want to document my scenario"</b> -> File > Extract scenario\nproperties...</li>\n</ul>\n<p>You now know the entire application -- good luck with your scenario!</p>\n',
         ),
     ],
 )
+
 
 TUTORIALS: List[Tutorial] = [
     TUTORIAL_CREATE_BLOCK,

@@ -117,6 +117,56 @@ def get_backup_root(kind: str) -> str:
     return ''
 
 
+def get_language_chosen() -> bool:
+    """True si l'utilisateur a deja explicitement choisi une langue au moins une
+    fois (via le selecteur de tout premier lancement) -- permet de distinguer
+    'jamais choisi' de 'a choisi francais', puisque get_language() renvoie 'fr' par
+    defaut dans les deux cas."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            return bool(data.get('language_chosen', False))
+        except Exception:
+            pass
+    return False
+
+
+def set_language_chosen(chosen: bool = True) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    data['language_chosen'] = chosen
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+
+def get_auto_open_tutorial() -> bool:
+    """True (par defaut) tant que l'utilisateur n'a pas explicitement decoche
+    'Ne plus afficher automatiquement au demarrage' dans le tutoriel."""
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            return bool(data.get('auto_open_tutorial', True))
+        except Exception:
+            pass
+    return True
+
+
+def set_auto_open_tutorial(auto_open: bool) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    data['auto_open_tutorial'] = auto_open
+    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+
+
 def get_default_translation_language() -> tuple:
     """Langue utilisee par le bouton de traduction rapide (une seule cellule ou une
     selection, sans passer par le sous-menu de choix de langue). Retourne

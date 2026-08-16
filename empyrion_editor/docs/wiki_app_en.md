@@ -1,146 +1,357 @@
 # Application Wiki — Empyrion Scenario Editor
 
-Documentation of every function of the tool, organized by topic.
+Reference documentation for every function of the tool, organized by theme. For a
+guided step-by-step walkthrough, see **Help > Tutorials...** in the application
+instead — this wiki is meant to be searched for a specific point, not necessarily
+read in order.
 
 ---
 
-## 1. The basics: projects and working copy
+## 1. First launch and language
+
+On the very first application startup (never again afterward), a bilingual screen
+asks you to choose the interface language (Francais / English) — this choice is
+applied immediately, and can be changed at any time afterward via the **FR/EN**
+button at the top right of the main window. The choice is only asked once;
+subsequent launches start directly in the chosen language.
+
+Following this choice (and on every subsequent launch, unless disabled), the
+**tutorials module** opens automatically with a banner reminding you it's
+accessible at any time via **Help > Tutorials...**, and a checkbox
+**"Don't show automatically on startup"** — once checked, automatic opening stops
+permanently (re-enableable only by deleting the application's settings file).
+
+---
+
+## 2. Projects: creating, opening, the three-panel structure
 
 ### New project
-**File > New project...** — Choose a Scenario A (required), and if you want to merge two scenarios, check "Merge mode" and choose a Scenario B. Then pick a destination folder (must not already exist): this is your **working copy**.
+**File > New project...** asks for three fields:
+- **Scenario A** (required) — the source scenario folder, never modified
+- **Scenario B** (optional) — a second reference scenario
+- **Working copy destination** — where the editable copy will be created (must not
+  already exist)
 
-On creation, the tool copies the **entire, exact** content of Scenario A into the destination folder (all files, not just .ecf/.csv/.yaml). Nothing is invented or transformed during the copy.
-
-### Working copy vs sources
-- **Scenario A / Scenario B**: shown at the bottom, **read-only**. These are your references, never modified by the tool.
-- **Working copy**: shown in the middle, **editable**. This is the only place you edit, merge, or duplicate.
+On creation, the tool copies Scenario A **fully and identically** into the
+destination folder (all files, not just .ecf/.csv/.yaml). Nothing is invented or
+transformed during the copy.
 
 ### Recent projects
-**File > Recent projects...** (or automatically offered at startup) — resumes an existing project **without recopying** the working copy (your previous changes stay intact). Useful for continuing work across multiple sessions.
+**File > Recent projects...** (also automatically offered on startup) reopens an
+existing project **without recopying** the working copy — your previous changes
+stay intact. Useful for continuing work across multiple sessions.
 
-### Folder tree
-All three panels (A, working copy, B) show **the exact folder structure from disk** — like a regular file explorer, no artificial categorization.
+### The three panels
+- **Scenario A** (left) — the original source, **read-only**, never modified
+- **Working copy** (center) — the only editable zone, all your work happens here
+- **Scenario B** (right, optional) — a second reference source, also read-only
 
----
+All three panels show the **exact folder structure on disk** — like a classic file
+explorer, no artificial categorization.
 
-## 2. Merging from Scenario A or B
-
-### Merging a whole file
-Right-click a file in Scenario A or B > **"Copy / merge to working copy"**.
-
-- If the file doesn't exist yet in the working copy: plain copy.
-- If it's an existing **.ecf** file: smart per-block merge (see below).
-- If it's an existing **.csv** file: merge by key (1st column) — the working copy is **always prioritized**: a row whose key already exists is never overwritten, only **empty** cells get filled in; missing rows are added.
-- Other formats (yaml, txt...): plain copy that **replaces** the existing file (no smart merge for these formats).
-
-### Merging a whole folder
-Right-click **any folder** > "Merge this folder (and subfolders)" — applies the same logic to every file it contains, in a single action. A progress bar shows for large folders.
-
-### ECF merge — how it works precisely
-- The working copy is **prioritized**: its existing properties and blocks are never overwritten.
-- Blocks and properties **missing** from the working copy are added.
-- **Anti-collision safeguard**: if an Id is shared between two blocks whose `Name` differs (same Id, different content — happens between independent scenarios), the block is **never blindly merged**. It's added at the end of the file, **disabled** (commented out), for manual review (see "Pending blocks" below).
-
-### Copying a single block / a single row
-Right-click a block in the ECF tree, or a CSV row, in the Scenario A/B view > "Copy this block/row to working copy" — merges **only that element**, leaving the rest of the file untouched.
-
-### Duplicating with a new identifier
-Right-click a read-only ECF block or CSV row > "Duplicate with a new Id/key..." — unlike "copy/merge", this creates a **fully independent element** (no merge), letting you choose a new Id and/or a new Name (with free-Id suggestions). Handy to start from an existing block as a template for a new, distinct one (e.g. a variant of an item).
-
-- Also works on blocks **without an Id** (identified only by `Name`) — a real case in some Empyrion files.
-- You can also **drop the Id** on the duplicate, leaving it identified by Name only.
-- If you duplicate a **nested sub-block** (e.g. a `Mode` inside an `Item`), it automatically stays **inside the same parent block** in the working copy (not orphaned at the root).
-- Same logic available for YAML (duplicating an entry with a new key/value).
+### Managing Scenario B along the way
+- **File > Open a Scenario B...** — appears when no B is active
+- **File > Change Scenario B...** — same menu, automatically renamed once a B is
+  active; asks for confirmation before replacing
+- **File > Remove Scenario B** — disables the B panel; the working copy is never
+  affected
 
 ---
 
-## 3. Editing the working copy
+## 3. Opening and navigating a file
 
-### ECF files
-Double-click a `.ecf` in the working copy: opens a **comparison view** (your copy on the left, editable; Scenario A/B on the right, read-only, in tabs).
+**Double-click** any file in one of the three panels to open it in a new tab.
+Files opened from Scenario A/B are **read-only**; those opened from the working
+copy are **editable**. A tab already open for a file gets selected instead of
+opening a duplicate.
 
-- **Double-click a value** in the property table to edit it.
-- **+ Block** / **+ Property** to add.
-- Right-click a property: **Delete**, **Translate to...**, **BBCode formatting...**
-- Every value change is **automatically annotated**: `# original: <old_value> -- Mod by <you>` (configurable in **Options**).
+Handled types: **.ecf** (blocks, items, config), **.yaml/.yml** (playfields,
+planets...), **.csv** (translations, tables), **.txt** (plain text).
 
-### CSV files
-Double-click a `.csv`: editable table.
-- **+ Row** / **Delete selected row**.
-- Right-click: Copy/Cut/Paste (Excel-compatible, tab-delimited), **Clear content** (empties the cell) vs **Delete entire row** (two distinct actions), Translate, BBCode.
-- The **delimiter** (`,` or `;`) and **line-ending style** are auto-detected and preserved.
-
-### YAML files
-Double-click a `.yaml`/`.yml`: navigation tree on the left (key + preview), editable value panel on the right with an **"Apply this value"** button — better suited than in-cell editing given the nested structure of playfields.
-- **+ Entry** / **Delete selected entry**.
-- Translation and BBCode available on the value being edited.
-
-### TXT files
-Double-click a `.txt`: simple text editor. Native copy/cut/paste (Qt), plus translation and BBCode on a selection via right-click.
-
-### Copy / Cut / Paste (CSV and ECF tables)
-`Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Delete` work on tables, using an Excel-compatible format (tabs). The "Key" column of an ECF property table stays write-protected (can't be changed by an accidental paste).
+### The block tree (ECF)
+- **Section groups**: if the source file uses separator comments
+  (`# ===...===` / title / `# ===...===`), the tree shows bold category headers
+  (visual markers only, not clickable)
+- **Readable labels**: a `## ReadableName` comment right before a block shows in
+  parentheses next to its technical identifier
+- **Search**: by Id, Name, or CustomIcon, with next-result navigation (Enter)
 
 ---
 
-## 4. Translation
+## 4. Editing an ECF file
 
-Available everywhere you edit text (CSV, ECF, YAML, TXT), via right-click > **"Translate to..."**. Uses Google Translate (`deep-translator` library, free, requires an internet connection).
+### The property table — two modes
+- **Classic list mode** (majority of blocks) — one row per property, double-click
+  the value to edit
+- **Table mode** (repeating structures like *Child Items*, *LootGroups*,
+  *DamageMultiplier*...) — automatically detects any sequence of numbered entries
+  (`Name_0`, `Name_1`... or `Item_0`, whatever prefix the file uses), shows one
+  column per parameter. The **"+ Row"** button replaces **"+ Property"** in this
+  mode.
 
-- **BBCode and placeholder protection**: tags (`[b]`, `[color=#RRGGBB]`...) and substitution tokens (`{PlayerName}`, `%d`, `%s`...) are automatically extracted before translation and reinserted in place — never translated or broken.
-- **CSV translation targets the right column**: right-click a source cell (e.g. the `English` column) and pick the target language (e.g. `Francais`) — the result goes into the matching column (e.g. `Français`), not the source cell. Column matching is accent-insensitive and recognizes several naming conventions (ISO code, English name, native name).
-- **From Scenario A/B (read-only)**: you can translate a source cell directly and the result gets applied to the matching cell in the **working copy**.
-- The result window lets you **review and correct** the translation before applying it.
+### Adding
+- **+ Block** — creates a brand new, entirely empty block (choose the kind: Block,
+  Item...)
+- **+ Property** — adds a property to the selected block; several pairs can be
+  typed at once (`value, param1: X, param2: "Y,Z"`) to stay grouped on the same
+  line as the game does
+- **+ Row** (table mode only) — dedicated form (Type/Value/params), numbering and
+  position calculated automatically
 
-## 5. BBCode formatting
+### Deleting and disabling
+- **Delete** (right-click) — permanently removes the element, confirmation
+  requested for an entire block
+- **Disable this block (test)** (right-click a block) — comments the block out
+  **at its exact position** (never moved), without deleting it; useful to isolate
+  a crash cause by elimination
+- **Disabled blocks (test)** (button) — lists all disabled blocks in the file,
+  with **Re-enable** per entry
 
-Right-click > **"BBCode formatting..."** opens a small window: select a portion of text with the mouse, click a color (10-swatch palette) or a style (Bold/Italic/Underline) to automatically wrap it in the right tags (`[color=#FF0000]...[/color]`, `[b]...[/b]`...).
+### Filtering and understanding
+- **Filter by property...** — shows only blocks having (or not having) certain
+  specific properties
+- **"Show property explanations for this file" panel** (collapsible, below the
+  file name) — hand-made clarified glossary for 17 files (BlocksConfig.ecf,
+  ItemsConfig.ecf, Templates.ecf, GalaxyConfig.ecf, GlobalDefsConfig.ecf,
+  LootGroups.ecf, MaterialConfig.ecf, StatusEffects.ecf, TokenConfig.ecf,
+  TraderNPCConfig.ecf, BlockGroupsConfig.ecf, Containers.ecf,
+  DamageMultiplierConfig.ecf, DefReputation.ecf, EGroupsConfig.ecf, Factions.ecf,
+  FactionWarfare.ecf); for others, a button auto-translates the original text
 
----
-
-## 6. Checks
-
-### Check references (Verification menu)
-Checks that every `Ref: X` matches an existing `Name: X` somewhere in the scenario — `Ref` is Empyrion's inheritance mechanism, a broken reference fails silently in-game (no error message, just missing properties). Run this after a merge.
-
-### Pending blocks (Verification menu)
-Lists every block put on hold (disabled) by the merge's anti-collision safeguard. For each one:
-- **Detailed comparison** with the currently active block (property-by-property diff).
-- **Free-Id suggestions** (computed above the highest Id currently used in the scenario).
-- A button to **activate** the block with the chosen new Id — avoids editing the file by hand (real risk of breaking the structure if the closing `}` line stays commented out by mistake).
-
-### Filter by property
-In an ECF file view, the **"Filter by property..."** button lists every property that exists in the file (with its occurrence count); check one or more to filter the tree live (hides blocks that don't have all of them).
-
-### Search
-Every file view has a search bar (Id / Name / key / value depending on the format) with "next" navigation — essential once a file goes beyond a few hundred entries.
-
----
-
-## 7. Options
-
-**Options > Name for annotations...** — the name that appears in traceability comments (`Mod by <name>`).
-
-**Options > Automatically annotate changes** — enables/disables automatic annotation.
-
-**Language button (toolbar)** — switches the interface between French and English instantly, no restart needed. The choice is saved between sessions.
-
----
-
-## 8. Diagnostic scripts (command line)
-
-Useful alongside the interface, run from a terminal in the project folder:
-
-- `verifier_parser_ecf.py <file_or_folder>` — checks round-trip fidelity (perfect reproduction) of one or more ECF files.
-- `verifier_parser_yaml.py <file_or_folder>` — same for YAML.
-- `verifier_parser_csv.py <file_or_folder>` — same for CSV.
-- `diagnostic_bloc.py <file.ecf> <Id>` — looks for a specific block by Id, including inside comments (useful if a block seems to have disappeared).
-- `detecter_imbrication_anormale.py <file.ecf>` — detects blocks that have mistakenly "swallowed" the rest of the file (typically after a manual edit that left a closing brace commented out).
+### Automatic annotations
+Every value change is annotated (if enabled in Options):
+`# original: <old_value> -- Mod par <you>`.
 
 ---
 
-## 9. Known limitations
+## 5. Editing a YAML file
 
-- No spreadsheet-style multi-row copy/paste for YAML yet (the structure is too nested for that to make sense the same way).
-- "Smart" merge (working-copy priority, gap-filling) only exists for ECF and CSV. Other formats (YAML, TXT...) are replaced entirely during a file merge.
-- Translation requires an internet connection (Google Translate).
+Navigation tree on the left (key + preview), editable value panel on the right.
+
+- **+ Entry** / **Delete selected entry**
+- **Apply this value** — confirms the typed text (also automatically applied on
+  selection change or save, no risk of losing an edit by forgetting)
+- **Multi-line quoted strings**: a blank line inside quotes becomes an actual line
+  break, for correct in-game display (common for playfield descriptions)
+
+---
+
+## 6. Editing a CSV file
+
+- **Search** with a scope selector ("in:" a specific column or all); right-click a
+  column header to directly limit a search to it
+- **+ Row** / **Selected row** (delete)
+- **Clipboard** (right-click) — Copy, Cut, Paste, Clear content, works on a
+  multi-selection like a spreadsheet
+- The **delimiter** (`,` or `;`) and **line-ending style** are auto-detected and
+  preserved
+
+---
+
+## 7. Translation
+
+All functions below use Google Translate (`deep-translator` library, free,
+requires an internet connection) and automatically protect BBCode and
+placeholders (`{PlayerName}`, `%d`...) — never translated or broken.
+
+### Translation memory
+Fully automatic and invisible: once a text is translated to a given language, the
+same translation is reused instantly (no new network call) if that exact text
+appears again elsewhere — faster, and guarantees full consistency of the same word
+throughout the file.
+
+### Cell by cell
+Right-click a cell > **"Translate to"** > choose a language — shows a before/after
+preview, offers to replace the cell itself or the column matching the target
+language on the same row if it already exists.
+
+### Quick translation
+**"Translate" button** (toolbar) — directly translates the current cell/selection
+to the **default language** (Options > "Default translation language..."), no
+submenu. Automatically switches to batch mode if multiple cells are selected.
+
+### Batch (multi-selection)
+Multi-select + right-click > **"Translate selection to..."** — progress bar, then
+review table before applying.
+
+### Filling missing translations
+Dedicated button — choose a source column (filled) and a target column (to
+complete); scans the whole file, only translates genuinely empty cells.
+
+### Review table and failure handling
+Every batch translation goes through a table (checkboxes, editable text before
+confirming) — nothing is written without confirmation. On a very large batch, if
+the service temporarily blocks, it stops **automatically after 5 consecutive
+failures** with a clear message; translations already completed remain available;
+failures are highlighted in red and unchecked by default.
+
+---
+
+## 8. Find and replace (CSV)
+
+**"Find and replace..." button** — fixes text repeated in several places
+(typically an approximate machine translation):
+- **Find** / **Replace with**
+- **In column** — a specific column or all
+- **Case sensitive**
+- **Whole word only** — avoids touching a word that only contains the searched
+  text as a fragment
+
+Just like translation, each match goes through the review table.
+
+---
+
+## 9. BBCode formatting
+
+Right-click > **"BBCode formatting..."** — select a portion of text, click a color
+(10-shade palette) or a style (Bold/Italic/Underline) to automatically wrap it in
+the right tags (`[color=#FF0000]...[/color]`, `[b]...[/b]`...).
+
+---
+
+## 10. Copying, merging and duplicating from Scenario A or B
+
+### Copy/merge
+Right-click (file, folder, block, row, entry) > **"Copy / merge into working
+copy"** — combines source content into the working copy. **Disabled by default**
+(too many edge cases to be 100% reliable), re-enableable in **Options > "Allow
+merging"**.
+
+Behavior by file type:
+- Existing **.ecf**: smart block-by-block merge — the working copy always takes
+  priority (nothing overwritten), missing blocks/properties are added
+- Existing **.csv**: merge by key (1st column) — an existing row is never
+  overwritten, only empty cells are filled in, missing rows are added
+- **Other formats** (yaml, txt...): simple copy that replaces the existing file
+
+**Anti-collision safeguard**: if an Id is shared between two blocks with different
+`Name`, the block is never blindly merged — it's added at the end of the file,
+**disabled**, for manual review (see "Pending blocks" below).
+
+### Duplicate
+Right-click (file, block, row, entry) > **"Duplicate with a new Id/key..."** —
+**always available**, systematically creates an **independent** copy (new
+Id/name, free-Id suggestions provided), never overwriting anything. Also works on
+blocks without an Id (identified only by `Name`), lets you drop the duplicate's
+Id to identify it by Name only, and keeps a nested sub-block within the same
+parent block.
+
+### Undoing a merge/duplication
+Global **"Undo last action"** button (top of the window, distinct from the
+per-tab "Undo (Ctrl+Z)").
+
+---
+
+## 11. Verification
+
+### Check references
+**Verification > Check references** — checks that every `Ref:`, `TemplateRoot`
+and similar reference points to an existing name.
+
+### Pending blocks
+**Verification > Pending blocks** — lists all blocks put on hold by the
+anti-collision safeguard, with a detailed comparison (current block vs pending)
+and free-Id suggestions to activate it properly.
+
+---
+
+## 12. Backups
+
+### Scenario backups
+**File > Back up a scenario (before update)...** — a full copy before a Steam
+Workshop update overwrites the scenario in place.
+
+### Savegame backups
+**File > Manage my savegame backups...** — same principle for game progress, with
+**Restore** (a safety backup is automatically created before any restore).
+
+The manager offers in both cases: Back up now, Restore, Open folder, Delete
+(confirmation requested), and for scenarios only, **Compare with...** (directly
+opens the comparison tool).
+
+---
+
+## 13. Comparing two scenarios
+
+**File > Compare two scenarios...** — independent from the currently open
+project, compares any two folders:
+- Tree color-coded by status (added / removed / modified / unchanged)
+- Precise change details (block-by-block for ECF, row-by-row for CSV, key-by-key
+  for YAML)
+- **Also show identical files** (checkbox)
+- **Export report...** (complete text file)
+
+---
+
+## 14. Extracting scenario properties
+
+**File > Extract scenario properties...** — scans every .ecf file from a source
+(working copy, Scenario A or B) and builds a working CSV glossary:
+- Every property, with occurrence count, files involved, example values, and an
+  automatic description when recognized unambiguously
+- Numbered keys (`Name_0`, `Name_1`...) are grouped under a generic entry
+  (`Name_N`)
+- An empty **"Target value"** column, to fill in as you work through your design
+
+The resulting file opens automatically, directly editable.
+
+---
+
+## 15. Maintenance
+
+### Repairing permissions
+**File > Repair working copy permissions** — instantly unlocks a working copy
+that's become impossible to modify/delete (read-only attribute inherited from the
+source, common under Program Files). Every file save already attempts this repair
+automatically in the background; this button is only useful in rare residual
+cases.
+
+---
+
+## 16. Options
+
+**Options** menu, global settings valid for all projects:
+- **Name for annotations...** — name used in automatic comments
+- **Automatically annotate changes** (checkbox)
+- **Allow merging** (checkbox, disabled by default)
+- **Default translation language...** — language used by the quick "Translate"
+  button
+
+---
+
+## 17. Help
+
+- **Help > Tutorials...** — built-in step-by-step tutorial module, navigable
+  (Previous/Next), with at minimum "Create a block, step by step" and "Complete
+  application walkthrough"
+- **Help > Application wiki (functions)...** — this document
+- **Help > Empyrion wiki (properties, files, structure)...** — documentation of
+  the game itself (file structure, conventions, known pitfalls)
+
+---
+
+## 18. Diagnostic scripts (command line)
+
+Complements to the interface, run from a terminal in the project folder:
+
+| Script | Usage |
+|---|---|
+| `verifier_parser_ecf.py <file_or_folder>` | Checks round-trip (perfect fidelity) of one or more ECF files |
+| `verifier_parser_yaml.py <file_or_folder>` | Same for YAML |
+| `verifier_parser_csv.py <file_or_folder>` | Same for CSV |
+| `diagnostic_bloc.py <file.ecf> <Id>` | Finds a specific block by Id, including within comments |
+| `detecter_imbrication_anormale.py <file.ecf>` | Detects blocks that mistakenly "swallowed" the rest of the file |
+| `diff_ecf.py <fileA.ecf> <fileB.ecf>` | Compares two ECF files, shows added/removed/modified blocks |
+| `edit_ecf.py <file.ecf>` | Interactive command-line ECF editor |
+| `merge_ecf.py <output.ecf> <source1> <source2>...` | Merges several ECF files by priority order |
+| `transform_ecf.py` | Applies a bulk numeric transformation (multiply/add/set/cap) on a property, for a given block kind |
+
+---
+
+## 19. Known limitations
+
+- No spreadsheet-style multi-line copy/paste for YAML (structure too nested)
+- "Smart" merging (working-copy priority, completion) only exists for ECF and CSV
+  — other formats are fully replaced during a file merge
+- Translation requires an internet connection (Google Translate, free unofficial
+  service — may temporarily block on very large volumes, see section 7)
