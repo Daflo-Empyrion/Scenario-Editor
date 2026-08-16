@@ -514,6 +514,47 @@ STRINGS = {
     "repair.done_msg": {"fr": "La copie de travail est de nouveau entierement modifiable "
                               "(et supprimable).",
                          "en": "The working copy is fully writable (and deletable) again."},
+
+    # --- Extraction des proprietes du scenario ---
+    "menu.file.extract_properties": {"fr": "Extraire les proprietes du scenario...",
+                                      "en": "Extract scenario properties..."},
+    "extract.title": {"fr": "Extraire les proprietes", "en": "Extract properties"},
+    "extract.source_label": {"fr": "Extraire depuis :", "en": "Extract from:"},
+    "extract.source_working": {"fr": "La copie de travail", "en": "The working copy"},
+    "extract.source_a": {"fr": "Scenario A", "en": "Scenario A"},
+    "extract.source_b": {"fr": "Scenario B", "en": "Scenario B"},
+    "extract.intro": {"fr": "Parcourt tous les fichiers .ecf et liste chaque propriete "
+                             "utilisee (regroupees, ex: Name_0/Name_1... -> Name_N), avec "
+                             "le nombre d'occurrences, les fichiers concernes, des exemples "
+                             "de valeurs, et une description quand elle est connue. Cree un "
+                             "fichier CSV modifiable dans l'appli -- utile comme glossaire de "
+                             "travail, a completer avec tes propres notes (colonne 'Valeur "
+                             "cible').",
+                       "en": "Scans all .ecf files and lists every property used (grouped, "
+                             "e.g. Name_0/Name_1... -> Name_N), with occurrence count, "
+                             "files involved, example values, and a description when known. "
+                             "Creates a CSV file editable in the app -- useful as a working "
+                             "glossary, to fill in with your own notes ('Target value' "
+                             "column)."},
+    "extract.scanning": {"fr": "Analyse des fichiers ECF en cours...", "en": "Scanning ECF files..."},
+    "extract.no_ecf_found": {"fr": "Aucun fichier .ecf trouve dans cette source.",
+                              "en": "No .ecf files found in this source."},
+    "extract.save_dialog_title": {"fr": "Enregistrer le glossaire des proprietes",
+                                   "en": "Save the properties glossary"},
+    "extract.done_title": {"fr": "Extraction terminee", "en": "Extraction complete"},
+    "extract.done_msg": {"fr": "{count} proprietes distinctes extraites vers :\n{path}",
+                          "en": "{count} distinct properties extracted to:\n{path}"},
+    "extract.open_now": {"fr": "Ouvrir maintenant dans l'appli ?", "en": "Open it in the app now?"},
+
+    # --- Tutoriels ---
+    "menu.help.tutorials": {"fr": "Tutoriels...", "en": "Tutorials..."},
+    "tutorials.dialog_title": {"fr": "Tutoriels", "en": "Tutorials"},
+    "tutorials.list_title": {"fr": "Choisir un tutoriel", "en": "Choose a tutorial"},
+    "tutorials.step_counter": {"fr": "Etape {current}/{total}", "en": "Step {current}/{total}"},
+    "tutorials.btn_previous": {"fr": "\u2190 Precedent", "en": "\u2190 Previous"},
+    "tutorials.btn_next": {"fr": "Suivant \u2192", "en": "Next \u2192"},
+    "tutorials.select_prompt": {"fr": "Choisis un tutoriel dans la liste a gauche pour commencer.",
+                                 "en": "Choose a tutorial from the list on the left to begin."},
     "save.error_title": {"fr": "Erreur d'enregistrement", "en": "Save error"},
     "save.error_msg": {"fr": "Impossible d'enregistrer '{name}' :\n{error}\n\n"
                               "Si c'est une erreur de permission, essaie Fichier > "

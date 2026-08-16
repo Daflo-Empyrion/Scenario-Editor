@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
     QProgressDialog, QInputDialog, QPushButton, QSizePolicy, QDialog, QCheckBox,
+    QRadioButton, QButtonGroup, QListWidget, QListWidgetItem, QTextBrowser,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -108,6 +109,8 @@ class MainWindow(QMainWindow):
         self.action_manage_saves.triggered.connect(lambda: self._open_backup_dialog('savegame'))
         self.action_repair_permissions = self.menu_file.addAction(t("menu.file.repair_permissions"))
         self.action_repair_permissions.triggered.connect(self._repair_working_copy_permissions)
+        self.action_extract_properties = self.menu_file.addAction(t("menu.file.extract_properties"))
+        self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
         self.menu_file.addSeparator()
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
@@ -133,6 +136,8 @@ class MainWindow(QMainWindow):
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
 
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
+        self.action_tutorials = self.menu_help.addAction(t("menu.help.tutorials"))
+        self.action_tutorials.triggered.connect(self._open_tutorials_dialog)
         self.action_wiki_app = self.menu_help.addAction(t("menu.help.wiki_app"))
         self.action_wiki_app.triggered.connect(
             lambda: open_wiki(self, t("menu.help.wiki_app").rstrip("."), "wiki_app"))
@@ -158,6 +163,7 @@ class MainWindow(QMainWindow):
         self.action_backup_scenario.setText(t("menu.file.backup_scenario"))
         self.action_manage_saves.setText(t("menu.file.manage_saves"))
         self.action_repair_permissions.setText(t("menu.file.repair_permissions"))
+        self.action_extract_properties.setText(t("menu.file.extract_properties"))
         self.action_quit.setText(t("menu.file.quit"))
 
         self.menu_check.setTitle(t("menu.verification"))
@@ -173,6 +179,7 @@ class MainWindow(QMainWindow):
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
         self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
+        self.action_tutorials.setText(t("menu.help.tutorials"))
 
         self.btn_language.setText(i18n.get_language().upper())
         self.btn_language.setToolTip(t("menu.options.language"))
@@ -315,6 +322,102 @@ class MainWindow(QMainWindow):
             return
         code = codes[labels.index(label)]
         settings.set_default_translation_language(code, label)
+
+    def _open_tutorials_dialog(self):
+        dialog = TutorialDialog(self)
+        dialog.exec()
+
+    def _extract_properties_dialog(self):
+        """Extrait toutes les proprietes utilisees dans les fichiers .ecf d'une source
+        du projet (copie de travail, Scenario A, ou B) vers un fichier CSV modifiable
+        -- base pour un glossaire de travail complete au fil du temps."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.missing_field"), t("status.no_project"))
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("extract.title"))
+        layout = QVBoxLayout(dialog)
+        intro = QLabel(t("extract.intro"))
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        layout.addWidget(QLabel(t("extract.source_label")))
+        group = QButtonGroup(dialog)
+        radio_working = QRadioButton(t("extract.source_working"))
+        radio_working.setChecked(True)
+        group.addButton(radio_working)
+        layout.addWidget(radio_working)
+        radio_a = QRadioButton(f"{t('extract.source_a')} ({self.workspace.source_a_root.name})")
+        group.addButton(radio_a)
+        layout.addWidget(radio_a)
+        radio_b = None
+        if self.workspace.is_merge_mode:
+            radio_b = QRadioButton(f"{t('extract.source_b')} ({self.workspace.source_b_root.name})")
+            group.addButton(radio_b)
+            layout.addWidget(radio_b)
+
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton(t("extract.title"))
+        btn_ok.clicked.connect(dialog.accept)
+        btn_row.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(dialog.reject)
+        btn_row.addWidget(btn_cancel)
+        layout.addLayout(btn_row)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        if radio_b is not None and radio_b.isChecked():
+            source_root = self.workspace.source_b_root
+        elif radio_a.isChecked():
+            source_root = self.workspace.source_a_root
+        else:
+            source_root = self.workspace.working_root
+
+        from core.property_extractor import extract_properties, build_property_rows, PROPERTY_EXPORT_HEADER
+        from core.csv_handler import CsvDocument, render_csv
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            usages = extract_properties(source_root)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if not usages:
+            QMessageBox.information(self, t("extract.title"), t("extract.no_ecf_found"))
+            return
+
+        rows = build_property_rows(usages)
+        csv_doc = CsvDocument(header=PROPERTY_EXPORT_HEADER, rows=rows)
+        csv_text = render_csv(csv_doc)
+
+        default_name = f"glossaire_proprietes_{source_root.name}.csv"
+        path_str, _ = QFileDialog.getSaveFileName(
+            self, t("extract.save_dialog_title"), default_name, "CSV (*.csv)")
+        if not path_str:
+            return
+        dest = Path(path_str)
+        if dest.suffix.lower() != '.csv':
+            dest = dest.with_suffix('.csv')
+
+        try:
+            dest.write_bytes(csv_text.encode('utf-8'))
+        except OSError as e:
+            QMessageBox.critical(self, t("save.error_title"),
+                                  t("save.error_msg", name=dest.name, error=str(e)))
+            return
+
+        confirm = QMessageBox.question(
+            self, t("extract.done_title"),
+            t("extract.done_msg", count=len(usages), path=str(dest)) + "\n\n" + t("extract.open_now"))
+        if confirm == QMessageBox.StandardButton.Yes:
+            widget = CsvEditWidget(dest, editable=True)
+            index = self.tabs.addTab(widget, "✎ " + dest.name)
+            self.tabs.setTabToolTip(index, str(dest))
+            self.tabs.setCurrentIndex(index)
 
     def _set_author_dialog(self):
         current = settings.get_author()
@@ -1366,6 +1469,101 @@ class MainWindow(QMainWindow):
         index = self.tabs.addTab(widget, prefix + path.name)
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
+
+
+class TutorialDialog(QDialog):
+    """Fenetre des tutoriels : liste a gauche (lue dynamiquement depuis
+    core/tutorials.py -- aucune modification necessaire ici pour ajouter un nouveau
+    tutoriel), navigation pas a pas a droite (titre d'etape, contenu, Precedent/
+    Suivant, compteur)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from core.tutorials import TUTORIALS
+        self.tutorials = TUTORIALS
+        self.current_tutorial = None
+        self.current_step_index = 0
+
+        self.setWindowTitle(t("tutorials.dialog_title"))
+        self.resize(800, 550)
+
+        layout = QHBoxLayout(self)
+
+        left_col = QVBoxLayout()
+        left_col.addWidget(QLabel(t("tutorials.list_title")))
+        self.list_widget = QListWidget()
+        self.list_widget.setMaximumWidth(220)
+        for tut in self.tutorials:
+            item = QListWidgetItem(tut.title)
+            item.setToolTip(tut.summary)
+            self.list_widget.addItem(item)
+        self.list_widget.currentRowChanged.connect(self._on_tutorial_selected)
+        left_col.addWidget(self.list_widget, 1)
+        layout.addLayout(left_col)
+
+        right_col = QVBoxLayout()
+        self.step_counter_label = QLabel("")
+        self.step_counter_label.setStyleSheet("color: gray; font-size: 11px;")
+        right_col.addWidget(self.step_counter_label)
+
+        self.step_title_label = QLabel("")
+        title_font = self.step_title_label.font()
+        title_font.setBold(True)
+        title_font.setPointSize(title_font.pointSize() + 2)
+        self.step_title_label.setFont(title_font)
+        right_col.addWidget(self.step_title_label)
+
+        self.content_browser = QTextBrowser()
+        self.content_browser.setOpenExternalLinks(True)
+        self.content_browser.setHtml(t("tutorials.select_prompt"))
+        right_col.addWidget(self.content_browser, 1)
+
+        nav_row = QHBoxLayout()
+        self.btn_previous = QPushButton(t("tutorials.btn_previous"))
+        self.btn_previous.setObjectName("secondaryButton")
+        self.btn_previous.clicked.connect(self._go_previous)
+        self.btn_previous.setEnabled(False)
+        nav_row.addWidget(self.btn_previous)
+        nav_row.addStretch()
+        self.btn_next = QPushButton(t("tutorials.btn_next"))
+        self.btn_next.clicked.connect(self._go_next)
+        self.btn_next.setEnabled(False)
+        nav_row.addWidget(self.btn_next)
+        right_col.addLayout(nav_row)
+
+        layout.addLayout(right_col, 1)
+
+        if self.tutorials:
+            self.list_widget.setCurrentRow(0)
+
+    def _on_tutorial_selected(self, row: int):
+        if row < 0 or row >= len(self.tutorials):
+            return
+        self.current_tutorial = self.tutorials[row]
+        self.current_step_index = 0
+        self._refresh_step()
+
+    def _refresh_step(self):
+        if not self.current_tutorial or not self.current_tutorial.steps:
+            return
+        steps = self.current_tutorial.steps
+        step = steps[self.current_step_index]
+        self.step_counter_label.setText(
+            t("tutorials.step_counter", current=self.current_step_index + 1, total=len(steps)))
+        self.step_title_label.setText(step.title)
+        self.content_browser.setHtml(step.content_html)
+        self.btn_previous.setEnabled(self.current_step_index > 0)
+        self.btn_next.setEnabled(self.current_step_index < len(steps) - 1)
+
+    def _go_previous(self):
+        if self.current_step_index > 0:
+            self.current_step_index -= 1
+            self._refresh_step()
+
+    def _go_next(self):
+        if self.current_tutorial and self.current_step_index < len(self.current_tutorial.steps) - 1:
+            self.current_step_index += 1
+            self._refresh_step()
 
 
 class DuplicateBlockDialog(QDialog):
