@@ -376,12 +376,13 @@ Complements to the graphical interface, available two ways depending on how you
 got the application:
 
 ### If you installed via the Windows installer
-A single executable bundles every tool: `EmpyrionEditorCLI.exe`, installed
-alongside the graphical app (same folder). From a terminal (Command Prompt or
-PowerShell), in that installation folder:
+A single executable bundles every tool: `EmpyrionEditorCLI.exe`, installed in a
+`CLI\` subfolder of the installation directory (kept separate from the
+graphical app to avoid any conflict between their respective internal files).
+From a terminal (Command Prompt or PowerShell), in that subfolder:
 
 ```
-EmpyrionEditorCLI.exe <command> [arguments...]
+CLI\EmpyrionEditorCLI.exe <command> [arguments...]
 ```
 
 Run it with no argument to see the full list of available commands.

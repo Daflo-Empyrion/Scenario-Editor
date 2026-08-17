@@ -83,6 +83,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(project_root / 'assets' / 'icon.ico'),
+    version=str(project_root / 'version_info.txt'),
 )
 
 coll = COLLECT(
@@ -131,21 +132,29 @@ cli_pyz = PYZ(cli_a.pure, cli_a.zipped_data, cipher=block_cipher)
 cli_exe = EXE(
     cli_pyz,
     cli_a.scripts,
-    cli_a.binaries,
-    cli_a.zipfiles,
-    cli_a.datas,
     [],
+    exclude_binaries=True,
     name='EmpyrionEditorCLI',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,  # meme raison que pour l'exe principal, voir plus haut
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=True,  # Outil en ligne de commande -- console visible necessaire
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version=str(project_root / 'version_info.txt'),
+)
+
+cli_coll = COLLECT(
+    cli_exe,
+    cli_a.binaries,
+    cli_a.zipfiles,
+    cli_a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='EmpyrionEditorCLI',
 )

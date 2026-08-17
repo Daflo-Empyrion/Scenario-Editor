@@ -34,9 +34,16 @@ Inno Setup le reference deja par ce chemin.
 ## 2. Construire une version (a chaque nouvelle release)
 
 ### Etape 1 — Mettre a jour le numero de version
-**Deux fichiers a modifier, avec exactement le meme numero** :
+**Trois fichiers a modifier, avec exactement le meme numero** (`installer.iss`
+gere `VersionInfoVersion` automatiquement a partir de `MyAppVersion`, donc pas
+de quatrieme fichier separe pour l'installeur) :
 - `core/version.py` → `APP_VERSION = "1.1.0"`
 - `installer.iss` → `#define MyAppVersion "1.1.0"`
+- `version_info.txt` → `filevers=(1, 1, 0, 0)`, `prodvers=(1, 1, 0, 0)`, et les
+  deux champs `FileVersion`/`ProductVersion` (`u'1.1.0.0'`) -- ce fichier ajoute
+  les metadonnees Windows (editeur, description, version) visibles dans les
+  proprietes des EXECUTABLES DE L'APPLI (pas l'installeur, voir juste en
+  dessous), ce qui reduit les faux positifs antivirus (voir section 7)
 
 ### Etape 2 — Construire
 Depuis le dossier du projet, **sans avoir besoin d'activer le venv toi-meme** —
@@ -180,6 +187,29 @@ elle-meme :
   positifs -- **deja desactivee** dans `empyrion_editor.spec` (`upx=False`)
   pour cette raison. Le `.exe` est legerement plus gros sans elle, mais
   nettement moins suspect aux yeux des scanners heuristiques.
+- Le **mode "onefile"** (tout dans un seul .exe qui s'auto-extrait a chaque
+  lancement) est aussi plus suspect que le mode "onedir" (dossier avec l'exe +
+  ses dependances a cote) -- les deux executables du projet utilisent
+  desormais "onedir" pour cette raison.
+- Un `.exe` **sans metadonnees Windows** (editeur, description, version --
+  visibles dans Proprietes > Details sous Windows) ressemble davantage a un
+  malware qu'un executable qui en a. **Deux configurations distinctes** pour
+  ceci : `version_info.txt` (deja cable dans `empyrion_editor.spec`) pour les
+  executables de l'appli une fois installee (`EmpyrionScenarioEditor.exe`,
+  `EmpyrionEditorCLI.exe`), et les directives `VersionInfo*` du `[Setup]` dans
+  `installer.iss` pour l'**installeur lui-meme** (`Setup-*.exe`) -- ce sont
+  deux fichiers generes separement (PyInstaller vs Inno Setup), il faut donc
+  verifier les proprietes du bon fichier si un doute survient sur la presence
+  du copyright.
+- Note sur Avast/AVG : ce sont **le meme moteur de detection** (AVG a ete
+  rachete par Avast) -- les voir tous les deux signaler la meme chose n'est
+  pas une double confirmation independante, juste le meme moteur affiche sous
+  deux marques.
+- Message generique de type `Win64:Malware-gen` ou `Trojan.TR/W64.Malware`
+  (sans nom de famille de malware precis) est le signe classique d'une
+  detection **heuristique generique**, pas d'une signature de malware connu --
+  extremement courant et documente pour les executables PyInstaller, y compris
+  pour des scripts absolument triviaux.
 
 ### Pour reduire encore plus le risque
 
@@ -189,10 +219,18 @@ elle-meme :
    numeriquement, la grande majorite des faux positifs heuristiques
    disparaissent, et Windows SmartScreen n'affiche plus l'avertissement
    "Editeur inconnu". Recommande si tu distribues largement.
-2. **Soumettre le fichier au fournisseur concerne** — DeepInstinct (et la
-   plupart des autres) proposent un formulaire de soumission de faux positif ;
-   une fois examine et confirme legitime, leur detection est corrigee pour
-   tout le monde.
+   - Alternative **gratuite** pour les projets open source : SignPath
+     Foundation (signpath.org) offre une signature de code gratuite aux
+     projets sous licence OSI-approuvee (GPLv3 qualifie) avec un historique de
+     releases publiques -- necessite cependant de mettre en place un pipeline
+     CI/CD (ex: GitHub Actions) qui construit automatiquement l'exe depuis le
+     depot, leur systeme signant ensuite ce build automatise. Plus adapte
+     quand le projet grandit et que la mise en place de CI/CD se justifie.
+2. **Soumettre le fichier au fournisseur concerne** — DeepInstinct, Avast/AVG,
+   et la plupart des autres proposent un formulaire de soumission de faux
+   positif ; une fois examine et confirme legitime, leur detection est
+   corrigee pour tout le monde. Pour Avast/AVG :
+   https://www.avast.com/false-positive-file-form.php
 3. **Depot GitHub public** — un code source visible et un historique de
    commits publics renforcent la confiance (certains outils de reputation,
    comme Windows SmartScreen, s'ameliorent aussi avec le nombre de

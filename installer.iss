@@ -12,7 +12,7 @@
 ; corresponde exactement a APP_VERSION dans core/version.py.
 
 #define MyAppName "Empyrion Scenario Editor"
-#define MyAppVersion "1.0.10"
+#define MyAppVersion "1.0.12"
 #define MyAppPublisher "Daflo"
 #define MyAppExeName "EmpyrionScenarioEditor.exe"
 
@@ -24,6 +24,17 @@ AppId={{8F2C9B1A-4E7D-4A3F-9C6B-2D5E8A1F3C7B}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+; Metadonnees de version Windows pour l'INSTALLEUR lui-meme (Setup-*.exe) --
+; distinctes de version_info.txt, qui ne concerne que les executables de
+; l'application une fois installes (voir empyrion_editor.spec). Sans ceci,
+; l'installeur affiche des proprietes vides, moins rassurant pour l'utilisateur
+; et pour les heuristiques antivirus (voir BUILD.md, section 7).
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=Installeur de {#MyAppName}
+VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher} -- GNU GPLv3
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 ; Installation par utilisateur (pas besoin de droits administrateur) -- plus
@@ -56,7 +67,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "dist\EmpyrionScenarioEditor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Outils de diagnostic en ligne de commande (voir cli_tools.py) -- un seul .exe
 ; autonome, installe a cote de l'appli graphique pour un usage depuis un terminal.
-Source: "dist\EmpyrionEditorCLI.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Outils de diagnostic en ligne de commande (voir cli_tools.py) -- installes dans
+; un sous-dossier dedie (CLI\) plutot qu'a cote de l'exe principal, pour eviter
+; toute collision entre les dossiers _internal\ respectifs des deux executables
+; (chacun construit desormais en mode "dossier", pas "fichier unique" -- voir
+; empyrion_editor.spec, raison detaillee dans le commentaire pres de upx=False).
+Source: "dist\EmpyrionEditorCLI\*"; DestDir: "{app}\CLI"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; La GPLv3 exige que le texte de la licence accompagne le programme distribue --
 ; copie explicitement ici (PyInstaller n'embarque que le code, pas ce fichier).
 Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion

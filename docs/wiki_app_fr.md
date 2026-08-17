@@ -398,11 +398,12 @@ as obtenu l'application :
 
 ### Si tu as installe via l'installeur Windows
 Un seul executable regroupe tous les outils : `EmpyrionEditorCLI.exe`, installe
-a cote de l'appli graphique (meme dossier). Depuis un terminal (Invite de
-commandes ou PowerShell), dans ce dossier d'installation :
+dans un sous-dossier `CLI\` du dossier d'installation (separe de l'appli
+graphique pour eviter tout conflit entre leurs fichiers internes respectifs).
+Depuis un terminal (Invite de commandes ou PowerShell), dans ce sous-dossier :
 
 ```
-EmpyrionEditorCLI.exe <commande> [arguments...]
+CLI\EmpyrionEditorCLI.exe <commande> [arguments...]
 ```
 
 Lance-le sans argument pour voir la liste complete des commandes disponibles.

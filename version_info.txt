@@ -1,0 +1,54 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Ressource de version Windows pour l'executable -- un .exe sans metadonnees
+# (editeur, description, version) ressemble davantage a un malware aux yeux des
+# heuristiques antivirus qu'un executable qui en a. Voir empyrion_editor.spec
+# (parametre version=... des blocs EXE) et BUILD.md pour la procedure de mise a
+# jour a chaque nouvelle version.
+#
+# A CHAQUE NOUVELLE VERSION : mets a jour filevers/prodvers ci-dessous pour
+# qu'ils correspondent a APP_VERSION (core/version.py) et MyAppVersion
+# (installer.iss) -- format a 4 chiffres, donc "1.0.10" devient (1, 0, 10, 0).
+
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 12, 0),
+    prodvers=(1, 0, 12, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        u'040904b0',
+        [StringStruct(u'CompanyName', u'Daflo'),
+        StringStruct(u'FileDescription', u'Empyrion Scenario Editor -- editeur de scenario pour Empyrion Galactic Survival'),
+        StringStruct(u'FileVersion', u'1.0.12.0'),
+        StringStruct(u'InternalName', u'EmpyrionScenarioEditor'),
+        StringStruct(u'LegalCopyright', u'Copyright (C) 2026 Daflo -- GNU GPLv3'),
+        StringStruct(u'OriginalFilename', u'EmpyrionScenarioEditor.exe'),
+        StringStruct(u'ProductName', u'Empyrion Scenario Editor'),
+        StringStruct(u'ProductVersion', u'1.0.12.0')])
+      ]),
+    VarFileInfo([VarStruct(u'Translation', [1036, 1200])])
+  ]
+)
