@@ -79,7 +79,7 @@ Une fois `Setup-EmpyrionScenarioEditor-vX.Y.Z.exe` teste et pret :
 1. Commit les changements de code, avec un tag correspondant a la version :
    ```bat
    git add .
-   git commit -m "Version 1.1.0"
+   git commit -m "Version 1.0.8"
    git tag v1.1.0
    git push origin main --tags
    ```
