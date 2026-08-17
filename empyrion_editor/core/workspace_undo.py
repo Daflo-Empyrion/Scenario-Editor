@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Pile d'annulation GLOBALE au niveau de l'espace de travail -- couvre toute action qui
 touche au systeme de fichiers de la copie de travail : fusion (fichier/dossier/bloc/
@@ -102,6 +118,13 @@ class WorkspaceUndoStack:
 
     def peek_label(self) -> str:
         return self._stack[-1].describe() if self._stack else ""
+
+    def all_labels(self) -> list:
+        """Description de TOUTES les actions en memoire, de la plus ancienne a la
+        plus recente -- utilise notamment par le rapport de bug (voir
+        gui/report_issue_dialog.py) pour donner un contexte des dernieres actions
+        effectuees avant le probleme signale."""
+        return [action.describe() for action in self._stack]
 
     def undo(self) -> Optional[str]:
         if not self._stack:

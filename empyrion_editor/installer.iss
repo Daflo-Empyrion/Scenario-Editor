@@ -12,7 +12,7 @@
 ; corresponde exactement a APP_VERSION dans core/version.py.
 
 #define MyAppName "Empyrion Scenario Editor"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.8"
 #define MyAppPublisher "Daflo"
 #define MyAppExeName "EmpyrionScenarioEditor.exe"
 
@@ -54,9 +54,17 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; donnees utilisateur (~/.empyrion_editor) ni aux dossiers de scenarios choisis
 ; par l'utilisateur -- entierement hors de ce dossier d'installation.
 Source: "dist\EmpyrionScenarioEditor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Outils de diagnostic en ligne de commande (voir cli_tools.py) -- un seul .exe
+; autonome, installe a cote de l'appli graphique pour un usage depuis un terminal.
+Source: "dist\EmpyrionEditorCLI.exe"; DestDir: "{app}"; Flags: ignoreversion
+; La GPLv3 exige que le texte de la licence accompagne le programme distribue --
+; copie explicitement ici (PyInstaller n'embarque que le code, pas ce fichier).
+Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\Licence (GPLv3)"; Filename: "{app}\LICENSE.txt"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 

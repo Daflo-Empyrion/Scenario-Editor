@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Widget d'edition pour un fichier .ecf de la COPIE DE TRAVAIL : contrairement a
 EcfViewWidget (lecture seule, dans main_window.py), celui-ci permet de modifier une
@@ -17,13 +33,14 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
     QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
-    QApplication, QComboBox, QFormLayout,
+    QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
 from PyQt6.QtGui import QColor, QBrush
 
 from core.ecf.parser import parse_ecf_file, parse_ecf_text
+from core.ecf.transform import TransformRule, preview_transform, format_block_label
 from core.ecf.model import (
     EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
     add_property_line, remove_property_line, remove_block, create_block, annotate_property,
@@ -295,6 +312,369 @@ class PropertyFilterDialog(QDialog):
         self.on_filter_changed([])
 
 
+def _all_property_keys_recursive(doc: EcfDocument) -> dict:
+    """Toutes les cles de propriete PRESENTES DANS LE CORPS des blocs (jamais sur
+    leur ligne d'ouverture, ex: Id/Name -- coherent avec _find_matching_pairs()
+    dans core/ecf/transform.py, qui exclut deliberement ces cles d'identite pour ne
+    jamais les toucher par erreur), y compris a l'interieur des sous-blocs comme
+    'Child Items' -- avec leur nombre d'occurrences. Contrairement a
+    _block_own_keys() (utilisee par le filtre de proprietes classique), qui reste
+    volontairement limitee aux proprietes directes d'un bloc, la transformation en
+    masse cible tres souvent des cles imbriquees (ex: param1 dans les listes
+    d'items), d'ou cette version recursive dediee."""
+    counts: dict = {}
+
+    def _walk(nodes):
+        for node in nodes:
+            if isinstance(node, EcfBlock):
+                _walk(node.children)
+            elif isinstance(node, EcfProperty):
+                for k, v in node.pairs:
+                    if k:
+                        counts[k] = counts.get(k, 0) + 1
+
+    _walk(doc.nodes)
+    return counts
+
+
+class TransformDialog(QDialog):
+    """Transformation numerique en masse sur une cle de propriete (multiplier,
+    ajouter, fixer, plafonner, arrondir), avec apercu obligatoire avant application
+    -- reprend exactement le moteur de transform_ecf.py (core/ecf/transform.py),
+    deja utilise et teste par l'outil en ligne de commande equivalent."""
+
+    def __init__(self, doc: EcfDocument, on_before_apply, on_after_apply, parent=None):
+        super().__init__(parent)
+        self.doc = doc
+        self.on_before_apply = on_before_apply
+        self.on_after_apply = on_after_apply
+        self._preview_changes = []
+
+        self.setWindowTitle(t("transform.title"))
+        self.setMinimumSize(700, 560)
+        layout = QVBoxLayout(self)
+
+        form = QFormLayout()
+
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText(t("transform.key_placeholder"))
+        form.addRow(t("transform.key_label"), self.key_input)
+
+        layout.addLayout(form)
+
+        # Liste des cles reellement presentes dans le fichier (avec nombre
+        # d'occurrences), cochables -- alternative au clavier pour choisir une cle
+        # sans risque de faute de frappe. Cocher une entree remplit automatiquement
+        # le champ ci-dessus et decoche les autres (une seule cle active a la fois,
+        # comme le reste du dialogue). Le champ texte reste utilisable directement
+        # en tapant, avec autocompletion (QCompleter, voir plus bas) sur ces memes
+        # cles -- pratique si la cle voulue n'est pas visible sans defiler.
+        layout.addWidget(QLabel(t("transform.available_keys_label")))
+        self._all_keys = _all_property_keys_recursive(doc)
+        self.keys_list = QListWidget()
+        self.keys_list.setMaximumHeight(110)
+        for key in sorted(self._all_keys.keys()):
+            item = QListWidgetItem(f"{key}  ({self._all_keys[key]})")
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            item.setData(Qt.ItemDataRole.UserRole, key)
+            self.keys_list.addItem(item)
+        self.keys_list.itemChanged.connect(self._on_key_checkbox_changed)
+        layout.addWidget(self.keys_list)
+
+        completer = QCompleter(sorted(self._all_keys.keys()), self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.key_input.setCompleter(completer)
+        self.key_input.textEdited.connect(self._on_key_typed_manually)
+
+        form = QFormLayout()
+        self.op_combo = QComboBox()
+        self.op_combo.addItem(t("transform.op_multiply"), "multiply")
+        self.op_combo.addItem(t("transform.op_add"), "add")
+        self.op_combo.addItem(t("transform.op_set"), "set")
+        self.op_combo.addItem(t("transform.op_clamp"), "clamp")
+        self.op_combo.addItem(t("transform.op_round"), "round")
+        self.op_combo.currentIndexChanged.connect(self._update_field_visibility)
+        form.addRow(t("transform.op_label"), self.op_combo)
+
+        self.amount_spin = QDoubleSpinBox()
+        self.amount_spin.setRange(-1_000_000, 1_000_000)
+        self.amount_spin.setDecimals(4)
+        self.amount_spin.setValue(1.0)
+        self.amount_row_label = QLabel(t("transform.amount_label"))
+        form.addRow(self.amount_row_label, self.amount_spin)
+
+        self.min_check = QCheckBox(t("transform.enable_min"))
+        self.min_spin = QDoubleSpinBox()
+        self.min_spin.setRange(-1_000_000, 1_000_000)
+        self.min_spin.setDecimals(4)
+        self.min_spin.setEnabled(False)
+        self.min_check.toggled.connect(self.min_spin.setEnabled)
+        min_row = QHBoxLayout()
+        min_row.addWidget(self.min_check)
+        min_row.addWidget(self.min_spin)
+        self.min_row_label = QLabel(t("transform.min_label"))
+        form.addRow(self.min_row_label, min_row)
+
+        self.max_check = QCheckBox(t("transform.enable_max"))
+        self.max_spin = QDoubleSpinBox()
+        self.max_spin.setRange(-1_000_000, 1_000_000)
+        self.max_spin.setDecimals(4)
+        self.max_spin.setEnabled(False)
+        self.max_check.toggled.connect(self.max_spin.setEnabled)
+        max_row = QHBoxLayout()
+        max_row.addWidget(self.max_check)
+        max_row.addWidget(self.max_spin)
+        self.max_row_label = QLabel(t("transform.max_label"))
+        form.addRow(self.max_row_label, max_row)
+
+        self.ndigits_spin = QSpinBox()
+        self.ndigits_spin.setRange(0, 10)
+        self.ndigits_spin.setValue(2)
+        self.ndigits_row_label = QLabel(t("transform.ndigits_label"))
+        form.addRow(self.ndigits_row_label, self.ndigits_spin)
+
+        self.kind_combo = QComboBox()
+        self.kind_combo.setEditable(True)
+        self.kind_combo.addItem(t("transform.all_kinds"), None)
+        known_kinds = sorted({b.kind for b in doc.nodes if isinstance(b, EcfBlock) and b.kind})
+        for kind in known_kinds:
+            self.kind_combo.addItem(kind, kind)
+        form.addRow(t("transform.kind_label"), self.kind_combo)
+
+        self.ids_input = QLineEdit()
+        self.ids_input.setPlaceholderText(t("transform.ids_placeholder"))
+        form.addRow(t("transform.ids_label"), self.ids_input)
+
+        self.recursive_check = QCheckBox(t("transform.recursive_label"))
+        self.recursive_check.setChecked(True)
+        form.addRow("", self.recursive_check)
+
+        layout.addLayout(form)
+
+        layout.addWidget(QLabel(t("transform.report_label")))
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(5)
+        self.results_table.setHorizontalHeaderLabels([
+            "", t("transform.col_block"), t("transform.col_key"),
+            t("transform.col_old"), t("transform.col_new"),
+        ])
+        self.results_table.setColumnWidth(0, 30)
+        self.results_table.setColumnWidth(1, 140)
+        self.results_table.setColumnWidth(2, 100)
+        self.results_table.setColumnWidth(3, 90)
+        self.results_table.horizontalHeader().setStretchLastSection(True)
+        self.results_table.setMinimumHeight(220)
+        self.results_table.itemChanged.connect(self._update_apply_count)
+        layout.addWidget(self.results_table)
+
+        self.skipped_label = QLabel("")
+        self.skipped_label.setWordWrap(True)
+        layout.addWidget(self.skipped_label)
+
+        check_row = QHBoxLayout()
+        btn_check_all = QPushButton(t("trans.check_all"))
+        btn_check_all.setObjectName("secondaryButton")
+        btn_check_all.clicked.connect(lambda: self._set_all_checked(True))
+        check_row.addWidget(btn_check_all)
+        btn_uncheck_all = QPushButton(t("trans.uncheck_all"))
+        btn_uncheck_all.setObjectName("secondaryButton")
+        btn_uncheck_all.clicked.connect(lambda: self._set_all_checked(False))
+        check_row.addWidget(btn_uncheck_all)
+        check_row.addStretch()
+        layout.addLayout(check_row)
+
+        buttons = QHBoxLayout()
+        self.btn_preview = QPushButton(t("transform.btn_preview"))
+        self.btn_preview.clicked.connect(self._do_preview)
+        buttons.addWidget(self.btn_preview)
+        self.btn_apply = QPushButton(t("transform.btn_apply"))
+        self.btn_apply.setObjectName("primaryButton")
+        self.btn_apply.setEnabled(False)
+        self.btn_apply.clicked.connect(self._do_apply)
+        buttons.addWidget(self.btn_apply)
+        btn_close = QPushButton(t("btn.close"))
+        btn_close.setObjectName("secondaryButton")
+        btn_close.clicked.connect(self.accept)
+        buttons.addWidget(btn_close)
+        layout.addLayout(buttons)
+
+        self._update_field_visibility()
+
+    def _on_key_checkbox_changed(self, changed_item):
+        """Cocher une entree de la liste des cles disponibles : decoche toutes les
+        autres (une seule cle active a la fois) et remplit le champ texte -- comme
+        cocher une case de type radio, mais via une liste plus lisible qu'un
+        QComboBox pour un grand nombre de cles avec leur nombre d'occurrences."""
+        if changed_item.checkState() != Qt.CheckState.Checked:
+            return
+        self.keys_list.blockSignals(True)
+        for i in range(self.keys_list.count()):
+            item = self.keys_list.item(i)
+            if item is not changed_item:
+                item.setCheckState(Qt.CheckState.Unchecked)
+        self.keys_list.blockSignals(False)
+        self.key_input.setText(changed_item.data(Qt.ItemDataRole.UserRole))
+        self._update_field_visibility()
+
+    def _on_key_typed_manually(self, _text):
+        """Taper directement dans le champ decoche toute selection faite dans la
+        liste -- evite un etat incoherent ou la liste montrerait une cle cochee
+        differente de celle effectivement tapee."""
+        self.keys_list.blockSignals(True)
+        for i in range(self.keys_list.count()):
+            self.keys_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+        self.keys_list.blockSignals(False)
+
+    def _update_field_visibility(self):
+        op = self.op_combo.currentData()
+        needs_amount = op in ("multiply", "add", "set")
+        needs_clamp = op == "clamp"
+        needs_ndigits = op == "round"
+        for w in (self.amount_row_label, self.amount_spin):
+            w.setVisible(needs_amount)
+        for w in (self.min_row_label, self.min_check, self.min_spin):
+            w.setVisible(needs_clamp)
+        for w in (self.max_row_label, self.max_check, self.max_spin):
+            w.setVisible(needs_clamp)
+        for w in (self.ndigits_row_label, self.ndigits_spin):
+            w.setVisible(needs_ndigits)
+        # Toute modification des reglages invalide l'apercu precedent -- il faut
+        # revoir le tableau avant de pouvoir appliquer, pour ne jamais appliquer une
+        # combinaison jamais previsualisee.
+        self.results_table.setRowCount(0)
+        self._preview_changes = []
+        self.skipped_label.setText("")
+        self.btn_apply.setEnabled(False)
+
+    def _build_rule(self):
+        key = self.key_input.text().strip()
+        if not key:
+            QMessageBox.warning(self, t("transform.title"), t("transform.error_no_key"))
+            return None
+        op = self.op_combo.currentData()
+
+        amount = self.amount_spin.value() if op in ("multiply", "add", "set") else None
+        min_value = self.min_spin.value() if (op == "clamp" and self.min_check.isChecked()) else None
+        max_value = self.max_spin.value() if (op == "clamp" and self.max_check.isChecked()) else None
+        if op == "clamp" and min_value is None and max_value is None:
+            QMessageBox.warning(self, t("transform.title"), t("transform.error_no_clamp_bound"))
+            return None
+
+        kind_text = self.kind_combo.currentText().strip()
+        all_kinds_label = t("transform.all_kinds")
+        # currentData() n'est pas fiable sur un QComboBox editable une fois du texte
+        # affiche (renvoie souvent None meme index inchange, ou l'inverse selon la
+        # plateforme Qt) -- comparaison textuelle explicite plus robuste ici : le
+        # libelle "(tous les genres)" ou un champ vide signifient tous deux "aucun
+        # filtre", tout autre texte est un genre de bloc tape ou choisi.
+        kind = None if kind_text in ("", all_kinds_label) else kind_text
+
+        ids_text = self.ids_input.text().strip()
+        block_ids = [s.strip() for s in ids_text.split(",") if s.strip()] if ids_text else None
+
+        return TransformRule(
+            property_key=key,
+            operation=op,
+            amount=amount,
+            min_value=min_value,
+            max_value=max_value,
+            ndigits=self.ndigits_spin.value(),
+            block_kind=kind,
+            block_ids=block_ids,
+            recursive=self.recursive_check.isChecked(),
+        )
+
+    def _set_all_checked(self, checked: bool):
+        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        for i in range(self.results_table.rowCount()):
+            self.results_table.item(i, 0).setCheckState(state)
+
+    def _update_apply_count(self, item):
+        if item is not None and item.column() != 0:
+            return  # seule la case a cocher change le compte -- une edition de
+            # valeur ne doit pas re-décompter, juste rester prise en compte a
+            # l'application
+        count = sum(1 for i in range(self.results_table.rowCount())
+                    if self.results_table.item(i, 0).checkState() == Qt.CheckState.Checked)
+        self.btn_apply.setText(t("transform.btn_apply_count", count=count))
+        self.btn_apply.setEnabled(count > 0)
+
+    def _do_preview(self):
+        rule = self._build_rule()
+        if rule is None:
+            return
+        # Calcule directement sur le VRAI document (preview_transform ne mute jamais
+        # rien -- voir core/ecf/transform.py) : les references (prop_node,
+        # pair_index) capturees restent valides pour une application ulterieure
+        # exacte, y compris apres edition manuelle d'une valeur dans le tableau.
+        report = preview_transform(self.doc, rule)
+        self._preview_changes = report.changes
+
+        self.results_table.blockSignals(True)
+        self.results_table.setRowCount(len(report.changes))
+        for i, change in enumerate(report.changes):
+            check_item = QTableWidgetItem()
+            check_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            check_item.setCheckState(Qt.CheckState.Checked)
+            self.results_table.setItem(i, 0, check_item)
+
+            label = format_block_label(change)
+            block_item = QTableWidgetItem(label)
+            block_item.setFlags(block_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.results_table.setItem(i, 1, block_item)
+
+            key_item = QTableWidgetItem(change.property_key)
+            key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.results_table.setItem(i, 2, key_item)
+
+            old_item = QTableWidgetItem(change.old_value)
+            old_item.setFlags(old_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.results_table.setItem(i, 3, old_item)
+
+            # Colonne EDITABLE -- pre-remplie avec la valeur calculee automatiquement,
+            # mais ajustable a la main avant application (ex: forcer MaxCount a 1 sur
+            # un bloc precis a cause d'une limite du moteur du jeu, malgre la regle
+            # generale appliquee au reste du fichier).
+            new_item = QTableWidgetItem(change.new_value)
+            self.results_table.setItem(i, 4, new_item)
+        self.results_table.resizeRowsToContents()
+        self.results_table.blockSignals(False)
+
+        if report.skipped_non_numeric:
+            self.skipped_label.setText(t("transform.skipped_non_numeric", count=report.skipped_non_numeric))
+        else:
+            self.skipped_label.setText("")
+
+        self._update_apply_count(None)
+        if not report.changes:
+            QMessageBox.information(self, t("transform.title"), t("transform.no_changes"))
+
+    def _do_apply(self):
+        applied_count = 0
+        for i, change in enumerate(self._preview_changes):
+            check_item = self.results_table.item(i, 0)
+            if check_item.checkState() != Qt.CheckState.Checked:
+                continue
+            final_value = self.results_table.item(i, 4).text()
+            if applied_count == 0:
+                self.on_before_apply()  # snapshot undo une seule fois, avant la 1ere ecriture reelle
+            change.prop_node.pairs[change.pair_index] = (change.property_key, final_value)
+            change.prop_node.dirty = True
+            applied_count += 1
+
+        if applied_count == 0:
+            return
+
+        self.on_after_apply()
+        QMessageBox.information(self, t("transform.title"),
+                                 t("transform.applied_msg", count=applied_count))
+        self.results_table.setRowCount(0)
+        self._preview_changes = []
+        self.btn_apply.setEnabled(False)
+        self.btn_apply.setText(t("transform.btn_apply"))
+
+
 class EcfHeaderExplanationPanel(QWidget):
     """Panneau retractable (replie par defaut) affichant une explication claire des
     commentaires techniques d'en-tete d'un fichier ECF -- place entre le nom du fichier
@@ -517,6 +897,11 @@ class EcfEditWidget(QWidget):
         btn_disabled_blocks.setObjectName("secondaryButton")
         btn_disabled_blocks.clicked.connect(self._open_disabled_blocks_dialog)
         toolbar.addWidget(btn_disabled_blocks)
+        btn_transform = QPushButton(icon("fa5s.calculator", "#4a7dfc"), t("btn.transform"))
+        btn_transform.setIconSize(icon_size())
+        btn_transform.setObjectName("secondaryButton")
+        btn_transform.clicked.connect(self._open_transform_dialog)
+        toolbar.addWidget(btn_transform)
         self.btn_undo = QPushButton(icon("fa5s.undo", "#7c859c"), t("btn.undo"))
         self.btn_undo.setIconSize(icon_size())
         self.btn_undo.setObjectName("secondaryButton")
@@ -948,7 +1333,7 @@ class EcfEditWidget(QWidget):
         from core import translation
         text = value_item.text()
         if not translation.is_available():
-            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
         try:
             translated = translation.translate_text(text, target=target_lang)
@@ -1073,6 +1458,20 @@ class EcfEditWidget(QWidget):
 
     def _open_property_filter(self):
         dialog = PropertyFilterDialog(self.doc, on_filter_changed=self._apply_property_filter, parent=self)
+        dialog.exec()
+
+    def _open_transform_dialog(self):
+        def _on_before_apply():
+            self._snapshot_undo()
+
+        def _on_after_apply():
+            self._current_block = None
+            self.props_table.setRowCount(0)
+            self._populate_tree()
+            self._set_modified(True)
+
+        dialog = TransformDialog(self.doc, on_before_apply=_on_before_apply,
+                                  on_after_apply=_on_after_apply, parent=self)
         dialog.exec()
 
     def _apply_property_filter(self, keys: List[str]):

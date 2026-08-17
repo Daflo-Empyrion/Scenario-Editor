@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Fenetre principale de l'editeur de scenario Empyrion.
 
@@ -25,7 +41,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
-from PyQt6.QtGui import QColor, QBrush
+from PyQt6.QtGui import QColor, QBrush, QDesktopServices, QPixmap
+from PyQt6.QtCore import QUrl
 
 from core.scanner import scan_scenario
 from core.models import Scenario, FileEntry
@@ -148,13 +165,116 @@ class MainWindow(QMainWindow):
         self.menu_help.addSeparator()
         self.action_check_updates = self.menu_help.addAction(t("menu.help.check_updates"))
         self.action_check_updates.triggered.connect(lambda: self._check_for_updates(manual=True))
+        self.action_report_issue = self.menu_help.addAction(t("menu.help.report_issue"))
+        self.action_report_issue.triggered.connect(self._open_report_issue_dialog)
         self.action_about = self.menu_help.addAction(t("menu.help.about"))
         self.action_about.triggered.connect(self._show_about_dialog)
 
+    def _open_report_issue_dialog(self):
+        """Capture la fenetre principale AVANT toute autre chose (le dialogue de
+        rapport n'existe pas encore a ce stade) pour que la capture d'ecran
+        reflete fidelement ce que la personne regardait au moment du clic, comme
+        demande -- pas l'etat de l'appli une fois le formulaire deja ouvert
+        par-dessus."""
+        screenshot = self.grab()
+        recent_actions = self.workspace_undo.all_labels()
+        from gui.report_issue_dialog import ReportIssueDialog
+        dialog = ReportIssueDialog(screenshot, recent_actions, parent=self)
+        dialog.exec()
+
     def _show_about_dialog(self):
+        """Boite 'A propos' -- c'est ici, pour une interface graphique, que la FSF
+        recommande de placer la mention de licence (voir gnu.org/licenses/gpl-howto,
+        section 'about box'), avec le badge GPLv3 menant vers le texte officiel."""
         from core.version import APP_VERSION
-        QMessageBox.information(self, t("menu.help.about").rstrip("."),
-                                 f"Empyrion Scenario Editor\n{t('about.version')} {APP_VERSION}")
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("menu.help.about").rstrip("."))
+        dialog.setMinimumWidth(380)
+        layout = QVBoxLayout(dialog)
+
+        title = QLabel(f"<b>Empyrion Scenario Editor</b>")
+        layout.addWidget(title)
+
+        version_label = QLabel(f"{t('about.version')} {APP_VERSION}")
+        layout.addWidget(version_label)
+
+        copyright_label = QLabel("Copyright \u00A9 2026 Daflo")
+        layout.addWidget(copyright_label)
+
+        license_label = QLabel(t("about.license_notice"))
+        license_label.setWordWrap(True)
+        layout.addWidget(license_label)
+
+        # Badge GPLv3 cliquable -- ouvre le texte officiel de la licence dans le
+        # navigateur par defaut, exactement comme un lien web classique.
+        from PyQt6.QtGui import QIcon
+        badge_button = QPushButton()
+        badge_path = self._resolve_asset_path("gplv3_badge.png")
+        if badge_path is not None:
+            pixmap = QPixmap(str(badge_path))
+            badge_button.setIcon(QIcon(pixmap))
+            badge_button.setIconSize(pixmap.size())
+        else:
+            badge_button.setText("GPLv3")
+        badge_button.setFlat(True)
+        badge_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        badge_button.setToolTip("https://www.gnu.org/licenses/gpl-3.0.html")
+        badge_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://www.gnu.org/licenses/gpl-3.0.html")))
+        layout.addWidget(badge_button, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        # Bouton pour ouvrir le fichier LICENSE local (installe a cote de l'exe --
+        # voir installer.iss -- ou a la racine du projet en mode source) avec
+        # l'application associee aux fichiers texte sur le systeme, en plus du lien
+        # web ci-dessus vers le texte officiel en ligne.
+        license_path = self._resolve_license_path()
+        if license_path is not None:
+            open_license_button = QPushButton(t("about.open_license_file"))
+            open_license_button.clicked.connect(
+                lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(license_path))))
+            layout.addWidget(open_license_button, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        close_button = QPushButton("OK")
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+
+        dialog.exec()
+
+    def _resolve_asset_path(self, filename: str):
+        """Trouve un fichier dans le dossier assets/, que l'application tourne
+        depuis les sources ou depuis un executable construit par PyInstaller (voir
+        empyrion_editor.spec, ou assets/ est embarque comme donnee). Retourne None
+        si introuvable plutot que de planter -- l'appli doit rester utilisable meme
+        si un fichier decoratif comme le badge manque."""
+        import sys
+        candidates = []
+        if getattr(sys, 'frozen', False):
+            candidates.append(Path(sys._MEIPASS) / "assets" / filename)
+        candidates.append(Path(__file__).resolve().parent.parent / "assets" / filename)
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _resolve_license_path(self):
+        """Trouve le fichier de licence local : LICENSE.txt a cote de l'executable
+        une fois installe (voir installer.iss, section [Files]), ou LICENSE a la
+        racine du projet en mode source. Retourne None si introuvable plutot que de
+        planter -- ce bouton est un confort, pas une necessite (le lien web vers le
+        texte officiel reste toujours disponible)."""
+        import sys
+        candidates = []
+        if getattr(sys, 'frozen', False):
+            # Une fois installe, LICENSE.txt est un voisin direct de l'executable
+            # (pas dans _internal/, contrairement aux donnees embarquees par
+            # PyInstaller) -- voir installer.iss.
+            candidates.append(Path(sys.executable).resolve().parent / "LICENSE.txt")
+        candidates.append(Path(__file__).resolve().parent.parent / "LICENSE")
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
 
     def _check_for_updates(self, manual: bool = False):
         """Verifie la presence d'une mise a jour sur GitHub, en tache de fond pour ne
@@ -226,6 +346,9 @@ class MainWindow(QMainWindow):
         self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
         self.action_tutorials.setText(t("menu.help.tutorials"))
         self.action_check_updates.setText(t("menu.help.check_updates"))
+        self.action_report_issue.setText(t("menu.help.report_issue"))
+        self.btn_report_issue.setText(t("toolbar.report_issue"))
+        self.btn_report_issue.setToolTip(t("menu.help.report_issue"))
         self.action_about.setText(t("menu.help.about"))
 
         self.btn_language.setText(i18n.get_language().upper())
@@ -251,6 +374,34 @@ class MainWindow(QMainWindow):
         self.btn_language.setToolTip(t("menu.options.language"))
         self.btn_language.clicked.connect(self._toggle_language)
         toolbar.addWidget(self.btn_language)
+
+        # Bouton "Signaler un bug" -- plus visible ici que dans le menu Aide, pour
+        # quelque chose qu'on veut pouvoir declencher rapidement en cas de souci.
+        self.btn_report_issue = QPushButton(icon("fa5s.bug", "#ffffff"), t("toolbar.report_issue"))
+        self.btn_report_issue.setIconSize(icon_size())
+        self.btn_report_issue.setToolTip(t("menu.help.report_issue"))
+        self.btn_report_issue.clicked.connect(self._open_report_issue_dialog)
+        toolbar.addWidget(self.btn_report_issue)
+
+        # Badge GPLv3 cliquable, directement accessible -- meme comportement que
+        # celui du dialogue "A propos" (ouvre le texte officiel de la licence),
+        # juste plus visible ici pour quelqu'un qui voudrait verifier rapidement
+        # la licence sans passer par un sous-menu.
+        self.btn_gpl_badge = QPushButton()
+        badge_path = self._resolve_asset_path("gplv3_badge.png")
+        if badge_path is not None:
+            from PyQt6.QtGui import QIcon, QPixmap as _QPixmap
+            pixmap = _QPixmap(str(badge_path))
+            self.btn_gpl_badge.setIcon(QIcon(pixmap))
+            self.btn_gpl_badge.setIconSize(pixmap.size() * 0.6)
+        else:
+            self.btn_gpl_badge.setText("GPLv3")
+        self.btn_gpl_badge.setFlat(True)
+        self.btn_gpl_badge.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_gpl_badge.setToolTip("https://www.gnu.org/licenses/gpl-3.0.html")
+        self.btn_gpl_badge.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://www.gnu.org/licenses/gpl-3.0.html")))
+        toolbar.addWidget(self.btn_gpl_badge)
 
     def _push_workspace_undo(self, action):
         self.workspace_undo.push(action)
@@ -1323,7 +1474,7 @@ class MainWindow(QMainWindow):
         presente."""
         from core import translation
         if not translation.is_available():
-            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
         try:
             translated = translation.translate_text(text, target=target_code)

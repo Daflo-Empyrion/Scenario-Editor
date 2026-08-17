@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Systeme de traduction de l'interface (FR/EN). Usage :
 
@@ -52,6 +68,66 @@ STRINGS = {
     "btn.add_entry": {"fr": "Entree", "en": "Entry"},
     "btn.delete_selected_entry": {"fr": "Supprimer l'entree selectionnee", "en": "Delete selected entry"},
     "btn.filter_by_property": {"fr": "Filtrer par propriete...", "en": "Filter by property..."},
+    "btn.transform": {"fr": "Transformation en masse...", "en": "Bulk transform..."},
+    "transform.title": {"fr": "Transformation en masse", "en": "Bulk transform"},
+    "transform.key_label": {"fr": "Cle de propriete :", "en": "Property key:"},
+    "transform.key_placeholder": {"fr": "ex: param1, Count, Health",
+                                   "en": "e.g. param1, Count, Health"},
+    "transform.available_keys_label": {"fr": "Proprietes disponibles dans ce fichier "
+                                              "(clic pour choisir) :",
+                                        "en": "Properties available in this file "
+                                              "(click to choose):"},
+    "transform.op_label": {"fr": "Operation :", "en": "Operation:"},
+    "transform.op_multiply": {"fr": "Multiplier", "en": "Multiply"},
+    "transform.op_add": {"fr": "Ajouter", "en": "Add"},
+    "transform.op_set": {"fr": "Fixer a une valeur", "en": "Set to value"},
+    "transform.op_clamp": {"fr": "Plafonner (min/max)", "en": "Clamp (min/max)"},
+    "transform.op_round": {"fr": "Arrondir", "en": "Round"},
+    "transform.amount_label": {"fr": "Valeur :", "en": "Amount:"},
+    "transform.enable_min": {"fr": "Min", "en": "Min"},
+    "transform.min_label": {"fr": "Borne minimale :", "en": "Minimum bound:"},
+    "transform.enable_max": {"fr": "Max", "en": "Max"},
+    "transform.max_label": {"fr": "Borne maximale :", "en": "Maximum bound:"},
+    "transform.ndigits_label": {"fr": "Decimales :", "en": "Decimal places:"},
+    "transform.kind_label": {"fr": "Genre de bloc :", "en": "Block kind:"},
+    "transform.all_kinds": {"fr": "(tous les genres)", "en": "(all kinds)"},
+    "transform.ids_label": {"fr": "Identites cibles (optionnel) :",
+                             "en": "Target identities (optional):"},
+    "transform.ids_placeholder": {"fr": "ex: 5,6,7 (vide = tous)",
+                                   "en": "e.g. 5,6,7 (empty = all)"},
+    "transform.recursive_label": {"fr": "Chercher aussi dans les sous-blocs (ex: Child Items)",
+                                   "en": "Also search sub-blocks (e.g. Child Items)"},
+    "transform.report_label": {"fr": "Resultats (revue ligne par ligne avant application) :",
+                                "en": "Results (row-by-row review before applying):"},
+    "transform.col_block": {"fr": "Bloc", "en": "Block"},
+    "transform.col_key": {"fr": "Cle", "en": "Key"},
+    "transform.col_old": {"fr": "Avant", "en": "Before"},
+    "transform.col_new": {"fr": "Apres (modifiable)", "en": "After (editable)"},
+    "transform.btn_preview": {"fr": "Apercu", "en": "Preview"},
+    "transform.btn_apply": {"fr": "Appliquer", "en": "Apply"},
+    "transform.btn_apply_count": {"fr": "Appliquer ({count} coches)",
+                                   "en": "Apply ({count} checked)"},
+    "transform.error_no_key": {"fr": "La cle de propriete est obligatoire.",
+                                "en": "The property key is required."},
+    "transform.error_no_clamp_bound": {"fr": "Coche au moins Min ou Max pour "
+                                              "l'operation Plafonner.",
+                                        "en": "Check at least Min or Max for the "
+                                              "Clamp operation."},
+    "transform.no_changes": {"fr": "Aucune valeur ne correspond a ces reglages -- "
+                                    "rien a modifier.",
+                              "en": "No value matches these settings -- nothing "
+                                    "to change."},
+    "transform.skipped_non_numeric": {"fr": "{count} valeur(s) trouvee(s) mais non "
+                                             "numerique(s) -> ignoree(s), non "
+                                             "affichee(s) dans le tableau.",
+                                       "en": "{count} value(s) found but not "
+                                             "numeric -> skipped, not shown in "
+                                             "the table."},
+    "transform.applied_msg": {"fr": "{count} valeur(s) modifiee(s) et appliquee(s) "
+                                     "au document. N'oublie pas d'enregistrer.",
+                               "en": "{count} value(s) changed and applied to the "
+                                     "document. Don't forget to save."},
+
     "btn.apply_value": {"fr": "Appliquer cette valeur", "en": "Apply this value"},
     "btn.cancel": {"fr": "Annuler", "en": "Cancel"},
     "btn.close": {"fr": "Fermer", "en": "Close"},
@@ -565,8 +641,85 @@ STRINGS = {
 
     "menu.help.check_updates": {"fr": "Verifier les mises a jour...",
                                  "en": "Check for updates..."},
+    "menu.help.report_issue": {"fr": "Signaler un bug / une amelioration...",
+                                "en": "Report a bug / suggest an improvement..."},
+    "toolbar.report_issue": {"fr": "Signaler", "en": "Report"},
+    "report.title": {"fr": "Signaler un bug ou une amelioration", "en": "Report a bug or improvement"},
+    "report.not_configured": {"fr": "Cette fonctionnalite n'est pas encore configuree "
+                                     "pour cette application (aucun depot GitHub "
+                                     "renseigne).",
+                               "en": "This feature isn't configured for this "
+                                     "application yet (no GitHub repository set)."},
+    "report.intro": {"fr": "Decris le probleme ou l'amelioration souhaitee. Ceci "
+                            "ouvrira un formulaire GitHub pre-rempli dans ton "
+                            "navigateur -- rien n'est envoye avant que tu cliques "
+                            "toi-meme sur \"Submit\" sur la page GitHub.",
+                      "en": "Describe the problem or improvement you'd like. This "
+                            "will open a pre-filled GitHub form in your browser -- "
+                            "nothing is sent until you click \"Submit\" yourself "
+                            "on the GitHub page."},
+    "report.type_label": {"fr": "Type :", "en": "Type:"},
+    "report.type_bug": {"fr": "Bug", "en": "Bug"},
+    "report.type_feature": {"fr": "Amelioration", "en": "Improvement"},
+    "report.title_label": {"fr": "Titre :", "en": "Title:"},
+    "report.title_placeholder": {"fr": "Resume en une phrase",
+                                  "en": "One-sentence summary"},
+    "report.description_label": {"fr": "Description :", "en": "Description:"},
+    "report.description_placeholder": {"fr": "Que faisais-tu ? Que s'est-il passe ? "
+                                              "Que t'attendais-tu a voir a la place ?",
+                                        "en": "What were you doing? What happened? "
+                                              "What did you expect instead?"},
+    "report.screenshot_note": {"fr": "Capture d'ecran prise au moment du clic -- "
+                                      "sera enregistree sur ton disque a l'envoi "
+                                      "(jamais transmise automatiquement, GitHub "
+                                      "ne le permet pas depuis un lien) ; il te "
+                                      "suffira de la glisser-deposer dans le champ "
+                                      "de description sur la page GitHub.",
+                                "en": "Screenshot taken at the moment of the click "
+                                      "-- will be saved to your disk when sending "
+                                      "(never transmitted automatically, GitHub "
+                                      "doesn't allow that via a link); just drag "
+                                      "and drop it into the description field on "
+                                      "the GitHub page."},
+    "report.auto_included_label": {"fr": "Informations incluses automatiquement "
+                                          "(lecture seule) :",
+                                    "en": "Automatically included information "
+                                          "(read-only):"},
+    "report.recent_actions_label": {"fr": "Actions recentes", "en": "Recent actions"},
+    "report.no_recent_actions": {"fr": "aucune action recente enregistree",
+                                  "en": "no recent action recorded"},
+    "report.tech_info_heading": {"fr": "Informations techniques",
+                                  "en": "Technical information"},
+    "report.screenshot_heading": {"fr": "Capture d'ecran", "en": "Screenshot"},
+    "report.screenshot_instruction": {"fr": "Une capture d'ecran a ete enregistree "
+                                             "localement -- glisse-la ici pour "
+                                             "l'inclure dans ce rapport.",
+                                       "en": "A screenshot was saved locally -- "
+                                             "drag it here to include it in this "
+                                             "report."},
+    "report.btn_send": {"fr": "Ouvrir sur GitHub...", "en": "Open on GitHub..."},
+    "report.error_missing_fields": {"fr": "Le titre et la description sont "
+                                           "obligatoires.",
+                                     "en": "Title and description are required."},
+    "report.sent_msg": {"fr": "Le formulaire GitHub s'est ouvert dans ton "
+                               "navigateur -- relis, glisse la capture d'ecran "
+                               "enregistree ici :\n{path}\net clique \"Submit\" "
+                               "sur la page pour envoyer.",
+                         "en": "The GitHub form opened in your browser -- review "
+                               "it, drag in the screenshot saved here:\n{path}\n"
+                               "and click \"Submit\" on the page to send."},
     "menu.help.about": {"fr": "A propos...", "en": "About..."},
     "about.version": {"fr": "Version", "en": "Version"},
+    "about.license_notice": {"fr": "Distribue sous licence GNU General Public "
+                                    "License v3.0 (GPLv3). Ce logiciel est fourni "
+                                    "sans aucune garantie ; voir le fichier LICENSE "
+                                    "pour le texte complet.",
+                              "en": "Distributed under the GNU General Public "
+                                    "License v3.0 (GPLv3). This software comes "
+                                    "with absolutely no warranty; see the LICENSE "
+                                    "file for the full text."},
+    "about.open_license_file": {"fr": "Ouvrir le fichier de licence (LICENSE)",
+                                 "en": "Open license file (LICENSE)"},
     "update.title": {"fr": "Mise a jour", "en": "Update"},
     "update.available_title": {"fr": "Mise a jour disponible",
                                 "en": "Update available"},
@@ -785,8 +938,18 @@ STRINGS = {
 
     # --- Traduction ---
     "trans.unavailable_title": {"fr": "Traduction indisponible", "en": "Translation unavailable"},
-    "trans.unavailable_msg": {"fr": "deep-translator n'est pas installe.\nLance : pip install deep-translator",
-                               "en": "deep-translator is not installed.\nRun: pip install deep-translator"},
+    "trans.unavailable_msg": {"fr": "La fonction de traduction n'a pas pu se charger.\n\n"
+                                     "Detail technique : {error}\n\n"
+                                     "Si tu utilises la version installee (executable), "
+                                     "ceci est probablement un bug d'empaquetage -- merci "
+                                     "de signaler ce detail exact. Si tu lances depuis les "
+                                     "sources Python, essaie : pip install deep-translator",
+                               "en": "The translation feature failed to load.\n\n"
+                                     "Technical detail: {error}\n\n"
+                                     "If you're using the installed version (executable), "
+                                     "this is likely a packaging bug -- please report this "
+                                     "exact detail. If running from Python sources, try: "
+                                     "pip install deep-translator"},
     "trans.error_title": {"fr": "Erreur de traduction", "en": "Translation error"},
     "trans.error_msg": {"fr": "La traduction a echoue :\n{error}\n\nVerifie ta connexion internet.",
                          "en": "Translation failed:\n{error}\n\nCheck your internet connection."},

@@ -122,6 +122,23 @@ planets...), **.csv** (translations, tables), **.txt** (plain text).
 Every value change is annotated (if enabled in Options):
 `# original: <old_value> -- Mod par <you>`.
 
+### Bulk transform
+**"Bulk transform..." button** (toolbar) — numerically modifies several values at
+once, for a given property key (e.g. `param1`, `Count`, `HitPoints`):
+- **Operations**: Multiply, Add, Set to value, Clamp (min/max), Round
+- **Optional filters**: by block kind (e.g. `+Container`), and/or by a specific
+  list of identities (Id/Name separated by commas)
+- **Recursive by default** — also descends into sub-blocks (notably *Child
+  Items*); can be unchecked
+- **Full review table** — the preview shows EVERY matching value (never
+  truncated), one row per value, with a checkbox to include or exclude it and a
+  **freely editable "After" column** before confirming: useful for a special
+  case that needs to diverge from the general rule (e.g. `MaxCount` must stay
+  at 1 on certain blocks due to a game engine limitation, even if the overall
+  rule multiplies everything else by 2)
+- **"Check all" / "Uncheck all"** buttons
+- Integrates with the tab's normal **Undo (Ctrl+Z)** like any other edit
+
 ---
 
 ## 5. Editing a YAML file
@@ -327,24 +344,49 @@ cases.
 - **Help > Application wiki (functions)...** — this document
 - **Help > Empyrion wiki (properties, files, structure)...** — documentation of
   the game itself (file structure, conventions, known pitfalls)
+- **Help > Check for updates...** — manual check; an automatic, silent check
+  also happens at startup (only shows something if an update genuinely exists)
+- **Help > Report a bug / suggest an improvement...** — opens a pre-filled
+  GitHub form in your browser (title, description, recent actions, technical
+  info like version and OS); **nothing is sent automatically**, you must
+  review and click "Submit" yourself on the GitHub page. A screenshot (taken
+  the moment you click the menu) is saved locally to
+  `~/.empyrion_editor/bug_reports/` — drag and drop it into the GitHub form to
+  include it (no technical way to attach it automatically via a plain link)
 
 ---
 
 ## 18. Diagnostic scripts (command line)
 
-Complements to the interface, run from a terminal in the project folder:
+Complements to the graphical interface, available two ways depending on how you
+got the application:
 
-| Script | Usage |
-|---|---|
-| `verifier_parser_ecf.py <file_or_folder>` | Checks round-trip (perfect fidelity) of one or more ECF files |
-| `verifier_parser_yaml.py <file_or_folder>` | Same for YAML |
-| `verifier_parser_csv.py <file_or_folder>` | Same for CSV |
-| `diagnostic_bloc.py <file.ecf> <Id>` | Finds a specific block by Id, including within comments |
-| `detecter_imbrication_anormale.py <file.ecf>` | Detects blocks that mistakenly "swallowed" the rest of the file |
-| `diff_ecf.py <fileA.ecf> <fileB.ecf>` | Compares two ECF files, shows added/removed/modified blocks |
-| `edit_ecf.py <file.ecf>` | Interactive command-line ECF editor |
-| `merge_ecf.py <output.ecf> <source1> <source2>...` | Merges several ECF files by priority order |
-| `transform_ecf.py` | Applies a bulk numeric transformation (multiply/add/set/cap) on a property, for a given block kind |
+### If you installed via the Windows installer
+A single executable bundles every tool: `EmpyrionEditorCLI.exe`, installed
+alongside the graphical app (same folder). From a terminal (Command Prompt or
+PowerShell), in that installation folder:
+
+```
+EmpyrionEditorCLI.exe <command> [arguments...]
+```
+
+Run it with no argument to see the full list of available commands.
+
+### If you're using the Python sources directly
+Each tool also remains available as a standalone script, run from a terminal in
+the project folder:
+
+| Command (`EmpyrionEditorCLI.exe`) | Equivalent script (sources) | Usage |
+|---|---|---|
+| `verifier-ecf <file_or_folder>` | `python verifier_parser_ecf.py ...` | Checks round-trip (perfect fidelity) of one or more ECF files |
+| `verifier-yaml <file_or_folder>` | `python verifier_parser_yaml.py ...` | Same for YAML |
+| `verifier-csv <file_or_folder>` | `python verifier_parser_csv.py ...` | Same for CSV |
+| `diagnostic-bloc <file.ecf> <Id>` | `python diagnostic_bloc.py ...` | Finds a specific block by Id, including within comments |
+| `detecter-imbrication <file.ecf>` | `python detecter_imbrication_anormale.py ...` | Detects blocks that mistakenly "swallowed" the rest of the file |
+| `diff <fileA.ecf> <fileB.ecf>` | `python diff_ecf.py ...` | Compares two ECF files, shows added/removed/modified blocks |
+| `edit <file.ecf>` | `python edit_ecf.py ...` | Interactive command-line ECF editor |
+| `merge <output.ecf> <source1> <source2>...` | `python merge_ecf.py ...` | Merges several ECF files by priority order |
+| `transform` | `python transform_ecf.py` | Applies a bulk numeric transformation (multiply/add/set/cap) on a property, for a given block kind |
 
 ---
 

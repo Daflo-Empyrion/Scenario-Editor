@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Widget d'edition CSV (tableau) pour la copie de travail, avec traduction par clic
 droit (Google Translate via deep-translator) directement sur une cellule.
@@ -280,7 +296,7 @@ def show_translate_context_menu(parent_widget, global_pos, text: str, on_apply):
         return
 
     if not translation.is_available():
-        QMessageBox.warning(parent_widget, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+        QMessageBox.warning(parent_widget, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
         return
 
     target_lang = lang_actions[chosen]
@@ -703,7 +719,7 @@ class CsvEditWidget(QWidget):
         bouton 'Traduire' rapide de la barre d'outils."""
         row = item.row()
         if not translation.is_available():
-            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
         try:
             translated = translation.translate_text(text, target=target_code)
@@ -759,7 +775,7 @@ class CsvEditWidget(QWidget):
         core/translation_memory.py -- rend les repetitions quasi instantanees), puis
         propose une revue avant d'appliquer quoi que ce soit."""
         if not translation.is_available():
-            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
 
         candidates = [it for it in selected_items if it.text().strip()]
@@ -848,7 +864,7 @@ class CsvEditWidget(QWidget):
         une revue avant application -- comme la traduction en lot, mais sur tout le
         fichier plutot que sur une selection."""
         if not translation.is_available():
-            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg"))
+            QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
         headers = [self.table.horizontalHeaderItem(c).text() if self.table.horizontalHeaderItem(c) else str(c)
                    for c in range(self.table.columnCount())]

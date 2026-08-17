@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Traduction de texte via Google Translate (bibliotheque deep-translator, gratuite, sans
 cle API). Utilise pour la traduction ponctuelle d'une valeur (clic droit -> Traduire),
@@ -17,8 +33,18 @@ from typing import List, Tuple
 try:
     from deep_translator import GoogleTranslator
     _AVAILABLE = True
-except ImportError:
+    _IMPORT_ERROR = None
+except Exception as e:
+    # Capture toute erreur au chargement, pas seulement ImportError -- une
+    # dependance manquante sur Windows peut aussi remonter comme OSError
+    # (echec de chargement d'une DLL) ou une autre exception selon la cause
+    # exacte. Le message precis est garde dans _IMPORT_ERROR pour diagnostic
+    # (voir get_import_error() plus bas) -- l'ancien code avalait completement
+    # cette information et affichait toujours le meme message generique "pip
+    # install deep-translator", inutile pour quelqu'un utilisant la version
+    # installee (executable) sans Python sur sa machine.
     _AVAILABLE = False
+    _IMPORT_ERROR = f"{type(e).__name__}: {e}"
 
 
 COMMON_LANGUAGES = [
@@ -121,6 +147,12 @@ def is_available() -> bool:
     return _AVAILABLE
 
 
+def get_import_error() -> str:
+    """Detail exact de l'erreur de chargement de deep-translator, pour diagnostic --
+    vide si tout va bien (voir is_available())."""
+    return _IMPORT_ERROR or ""
+
+
 def translate_text(text: str, target: str = "fr", source: str = "auto") -> str:
     """Traduit `text` vers la langue `target` (code ISO, ex: 'fr', 'en'), en preservant
     le BBCode et les placeholders. Leve une exception explicite si la bibliotheque
@@ -134,7 +166,11 @@ def translate_text(text: str, target: str = "fr", source: str = "auto") -> str:
     reelle, jamais 'auto' (sinon deux appels 'auto' pourraient a tort partager un cache
     alors que le texte source n'etait pas dans la meme langue)."""
     if not _AVAILABLE:
-        raise RuntimeError("deep-translator n'est pas installe. Lance : pip install deep-translator")
+        raise RuntimeError(f"deep-translator indisponible ({_IMPORT_ERROR}). "
+                            f"Si tu utilises la version installee (executable), "
+                            f"ceci est un bug d'empaquetage a signaler avec ce "
+                            f"detail exact. Si tu lances depuis les sources : "
+                            f"pip install deep-translator")
     if not text or not text.strip():
         return text
 

@@ -1,3 +1,19 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Verifie que le handler CSV reproduit fidelement (byte pour byte) un ou plusieurs
 fichiers .csv reels (Localization.csv, PDA.csv, Dialogues.csv...).
@@ -12,16 +28,21 @@ UTILISATION :
 import sys
 from pathlib import Path
 
-_ici = Path(__file__).resolve().parent
-_candidats = [_ici, _ici / "empyrion_editor", _ici.parent, _ici.parent / "empyrion_editor"]
-for _c in _candidats:
-    if (_c / "core" / "csv_handler.py").exists():
-        sys.path.insert(0, str(_c))
-        break
+if getattr(sys, 'frozen', False):
+    # Construit par PyInstaller (voir empyrion_editor.spec, executable
+    # 'EmpyrionEditorCLI') : 'core' est deja compile et importable directement,
+    # aucune recherche de dossier necessaire.
+    pass
 else:
-    print("ERREUR : impossible de trouver core/csv_handler.py")
-    sys.exit(1)
-
+    _ici = Path(__file__).resolve().parent
+    _candidats = [_ici, _ici / "empyrion_editor", _ici.parent, _ici.parent / "empyrion_editor"]
+    for _c in _candidats:
+        if (_c / "core" / "csv_handler.py").exists():
+            sys.path.insert(0, str(_c))
+            break
+    else:
+        print("ERREUR : impossible de trouver core/csv_handler.py")
+        sys.exit(1)
 from core.csv_handler import CsvHandler
 
 
