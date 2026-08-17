@@ -1,0 +1,4 @@
+PyQt6
+deep-translator
+qtawesome
+pytest
