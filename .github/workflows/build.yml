@@ -1,0 +1,96 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Construit automatiquement l'exe + l'installeur des qu'un tag "vX.Y.Z" est
+# pousse (meme geste qu'aujourd'hui : git tag vX.Y.Z && git push origin --tags),
+# et cree une Release GitHub en BROUILLON avec l'installeur deja attache -- il
+# ne reste plus qu'a coller le titre/les notes de version et cliquer "Publish"
+# (voir BUILD.md, section 3, pour la redaction des notes).
+#
+# Avantage independant de la signature de code : le build se fait sur un
+# environnement Windows propre et reproductible a chaque fois, ce qui elimine
+# une classe entiere de bugs deja rencontres (ex: build.bat lance avec le
+# mauvais Python local, dependance manquante silencieusement -- voir BUILD.md
+# section 6).
+
+name: Build and draft release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Installer les dependances (appli + build)
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Construire les executables (PyInstaller)
+        run: pyinstaller empyrion_editor.spec --noconfirm
+
+      # --- Emplacement reserve pour la signature SignPath Foundation ---
+      # Une fois la candidature approuvee (voir signpath.org), inserer ici
+      # l'etape de soumission a leur pipeline AVANT la construction de
+      # l'installeur ci-dessous, pour qu'Inno Setup empaquete les executables
+      # deja signes plutot que les originaux non signes. Exemple de structure
+      # (necessite les secrets GitHub SIGNPATH_API_TOKEN et
+      # SIGNPATH_ORGANIZATION_ID fournis par SignPath a l'approbation) :
+      #
+      # - name: Signer les executables (SignPath)
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+      #     organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
+      #     project-slug: 'empyrion-scenario-editor'
+      #     signing-policy-slug: 'release-signing'
+      #     artifact-configuration-slug: 'default'
+      #     github-artifact-id: '...'  # id de l'artefact non signe uploade juste avant
+      #     wait-for-completion: true
+      #     output-artifact-directory: 'dist-signed'
+
+      - name: Installer Inno Setup
+        run: choco install innosetup -y
+
+      - name: Construire l'installeur (Inno Setup)
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: Publier l'installeur comme artefact du workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows
+          path: installer_output/*.exe
+
+      - name: Creer une Release GitHub en brouillon
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: installer_output/*.exe
+          # Pas de generation automatique des notes -- les notes de version
+          # detaillees restent redigees a la main (voir BUILD.md section 3),
+          # ce workflow ne fait que preparer le brouillon avec le fichier deja
+          # attache.

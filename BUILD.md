@@ -81,7 +81,13 @@ Lance l'installeur genere sur une machine de test (ou la tienne), verifie que :
 
 ## 3. Publier une nouvelle version sur GitHub
 
-Une fois `Setup-EmpyrionScenarioEditor-vX.Y.Z.exe` teste et pret :
+Depuis la mise en place du pipeline automatise (`.github/workflows/build.yml`,
+voir aussi section 8), **l'etape 2 "Construire" (section 2 ci-dessus) devient
+optionnelle** pour une publication -- le tag pousse a l'etape 1 ci-dessous
+declenche automatiquement une construction complete sur un environnement
+Windows propre, et prepare une Release en **brouillon** avec l'installeur deja
+attache. `build.bat` en local reste utile pour tester rapidement sans attendre
+le pipeline (quelques minutes) ou sans connexion internet.
 
 1. Commit les changements de code, avec un tag correspondant a la version :
    ```bat
@@ -90,14 +96,18 @@ Une fois `Setup-EmpyrionScenarioEditor-vX.Y.Z.exe` teste et pret :
    git tag v1.1.0
    git push origin main --tags
    ```
-2. Sur GitHub, va dans **Releases > Draft a new release**, choisis le tag
-   `v1.1.0`, ajoute une description des changements, et **attache le fichier
-   `Setup-EmpyrionScenarioEditor-v1.1.0.exe`** genere a l'etape precedente.
-3. Publie la release.
+2. Va sur l'onglet **Actions** du depot GitHub pour suivre la construction en
+   cours (quelques minutes) -- ou construis en local avec `build.bat` si tu
+   preferes ne pas attendre.
+3. Une fois le workflow termine, va dans **Releases** : un brouillon avec le
+   tag `v1.1.0` et l'installeur deja attache t'attend. Ajoute le titre et la
+   description des changements, verifie que le bon fichier est present, puis
+   **Publish release**.
 
 **Important** : le tag doit obligatoirement commencer par `v` suivi du meme
 numero que `APP_VERSION` (ex: tag `v1.1.0` pour `APP_VERSION = "1.1.0"`) —
-c'est ce que le verificateur de mise a jour integre a l'application compare.
+c'est ce que le verificateur de mise a jour integre a l'application compare, et
+c'est aussi ce qui declenche le pipeline automatise ci-dessus.
 
 ### Activer la verification automatique de mise a jour
 Tant que `GITHUB_REPO` est vide dans `core/version.py`, la verification de
@@ -244,3 +254,41 @@ elle-meme :
 **Ce que je ne recommande pas** : ignorer completement le probleme sans rien
 dire aux utilisateurs -- meme un faux positif legitime peut faire fuir
 quelqu'un qui ne sait pas a quoi s'attendre.
+
+---
+
+## 8. Pipeline automatise (GitHub Actions)
+
+Le fichier `.github/workflows/build.yml` construit automatiquement l'appli des
+qu'un tag `vX.Y.Z` est pousse -- meme geste qu'aujourd'hui, rien a changer dans
+tes habitudes de commit/tag/push (voir section 3).
+
+### Ce qu'il fait, dans l'ordre
+1. Recupere le code sur une machine Windows fournie par GitHub (propre a
+   chaque fois -- jamais l'environnement Python personnel de ton PC)
+2. Installe les dependances depuis `requirements.txt` +
+   `requirements-build.txt`
+3. Construit les deux executables avec PyInstaller
+4. *(Emplacement reserve pour la signature SignPath -- voir plus bas)*
+5. Construit l'installeur avec Inno Setup
+6. Cree une Release GitHub en **brouillon**, avec l'installeur deja attache
+
+### Avantage independant de la signature de code
+Meme sans signature, ce pipeline elimine une classe entiere de bugs deja
+rencontres avec `build.bat` en local (ex: construction avec le mauvais
+environnement Python, dependance manquante silencieusement -- voir section 6)
+puisque l'environnement de construction est toujours identique et propre.
+
+### Suivre une construction en cours
+Onglet **Actions** du depot GitHub -- chaque tag pousse y apparait comme une
+execution, avec le detail de chaque etape en cas d'echec.
+
+### Activer la signature SignPath Foundation (une fois la candidature approuvee)
+1. Suis leur documentation pour connecter ton depot GitHub a leur plateforme
+   (genere les secrets `SIGNPATH_API_TOKEN` et `SIGNPATH_ORGANIZATION_ID`)
+2. Ajoute ces deux valeurs dans **Settings > Secrets and variables > Actions**
+   du depot GitHub
+3. Decommente et adapte le bloc d'etape "Signer les executables (SignPath)"
+   deja present (mais commente) dans `.github/workflows/build.yml`, juste
+   avant l'etape de construction de l'installeur -- pour qu'Inno Setup
+   empaquete les executables deja signes plutot que les originaux
