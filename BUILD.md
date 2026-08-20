@@ -283,6 +283,22 @@ puisque l'environnement de construction est toujours identique et propre.
 Onglet **Actions** du depot GitHub -- chaque tag pousse y apparait comme une
 execution, avec le detail de chaque etape en cas d'echec.
 
+### Problemes deja rencontres et corriges
+- **"Resource not accessible by integration"** sur l'etape de creation de la
+  Release -- le jeton `GITHUB_TOKEN` genere automatiquement par GitHub pour
+  chaque execution est en lecture seule par defaut. Corrige en ajoutant un
+  bloc `permissions: contents: write` au niveau du job dans
+  `.github/workflows/build.yml` -- deja en place, rien a faire si tu utilises
+  le fichier tel quel.
+- **Avertissement "Node.js 20 est deprecie"** -- les actions tierces
+  utilisees (`actions/checkout`, `actions/setup-python`,
+  `actions/upload-artifact`, `softprops/action-gh-release`) ont ete mises a
+  jour vers leurs versions majeures les plus recentes (compatibles Node.js
+  24) pour eviter que le workflow casse quand GitHub retirera completement
+  Node.js 20 de ses machines. Si l'avertissement reapparait plus tard (une de
+  ces actions, ou une nouvelle ajoutee, prend du retard), verifie sur la page
+  GitHub de l'action concernee si une version plus recente existe.
+
 ### Activer la signature SignPath Foundation (une fois la candidature approuvee)
 1. Suis leur documentation pour connecter ton depot GitHub a leur plateforme
    (genere les secrets `SIGNPATH_API_TOKEN` et `SIGNPATH_ORGANIZATION_ID`)

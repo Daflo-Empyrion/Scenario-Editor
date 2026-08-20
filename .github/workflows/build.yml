@@ -36,12 +36,18 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    # Necessaire pour que l'etape "Creer une Release GitHub en brouillon"
+    # (softprops/action-gh-release) puisse ecrire une Release -- sans ceci, le
+    # jeton GITHUB_TOKEN par defaut est en lecture seule et l'etape echoue avec
+    # "Resource not accessible by integration".
+    permissions:
+      contents: write
     steps:
       - name: Recuperer le code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Installer Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -80,13 +86,13 @@ jobs:
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
 
       - name: Publier l'installeur comme artefact du workflow
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installer-windows
           path: installer_output/*.exe
 
       - name: Creer une Release GitHub en brouillon
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           files: installer_output/*.exe
