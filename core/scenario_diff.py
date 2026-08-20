@@ -184,6 +184,19 @@ DETAIL_DIFFERS = {
 }
 
 
+def _compare_files_by_chunks(path_a: Path, path_b: Path, chunk_size: int = 65536) -> bool:
+    if path_a.stat().st_size != path_b.stat().st_size:
+        return False
+    with open(path_a, 'rb') as fa, open(path_b, 'rb') as fb:
+        while True:
+            chunk_a = fa.read(chunk_size)
+            chunk_b = fb.read(chunk_size)
+            if chunk_a != chunk_b:
+                return False
+            if not chunk_a:
+                return True
+
+
 def compare_scenarios(root_a: Path, root_b: Path,
                        progress_callback=None) -> ScenarioDiffResult:
     """Compare deux dossiers de scenario entiers, fichier par fichier.
@@ -218,8 +231,7 @@ def compare_scenarios(root_a: Path, root_b: Path,
 
         path_a, path_b = files_a[rel], files_b[rel]
         try:
-            identical = path_a.stat().st_size == path_b.stat().st_size and \
-                path_a.read_bytes() == path_b.read_bytes()
+            identical = _compare_files_by_chunks(path_a, path_b)
         except Exception:
             identical = False
 

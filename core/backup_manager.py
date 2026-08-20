@@ -29,6 +29,7 @@ plus un petit fichier _backup_info.json avec les metadonnees (source d'origine, 
 nom donne par l'utilisateur, type).
 """
 import json
+import logging
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -36,6 +37,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from .fsutil import clear_readonly
+
+logger = logging.getLogger(__name__)
 
 INFO_FILENAME = "_backup_info.json"
 
@@ -132,7 +135,8 @@ def list_backups(backup_root: Path, kind: Optional[str] = None) -> List[BackupRe
             )
             if kind is None or record.kind == kind:
                 records.append(record)
-        except Exception:
+        except Exception as e:
+            logger.debug('Backup invalide ignore : %s', e)
             continue
 
     records.sort(key=lambda r: r.created_at, reverse=True)
@@ -184,8 +188,8 @@ def backup_size_bytes(record: BackupRecord) -> int:
         if p.is_file():
             try:
                 total += p.stat().st_size
-            except OSError:
-                pass
+            except OSError as e:
+                logger.debug('Fichier inaccessible ignore : %s', e)
     return total
 
 

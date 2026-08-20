@@ -20,9 +20,12 @@ dossier utilisateur) la liste des workspaces deja crees, pour pouvoir les repren
 au demarrage sans avoir a tout re-saisir a chaque fois.
 """
 import json
+import logging
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 CONFIG_DIR = Path.home() / ".empyrion_editor"
 CONFIG_FILE = CONFIG_DIR / "projets_recents.json"
@@ -49,7 +52,8 @@ def load_recent_projects() -> List[ProjectRecord]:
     try:
         data = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
         return [ProjectRecord(**p) for p in data.get('projects', [])]
-    except Exception:
+    except Exception as e:
+        logger.warning('Projets recents illisibles : %s', e)
         return []
 
 

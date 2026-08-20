@@ -24,6 +24,7 @@ fermeture, ce qui casse la structure du reste du fichier).
 """
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 
 from .model import EcfDocument, EcfBlock, EcfComment, EcfBlank
@@ -97,13 +98,14 @@ def parse_pending_block(conflict: "PendingConflict") -> Optional[EcfBlock]:
     return blocks[0] if len(blocks) == 1 else None
 
 
-def find_used_ids(ecf_files: List) -> set:
+def find_used_ids(ecf_files: List[Path]) -> set:
     """Recense tous les Id numeriques utilises dans une liste de fichiers ECF (tous
     genres de blocs confondus) -- pour pouvoir suggerer des Id libres."""
     used = set()
     for path in ecf_files:
         try:
-            doc = parse_ecf_text(open(path, 'r', encoding='utf-8', newline='').read())
+            with open(path, 'r', encoding='utf-8', newline='') as f:
+                doc = parse_ecf_text(f.read())
         except Exception:
             continue
         for block in doc.iter_blocks():

@@ -27,12 +27,15 @@ semantique est certaine -- doit correspondre a un 'Name'). D'autres cles comme
 'CustomIcon' ne sont pas verifiees ici : elles renvoient vers des ressources visuelles
 (icones) dont on n'a pas d'index fiable dans les fichiers ECF eux-memes.
 """
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Set
 
 from .parser import parse_ecf_file
 from .model import block_identity
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,7 +57,8 @@ def build_name_index(ecf_files: List[Path]) -> Dict[str, List[Path]]:
     for path in ecf_files:
         try:
             doc = parse_ecf_file(path)
-        except Exception:
+        except Exception as e:
+            logger.debug('Fichier ECF ignore : %s', e)
             continue
         for block in doc.iter_blocks():
             name = block.get_property('Name')
@@ -72,7 +76,8 @@ def check_references(ecf_files: List[Path], ref_keys: tuple = ('Ref',)) -> List[
     for path in ecf_files:
         try:
             doc = parse_ecf_file(path)
-        except Exception:
+        except Exception as e:
+            logger.debug('Fichier ECF ignore : %s', e)
             continue
         for block in doc.iter_blocks():
             for key in ref_keys:
