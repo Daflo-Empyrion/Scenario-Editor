@@ -166,6 +166,65 @@ Arbre de navigation a gauche (cle + apercu), panneau de valeur editable a droite
   guillemets devient un vrai retour a la ligne, pour un affichage correct en jeu
   (frequent pour les descriptions de playfield)
 
+### Edition structuree des playfields (Ressources, POI, Creatures)
+Tout fichier nomme `playfield*.yaml` (planetes : `playfield.yaml`,
+`playfield_static.yaml`, `playfield_dynamic.yaml`) ou `space*.yaml` (secteurs
+spatiaux : `space_dynamic.yaml`) s'ouvre automatiquement avec un editeur
+specialise a **4 onglets**, plutot que l'editeur YAML generique ci-dessus.
+Un bouton **"Enregistrer (Ctrl+S)"** reste visible en permanence en haut,
+quel que soit l'onglet actif -- ainsi qu'un indicateur "Modifications non
+enregistrees" -- pour ne jamais avoir a chercher la sauvegarde dans l'onglet
+"YAML complet" apres une modification faite depuis un autre onglet :
+- **Ressources** — trois tableaux distincts, chacun avec sa propre liste
+  deroulante d'ajout (jamais de saisie libre) :
+  - **Ressources aleatoires** (`RandomResources`) et **Ressources
+    d'asteroides** (`AsteroidResources`) — playfields planete, liste peuplee
+    depuis les vrais blocs `*Resource` de `BlocksConfig.ecf`
+  - **Ressources spatiales** (`Resources`) — playfields espace uniquement,
+    structure differente (variantes `AsteroidVoxel01/02/03<Materiau>`, nom
+    lisible via `DisplayName`) — liste peuplee avec le meme materiau de base
+    (Fer, Cuivre...) que les ressources planete, colonne **RegenAfter**
+    (delai avant reapparition) directement editable
+- **POI** et **Creatures** — tableau des entrees deja presentes (delais,
+  difficulte, distances, quantites...), colonnes triees par frequence
+  d'usage. **Modification uniquement** : pas d'ajout d'un nouveau POI/creature
+  par selection de type, faute de source fiable pour peupler une telle liste
+  (voir le wiki Empyrion, section 5, pour EPD si tu as besoin d'aller plus
+  loin sur ce point precis).
+  - POI : colonne **RegenAfter** directement editable (imbriquee dans
+    `Properties` sur le fichier d'origine, exposee ici comme une colonne a
+    part entiere)
+  - Creatures : colonne **Biome** (lecture seule) — indispensable des qu'un
+    meme nom de creature apparait dans plusieurs zones de biome differentes
+    avec des parametres differents, sinon impossible a distinguer
+  - Les autres valeurs structurees imbriquees (ex: `Position`) restent non
+    editables ici, modifiables via l'onglet "YAML complet"
+- **Drones/Vaisseaux** — modification des entrees deja presentes uniquement,
+  meme raisonnement que POI/Creatures (aucune source fiable pour une liste
+  deroulante de nouveaux types) :
+  - **Garnison de base de drones** (planete, `DroneBaseSetup > Stock`) —
+    Name + Amount
+  - **Drones de patrouille libres** (espace, `FreeDrones`) et **Vaisseaux
+    spatiaux** (espace, `SpaceVessels`) — structure la plus riche du module
+    (Faction, CountMinMax, Probability...), les champs les plus imbriques
+    (`MissionDescription`, `StockDescription`) restent non editables ici
+  - Chaque tableau reste vide si non pertinent pour le type de playfield
+    ouvert (meme principe que l'onglet Ressources)
+- **Zones de spawn** — modification des entrees existantes uniquement :
+  - **Patrouilles de drones** (planete, `DroneSpawning > Random`)
+  - **Modulation du taux d'apparition autour des POI** (`SpawnRateZones`)
+  - **Creatures liees a un POI** (`SpawnZones`) — different de l'onglet
+    Creatures, qui organise par biome plutot que par POI ; la sous-liste
+    `Entities` reste non editable ici, voir "YAML complet"
+- **Effets speciaux** — purement cosmetique (pollen, papillons, meteo...),
+  sans impact sur le gameplay, mais couvert pour une coherence complete :
+  **effets locaux par biome** (`SpecialEffectsLocal`) et **effets globaux**
+  (`SpecialEffectsGlobal`)
+- **YAML complet** — le meme editeur generique que ci-dessus, pour tout le
+  reste du playfield (atmosphere, ciel, brouillard...) — partage le
+  meme document en memoire que les vues structurees : une modification faite
+  d'un cote est immediatement visible en changeant d'onglet.
+
 ---
 
 ## 6. Editer un fichier CSV
@@ -289,6 +348,27 @@ Bouton global **"Annuler la derniere action"** (en haut de la fenetre, distinct 
 **Verification > Blocs en attente** — liste tous les blocs mis en attente par le
 garde-fou anti-collision, avec comparaison detaillee (bloc actuel vs en attente) et
 suggestions d'Ids libres pour l'activer proprement.
+
+### References croisees entre fichiers
+**Verification > Verifier les references croisees...** — contrairement a
+"Verifier les references" ci-dessus (qui ne regarde que `Ref:` au sein des
+fichiers ECF), celle-ci controle que ce qu'un fichier mentionne existe
+**reellement ailleurs** dans le scenario. Trois verifications independantes,
+chacune activable/desactivable individuellement :
+- **Heritage Ref** — identique a la verification classique ci-dessus, incluse
+  ici pour tout verifier en un seul endroit
+- **Items/blocs references** — chaque entree `Name_N` (Templates.ecf,
+  Containers.ecf, LootGroups.ecf...) correspond-elle a un item ou un bloc qui
+  existe reellement dans ItemsConfig.ecf ou BlocksConfig.ecf ? (les deux
+  fichiers sont verifies ensemble : un bloc ramasse devient un item du meme
+  nom, ils partagent le meme espace de noms)
+- **Jetons** — chaque reference `Token:XXXX` correspond-elle a un jeton
+  reellement defini dans TokenConfig.ecf ?
+
+Chaque probleme trouve indique le **chemin complet** du fichier concerne —
+**double-clique un resultat pour ouvrir directement le fichier concerne et
+naviguer jusqu'au bloc/sous-bloc exact**, cellule comprise, sans avoir a
+chercher soi-meme ou se trouve le probleme.
 
 ---
 

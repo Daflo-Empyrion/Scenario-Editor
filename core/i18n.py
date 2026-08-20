@@ -42,6 +42,42 @@ STRINGS = {
                                       "en": "Check references (Ref) in the working copy..."},
     "menu.verification.pending": {"fr": "Blocs en attente (conflits d'Id)...",
                                    "en": "Pending blocks (Id conflicts)..."},
+    "menu.verification.cross_refs": {"fr": "Verifier les references croisees "
+                                            "(entre fichiers)...",
+                                      "en": "Check cross-file references..."},
+
+    "crossref.title": {"fr": "References croisees entre fichiers",
+                        "en": "Cross-file references"},
+    "crossref.intro": {"fr": "Verifie que ce qu'un fichier mentionne (un item, un "
+                              "bloc, un jeton...) existe bien reellement ailleurs "
+                              "dans le scenario. Coche les verifications voulues, "
+                              "puis lance-les. Double-clique un resultat pour "
+                              "ouvrir le fichier concerne et naviguer directement "
+                              "jusqu'a l'endroit exact.",
+                        "en": "Checks that whatever a file mentions (an item, a "
+                              "block, a token...) genuinely exists elsewhere in "
+                              "the scenario. Check the desired verifications, "
+                              "then run them. Double-click a result to open the "
+                              "relevant file and jump straight to the exact "
+                              "spot."},
+    "crossref.checks_label": {"fr": "Verifications a effectuer :",
+                               "en": "Checks to perform:"},
+    "crossref.btn_run": {"fr": "Lancer la verification", "en": "Run check"},
+    "crossref.results_label": {"fr": "Resultats :", "en": "Results:"},
+    "crossref.no_check_selected": {"fr": "Coche au moins une verification avant "
+                                          "de lancer.",
+                                    "en": "Check at least one verification before "
+                                          "running."},
+    "crossref.all_ok": {"fr": "Tout est coherent -- aucune reference cassee "
+                               "trouvee parmi les verifications selectionnees.",
+                         "en": "Everything is consistent -- no broken reference "
+                               "found among the selected checks."},
+    "crossref.issues_found": {"fr": "{n} probleme(s) trouve(s).",
+                               "en": "{n} issue(s) found."},
+    "crossref.more_issues": {"fr": " (affichage limite aux 500 premiers ; "
+                                    "{n} de plus non affiches)",
+                              "en": " (display limited to the first 500; {n} "
+                                    "more not shown)"},
 
     # --- Menu Options ---
     "menu.options": {"fr": "&Options", "en": "&Options"},
@@ -69,6 +105,99 @@ STRINGS = {
     "btn.delete_selected_entry": {"fr": "Supprimer l'entree selectionnee", "en": "Delete selected entry"},
     "btn.filter_by_property": {"fr": "Filtrer par propriete...", "en": "Filter by property..."},
     "btn.transform": {"fr": "Transformation en masse...", "en": "Bulk transform..."},
+    "playfield.tab_resources": {"fr": "Ressources", "en": "Resources"},
+    "playfield.tab_poi": {"fr": "POI", "en": "POI"},
+    "playfield.tab_creatures": {"fr": "Creatures", "en": "Creatures"},
+    "playfield.tab_drones": {"fr": "Drones/Vaisseaux", "en": "Drones/Vessels"},
+    "playfield.drone_stock_label": {"fr": "Garnison de la base de drones -- "
+                                          "planete (DroneBaseSetup > Stock)",
+                                     "en": "Drone base garrison -- planet "
+                                           "(DroneBaseSetup > Stock)"},
+    "playfield.free_drones_label": {"fr": "Drones de patrouille libres -- "
+                                         "espace (FreeDrones)",
+                                     "en": "Free patrol drones -- space "
+                                           "(FreeDrones)"},
+    "playfield.space_vessels_label": {"fr": "Vaisseaux spatiaux -- espace "
+                                            "(SpaceVessels)",
+                                       "en": "Space vessels -- space "
+                                             "(SpaceVessels)"},
+    "playfield.tab_spawn_zones": {"fr": "Zones de spawn", "en": "Spawn zones"},
+    "playfield.tab_special_effects": {"fr": "Effets speciaux", "en": "Special effects"},
+    "playfield.col_dronesminmax": {"fr": "DronesMinMax", "en": "DronesMinMax"},
+    "playfield.col_spawnat": {"fr": "SpawnAt", "en": "SpawnAt"},
+    "playfield.drone_spawning_label": {"fr": "Patrouilles de drones -- planete "
+                                            "(DroneSpawning > Random)",
+                                        "en": "Drone patrols -- planet "
+                                              "(DroneSpawning > Random)"},
+    "playfield.spawn_rate_zones_label": {"fr": "Modulation du taux d'apparition "
+                                              "autour des POI (SpawnRateZones)",
+                                          "en": "Spawn rate modulation around "
+                                                "POI (SpawnRateZones)"},
+    "playfield.spawn_zones_label": {"fr": "Creatures liees a un POI -- "
+                                         "different de l'onglet Creatures, qui "
+                                         "est par biome (SpawnZones)",
+                                     "en": "Creatures tied to a POI -- "
+                                           "different from the Creatures tab, "
+                                           "which is per-biome (SpawnZones)"},
+    "playfield.special_effects_local_label": {"fr": "Effets visuels locaux par "
+                                                    "biome -- pollen, papillons... "
+                                                    "(SpecialEffectsLocal)",
+                                                "en": "Local visual effects per "
+                                                      "biome -- pollen, "
+                                                      "butterflies... "
+                                                      "(SpecialEffectsLocal)"},
+    "playfield.special_effects_global_label": {"fr": "Effets globaux -- meteo, "
+                                                     "effets a plus grande "
+                                                     "echelle (SpecialEffectsGlobal)",
+                                                 "en": "Global effects -- "
+                                                       "weather, larger-scale "
+                                                       "effects "
+                                                       "(SpecialEffectsGlobal)"},
+    "playfield.tab_raw_yaml": {"fr": "YAML complet", "en": "Full YAML"},
+    "playfield.btn_save": {"fr": "Enregistrer (Ctrl+S)", "en": "Save (Ctrl+S)"},
+    "playfield.unsaved_changes": {"fr": "Modifications non enregistrees",
+                                   "en": "Unsaved changes"},
+    "playfield.random_resources_label": {"fr": "Ressources aleatoires (RandomResources)",
+                                          "en": "Random resources (RandomResources)"},
+    "playfield.asteroid_resources_label": {"fr": "Ressources d'asteroides (AsteroidResources)",
+                                            "en": "Asteroid resources (AsteroidResources)"},
+    "playfield.space_resources_label": {"fr": "Ressources spatiales -- asteroides (Resources, "
+                                              "playfields espace uniquement)",
+                                         "en": "Space resources -- asteroids (Resources, "
+                                               "space playfields only)"},
+    "playfield.col_name": {"fr": "Nom", "en": "Name"},
+    "playfield.col_groupname": {"fr": "GroupName", "en": "GroupName"},
+    "playfield.col_regen_after": {"fr": "RegenAfter (delai avant reapparition)",
+                                   "en": "RegenAfter (respawn delay)"},
+    "playfield.col_biome": {"fr": "Biome", "en": "Biome"},
+    "playfield.count_label": {"fr": "{n} entree(s)", "en": "{n} entrie(s)"},
+    "playfield.btn_add": {"fr": "+ Ajouter...", "en": "+ Add..."},
+    "playfield.btn_remove": {"fr": "Supprimer la ligne selectionnee", "en": "Remove selected row"},
+    "playfield.no_row_selected": {"fr": "Selectionne d'abord une ligne dans le tableau.",
+                                   "en": "Select a row in the table first."},
+    "playfield.confirm_remove": {"fr": "Supprimer definitivement '{name}' ?",
+                                  "en": "Permanently remove '{name}'?"},
+    "playfield.add_resource_title": {"fr": "Ajouter une ressource", "en": "Add a resource"},
+    "playfield.resource_name_label": {"fr": "Ressource (bloc) :", "en": "Resource (block):"},
+    "playfield.no_resources_found": {"fr": "Aucun bloc de type ressource (finissant par "
+                                            "'Resource') trouve dans BlocksConfig.ecf.",
+                                      "en": "No resource-type block (ending in "
+                                            "'Resource') found in BlocksConfig.ecf."},
+    "playfield.section_not_found": {"fr": "Section '{section}' introuvable dans ce fichier.",
+                                     "en": "Section '{section}' not found in this file."},
+    "playfield.complex_value_placeholder": {"fr": "[valeur structuree, voir YAML complet]",
+                                             "en": "[structured value, see Full YAML]"},
+    "playfield.existing_only_note": {"fr": "Modification des entrees deja presentes uniquement "
+                                            "(delais, difficulte, distances, quantites...). "
+                                            "L'ajout d'un nouveau POI/creature par selection de "
+                                            "type n'est pas propose ici -- utilise l'onglet "
+                                            "\"YAML complet\" ou EPD pour cela (voir le wiki "
+                                            "Empyrion, section 5).",
+                                      "en": "Editing of existing entries only (delays, "
+                                            "difficulty, distances, quantities...). Adding a new "
+                                            "POI/creature by picking a type isn't offered here -- "
+                                            "use the \"Full YAML\" tab or EPD for that (see the "
+                                            "Empyrion wiki, section 5)."},
     "transform.title": {"fr": "Transformation en masse", "en": "Bulk transform"},
     "transform.key_label": {"fr": "Cle de propriete :", "en": "Property key:"},
     "transform.key_placeholder": {"fr": "ex: param1, Count, Health",
@@ -723,9 +852,10 @@ STRINGS = {
     "update.title": {"fr": "Mise a jour", "en": "Update"},
     "update.available_title": {"fr": "Mise a jour disponible",
                                 "en": "Update available"},
-    "update.available_msg": {"fr": "Une nouvelle version ({version}) est disponible !\n\n"
-                                    "{url}",
-                              "en": "A new version ({version}) is available!\n\n{url}"},
+    "update.available_msg_html": {"fr": "Une nouvelle version ({version}) est disponible !<br><br>"
+                                         "<a href=\"{url}\">{url}</a>",
+                                   "en": "A new version ({version}) is available!<br><br>"
+                                         "<a href=\"{url}\">{url}</a>"},
     "update.up_to_date": {"fr": "Tu utilises deja la derniere version.",
                            "en": "You're already using the latest version."},
     "update.not_configured": {"fr": "La verification de mise a jour n'est pas encore "

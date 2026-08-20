@@ -1065,6 +1065,82 @@ class EcfEditWidget(QWidget):
         self._on_block_selected(item, 0)
         self.search_status.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
+    def select_block_by_identity(self, identity: str, prop_key: Optional[str] = None,
+                                  prop_value: Optional[str] = None) -> bool:
+        """Trouve et selectionne (dans l'arbre, avec defilement) le bloc RACINE dont
+        l'identite (Id ou Name) correspond EXACTEMENT a `identity` -- contrairement a
+        _search_next() qui fait une recherche floue par sous-chaine, celle-ci sert a
+        naviguer directement depuis un resultat deja identifie avec precision (ex:
+        double-clic sur un resultat du dialogue "References croisees") sans repasser
+        par la recherche manuelle.
+
+        Si prop_key/prop_value sont fournis, cherche en plus le sous-bloc EXACT qui
+        contient cette paire directement (ex: le sous-bloc "Child Items" imbrique
+        dans un +Container, pas le +Container racine lui-meme) et selectionne CE
+        sous-bloc precis plutot que la racine -- necessaire pour que la ligne
+        recherchee soit effectivement visible dans le tableau de proprietes affiche
+        ensuite, puisque les valeurs d'un sous-bloc n'apparaissent jamais dans le
+        tableau de son parent. Retourne True si le bloc racine a ete trouve (que la
+        propriete precise ait pu etre localisee ou non)."""
+        it = QTreeWidgetItemIterator(self.tree)
+        root_item = None
+        while it.value():
+            item = it.value()
+            block = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(block, EcfBlock) and block_identity(block) == identity:
+                root_item = item
+                break
+            it += 1
+        if root_item is None:
+            return False
+
+        target_item = root_item
+        if prop_key and prop_value:
+            found = self._find_tree_item_with_property(root_item, prop_key, prop_value)
+            if found is not None:
+                target_item = found
+
+        self.tree.setCurrentItem(target_item)
+        self.tree.scrollToItem(target_item)
+        self._on_block_selected(target_item, 0)
+        if prop_key and prop_value:
+            self._select_property_row(prop_key, prop_value)
+        return True
+
+    def _find_tree_item_with_property(self, item: QTreeWidgetItem, key: str, value: str):
+        """Cherche, dans le sous-arbre de `item` (lui-meme inclus), le premier noeud
+        dont le bloc associe contient DIRECTEMENT (sans redescendre plus loin) une
+        EcfProperty avec la paire (key, value) -- utilise par
+        select_block_by_identity() pour localiser le bon sous-bloc (ex: 'Child
+        Items') plutot que de rester sur le bloc racine ou cette valeur n'est pas
+        visible."""
+        block = item.data(0, Qt.ItemDataRole.UserRole)
+        if isinstance(block, EcfBlock):
+            for child in block.children:
+                if isinstance(child, EcfProperty):
+                    for k, v in child.pairs:
+                        if k == key and v == value:
+                            return item
+        for i in range(item.childCount()):
+            found = self._find_tree_item_with_property(item.child(i), key, value)
+            if found is not None:
+                return found
+        return None
+
+    def _select_property_row(self, key: str, value: str) -> bool:
+        """Selectionne, dans le tableau de proprietes actuellement affiche, la
+        premiere ligne dont une cellule correspond a `value` -- cherche dans toutes
+        les colonnes (le mode tableau des structures repetitives a plusieurs colonnes
+        par ligne, la cle exacte n'y est pas toujours une colonne visible)."""
+        for row in range(self.props_table.rowCount()):
+            for col in range(self.props_table.columnCount()):
+                cell = self.props_table.item(row, col)
+                if cell is not None and cell.text() == value:
+                    self.props_table.setCurrentCell(row, col)
+                    self.props_table.scrollToItem(cell)
+                    return True
+        return False
+
     # ------------------------------------------------------------------
     # Table des proprietes (editable)
     # ------------------------------------------------------------------

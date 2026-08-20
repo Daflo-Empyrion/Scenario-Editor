@@ -1,0 +1,7 @@
+{ Item Id: 1, Name: IronOre
+  MarketPrice: 5
+}
+
+{ Item Id: 2, Name: CopperOre
+  MarketPrice: 6
+}

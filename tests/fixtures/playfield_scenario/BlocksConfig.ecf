@@ -1,0 +1,151 @@
+# Extrait de test -- blocs Resource + quelques blocs normaux, pour les tests pytest
+
+{ Block Id: 53, Name: SathiumResource
+  Material: resourcehard
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 126
+  ShowUser: No
+  Group: resource
+  XpFactor: 6.0
+  AutoMinerFactor: 0.5
+  { Child DropOnDestroy
+    Item: SathiumOre
+    Count: "1,2"
+    Prob: 0.5
+  }
+}
+
+{ Block Id: 79, Name: CopperResource
+  Material: resourcesoft
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 177   #  rock_grey05 
+  AutoMinerFactor: 0.5
+  XpFactor: 3.0
+  ShowUser: No
+  Group: resource 
+  { Child DropOnDestroy
+    Item: CopperOre
+    Count: "1,3"
+    Prob: 0.6
+  }
+}
+
+{ Block Id: 80, Name: PromethiumResource
+  Material: resourcemedium
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 136    #  alien_rock_blue01  
+  AutoMinerFactor: 0.3
+  XpFactor: 5.0
+  ShowUser: No
+  Group: resource 
+  { Child DropOnDestroy
+    Item: PromethiumOre
+    Count: "1,2"
+    Prob: 0.4
+  }
+  Radiation: 12
+}
+
+{ Block Id: 81, Name: IronResource
+  Material: resourcesoft
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 173   #  rock_grey03  
+  AutoMinerFactor: 0.5
+  XpFactor: 2.0
+  ShowUser: No
+  Group: resource
+  { Child DropOnDestroy
+    Item: IronOre
+    Count: "1,4"
+    Prob: 0.6
+  }
+}
+
+{ Block Id: 82, Name: SiliconResource
+  Material: resourcesoft
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 174   #  rock_grey04  
+  AutoMinerFactor: 0.5
+  XpFactor: 2.5
+  ShowUser: No
+  Group: resource 
+  { Child DropOnDestroy
+    Item: SiliconOre
+    Count: "1,4"
+    Prob: 0.6
+  }
+}
+
+{ Block Id: 83, Name: NeodymiumResource
+  Material: resourcehard
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 179   #  rock_brown02  
+  AutoMinerFactor: 0.5
+  XpFactor: 5.0
+  ShowUser: No
+  Group: resource 
+  { Child DropOnDestroy
+    Item: NeodymiumOre
+    Count: "1,3"
+    Prob: 0.5
+  }
+}
+
+{ Block Id: 84, Name: MagnesiumResource
+  Material: resourcesoft
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 169   #  rock_grey  
+  AutoMinerFactor: 0.75
+  XpFactor: 3.5
+  ShowUser: No
+  Group: resource 
+  { Child DropOnDestroy
+    Item: MagnesiumOre
+    Count: "1,3"
+    Prob: 0.5
+  }
+}
+
+{ Block Id: 85, Name: CobaltResource
+  Material: resourcemedium
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 129    #  rock_grey02  
+  AutoMinerFactor: 0.5
+  XpFactor: 4.0
+  ShowUser: No
+  Group: resource 
+  { Child DropOnDestroy
+    Item: CobaltOre
+    Count: "1,3"
+    Prob: 0.5
+  }
+}
+
+{ Block Id: 0, Name: Air
+  Material: air
+  Shape: Invisible
+  Texture: 250
+}
+
+{ Block Id: 1, Name: Stone
+  Material: stone
+  Shape: Terrain
+  Mesh: terrain
+  Texture: 175
+  ShowUser: No
+  Group: stone
+  { Child DropOnDestroy
+    Item: CrushedStone
+    Count: "1,3"
+    Prob: 0.18
+  }
+}
+

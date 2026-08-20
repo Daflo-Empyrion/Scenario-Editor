@@ -71,6 +71,7 @@ from gui.startup_dialog import StartupDialog
 from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys, EcfHeaderExplanationPanel
 from gui.csv_edit_widget import CsvEditWidget
 from gui.yaml_edit_widget import YamlEditWidget
+from gui.playfield_edit_widget import PlayfieldEditWidget
 from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
 from gui.theme import NAVY, PRIMARY_DARK, PRIMARY, icon, icon_size
@@ -138,6 +139,8 @@ class MainWindow(QMainWindow):
         self.action_refs.triggered.connect(self.check_references_dialog)
         self.action_pending = self.menu_check.addAction(t("menu.verification.pending"))
         self.action_pending.triggered.connect(self.check_pending_conflicts_dialog)
+        self.action_cross_refs = self.menu_check.addAction(t("menu.verification.cross_refs"))
+        self.action_cross_refs.triggered.connect(self.check_cross_references_dialog)
 
         self.menu_options = self.menuBar().addMenu(t("menu.options"))
         self.action_author = self.menu_options.addAction(t("menu.options.author"))
@@ -295,9 +298,18 @@ class MainWindow(QMainWindow):
 
         def handle_result(result):
             if result is not None:
-                QMessageBox.information(
-                    self, t("update.available_title"),
-                    t("update.available_msg", version=result["version"], url=result["url"]))
+                # QMessageBox.information() (methode statique) n'affiche que du
+                # texte brut -- construction manuelle ici pour rendre le lien
+                # cliquable (ouvre le navigateur par defaut, comme le badge GPLv3
+                # ou le bouton "Signaler" ailleurs dans l'appli).
+                box = QMessageBox(self)
+                box.setIcon(QMessageBox.Icon.Information)
+                box.setWindowTitle(t("update.available_title"))
+                box.setTextFormat(Qt.TextFormat.RichText)
+                box.setText(t("update.available_msg_html", version=result["version"], url=result["url"]))
+                for label in box.findChildren(QLabel):
+                    label.setOpenExternalLinks(True)
+                box.exec()
             elif manual:
                 from core.version import is_update_check_configured
                 if not is_update_check_configured():
@@ -333,6 +345,7 @@ class MainWindow(QMainWindow):
 
         self.menu_check.setTitle(t("menu.verification"))
         self.action_refs.setText(t("menu.verification.check_refs"))
+        self.action_cross_refs.setText(t("menu.verification.cross_refs"))
         self.action_pending.setText(t("menu.verification.pending"))
 
         self.menu_options.setTitle(t("menu.options"))
@@ -730,6 +743,18 @@ class MainWindow(QMainWindow):
             self, t("check.refs_broken_title"),
             t("check.refs_broken_msg", n=len(broken), details=details, more=more)
         )
+
+    def check_cross_references_dialog(self):
+        """Verification de coherence ENTRE plusieurs fichiers (items/blocs
+        references, jetons, POI de playfield) -- complementaire a
+        check_references_dialog() ci-dessus, qui ne verifie que 'Ref'. Voir
+        core/ecf/cross_reference_check.py pour le detail de chaque verification."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        from gui.cross_reference_dialog import CrossReferenceDialog
+        dialog = CrossReferenceDialog(self.workspace, self, parent=self)
+        dialog.exec()
 
     def _build_layout(self):
         # Layout vertical : en HAUT les fichiers ouverts (l'espace de travail principal,
@@ -1531,13 +1556,45 @@ class MainWindow(QMainWindow):
     def open_working_file_tab(self, path: Path):
         """Ouvre un fichier de la copie de travail en edition, avec la (ou les) source(s)
         A/B correspondante(s) affichee(s) cote a cote si elles existent (uniquement
-        pour les .ecf pour l'instant -- les autres formats s'ouvrent seuls)."""
+        pour les .ecf pour l'instant -- les autres formats s'ouvrent seuls). Retourne
+        le widget de l'onglet (deja ouvert ou nouvellement cree) -- utilise notamment
+        par le dialogue "References croisees" pour naviguer directement vers un bloc
+        ou une entree precise apres ouverture."""
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(path):
                 self.tabs.setCurrentIndex(i)
-                return
+                return self.tabs.widget(i)
 
         ext = path.suffix.lower()
+
+        # Detection des fichiers playfield -- route vers l'editeur structure
+        # (Ressources/POI/Creatures + YAML complet) plutot que l'editeur YAML
+        # generique. Base sur le nom de fichier, pas l'emplacement, pour rester
+        # simple. Deux conventions de nommage confirmees sur de vrais
+        # scenarios : "playfield*.yaml" (planetes -- playfield.yaml,
+        # playfield_static.yaml, playfield_dynamic.yaml) ET "space*.yaml"
+        # (secteurs spatiaux -- space_dynamic.yaml, meme structure mais avec
+        # sa propre section "Resources:" au lieu de "RandomResources"/
+        # "AsteroidResources", voir core/playfield_editor.py). Un fichier
+        # nomme "space_dynamic.yaml" passait a tort par l'editeur YAML
+        # generique avant cette correction -- signale directement par retour
+        # utilisateur sur un vrai scenario.
+        stem_lower = path.stem.lower()
+        is_playfield_file = stem_lower.startswith('playfield') or stem_lower.startswith('space')
+        if ext in ('.yaml', '.yml') and is_playfield_file:
+            try:
+                blocks_files = [f.path for f in self.workspace.working.configuration
+                                 if f.extension == '.ecf'] if self.workspace else []
+                widget = PlayfieldEditWidget(path, blocks_ecf_files=blocks_files)
+            except Exception as e:
+                QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
+                return
+            index = self.tabs.addTab(widget, "✎ " + path.name)
+            self.tabs.setTabToolTip(index, str(path))
+            self.tabs.setCurrentIndex(index)
+            widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
+            widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
+            return widget
 
         simple_editors = {
             '.csv': CsvEditWidget,
@@ -1556,12 +1613,11 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentIndex(index)
             widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
             widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
-            return
+            return widget
 
         if ext != '.ecf':
             # Pas encore d'edition pour les autres formats -- vue lecture seule standard
-            self.open_file_tab(path, read_only=False)
-            return
+            return self.open_file_tab(path, read_only=False)
 
         try:
             rel = path.relative_to(self.workspace.working_root)
@@ -1598,6 +1654,7 @@ class MainWindow(QMainWindow):
 
         widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
         widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.edit_widget.path)))
+        return widget
 
     def _update_tab_title(self, widget, modified: bool):
         idx = self.tabs.indexOf(widget)
@@ -1612,7 +1669,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(path):
                 self.tabs.setCurrentIndex(i)
-                return
+                return self.tabs.widget(i)
 
         ext = path.suffix.lower()
         try:
@@ -1667,6 +1724,7 @@ class MainWindow(QMainWindow):
         index = self.tabs.addTab(widget, prefix + path.name)
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
+        return widget
 
 
 class TutorialDialog(QDialog):

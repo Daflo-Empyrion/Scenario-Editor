@@ -155,6 +155,63 @@ Navigation tree on the left (key + preview), editable value panel on the right.
 - **Multi-line quoted strings**: a blank line inside quotes becomes an actual line
   break, for correct in-game display (common for playfield descriptions)
 
+### Structured playfield editing (Resources, POI, Creatures)
+Any file named `playfield*.yaml` (planets: `playfield.yaml`,
+`playfield_static.yaml`, `playfield_dynamic.yaml`) or `space*.yaml` (space
+sectors: `space_dynamic.yaml`) automatically opens with a specialized
+**4-tab editor**, instead of the generic YAML editor above. A
+**"Save (Ctrl+S)"** button stays permanently visible at the top regardless of
+the active tab -- along with an "Unsaved changes" indicator -- so you never
+have to hunt for the save action in the "Full YAML" tab after editing from
+another tab:
+- **Resources** — three separate tables, each with its own add dropdown
+  (never free text):
+  - **Random resources** (`RandomResources`) and **Asteroid resources**
+    (`AsteroidResources`) — planetary playfields, list populated from the
+    project's real `*Resource` blocks in `BlocksConfig.ecf`
+  - **Space resources** (`Resources`) — space playfields only, different
+    structure (`AsteroidVoxel01/02/03<Material>` variants, readable name via
+    `DisplayName`) — list populated with the same base material (Iron,
+    Copper...) as planetary resources, **RegenAfter** column (respawn delay)
+    directly editable
+- **POI** and **Creatures** — table of already-present entries (delays,
+  difficulty, distances, quantities...), columns sorted by usage frequency.
+  **Editing only**: no adding a new POI/creature by picking a type, for lack
+  of a reliable source to populate such a list (see the Empyrion wiki,
+  section 5, for EPD if you need to go further on this specific point).
+  - POI: **RegenAfter** column directly editable (nested inside `Properties`
+    in the source file, exposed here as a proper column)
+  - Creatures: **Biome** column (read-only) — essential once the same
+    creature name appears in several different biome zones with different
+    parameters, otherwise impossible to tell apart
+  - Other nested structured values (e.g. `Position`) stay non-editable here,
+    editable via the "Full YAML" tab
+- **Drones/Vessels** — editing of already-present entries only, same
+  reasoning as POI/Creatures (no reliable source for a dropdown of new
+  types):
+  - **Drone base garrison** (planet, `DroneBaseSetup > Stock`) — Name +
+    Amount
+  - **Free patrol drones** (space, `FreeDrones`) and **Space vessels**
+    (space, `SpaceVessels`) — the module's richest structure (Faction,
+    CountMinMax, Probability...), the most deeply nested fields
+    (`MissionDescription`, `StockDescription`) stay non-editable here
+  - Each table stays empty if not relevant for the type of playfield opened
+    (same principle as the Resources tab)
+- **Spawn zones** — editing of already-present entries only:
+  - **Drone patrols** (planet, `DroneSpawning > Random`)
+  - **Spawn rate modulation around POI** (`SpawnRateZones`)
+  - **Creatures tied to a POI** (`SpawnZones`) — different from the
+    Creatures tab, which organizes by biome rather than by POI; the
+    `Entities` sub-list stays non-editable here, see "Full YAML"
+- **Special effects** — purely cosmetic (pollen, butterflies, weather...),
+  with no gameplay impact, but covered for complete consistency: **local
+  effects per biome** (`SpecialEffectsLocal`) and **global effects**
+  (`SpecialEffectsGlobal`)
+- **Full YAML** — the same generic editor as above, for everything else in
+  the playfield (atmosphere, sky, fog...) — shares the same document
+  in memory as the structured views: a change made on one side is
+  immediately visible when switching tabs.
+
 ---
 
 ## 6. Editing a CSV file
@@ -273,6 +330,26 @@ and similar reference points to an existing name.
 **Verification > Pending blocks** — lists all blocks put on hold by the
 anti-collision safeguard, with a detailed comparison (current block vs pending)
 and free-Id suggestions to activate it properly.
+
+### Cross-file references
+**Verification > Check cross-file references...** — unlike "Check references"
+above (which only looks at `Ref:` within ECF files), this checks that whatever
+a file mentions **genuinely exists elsewhere** in the scenario. Three
+independent checks, each individually toggleable:
+- **Ref inheritance** — same as the classic check above, included here so
+  everything can be checked in one place
+- **Referenced items/blocks** — does every `Name_N` entry (Templates.ecf,
+  Containers.ecf, LootGroups.ecf...) match an item or block that genuinely
+  exists in ItemsConfig.ecf or BlocksConfig.ecf? (both files are checked
+  together: a picked-up block becomes an item of the same name, they share
+  the same namespace)
+- **Tokens** — does every `Token:XXXX` reference match a token genuinely
+  defined in TokenConfig.ecf?
+
+Every issue found shows the **full path** of the file involved —
+**double-click a result to directly open the relevant file and jump to the
+exact block/sub-block**, cell included, without having to search
+for the problem yourself.
 
 ---
 

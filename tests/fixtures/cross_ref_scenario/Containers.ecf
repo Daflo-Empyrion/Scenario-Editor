@@ -1,0 +1,14 @@
+{ +Container Id: 10, Name: ValidContainer
+  { Child Items
+    Name_0: IronOre, data: "1,1"
+    Name_1: ConcreteBlock, data: "1,1"
+    Name_2: Token:1, data: "1,1"
+  }
+}
+
+{ +Container Id: 11, Name: BrokenContainer
+  { Child Items
+    Name_0: NonExistentItem, data: "1,1"
+    Name_1: Token:9999, data: "1,1"
+  }
+}

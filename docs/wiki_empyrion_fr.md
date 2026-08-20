@@ -160,6 +160,22 @@ aux playfields spatiaux, plus flexibles a ce niveau).
 Les lignes marquees "Please don't change" ou "No functionality yet" dans le fichier lui-meme
 sont a eviter (info du wiki officiel, "Customizing Solar Systems").
 
+### Pour une edition en profondeur des playfields : Empyrion Playfield Designer (EPD)
+Cet editeur integre permet d'ouvrir et modifier directement le YAML d'un
+playfield (voir section 5 "Editer un fichier YAML" du wiki de l'application),
+mais reste loin derriere un
+outil dedie pour tout ce qui touche au **terrain** (textures, biomes) et a
+l'**apercu 3D des blueprints**. Pour ce niveau de detail, la reference
+communautaire est **EPD (Empyrion Playfield Designer)**, developpe par jmcburn
+depuis 2018 et maintenu activement :
+- Site : https://empyriontools.org/
+- Editeur de terrain/textures par planete/lune (biomes, ressources de surface)
+- Navigateur de blueprints avec **apercu 3D en direct** au moment de la
+  selection (fini les choix a l'aveugle parmi des milliers de prefabs)
+- Verification "preflight" avant sauvegarde
+- Distribue sous licence CC BY-NC-ND -- gratuit et librement redistribuable
+  tel quel, mais sans droit de partager une version modifiee
+
 ---
 
 ## 6. RandomPresets / Sectors -- generation de la galaxie

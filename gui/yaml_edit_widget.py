@@ -315,6 +315,27 @@ class YamlEditWidget(QWidget):
         self._on_entry_selected(item, 0)
         self.search_status.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
+    def select_entry_by_key_value(self, key: str, value: str) -> bool:
+        """Trouve et selectionne (dans l'arbre, avec defilement) le PREMIER noeud
+        dont la cle et la valeur correspondent EXACTEMENT a celles fournies --
+        contrairement a _search_next() (recherche floue par sous-chaine), utilise
+        pour naviguer directement depuis un resultat deja identifie avec precision
+        (ex: double-clic sur un resultat du dialogue "References croisees").
+        Retourne True si trouve."""
+        it = QTreeWidgetItemIterator(self.tree)
+        while it.value():
+            item = it.value()
+            entry = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(entry, YamlEntry) and entry.key == key:
+                entry_value = (entry.value or "").strip().strip('"').strip("'")
+                if entry_value == value:
+                    self.tree.setCurrentItem(item)
+                    self.tree.scrollToItem(item)
+                    self._on_entry_selected(item, 0)
+                    return True
+            it += 1
+        return False
+
     def _add_entry_dialog(self):
         key, ok = QInputDialog.getText(self, t("yaml.add_entry_title"), t("yaml.key_label"))
         if not ok:
