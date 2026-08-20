@@ -345,6 +345,12 @@ independent checks, each individually toggleable:
   the same namespace)
 - **Tokens** — does every `Token:XXXX` reference match a token genuinely
   defined in TokenConfig.ecf?
+- **Dialogues** — does every `Next_N`/`OptionNext_N` target (and its
+  optional co-occurring `param1`) match a dialogue (`+Dialogue Name:`) that
+  genuinely exists? Reserved dialogue-engine keywords (`End`,
+  `GotoAndReset`, `Return`) and dynamic script-variable references
+  (`@VariableName`, resolved at runtime) are never flagged -- only genuinely
+  broken references are.
 
 Every issue found shows the **full path** of the file involved —
 **double-click a result to directly open the relevant file and jump to the

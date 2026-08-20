@@ -12,7 +12,7 @@
 ; corresponde exactement a APP_VERSION dans core/version.py.
 
 #define MyAppName "Empyrion Scenario Editor"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.2"
 #define MyAppPublisher "Daflo"
 #define MyAppExeName "EmpyrionScenarioEditor.exe"
 

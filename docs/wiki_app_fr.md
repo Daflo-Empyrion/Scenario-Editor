@@ -364,6 +364,13 @@ chacune activable/desactivable individuellement :
   nom, ils partagent le meme espace de noms)
 - **Jetons** — chaque reference `Token:XXXX` correspond-elle a un jeton
   reellement defini dans TokenConfig.ecf ?
+- **Dialogues** — chaque cible `Next_N`/`OptionNext_N` (et son eventuel
+  `param1` co-occurrent sur la meme ligne) correspond-elle a un dialogue
+  (`+Dialogue Name:`) qui existe reellement ? Les mots-cles reserves du
+  moteur de dialogue (`End`, `GotoAndReset`, `Return`) et les references
+  dynamiques a une variable de script (`@NomVariable`, resolue au moment de
+  l'execution) ne sont jamais signales -- seules les vraies references
+  cassees le sont.
 
 Chaque probleme trouve indique le **chemin complet** du fichier concerne —
 **double-clique un resultat pour ouvrir directement le fichier concerne et

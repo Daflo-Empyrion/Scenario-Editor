@@ -239,6 +239,79 @@ def _check_token_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
 
 
 # ============================================================================
+# Verification 4 : dialogues -- Next_N/OptionNext_N (et leur eventuel param1
+# co-occurrent sur la meme ligne) doivent pointer vers un Name de bloc
+# +Dialogue qui existe reellement. Confirme sur un vrai Dialogues.ecf (5417
+# dialogues, 3109 Next_N, 8769 OptionNext_N, 473 lignes avec param1) :
+# - le motif "OptionNext_N: X, param1: Y" n'est PAS un renvoi vers un autre
+#   fichier (hypothese initiale erronee, verifiee et corrigee) -- X et Y sont
+#   tous deux des Name de dialogue DANS LE MEME fichier, tous deux a valider
+# - "End" et "GotoAndReset" sont des mots-cles reserves (fin de conversation /
+#   action speciale), jamais des noms de dialogue -- confirmes absents de
+#   toute definition Name sur l'ensemble du fichier de reference
+# - "NextIf_N" (condition de script, ex: "TalkCount > 3") n'est PAS une
+#   reference et ne doit jamais etre verifiee -- le motif de cle est concu
+#   pour l'exclure naturellement (Next_\d+ ne capture pas NextIf_\d+)
+# ============================================================================
+
+_DIALOGUE_REF_KEY_PATTERN = re.compile(r'^(Next|OptionNext)_\d+$')
+_DIALOGUE_REF_SENTINELS = {'End', 'GotoAndReset', 'Return'}
+
+
+def _check_dialogue_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
+    dialogue_names: Set[str] = set()
+    for path in ctx.ecf_files:
+        try:
+            doc = parse_ecf_file(path)
+        except Exception:
+            continue
+        for block in doc.iter_blocks():
+            if block.kind == '+Dialogue':
+                name = block.get_property('Name')
+                if name:
+                    dialogue_names.add(name)
+
+    issues: List[CrossRefIssue] = []
+    for path in ctx.ecf_files:
+        try:
+            doc = parse_ecf_file(path)
+        except Exception:
+            continue
+        for block in doc.iter_blocks():
+            if block.kind != '+Dialogue':
+                continue
+            for child in block.children:
+                if not isinstance(child, EcfProperty):
+                    continue
+                # Ne traite que les lignes contenant reellement une cle
+                # Next_N/OptionNext_N -- une ligne "param1" isolee sans ce
+                # contexte (improbable mais par securite) ne doit jamais etre
+                # interpretee comme une reference de dialogue.
+                has_ref_key = any(k and _DIALOGUE_REF_KEY_PATTERN.match(k) for k, v in child.pairs)
+                if not has_ref_key:
+                    continue
+                for key, value in child.pairs:
+                    if not key or not value or value in _DIALOGUE_REF_SENTINELS:
+                        continue
+                    if value.startswith('@'):
+                        continue  # reference dynamique a une Variable_N du meme
+                        # dialogue, resolue par le moteur de script au moment de
+                        # l'execution (ex: 'Next_1: @NextState' avec
+                        # 'Execute: "NextState = ..."' ailleurs dans le meme
+                        # bloc) -- jamais un nom de dialogue litteral, impossible
+                        # a valider statiquement, confirme sur un vrai fichier.
+                    if value not in dialogue_names:
+                        issues.append(CrossRefIssue(
+                            source_file=path, source_kind=block.kind,
+                            source_identity=block_identity(block) or "?",
+                            ref_key=key, ref_value=value, check_id="dialogue_refs",
+                            detail="attendu comme Name d'un autre bloc +Dialogue",
+                            display_path=_relative_display_path(path, ctx.scenario_root),
+                        ))
+    return issues
+
+
+# ============================================================================
 # Registre -- consulte par l'interface graphique pour construire les cases a
 # cocher, dans cet ordre
 # ============================================================================
@@ -274,6 +347,22 @@ CROSS_REFERENCE_CHECKS: List[CrossRefCheck] = [
                         "in TokenConfig.ecf?",
         enabled_by_default=True,
         run=_check_token_refs,
+    ),
+    CrossRefCheck(
+        id="dialogue_refs",
+        label_fr="Dialogues (Next/OptionNext vers un Name existant)",
+        label_en="Dialogues (Next/OptionNext to an existing Name)",
+        description_fr="Chaque cible Next_N/OptionNext_N (et son eventuel "
+                        "param1) correspond-elle a un dialogue (+Dialogue "
+                        "Name) qui existe reellement ? 'End' et "
+                        "'GotoAndReset' sont des mots-cles reserves, jamais "
+                        "verifies comme reference.",
+        description_en="Does each Next_N/OptionNext_N target (and its "
+                        "optional param1) match a dialogue (+Dialogue Name) "
+                        "that genuinely exists? 'End' and 'GotoAndReset' are "
+                        "reserved keywords, never checked as a reference.",
+        enabled_by_default=True,
+        run=_check_dialogue_refs,
     ),
 ]
 

@@ -27,7 +27,7 @@ QUAND TU CREES TON DEPOT GITHUB : remplace GITHUB_REPO ci-dessous par son adress
 verification de mise a jour se desactive silencieusement -- rien n'est casse.
 """
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 
 # Adresse du depot GitHub au format "utilisateur/nom-du-depot", utilisee pour
 # verifier les mises a jour via l'API des Releases GitHub. Laisser vide ("")

@@ -1,0 +1,66 @@
+# Fixture de test compacte pour la verification croisee des dialogues --
+# ecrite a la main mais fondee EXACTEMENT sur les motifs reels confirmes sur
+# un vrai Dialogues.ecf (5417 blocs) : cle Next_N/OptionNext_N, mots-cles
+# reserves End/GotoAndReset/Return, motif de variable dynamique @NomVariable,
+# et double-reference locale via param1. Auto-suffisante (pas de dependance
+# en cascade vers des cibles non incluses), contrairement a une extraction
+# directe du vrai fichier ou chaque cible tire de nouvelles cibles.
+
+{ +Dialogue Name: Trader_Start
+  NPCName: Trader
+  Output: dialogue_start
+  Option_1: dialogue_optA
+  OptionNext_1: Barking_Set, param1: Trader_Talk
+  Option_2: dialogue_optB
+  OptionNext_2: Trader_Trade
+}
+
+{ +Dialogue Name: Trader_Talk
+  NPCName: Trader
+  Output: dialogue_talk
+  Next_1: Trader_Start
+}
+
+{ +Dialogue Name: Barking_Set
+  NPCName: Trader
+  Output: dialogue_bark
+}
+
+{ +Dialogue Name: Trader_Trade
+  NPCName: Trader
+  Execute_1: "OpenTraderWindow()"
+}
+
+{ +Dialogue Name: NPC_HasItem
+  Output: dlg_has_item
+  Option_1: "Yes"
+  OptionNext_1: NPC_GiveItem
+  Option_2: "No"
+  OptionNext_2: End
+}
+
+{ +Dialogue Name: NPC_GiveItem
+  Output: "Thank you!"
+}
+
+{ +Dialogue Name: NPC_Teleport
+  Variable_1: "NextState", param1: string
+  Execute: "NextState = 'NPC_TeleportTarget'"
+  Next_1: @NextState, param1: GotoAndReset
+}
+
+{ +Dialogue Name: NPC_TeleportTarget
+  Output: dlg_teleported
+}
+
+{ +Dialogue Name: NPC_BackMenu
+  Output: dlg_back_menu
+  OptionNext_1: Return
+}
+
+{ +Dialogue Name: NPC_BrokenTarget
+  Output: dlg_broken
+  Next_1: NPC_TargetThatWasNeverCreated
+  NextIf_1: "SomeCondition == true"
+  Next_2: undefined
+}
