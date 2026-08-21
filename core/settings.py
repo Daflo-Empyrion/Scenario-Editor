@@ -86,6 +86,21 @@ def set_merge_enabled(enabled: bool) -> None:
     _set('merge_enabled', enabled)
 
 
+def get_online_translation_enabled() -> bool:
+    """True (par defaut) tant que l'utilisateur n'a pas explicitement desactive
+    la traduction en ligne (Google Translate, via deep-translator) --
+    fonctionnalite qui envoie le texte a traduire aux serveurs Google. Voir
+    core/translation.py:translate_text() qui refuse de fonctionner si False,
+    et PRIVACY.md pour la politique de confidentialite complete. Ajoutee pour
+    respecter les exigences SignPath Foundation sur les fonctions transferant
+    des donnees utilisateur (offrir une option de desactivation explicite)."""
+    return _get('online_translation_enabled', True)
+
+
+def set_online_translation_enabled(enabled: bool) -> None:
+    _set('online_translation_enabled', enabled)
+
+
 def get_backup_root(kind: str) -> str:
     return _get(f'backup_root_{kind}', '')
 

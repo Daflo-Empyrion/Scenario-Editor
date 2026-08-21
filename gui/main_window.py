@@ -156,6 +156,11 @@ class MainWindow(QMainWindow):
         self.action_toggle_merge.setCheckable(True)
         self.action_toggle_merge.setChecked(settings.get_merge_enabled())
         self.action_toggle_merge.toggled.connect(settings.set_merge_enabled)
+        self.action_toggle_online_translation = self.menu_options.addAction(
+            t("menu.options.online_translation"))
+        self.action_toggle_online_translation.setCheckable(True)
+        self.action_toggle_online_translation.setChecked(settings.get_online_translation_enabled())
+        self.action_toggle_online_translation.toggled.connect(settings.set_online_translation_enabled)
         self.action_default_language = self.menu_options.addAction(t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
 
@@ -168,6 +173,9 @@ class MainWindow(QMainWindow):
         self.action_wiki_empyrion = self.menu_help.addAction(t("menu.help.wiki_empyrion"))
         self.action_wiki_empyrion.triggered.connect(
             lambda: open_wiki(self, t("menu.help.wiki_empyrion").rstrip("."), "wiki_empyrion"))
+        self.menu_help.addSeparator()
+        self.action_privacy = self.menu_help.addAction(t("menu.help.privacy"))
+        self.action_privacy.triggered.connect(self._open_privacy_dialog)
         self.menu_help.addSeparator()
         self.action_check_updates = self.menu_help.addAction(t("menu.help.check_updates"))
         self.action_check_updates.triggered.connect(lambda: self._check_for_updates(manual=True))
@@ -282,6 +290,32 @@ class MainWindow(QMainWindow):
                 return candidate
         return None
 
+    def _resolve_privacy_path(self):
+        """Trouve PRIVACY.md local, meme logique que _resolve_license_path
+        ci-dessus (voisin de l'executable une fois installe, racine du projet
+        en mode source)."""
+        import sys
+        candidates = []
+        if getattr(sys, 'frozen', False):
+            candidates.append(Path(sys.executable).resolve().parent / "PRIVACY.md")
+        candidates.append(Path(__file__).resolve().parent.parent / "PRIVACY.md")
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _open_privacy_dialog(self):
+        """Ouvre PRIVACY.md dans une fenetre (meme visualiseur que les wikis) --
+        fichier bilingue unique, pas besoin de la logique de selection de langue
+        d'open_wiki() qui suppose des fichiers _fr/_en separes."""
+        path = self._resolve_privacy_path()
+        if path is None:
+            QMessageBox.warning(self, t("menu.help.privacy"), t("privacy.not_found"))
+            return
+        from gui.wiki_viewer import WikiDialog
+        dialog = WikiDialog(t("menu.help.privacy").rstrip("."), path, self)
+        dialog.exec()
+
     def _check_for_updates(self, manual: bool = False):
         """Verifie la presence d'une mise a jour sur GitHub, en tache de fond pour ne
         jamais bloquer l'interface (la requete reseau peut prendre jusqu'a quelques
@@ -356,11 +390,13 @@ class MainWindow(QMainWindow):
         self.action_author.setText(t("menu.options.author"))
         self.action_toggle_annotations.setText(t("menu.options.annotations"))
         self.action_toggle_merge.setText(t("menu.options.merge_enabled"))
+        self.action_toggle_online_translation.setText(t("menu.options.online_translation"))
         self.action_default_language.setText(t("menu.options.default_language"))
 
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
         self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
+        self.action_privacy.setText(t("menu.help.privacy"))
         self.action_tutorials.setText(t("menu.help.tutorials"))
         self.action_check_updates.setText(t("menu.help.check_updates"))
         self.action_report_issue.setText(t("menu.help.report_issue"))

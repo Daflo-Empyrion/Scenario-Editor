@@ -179,6 +179,19 @@ def translate_text(text: str, target: str = "fr", source: str = "auto") -> str:
     if cached is not None:
         return cached
 
+    # Verifie le reglage de confidentialite AVANT tout appel reseau -- le cache
+    # ci-dessus reste utilisable meme desactive (aucune donnee n'est envoyee,
+    # juste une reutilisation locale d'un resultat deja obtenu precedemment).
+    # Voir core/settings.py:get_online_translation_enabled() et PRIVACY.md.
+    from . import settings
+    if not settings.get_online_translation_enabled():
+        raise RuntimeError(
+            "Traduction en ligne desactivee (Options > Traduction en ligne "
+            "(Google Translate)). Cette fonctionnalite envoie le texte a "
+            "traduire aux serveurs Google -- voir PRIVACY.md. Reactive-la "
+            "dans le menu Options si tu veux t'en servir."
+        )
+
     protected, segments = protect_segments(text)
     translated = GoogleTranslator(source=source, target=target).translate(protected)
     if segments:

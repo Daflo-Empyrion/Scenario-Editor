@@ -72,6 +72,19 @@ non signes numeriquement. Voir `BUILD.md` (section "Faux positifs
 antivirus") pour le detail et les liens de signalement aux editeurs
 concernes. Le code source est integralement disponible dans ce depot.
 
+## Politique de signature de code / Code Signing Policy
+
+Signature de code gratuite fournie par SignPath.io, certificat de la
+Fondation SignPath (candidature en cours).
+*Free code signing provided by SignPath.io, certificate by SignPath
+Foundation (application pending).*
+
+- **Committers, reviewers et approvers** : [Daflo](https://github.com/Daflo-Empyrion)
+  (mainteneur unique de ce projet a ce jour)
+- **Politique de confidentialite / Privacy policy** : voir [`PRIVACY.md`](PRIVACY.md)
+  pour le detail exact de ce qui est envoye sur le reseau, quand, et comment
+  le desactiver.
+
 ## Signaler un bug ou proposer une amelioration
 
 Le bouton "Signaler" integre a l'application (barre d'outils superieure)

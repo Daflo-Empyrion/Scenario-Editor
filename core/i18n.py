@@ -119,6 +119,9 @@ STRINGS = {
                             "en": "Application wiki (features)..."},
     "menu.help.wiki_empyrion": {"fr": "Wiki Empyrion (proprietes, fichiers, structure)...",
                                  "en": "Empyrion wiki (properties, files, structure)..."},
+    "menu.help.privacy": {"fr": "Politique de confidentialite...", "en": "Privacy policy..."},
+    "privacy.not_found": {"fr": "PRIVACY.md introuvable a cote de l'application.",
+                           "en": "PRIVACY.md not found next to the application."},
 
     # --- Boutons communs (editeurs) ---
     "btn.save": {"fr": "Enregistrer (Ctrl+S)", "en": "Save (Ctrl+S)"},
@@ -743,6 +746,10 @@ STRINGS = {
     # --- Fusion desactivable ---
     "menu.options.merge_enabled": {"fr": "Autoriser la fusion (experimental, desactive par defaut)",
                                     "en": "Allow merging (experimental, disabled by default)"},
+    "menu.options.online_translation": {"fr": "Traduction en ligne (Google Translate) -- envoie le "
+                                              "texte a traduire a Google, voir PRIVACY.md",
+                                         "en": "Online translation (Google Translate) -- sends the "
+                                               "text to be translated to Google, see PRIVACY.md"},
     "merge.disabled_title": {"fr": "Fusion desactivee", "en": "Merging disabled"},
     "merge.disabled_msg": {"fr": "La fusion est desactivee par defaut (trop de cas particuliers pour "
                                   "etre fiable a 100%, risque de casser le scenario). Utilise plutot "

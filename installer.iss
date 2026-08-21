@@ -12,7 +12,7 @@
 ; corresponde exactement a APP_VERSION dans core/version.py.
 
 #define MyAppName "Empyrion Scenario Editor"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #define MyAppPublisher "Daflo"
 #define MyAppExeName "EmpyrionScenarioEditor.exe"
 
@@ -37,6 +37,13 @@ VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
+; Affiche une page d'information avant l'installation, resumant les seules
+; fonctionnalites qui font des requetes reseau (traduction en ligne,
+; verification de version, bouton Signaler) et comment les desactiver --
+; exige par la politique de confidentialite SignPath Foundation pour les
+; logiciels transferant des donnees utilisateur. Detail complet dans
+; PRIVACY.md a la racine du depot.
+InfoBeforeFile=installer_privacy_notice.txt
 ; Installation par utilisateur (pas besoin de droits administrateur) -- plus
 ; simple pour un public non-technique, et coherent avec le fait que les donnees
 ; utilisateur vivent deja dans le profil (~/.empyrion_editor), jamais dans le
@@ -76,6 +83,7 @@ Source: "dist\EmpyrionEditorCLI\*"; DestDir: "{app}\CLI"; Flags: ignoreversion r
 ; La GPLv3 exige que le texte de la licence accompagne le programme distribue --
 ; copie explicitement ici (PyInstaller n'embarque que le code, pas ce fichier).
 Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

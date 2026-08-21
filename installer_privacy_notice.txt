@@ -1,0 +1,38 @@
+CONFIDENTIALITE / PRIVACY
+==========================
+
+Ce logiciel fonctionne integralement en local sur ta machine. Trois
+fonctionnalites precises font des requetes reseau :
+
+1. TRADUCTION EN LIGNE (Google Translate) -- envoie le texte que tu choisis
+   de traduire aux serveurs Google, uniquement quand tu cliques sur
+   "Traduire". Peut etre desactivee dans le menu Options une fois
+   l'application installee.
+
+2. VERIFICATION DE NOUVELLE VERSION -- interroge l'API publique de GitHub
+   au demarrage (aucune donnee personnelle envoyee, juste "quelle est la
+   derniere version publiee ?").
+
+3. BOUTON "SIGNALER" -- ouvre ton navigateur systeme sur une page GitHub
+   pre-remplie ; rien n'est envoye tant que tu ne valides pas toi-meme
+   dans ton navigateur.
+
+Aucune autre donnee n'est collectee ni transmise. Detail complet :
+https://github.com/Daflo-Empyrion/Scenario-Editor/blob/main/PRIVACY.md
+
+
+This software runs entirely locally on your machine. Three specific
+features make network requests:
+
+1. ONLINE TRANSLATION (Google Translate) -- sends the text you choose to
+   translate to Google's servers, only when you click "Translate". Can be
+   disabled in the Options menu once the application is installed.
+
+2. NEW VERSION CHECK -- queries GitHub's public API on startup (no
+   personal data sent, just "what is the latest published version?").
+
+3. "REPORT" BUTTON -- opens your system browser to a pre-filled GitHub
+   page; nothing is sent unless you confirm it yourself in your browser.
+
+No other data is collected or transmitted. Full details:
+https://github.com/Daflo-Empyrion/Scenario-Editor/blob/main/PRIVACY.md

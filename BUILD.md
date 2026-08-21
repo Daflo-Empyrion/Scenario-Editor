@@ -308,3 +308,32 @@ execution, avec le detail de chaque etape en cas d'echec.
    deja present (mais commente) dans `.github/workflows/build.yml`, juste
    avant l'etape de construction de l'installeur -- pour qu'Inno Setup
    empaquete les executables deja signes plutot que les originaux
+
+## 9. Conformite SignPath Foundation
+
+Verifie point par point contre les conditions officielles SignPath
+Foundation pour les projets OSS (aout 2026). Deux elements manquaient et ont
+ete ajoutes :
+
+- **Politique de signature de code** -- section dediee dans `README.md`
+  (avec la formule exacte exigee), pointant vers `PRIVACY.md`
+- **Fonctionnalite transferant des donnees utilisateur non declaree** -- la
+  traduction en ligne (Google Translate, via `deep-translator`) envoie le
+  texte a traduire aux serveurs Google sans qu'aucune politique de
+  confidentialite ni option de desactivation n'existent auparavant. Corrige :
+  - `PRIVACY.md` decrit precisement les 3 fonctionnalites qui font des
+    requetes reseau (traduction, verification de version, bouton Signaler)
+  - `core/settings.py:get_online_translation_enabled()` -- reglage
+    persistant, True par defaut (comportement inchange), accessible via
+    **Options > Traduction en ligne (Google Translate)**
+  - `core/translation.py:translate_text()` refuse de fonctionner si
+    desactive (le cache local de traductions deja obtenues reste utilisable
+    sans appel reseau)
+  - `installer_privacy_notice.txt` + `InfoBeforeFile` dans `installer.iss` --
+    affiche un resume de cette politique **pendant l'installation**, comme
+    l'exige SignPath pour les logiciels transferant des donnees
+
+Si de nouvelles fonctionnalites font a l'avenir des requetes reseau non
+deja couvertes ci-dessus, mettre a jour `PRIVACY.md` et
+`installer_privacy_notice.txt` en consequence avant toute nouvelle demande
+de verification aupres de SignPath.
