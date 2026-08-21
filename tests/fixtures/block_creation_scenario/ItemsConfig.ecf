@@ -1,0 +1,35 @@
+# Extrait reduit pour les tests pytest
+
+{ +Item Id: 201, Name: IronOre, Ref: OreTemplate
+  Meshfile: Entities/Items/Ores/IronOrePrefab
+  Mass: 16.48, type: float, display: true, formatter: Kilogram
+  Volume: 3.2, type: float, display: true, formatter: Liter
+  Info: itmIronOre, display: true
+  MarketPrice: 40, display: true
+  XpFactor: 20
+  ShowUser: Yes
+  NoRepairInputItem: true   # needed since it has flag "BaseItem: true" and would other be considered for repairing in R2T
+}
+
+{ +Item Id: 205, Name: CopperOre, Ref: OreTemplate
+  Meshfile: Entities/Items/Ores/CopperOrePrefab
+  Mass: 20.39, type: float, display: true, formatter: Kilogram
+  Volume: 2.8, type: float, display: true, formatter: Liter
+  Info: itmCopperOre, display: true
+  MarketPrice: 60, display: true
+  XpFactor: 25
+  ShowUser: Yes
+  NoRepairInputItem: true
+}
+
+{ +Item Id: 203, Name: SiliconOre, Ref: OreTemplate
+  Meshfile: Entities/Items/Ores/SiliconOrePrefab
+  Mass: 4.64, type: float, display: true, formatter: Kilogram
+  Volume: 2, type: float, display: true, formatter: Liter
+  Info: itmSiliconOre, display: true
+  MarketPrice: 50, display: true
+  XpFactor: 30
+  ShowUser: Yes
+  NoRepairInputItem: true
+}
+

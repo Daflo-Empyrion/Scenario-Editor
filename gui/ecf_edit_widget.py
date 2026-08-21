@@ -838,7 +838,7 @@ class EcfEditWidget(QWidget):
     modified_changed = pyqtSignal(bool)
     saved = pyqtSignal()
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, sibling_ecf_files: Optional[List[Path]] = None):
         super().__init__()
         self.path = path
         self.doc: EcfDocument = parse_ecf_file(path)
@@ -846,6 +846,13 @@ class EcfEditWidget(QWidget):
         self._current_block: Optional[EcfBlock] = None
         self._table_mode = False
         self._edited_prop_nodes = set()  # ids Python des EcfProperty touches cette session
+        # Chemins des autres fichiers .ecf du meme scenario (Content/Configuration) --
+        # utilise par le dialogue de creation guidee pour localiser Templates.ecf/
+        # ItemsConfig.ecf/BlocksConfig.ecf lors de la proposition de creation du
+        # Template associe. None si ce widget n'a pas ete ouvert depuis un scenario
+        # complet (ex: fichier isole) -- le dialogue gere ce cas en desactivant
+        # simplement la proposition de Template.
+        self.sibling_ecf_files = sibling_ecf_files
         self._undo_stack: list = []  # textes serialises (fidelite deja prouvee par le parser)
         self._undo_max = 20
 
@@ -1560,26 +1567,119 @@ class EcfEditWidget(QWidget):
             item.setHidden(not all(k in _block_own_keys(block) for k in keys))
 
     def _add_block_dialog(self):
-        kind, ok = QInputDialog.getText(self, t("ecf.add_block_title"), t("ecf.block_kind_label"))
-        if not ok or not kind.strip():
+        """Creation guidee d'un nouveau bloc/item -- tableau de proprietes issu
+        du fichier de travail, puis proposition de creer le Template associe
+        (voir gui/add_block_dialog.py et core/ecf/block_creation.py pour le
+        detail). Remplace l'ancienne version a 3 QInputDialog successifs."""
+        from gui.add_block_dialog import IdentityModeDialog, PropertyTableDialog
+        from core.ecf.block_creation import scan_kind_frequency, create_new_block
+
+        mode_dialog = IdentityModeDialog(parent=self)
+        if mode_dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        block_id, ok = QInputDialog.getText(self, t("ecf.add_block_title"), t("ecf.id_label"))
-        if not ok or not block_id.strip():
+        id_mode = mode_dialog.chosen_mode
+
+        existing_ids = {b.get('Id') for b in self.doc.iter_blocks() if b.get('Id')}
+        kind_counts = scan_kind_frequency(self.doc)
+        default_kind = kind_counts.most_common(1)[0][0] if kind_counts else ""
+
+        table_dialog = PropertyTableDialog(
+            self.doc, id_mode, existing_ids, default_kind=default_kind,
+            window_title_key="addblock.table_title", parent=self)
+        if table_dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        name, ok = QInputDialog.getText(self, t("ecf.add_block_title"), t("ecf.name_optional_label"))
-        if not ok:
-            name = ""
-        pairs = [('Id', block_id.strip())]
-        if name.strip():
-            pairs.append(('Name', name.strip()))
+
         self._snapshot_undo()
-        new_block = create_block(kind.strip(), pairs)
+        new_block = create_new_block(table_dialog.result_kind, table_dialog.result_id,
+                                      table_dialog.result_name, table_dialog.result_properties)
         if settings.get_annotations_enabled():
-            author = settings.get_author()
-            new_block.comment = f"# Ajoute par {author}"
+            new_block.comment = f"# Ajoute par {settings.get_author()}"
         self.doc.nodes.append(new_block)
         self._set_modified(True)
         self._populate_tree()
+
+        created_name = table_dialog.result_name or table_dialog.result_id or "?"
+        self._maybe_propose_template(created_name)
+
+    def _maybe_propose_template(self, created_name: str):
+        """Propose de creer le Template (recette de craft) associe au bloc/item
+        qui vient d'etre cree -- seulement si ce fichier n'est pas deja
+        Templates.ecf lui-meme, et si ce fichier a bien ete localise parmi les
+        fichiers voisins du scenario (voir sibling_ecf_files)."""
+        if self.path.name.lower() == 'templates.ecf':
+            return
+        if not self.sibling_ecf_files:
+            return
+
+        from core.ecf.block_creation import find_file_by_name
+        templates_path = find_file_by_name(self.sibling_ecf_files, 'Templates.ecf')
+        if templates_path is None:
+            return
+
+        reply = QMessageBox.question(
+            self, t("addblock.ask_template_title"),
+            t("addblock.ask_template_msg", name=created_name),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._create_associated_template(templates_path, created_name)
+
+    def _create_associated_template(self, templates_path: Path, prefill_name: str):
+        """Ouvre (ou active) Templates.ecf comme un VRAI onglet de la copie de
+        travail (via main_window.open_working_file_tab -- jamais une ecriture
+        directe sur disque, pour rester coherent avec le reste de l'appli ou
+        rien ne s'enregistre sans validation explicite, et pour eviter tout
+        conflit si Templates.ecf etait deja ouvert ailleurs), puis ajoute le
+        nouveau Template dedans avec le meme mecanisme de tableau, Name
+        pre-rempli pour correspondre exactement au bloc/item cree juste
+        avant, et une section Ingredients (Child Inputs) en plus."""
+        from gui.add_block_dialog import IdentityModeDialog, PropertyTableDialog
+        from core.ecf.block_creation import (
+            scan_kind_frequency, create_new_block, add_child_inputs,
+            find_file_by_name, list_craftable_names,
+        )
+
+        main_window = self.window()
+        if not hasattr(main_window, "open_working_file_tab"):
+            return
+        templates_widget = main_window.open_working_file_tab(templates_path)
+        if templates_widget is None:
+            return
+        templates_edit = getattr(templates_widget, "edit_widget", templates_widget)
+        if not hasattr(templates_edit, "doc"):
+            return
+        templates_doc = templates_edit.doc
+
+        existing_ids = {b.get('Id') for b in templates_doc.iter_blocks() if b.get('Id')}
+        items_path = find_file_by_name(self.sibling_ecf_files, 'ItemsConfig.ecf')
+        blocks_path = find_file_by_name(self.sibling_ecf_files, 'BlocksConfig.ecf')
+        craftable_names = list_craftable_names(items_path, blocks_path)
+
+        kind_counts = scan_kind_frequency(templates_doc)
+        default_kind = kind_counts.most_common(1)[0][0] if kind_counts else "+Template"
+
+        template_dialog = PropertyTableDialog(
+            templates_doc, IdentityModeDialog.MODE_NAME_ONLY, existing_ids,
+            default_kind=default_kind, name_prefill=prefill_name, name_readonly=True,
+            enable_ingredients=True, craftable_names=craftable_names,
+            window_title_key="addblock.template_table_title", parent=self)
+        if template_dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        if hasattr(templates_edit, "_snapshot_undo"):
+            templates_edit._snapshot_undo()
+        new_template = create_new_block(template_dialog.result_kind, None,
+                                         template_dialog.result_name, template_dialog.result_properties)
+        if template_dialog.result_ingredients:
+            add_child_inputs(new_template, template_dialog.result_ingredients)
+        if settings.get_annotations_enabled():
+            new_template.comment = f"# Ajoute par {settings.get_author()}"
+        templates_doc.nodes.append(new_template)
+
+        if hasattr(templates_edit, "_set_modified"):
+            templates_edit._set_modified(True)
+        if hasattr(templates_edit, "_populate_tree"):
+            templates_edit._populate_tree()
 
 
 class CompareWidget(QWidget):
@@ -1588,7 +1688,8 @@ class CompareWidget(QWidget):
     Le clic droit "copier ce bloc" fonctionne aussi depuis les panneaux source ici."""
 
     def __init__(self, working_path: Path, compare_sources: Dict[str, tuple], view_widget_factory,
-                 copy_block_callback=None, duplicate_block_callback=None):
+                 copy_block_callback=None, duplicate_block_callback=None,
+                 sibling_ecf_files: Optional[List[Path]] = None):
         """
         compare_sources : {label: (chemin_source, racine_source)}
         view_widget_factory(path, on_copy_block=None, on_duplicate_block=None) doit
@@ -1600,6 +1701,7 @@ class CompareWidget(QWidget):
         duplicate_block_callback(block, parent_chain, source_path, source_root,
         source_label) : appele quand l'utilisateur choisit "dupliquer avec un nouvel
         Id" depuis un panneau source.
+        sibling_ecf_files : voir EcfEditWidget, transmis tel quel.
         """
         super().__init__()
         layout = QVBoxLayout(self)
@@ -1607,7 +1709,7 @@ class CompareWidget(QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        self.edit_widget = EcfEditWidget(working_path)
+        self.edit_widget = EcfEditWidget(working_path, sibling_ecf_files=sibling_ecf_files)
         splitter.addWidget(self.edit_widget)
 
         if compare_sources:

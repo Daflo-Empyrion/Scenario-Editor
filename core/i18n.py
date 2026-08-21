@@ -46,6 +46,32 @@ STRINGS = {
                                             "(entre fichiers)...",
                                       "en": "Check cross-file references..."},
 
+    "validation.menu_action": {"fr": "Valider les regles metier (Id, materiaux, "
+                                    "conteneurs, doublons...)...",
+                                "en": "Validate business rules (Id, materials, "
+                                      "containers, duplicates...)..."},
+    "validation.dialog_title": {"fr": "Validation du scenario", "en": "Scenario validation"},
+    "validation.header": {"fr": "Validation du scenario : {root}", "en": "Scenario validation: {root}"},
+    "validation.filter_errors": {"fr": "Erreurs", "en": "Errors"},
+    "validation.filter_warnings": {"fr": "Avertissements", "en": "Warnings"},
+    "validation.col_element": {"fr": "Element", "en": "Element"},
+    "validation.col_code": {"fr": "Code", "en": "Code"},
+    "validation.col_message": {"fr": "Message", "en": "Message"},
+    "validation.n_issues": {"fr": "{n} probleme(s)", "en": "{n} issue(s)"},
+    "validation.all_ok": {"fr": "Aucun probleme detecte -- le scenario est valide !",
+                           "en": "No issues found -- scenario is valid!"},
+    "validation.summary": {"fr": "{errors} erreur(s), {warnings} avertissement(s)",
+                            "en": "{errors} error(s), {warnings} warning(s)"},
+    "validation.close": {"fr": "Fermer", "en": "Close"},
+
+    "results_export.title": {"fr": "Exporter les resultats", "en": "Export results"},
+    "results_export.done_title": {"fr": "Export termine", "en": "Export complete"},
+    "results_export.done_msg": {"fr": "Resultats exportes vers :\n{path}",
+                                 "en": "Results exported to:\n{path}"},
+    "results_export.error": {"fr": "Impossible d'ecrire le fichier", "en": "Could not write file"},
+    "results_window.btn_export": {"fr": "Exporter...", "en": "Export..."},
+    "results_window.btn_refresh": {"fr": "Actualiser", "en": "Refresh"},
+
     "crossref.title": {"fr": "References croisees entre fichiers",
                         "en": "Cross-file references"},
     "crossref.intro": {"fr": "Verifie que ce qu'un fichier mentionne (un item, un "
@@ -542,6 +568,62 @@ STRINGS = {
                                         "e.g. Name_X -> param1/param2, type 'value, param1: X, param2: \"Y,Z\"' "
                                         "-- quotes required if a value contains a comma)"},
     "ecf.add_block_title": {"fr": "Ajouter un bloc", "en": "Add a block"},
+
+    "addblock.identity_title": {"fr": "Nouveau bloc/item -- identification", "en": "New block/item -- identity"},
+    "addblock.identity_intro": {"fr": "Comment ce bloc/item doit-il etre identifie ?",
+                                 "en": "How should this block/item be identified?"},
+    "addblock.identity_id_and_name": {"fr": "Id + Name (le plus courant)",
+                                       "en": "Id + Name (most common)"},
+    "addblock.identity_name_only": {"fr": "Name seul (sans Id -- ex: blocs terrain historiques)",
+                                     "en": "Name only (no Id -- e.g. legacy terrain blocks)"},
+    "addblock.btn_next": {"fr": "Suivant...", "en": "Next..."},
+    "addblock.table_title": {"fr": "Nouveau bloc/item", "en": "New block/item"},
+    "addblock.template_table_title": {"fr": "Nouveau Template (recette de craft)",
+                                       "en": "New Template (crafting recipe)"},
+    "addblock.kind_label": {"fr": "Genre :", "en": "Kind:"},
+    "addblock.name_label": {"fr": "Name :", "en": "Name:"},
+    "addblock.id_placeholder": {"fr": "Nombre < {max}", "en": "Number < {max}"},
+    "addblock.properties_label": {"fr": "Proprietes -- coche celles a inclure, modifie "
+                                        "la valeur si besoin (valeur la plus frequente "
+                                        "du fichier proposee par defaut) :",
+                                   "en": "Properties -- check the ones to include, edit "
+                                         "the value if needed (the file's most common "
+                                         "value is suggested by default):"},
+    "addblock.filter_placeholder": {"fr": "Filtrer les proprietes...", "en": "Filter properties..."},
+    "addblock.col_property": {"fr": "Propriete", "en": "Property"},
+    "addblock.col_value": {"fr": "Valeur", "en": "Value"},
+    "addblock.ingredients_label": {"fr": "Ingredients (Child Inputs) :", "en": "Ingredients (Child Inputs):"},
+    "addblock.col_ingredient": {"fr": "Item/Bloc", "en": "Item/Block"},
+    "addblock.col_quantity": {"fr": "Quantite", "en": "Quantity"},
+    "addblock.btn_add_ingredient": {"fr": "+ Ingredient", "en": "+ Ingredient"},
+    "addblock.btn_remove_ingredient": {"fr": "Supprimer la ligne", "en": "Remove row"},
+    "addblock.btn_validate": {"fr": "Creer", "en": "Create"},
+    "addblock.id_not_numeric": {"fr": "L'Id doit etre un nombre entier.", "en": "Id must be an integer."},
+    "addblock.id_too_high": {"fr": "L'Id doit etre inferieur a {max} (limite du jeu).",
+                              "en": "Id must be below {max} (game limit)."},
+    "addblock.id_duplicate": {"fr": "Cet Id est deja utilise dans ce fichier.",
+                               "en": "This Id is already used in this file."},
+    "addblock.err_kind_required": {"fr": "Le genre est obligatoire.", "en": "Kind is required."},
+    "addblock.err_id_required": {"fr": "L'Id est obligatoire pour ce mode.", "en": "Id is required for this mode."},
+    "addblock.err_name_required": {"fr": "Le Name est obligatoire pour ce mode.",
+                                    "en": "Name is required for this mode."},
+    "addblock.ask_template_title": {"fr": "Creer le Template associe ?", "en": "Create the associated Template?"},
+    "addblock.ask_template_msg": {"fr": "Creer aussi la recette de craft (Template) pour "
+                                        "'{name}' ?",
+                                   "en": "Also create the crafting recipe (Template) for "
+                                         "'{name}'?"},
+    "addblock.templates_not_found_title": {"fr": "Templates.ecf introuvable",
+                                            "en": "Templates.ecf not found"},
+    "addblock.templates_not_found_msg": {"fr": "Aucun fichier Templates.ecf trouve dans ce "
+                                                "scenario -- le bloc/item a bien ete cree, "
+                                                "mais pas de Template associe.",
+                                          "en": "No Templates.ecf file found in this "
+                                                "scenario -- the block/item was created, "
+                                                "but no associated Template."},
+    "addblock.created_status": {"fr": "Bloc/item '{name}' cree dans {file}.",
+                                 "en": "Block/item '{name}' created in {file}."},
+    "addblock.template_created_status": {"fr": "Template '{name}' cree dans Templates.ecf.",
+                                          "en": "Template '{name}' created in Templates.ecf."},
     "ecf.block_kind_label": {"fr": "Genre du bloc (ex: Block) :", "en": "Block kind (e.g. Block):"},
     "ecf.id_label": {"fr": "Id :", "en": "Id:"},
     "ecf.name_optional_label": {"fr": "Name (optionnel) :", "en": "Name (optional):"},

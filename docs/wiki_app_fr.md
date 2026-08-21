@@ -95,7 +95,18 @@ planetes...), **.csv** (traductions, tables), **.txt** (texte brut).
   alors **"+ Propriete"**.
 
 ### Ajouter
-- **+ Bloc** — cree un bloc entierement vide (genre a choisir : Block, Item...)
+- **+ Bloc** — creation guidee en plusieurs etapes : choix Id+Name ou Name
+  seul, puis un tableau de proprietes a cocher, issues du fichier de travail
+  lui-meme (triees par frequence d'usage reelle, avec la valeur la plus
+  courante proposee comme point de depart) — un champ de recherche permet de
+  filtrer les proprietes si elles sont nombreuses. A la validation, propose
+  de creer directement le **Template associe** (recette de craft) si
+  `Templates.ecf` existe dans le scenario : meme mecanisme de tableau, avec
+  le Name pre-rempli pour correspondre exactement au bloc/item cree, et une
+  section **Ingredients** ou chaque ligne se choisit par liste deroulante
+  (items et blocs reellement definis dans le scenario, jamais de saisie
+  libre). L'Id est verifie en direct contre la limite du jeu et les doublons
+  deja presents dans le fichier.
 - **+ Propriete** — ajoute une propriete au bloc selectionne ; plusieurs paires
   peuvent etre tapees en une fois (`valeur, param1: X, param2: "Y,Z"`) pour rester
   groupees sur la meme ligne comme le fait le jeu
@@ -376,6 +387,29 @@ Chaque probleme trouve indique le **chemin complet** du fichier concerne —
 **double-clique un resultat pour ouvrir directement le fichier concerne et
 naviguer jusqu'au bloc/sous-bloc exact**, cellule comprise, sans avoir a
 chercher soi-meme ou se trouve le probleme.
+
+### Valider les regles metier
+**Verification > Valider les regles metier...** — contrairement aux deux
+verifications ci-dessus (qui portent sur des references), celle-ci controle
+des **valeurs** : limite d'Id du jeu (8192, confirmee via les notes de mise a
+jour officielles Eleon v1.17), classes de conteneurs necessitant
+`VolumeCapacity` (avec resolution de l'heritage `Ref:`), materiaux et
+`HoldType` reconnus, virgules non protegees dans les listes
+(`AllowPlacingAt`, `ChildBlocks`), format `BlockColor`, doublons d'Id/Name,
+et quelques valeurs numeriques suspectes (`HitPoints`/`Mass`/`MaxCount`
+negatifs ou nuls). Chaque regle est fondee sur une verification directe
+contre de vrais fichiers du jeu ou une source officielle -- aucune supposee.
+
+Certaines regles (materiaux, `VolumeCapacity`, doublons de Name) ne
+s'appliquent qu'a `BlocksConfig.ecf` et `HoldType` qu'a `ItemsConfig.ecf` --
+le meme mot ("Material", "Class: Container"...) designe des concepts
+differents selon le fichier (ex: un conteneur de butin d'entite dans
+`EClassConfig.ecf` n'a pas la meme regle qu'un conteneur de bloc), verifie
+directement sur les fichiers reels du jeu avant d'ecarter cette confusion.
+
+Double-clique un resultat pour ouvrir le fichier et naviguer jusqu'au bloc
+concerne, comme pour les references croisees. Filtre erreurs/avertissements
+disponible en haut du dialogue.
 
 ---
 

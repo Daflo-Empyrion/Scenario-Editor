@@ -34,13 +34,22 @@ from core.i18n import t
 from core.ecf.cross_reference_check import (
     CROSS_REFERENCE_CHECKS, CrossRefContext, CrossRefIssue, run_checks,
 )
+from gui.results_window_helpers import export_text_to_file
+from gui.theme import icon, icon_size
 
 
 class CrossReferenceDialog(QDialog):
-    def __init__(self, workspace, main_window, parent=None):
+    def __init__(self, workspace, main_window, parent=None, only_check_ids=None):
+        """only_check_ids : si fourni, seules ces verifications demarrent
+        cochees (les autres restent decochees par defaut) -- utilise par
+        l'ancien menu "Verifier les references" (check_references_dialog dans
+        main_window.py) pour reutiliser cette meme fenetre (export,
+        actualisation, navigation) en ne montrant que la verification
+        d'heritage Ref, plutot que de dupliquer toute cette logique."""
         super().__init__(parent)
         self.workspace = workspace
         self.main_window = main_window
+        self._last_issues = []
 
         self.setWindowTitle(t("crossref.title"))
         self.setMinimumSize(680, 520)
@@ -54,7 +63,8 @@ class CrossReferenceDialog(QDialog):
         self.checkboxes = {}
         for check in CROSS_REFERENCE_CHECKS:
             box = QCheckBox(check.label_fr if _current_lang() == "fr" else check.label_en)
-            box.setChecked(check.enabled_by_default)
+            checked = check.id in only_check_ids if only_check_ids is not None else check.enabled_by_default
+            box.setChecked(checked)
             box.setToolTip(check.description_fr if _current_lang() == "fr" else check.description_en)
             layout.addWidget(box)
             self.checkboxes[check.id] = box
@@ -73,10 +83,25 @@ class CrossReferenceDialog(QDialog):
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
 
+        bottom_row = QHBoxLayout()
+        btn_refresh = QPushButton(icon("fa5s.sync-alt", "#4a7dfc"), t("results_window.btn_refresh"))
+        btn_refresh.setIconSize(icon_size())
+        btn_refresh.setObjectName("secondaryButton")
+        btn_refresh.clicked.connect(self._do_run)
+        bottom_row.addWidget(btn_refresh)
+
+        btn_export = QPushButton(icon("fa5s.file-export", "#4a7dfc"), t("results_window.btn_export"))
+        btn_export.setIconSize(icon_size())
+        btn_export.setObjectName("secondaryButton")
+        btn_export.clicked.connect(self._export_results)
+        bottom_row.addWidget(btn_export)
+
+        bottom_row.addStretch()
         btn_close = QPushButton(t("btn.close"))
         btn_close.setObjectName("secondaryButton")
-        btn_close.clicked.connect(self.accept)
-        layout.addWidget(btn_close)
+        btn_close.clicked.connect(self.close)
+        bottom_row.addWidget(btn_close)
+        layout.addLayout(bottom_row)
 
     def _do_run(self):
         selected_ids = [cid for cid, box in self.checkboxes.items() if box.isChecked()]
@@ -98,6 +123,7 @@ class CrossReferenceDialog(QDialog):
             QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
             return
 
+        self._last_issues = issues
         if not issues:
             self.summary_label.setText(t("crossref.all_ok"))
             return
@@ -110,6 +136,22 @@ class CrossReferenceDialog(QDialog):
         if len(issues) > 500:
             more = t("crossref.more_issues", n=len(issues) - 500)
         self.summary_label.setText(t("crossref.issues_found", n=len(issues)) + more)
+
+    def _export_results(self):
+        """Exporte la liste complete des resultats (pas seulement les 500
+        premiers affiches) vers un fichier texte -- utile pour garder une trace
+        ou travailler hors de l'application. Relance la verification d'abord si
+        elle n'a jamais ete lancee, pour ne jamais exporter un fichier vide par
+        erreur d'usage."""
+        if not self._last_issues and self.results_list.count() == 0 and not self.summary_label.text():
+            self._do_run()
+        lines = [t("crossref.title"), "=" * len(t("crossref.title")), ""]
+        if not self._last_issues:
+            lines.append(t("crossref.all_ok"))
+        else:
+            for issue in self._last_issues:
+                lines.append(issue.label())
+        export_text_to_file(self, "references_croisees.txt", "\n".join(lines))
 
     def _navigate_to_issue(self, item: QListWidgetItem):
         """Ouvre (ou active) l'onglet du fichier concerne par ce resultat, puis

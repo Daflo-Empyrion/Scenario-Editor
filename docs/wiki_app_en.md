@@ -90,8 +90,17 @@ planets...), **.csv** (translations, tables), **.txt** (plain text).
   mode.
 
 ### Adding
-- **+ Block** — creates a brand new, entirely empty block (choose the kind: Block,
-  Item...)
+- **+ Block** — guided multi-step creation: choose Id+Name or Name only, then
+  a checkable property table drawn from the working file itself (sorted by
+  real usage frequency, with the most common value suggested as a starting
+  point) — a search box lets you filter properties when there are many. On
+  validation, offers to directly create the associated **Template**
+  (crafting recipe) if `Templates.ecf` exists in the scenario: same
+  table-based mechanism, with the Name pre-filled to exactly match the
+  block/item just created, and an **Ingredients** section where each row is
+  picked from a dropdown (items and blocks genuinely defined in the
+  scenario, never free text). The Id is validated live against the game
+  limit and existing duplicates in the file.
 - **+ Property** — adds a property to the selected block; several pairs can be
   typed at once (`value, param1: X, param2: "Y,Z"`) to stay grouped on the same
   line as the game does
@@ -356,6 +365,29 @@ Every issue found shows the **full path** of the file involved —
 **double-click a result to directly open the relevant file and jump to the
 exact block/sub-block**, cell included, without having to search
 for the problem yourself.
+
+### Validate business rules
+**Verification > Validate business rules...** — unlike the two checks above
+(which focus on references), this one checks **values**: the game's Id
+limit (8192, confirmed via official Eleon v1.17 patch notes), container
+classes requiring `VolumeCapacity` (with `Ref:` inheritance resolution),
+recognized materials and `HoldType`, unquoted commas in list properties
+(`AllowPlacingAt`, `ChildBlocks`), `BlockColor` format, duplicate Id/Name,
+and a few suspicious numeric values (negative or zero
+`HitPoints`/`Mass`/`MaxCount`). Every rule is grounded in a direct check
+against real game files or an official source -- never assumed.
+
+Some rules (materials, `VolumeCapacity`, Name duplicates) only apply to
+`BlocksConfig.ecf`, and `HoldType` only to `ItemsConfig.ecf` -- the same
+word ("Material", "Class: Container"...) means something different
+depending on the file (e.g. an entity's loot container in
+`EClassConfig.ecf` doesn't follow the same rule as a block container),
+confirmed directly against real game files before ruling out this
+confusion.
+
+Double-click a result to open the file and jump to the relevant block, same
+as for cross-file references. An error/warning filter is available at the
+top of the dialog.
 
 ---
 

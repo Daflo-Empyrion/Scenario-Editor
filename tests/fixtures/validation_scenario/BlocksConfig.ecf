@@ -1,0 +1,18 @@
+# Fixture dediee aux tests du dialogue de validation -- contient un cas reel
+# confirme sur le vrai BlocksConfig.ecf du jeu (CryoPodTalonAr : Class:
+# Container sans VolumeCapacity, ni heritee via Ref:) et un materiau non
+# reconnu, pour tester le dialogue de bout en bout avec de vrais motifs.
+
+{ Block Id: 100, Name: CryoPodTalonAr
+  Class: Container
+  Material: Concrete
+}
+
+{ Block Id: 101, Name: Eden_VoidiumCrystalT2
+  Material: edenvoidiumt2
+}
+
+{ Block Id: 102, Name: NormalBlock
+  Material: Concrete
+  Class: Door
+}

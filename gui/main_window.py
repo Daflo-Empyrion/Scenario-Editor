@@ -54,7 +54,6 @@ from core.workspace import (
     copy_yaml_entry_into_working, duplicate_yaml_entry_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
-from core.ecf.dependency_check import check_references
 from core.ecf.pending_conflicts import (
     find_pending_conflicts, activate_pending_conflict, parse_pending_block, find_used_ids,
 )
@@ -72,6 +71,7 @@ from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDi
 from gui.csv_edit_widget import CsvEditWidget
 from gui.yaml_edit_widget import YamlEditWidget
 from gui.playfield_edit_widget import PlayfieldEditWidget
+from gui.validation_dialog import ValidationDialog
 from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
 from gui.theme import NAVY, PRIMARY_DARK, PRIMARY, icon, icon_size
@@ -141,6 +141,9 @@ class MainWindow(QMainWindow):
         self.action_pending.triggered.connect(self.check_pending_conflicts_dialog)
         self.action_cross_refs = self.menu_check.addAction(t("menu.verification.cross_refs"))
         self.action_cross_refs.triggered.connect(self.check_cross_references_dialog)
+
+        self.action_validate = self.menu_check.addAction(t("validation.menu_action"))
+        self.action_validate.triggered.connect(self.validate_scenario_dialog)
 
         self.menu_options = self.menuBar().addMenu(t("menu.options"))
         self.action_author = self.menu_options.addAction(t("menu.options.author"))
@@ -346,6 +349,7 @@ class MainWindow(QMainWindow):
         self.menu_check.setTitle(t("menu.verification"))
         self.action_refs.setText(t("menu.verification.check_refs"))
         self.action_cross_refs.setText(t("menu.verification.cross_refs"))
+        self.action_validate.setText(t("validation.menu_action"))
         self.action_pending.setText(t("menu.verification.pending"))
 
         self.menu_options.setTitle(t("menu.options"))
@@ -453,9 +457,12 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(t("status.nothing_to_save"))
 
     def _open_compare_dialog(self):
+        """Fenetre NON MODALE (voir check_cross_references_dialog pour le
+        raisonnement) -- deja pourvue d'un export et d'un bouton "Lancer" qui
+        sert aussi d'actualisation (re-comparaison sur les memes dossiers)."""
         from gui.scenario_compare_dialog import ScenarioCompareDialog
-        dialog = ScenarioCompareDialog(self)
-        dialog.exec()
+        self._compare_dialog = ScenarioCompareDialog(self)
+        self._compare_dialog.show()
 
     def _refresh_scenario_b_menu_text(self):
         """Met a jour le libelle du menu Scenario B selon l'etat actuel (aucun projet
@@ -709,52 +716,50 @@ class MainWindow(QMainWindow):
                                  t("pending.activated_msg", id=new_id, file=target_path.name))
 
     def check_references_dialog(self):
+        """Verification d'heritage Ref uniquement -- reutilise CrossReferenceDialog
+        (export, actualisation, navigation au double-clic) en ne montrant que cette
+        seule verification cochee par defaut, plutot que de dupliquer cette logique
+        dans un QMessageBox separe comme avant. Voir check_cross_references_dialog
+        ci-dessous pour la version complete (items/blocs, jetons, dialogues...)."""
         if not self.workspace:
             QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return
-
-        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
-        if not ecf_files:
-            QMessageBox.information(self, t("err.no_file_title"), t("check.no_ecf_found"))
-            return
-
-        progress = QProgressDialog(f"Verification de {len(ecf_files)} fichier(s)...", None, 0, 0, self)
-        progress.setWindowTitle(t("progress.please_wait"))
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(0)
-        progress.show()
-        QApplication.processEvents()
-
-        try:
-            broken = check_references(ecf_files)
-        except Exception as e:
-            progress.close()
-            QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
-            return
-        progress.close()
-
-        if not broken:
-            QMessageBox.information(self, t("check.refs_title"), t("check.refs_ok", n=len(ecf_files)))
-            return
-
-        details = "\n".join(b.label() for b in broken[:100])
-        more = t("check.refs_more", n=len(broken) - 100) if len(broken) > 100 else ""
-        QMessageBox.warning(
-            self, t("check.refs_broken_title"),
-            t("check.refs_broken_msg", n=len(broken), details=details, more=more)
-        )
+        from gui.cross_reference_dialog import CrossReferenceDialog
+        self._ref_dialog = CrossReferenceDialog(
+            self.workspace, self, parent=self, only_check_ids=["ref_inheritance"])
+        self._ref_dialog.show()
 
     def check_cross_references_dialog(self):
         """Verification de coherence ENTRE plusieurs fichiers (items/blocs
         references, jetons, POI de playfield) -- complementaire a
         check_references_dialog() ci-dessus, qui ne verifie que 'Ref'. Voir
-        core/ecf/cross_reference_check.py pour le detail de chaque verification."""
+        core/ecf/cross_reference_check.py pour le detail de chaque verification.
+
+        Fenetre NON MODALE (garde une reference sur self pour eviter que le
+        ramasse-miettes la detruise) -- permet de la laisser ouverte pendant
+        qu'on corrige les problemes trouves dans l'editeur, plutot que de devoir
+        la fermer avant de pouvoir cliquer ailleurs dans l'application."""
         if not self.workspace:
             QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return
         from gui.cross_reference_dialog import CrossReferenceDialog
-        dialog = CrossReferenceDialog(self.workspace, self, parent=self)
-        dialog.exec()
+        self._cross_ref_dialog = CrossReferenceDialog(self.workspace, self, parent=self)
+        self._cross_ref_dialog.show()
+
+    def validate_scenario_dialog(self):
+        """Verification des regles metier/valeurs (limite d'Id, VolumeCapacite
+        des conteneurs, materiaux et HoldType reconnus, doublons, format
+        BlockColor...) -- complementaire aux deux verifications ci-dessus, qui
+        portent sur des references, pas des valeurs. Voir
+        core/ecf/validation.py pour le detail et la source de chaque regle.
+
+        Fenetre NON MODALE (voir check_cross_references_dialog ci-dessus pour
+        le raisonnement)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        self._validation_dialog = ValidationDialog(self, parent=self)
+        self._validation_dialog.show()
 
     def _build_layout(self):
         # Layout vertical : en HAUT les fichiers ouverts (l'espace de travail principal,
@@ -1643,7 +1648,9 @@ class MainWindow(QMainWindow):
         try:
             widget = CompareWidget(path, compare_sources, EcfViewWidget,
                                     copy_block_callback=_copy_block_cb if settings.get_merge_enabled() else None,
-                                    duplicate_block_callback=_duplicate_block_cb)
+                                    duplicate_block_callback=_duplicate_block_cb,
+                                    sibling_ecf_files=[f.path for f in self.workspace.working.configuration
+                                                        if f.extension == '.ecf'])
         except Exception as e:
             QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
             return

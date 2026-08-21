@@ -1,0 +1,52 @@
+# Extrait reduit de Templates.ecf pour les tests pytest
+
+{ Template Name: Graphite
+  BaseItem: true   # even though flag is set, it is not used for R2T repairing (NoRepairInputItem: true)
+  CraftTime: 5
+  OutputCount: 2
+  Target: "SurvC,SmallC,HoverC,BaseC,LargeC,AdvC"
+  { Child Inputs
+    RockDust: 25
+  }
+}
+
+{ +Template Name: IronOre
+  BaseItem: true   # even though flag is set, it is not used for R2T repairing (NoRepairInputItem: true)
+  CraftTime: 10
+  Target: "SurvC,SmallC,HoverC,BaseC,LargeC,AdvC"
+  { Child Inputs
+    RockDust: 25
+  }
+}
+
+{ +Template Name: CopperOre
+  BaseItem: true  # even though flag is set, it is not used for R2T repairing (NoRepairInputItem: true)
+  CraftTime: 10
+  Target: "SurvC,SmallC,HoverC,BaseC,LargeC,AdvC"
+  { Child Inputs
+    RockDust: 25
+  }
+}
+
+{ +Template Name: ThrusterMSDriveT3Blocks
+  CraftTime: 4
+  #DeconOverride: Stop
+  Target: "SmallC"
+  { Child Inputs
+    Motor: 40
+    PlatinOunce: 96
+	Computer: 48
+	GoldIngot: 52
+	RadiationShielding: 8
+    AluminiumCoil: 48
+    Oscillator: 86
+    PowerCoil: 32
+	EnergyMatrix: 44
+	ZascosiumAlloy: 96
+    QuantumProcessor: 2
+    AntimatterConverter: 6
+    Graphite: 64
+	ThrusterComponents: 8
+  }
+}
+
