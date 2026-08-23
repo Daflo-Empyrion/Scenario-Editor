@@ -54,7 +54,9 @@ from core.playfield_editor import (
     find_drone_spawning_items, find_spawn_rate_zones_items, find_spawn_zones_items,
     find_special_effects_local_items, find_special_effects_global_items,
 )
+from gui.playfield_canvas_widget import PlayfieldCanvasWidget
 from gui.yaml_edit_widget import YamlEditWidget
+from gui.theme import icon, icon_size
 
 
 class SyntheticColumn:
@@ -306,14 +308,16 @@ class PlayfieldEditWidget(QWidget):
         self.raw_widget.saved.connect(lambda: self._update_modified_label(False))
 
         resources_tab = self._build_resources_tab()
+        canvas_tab = self._build_canvas_tab()
         poi_regen_column = SyntheticColumn(
             label=t("playfield.col_regen_after"),
             getter=lambda item: get_properties_value(item, "RegenAfter"),
             setter=lambda item, value: set_properties_value(item, "RegenAfter", value),
         )
-        poi_tab = self._build_readonly_params_tab(
+        poi_tab_inner = self._build_readonly_params_tab(
             lambda: find_poi_items(self.doc), t("playfield.col_groupname"),
             synthetic_columns=[poi_regen_column])
+        poi_tab = self._wrap_with_poi_inspector_button(poi_tab_inner)
 
         creature_biome_column = SyntheticColumn(
             label=t("playfield.col_biome"),
@@ -327,6 +331,7 @@ class PlayfieldEditWidget(QWidget):
         spawn_zones_tab = self._build_spawn_zones_tab()
         special_effects_tab = self._build_special_effects_tab()
 
+        self.tab_widget.addTab(canvas_tab, t("playfield.tab_canvas"))
         self.tab_widget.addTab(resources_tab, t("playfield.tab_resources"))
         self.tab_widget.addTab(poi_tab, t("playfield.tab_poi"))
         self.tab_widget.addTab(creatures_tab, t("playfield.tab_creatures"))
@@ -345,6 +350,45 @@ class PlayfieldEditWidget(QWidget):
         if isinstance(widget, QWidget) and hasattr(widget, "_playfield_tables"):
             for table in widget._playfield_tables:
                 table.refresh()
+
+    def _wrap_with_poi_inspector_button(self, poi_tab_inner: QWidget) -> QWidget:
+        """Ajoute un bouton 'Inspecteur de POI...' au-dessus du tableau POI en
+        lecture seule -- specifique a l'onglet POI (pas Creatures, qui
+        reutilise la meme methode generique _build_readonly_params_tab sans
+        ces statistiques, non pertinentes pour les creatures)."""
+        wrapper = QWidget()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        top_row = QHBoxLayout()
+        top_row.addStretch()
+        btn_inspector = QPushButton(icon("fa5s.chart-bar", "#ffffff"), t("menu.tools.poi_inspector"))
+        btn_inspector.setIconSize(icon_size())
+        btn_inspector.clicked.connect(self._open_poi_inspector)
+        top_row.addWidget(btn_inspector)
+        layout.addLayout(top_row)
+        layout.addWidget(poi_tab_inner, 1)
+        # Reporte _playfield_tables sur l'enveloppe -- code externe (et les
+        # tests) accedent a cet attribut directement sur le widget retourne
+        # par le tab, sans savoir qu'il est enveloppe pour le bouton
+        # inspecteur.
+        wrapper._playfield_tables = poi_tab_inner._playfield_tables
+        return wrapper
+
+    def _open_poi_inspector(self):
+        from gui.poi_inspector_dialog import PoiInspectorDialog
+        self._poi_inspector_dialog = PoiInspectorDialog(self.doc, parent=self)
+        self._poi_inspector_dialog.show()
+
+    def _build_canvas_tab(self) -> QWidget:
+        """Vue 2D top-down des entites positionnables du playfield -- voir
+        gui/playfield_canvas_widget.py. La modification d'une position par
+        glisser-deposer doit se refleter dans l'indicateur "modifications non
+        enregistrees" de l'onglet YAML complet, comme toute autre edition
+        structuree (meme mecanisme que _on_structured_change)."""
+        self.canvas_widget = PlayfieldCanvasWidget(self.doc)
+        self.canvas_widget.modified.connect(lambda: self._on_structured_change([]))
+        return self.canvas_widget
 
     def _build_resources_tab(self) -> QWidget:
         tab = QWidget()
@@ -626,7 +670,7 @@ class PlayfieldEditWidget(QWidget):
         self._refresh_resources_tab()
 
     def _refresh_resources_tab(self):
-        resources_tab = self.tab_widget.widget(0)
+        resources_tab = self.tab_widget.widget(1)
         for table in getattr(resources_tab, "_playfield_tables", []):
             table.refresh()
 

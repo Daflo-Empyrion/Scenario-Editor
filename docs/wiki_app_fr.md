@@ -547,7 +547,49 @@ terminal dans le dossier du projet :
 
 ---
 
-## 19. Limitations connues
+## 19. Carte 2D, inspecteur de POI et carte de galaxie
+
+### Carte 2D d'un playfield
+Premier onglet de l'editeur de playfield structure (voir section 8) — vue
+top-down (axe X/Z) des entites positionnables : POI fixes (deplacables par
+glisser-deposer, avec ecriture directe dans le YAML), POI aleatoires resolus
+(quand ils referencent un POI fixe via `SpawnPOINear`), points de depart
+joueur, patrouilles de drones. Filtre par genre d'entite, zoom a la molette.
+
+Certaines entrees n'ont volontairement **pas de position affichee** plutot
+que d'en inventer une approximative : les ressources spatiales (le champ
+`RadialInfo` n'est pas une coordonnee cartesienne directe, verifie sur un
+vrai fichier), et la plupart des POI aleatoires (ils referencent le plus
+souvent un autre POI aleatoire plutot qu'un POI fixe, chaine non resolue
+dans cette premiere version).
+
+### Inspecteur de POI
+Bouton **"Inspecteur de POI..."** au-dessus du tableau de l'onglet POI —
+fenetre non modale avec deux vues : detail par POI (quantite, drones
+estimes) et agregation par faction (combien de drones au total pour chaque
+faction sur ce playfield). Porte uniquement sur les POI aleatoires (les POI
+fixes n'ont pas ces champs de comptage/probabilite). Export et actualisation
+disponibles, comme les fenetres de verification.
+
+### Carte de la galaxie
+**Fichier > Carte de la galaxie (Sectors.yaml)...** — carte des systemes
+solaires du scenario, localise automatiquement `Sectors/Sectors.yaml`.
+Couleur violette pour les roles de systeme speciaux (Gate, Anomaly,
+HomeSystem...), orange pour les vraies classes spectrales d'etoile (A, K2V,
+M2...) ; taille du point proportionnelle au nombre de secteurs locaux du
+systeme. Aucune route de warp n'est affichee entre systemes : ces donnees ne
+sont pas declarees dans `Sectors.yaml` (probablement calculees par le moteur
+du jeu selon la proximite), impossible a restituer de facon fiable.
+
+Curseur **"Inclinaison (axe Y)"** sous la carte : la vue de base n'affiche
+que X/Z (vue du dessus, hauteur galactique ignoree) -- augmenter
+l'inclinaison decale visuellement chaque systeme selon son Y reel,
+utile quand plusieurs systemes proches en X/Z (ex: le long d'une chaine de
+balises) se chevauchent a l'ecran malgre une hauteur tres differente.
+
+---
+
+## 20. Limitations connues
 
 - Pas de copier/coller multi-lignes façon tableur pour le YAML (structure trop
   imbriquee)

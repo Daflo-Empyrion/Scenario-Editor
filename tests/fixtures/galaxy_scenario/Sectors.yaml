@@ -1,0 +1,137 @@
+GalaxyMode: true
+Sectors: []
+
+SolarSystems:
+  - Name: Alpha
+    Coordinates: [190, 15, 50]
+    StarClass: GStartingSystem
+    Sectors:
+      - Coordinates: [0, 0, 0]
+        SectorMapType: None
+        Playfields:
+          - ['0,0,0', Alpha, SunRandom, '']
+      - Coordinates: [2, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alpha [Sun Right]', SpaceWarpTargetFixed, '']
+      - Coordinates: [-2, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alpha [Sun Left]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 2, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alpha [Sun Top]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, -2, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alpha [Sun Bottom]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, 2]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alpha [Sun Front]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, -2]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alpha [Sun Back]', SpaceWarpTargetFixed, '']
+
+  - Name: Beta
+    Coordinates: [210, 15, 50]
+    StarClass: FStartingSystem
+    Sectors:
+      - Coordinates: [0, 0, 0]
+        SectorMapType: None
+        Playfields:
+          - ['0,0,0', Beta, SunRandom, '']
+      - Coordinates: [5, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Beta [Sun Right]', SpaceWarpTargetFixed, '']
+      - Coordinates: [-5, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Beta [Sun Left]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 5, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Beta [Sun Top]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, -5, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Beta [Sun Bottom]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, 5]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Beta [Sun Front]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, -5]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Beta [Sun Back]', SpaceWarpTargetFixed, '']
+  - Name: Rogue System
+    Coordinates: [200, 15, 50]
+    StarClass: RStartingSystem
+    Sectors:
+      - Coordinates: [0, 0, 0]
+        SectorMapType: None
+        Playfields:
+          - ['0,0,0', Rogue System, SunRandom, '']
+      - Coordinates: [2, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Rogue System [Sun Right]', SpaceWarpTargetFixed, '']
+      - Coordinates: [-2, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Rogue System [Sun Left]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 2, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Rogue System [Sun Top]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, -2, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Rogue System [Sun Bottom]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, 2]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Rogue System [Sun Front]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, -2]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Rogue System [Sun Back]', SpaceWarpTargetFixed, '']
+
+  - Name: Alphalan
+    Coordinates: [-135, -25, -345]
+    StarClass: A3
+    HideFromMap: true
+    HideFromSearch: true
+    Sectors:
+      - Coordinates: [0, 0, 0]
+        SectorMapType: None
+        Playfields:
+          - ['0,0,0', Alphalan, SunRandom, '']
+      - Coordinates: [4, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alphalan [Sun Right]', SpaceWarpTargetFixed, '']
+      - Coordinates: [-4, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alphalan [Sun Left]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 4, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alphalan [Sun Top]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, -4, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alphalan [Sun Bottom]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, 4]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alphalan [Sun Front]', SpaceWarpTargetFixed, '']
+      - Coordinates: [0, 0, -4]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Alphalan [Sun Back]', SpaceWarpTargetFixed, '']
+

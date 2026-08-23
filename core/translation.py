@@ -16,8 +16,11 @@
 
 """
 Traduction de texte via Google Translate (bibliotheque deep-translator, gratuite, sans
-cle API). Utilise pour la traduction ponctuelle d'une valeur (clic droit -> Traduire),
-en complement du systeme de traduction CSV de masse (outil separe, hors ligne via Ollama).
+cle API). Point d'entree unique reutilise par TOUTES les fonctions de traduction de
+l'application -- traduction ponctuelle d'une cellule (clic droit -> Traduire), traduction
+en lot, et "Combler les langues manquantes..." : aucune ne passe par un systeme different
+ou hors ligne, toutes envoient le texte a traduire aux serveurs Google (voir PRIVACY.md et
+le reglage Options > Traduction en ligne pour desactiver completement cette fonctionnalite).
 
 IMPORTANT -- protection du BBCode et des placeholders : le texte Empyrion contient
 souvent des balises de mise en forme ([b]...[/b], [color=#FF0000]...[/color]) et des

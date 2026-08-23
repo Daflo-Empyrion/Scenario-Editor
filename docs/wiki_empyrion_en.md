@@ -235,6 +235,18 @@ actual header comments, clarified (never a plain word-for-word translation).
 
 ### BlocksConfig.ecf
 
+**Identifiers (Id)**
+
+- `Id up to 8192` -- Blocks identified by a number (Id) must stay under this
+  limit (confirmed via official Eleon v1.17 patch notes -- the limit was
+  raised in several steps across game versions, 2048 then 4096 being
+  outdated historical values).
+- `Beyond 8192` -- To add a block beyond this limit, don't set an Id at all -- use only 'Block Name: MyBlock' (identified by name, not a number).
+- `Id 0 to 255 "reserved for terrain"` -- a claim frequently repeated in the
+  community, but **unconfirmed** despite research -- possibly confused with
+  `BlockColor`, which genuinely uses a 0-255 range (RGB values). Treat with
+  caution rather than as an absolute rule until a reliable source is found.
+
 **General properties**
 
 - `CustomIcon` -- Reuses an already-existing icon for in-game display.

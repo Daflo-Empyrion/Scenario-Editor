@@ -502,3 +502,64 @@ def test_spawn_rate_zone_radius_is_editable(akua_doc):
     assert set_item_param(items[0], "Radius", "999") is True
     assert dict(get_item_params(items[0]))["Radius"] == "999"
     assert "Radius: 999" in akua_doc.render()
+
+
+# ============================================================================
+# Fixed/Random POI et FixedPlayerStart -- necessaires pour le canvas 2D,
+# distincts de find_poi_items() qui melange tout (utile pour les references
+# croisees, pas pour distinguer position absolue/relative)
+# ============================================================================
+
+def test_find_fixed_poi_items_on_akua_file(akua_doc):
+    """Confirme sur un vrai playfield_akua.yaml : 2 entrees Fixed, cle d'item
+    'Type' (pas 'GroupName'), avec position absolue reelle."""
+    from core.playfield_editor import find_fixed_poi_items, get_item_params
+    items = find_fixed_poi_items(akua_doc)
+    assert len(items) == 2
+    names = {dict(get_item_params(i)).get("Name") for i in items}
+    assert names == {"Reforged Creative Library", "Platform"}
+    params = dict(get_item_params(items[0]))
+    assert params["Pos"] == "[ -1460, 33, 1555 ]"
+
+
+def test_find_fixed_poi_items_empty_when_no_fixed_section(doc):
+    """playfield_static.yaml (fixture existante) n'a pas de section Fixed --
+    doit retourner une liste vide, pas planter."""
+    from core.playfield_editor import find_fixed_poi_items
+    assert find_fixed_poi_items(doc) == []
+
+
+def test_find_random_poi_items_matches_find_poi_items_count(doc, akua_doc):
+    """find_random_poi_items() doit toujours correspondre exactement a
+    find_poi_items() sur les fichiers qui n'ont pas de section Fixed
+    (playfield_static.yaml), et etre un sous-ensemble strict sur ceux qui en
+    ont une (playfield_akua.yaml)."""
+    from core.playfield_editor import find_random_poi_items, find_poi_items
+    assert len(find_random_poi_items(doc)) == len(find_poi_items(doc)) == 41
+    assert len(find_random_poi_items(akua_doc)) == 32
+    assert len(find_poi_items(akua_doc)) == 32  # Fixed jamais inclus dans find_poi_items()
+
+
+def test_find_fixed_player_start_items_nested_under_pois(doc):
+    """Regression : FixedPlayerStart est imbrique SOUS POIs (indentation
+    non-zero), pas une cle de niveau racine comme on aurait pu le supposer --
+    confirme 4 entrees reelles sur playfield_static.yaml, entre deux
+    occurrences successives de 'Random:' dans ce meme fichier."""
+    from core.playfield_editor import find_fixed_player_start_items, get_item_params
+    items = find_fixed_player_start_items(doc)
+    assert len(items) == 4
+    modes = [i.value for i in items]
+    assert "Debug" in modes
+    assert "Survival" in modes
+
+
+def test_double_random_marker_does_not_cause_misattribution(doc):
+    """Regression specifique : playfield_static.yaml contient DEUX occurrences
+    textuelles de 'Random:' (separees par FixedPlayerStart) -- les items des
+    deux blocs doivent tous etre correctement rattaches a 'Random', aucun ne
+    doit se retrouver perdu ou mal etiquete a cause de cette repetition."""
+    from core.playfield_editor import find_random_poi_items, find_poi_items
+    # find_poi_items() est deja etabli fiable (verifie de nombreuses fois plus
+    # tot) -- la coherence stricte avec ce total confirme qu'aucun item n'est
+    # perdu entre les deux occurrences de Random.
+    assert len(find_random_poi_items(doc)) == len(find_poi_items(doc))

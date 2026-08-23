@@ -130,6 +130,8 @@ class MainWindow(QMainWindow):
         self.action_repair_permissions.triggered.connect(self._repair_working_copy_permissions)
         self.action_extract_properties = self.menu_file.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
+        self.action_galaxy_viewer = self.menu_file.addAction(t("menu.tools.galaxy_viewer"))
+        self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
         self.menu_file.addSeparator()
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
@@ -378,6 +380,7 @@ class MainWindow(QMainWindow):
         self.action_manage_saves.setText(t("menu.file.manage_saves"))
         self.action_repair_permissions.setText(t("menu.file.repair_permissions"))
         self.action_extract_properties.setText(t("menu.file.extract_properties"))
+        self.action_galaxy_viewer.setText(t("menu.tools.galaxy_viewer"))
         self.action_quit.setText(t("menu.file.quit"))
 
         self.menu_check.setTitle(t("menu.verification"))
@@ -672,6 +675,27 @@ class MainWindow(QMainWindow):
             index = self.tabs.addTab(widget, "✎ " + dest.name)
             self.tabs.setTabToolTip(index, str(dest))
             self.tabs.setCurrentIndex(index)
+
+    def _open_galaxy_viewer(self):
+        """Carte 2D des systemes solaires de Sectors/Sectors.yaml -- voir
+        core/galaxy_viewer.py pour l'extraction et gui/galaxy_viewer_dialog.py
+        pour la fenetre. Fenetre NON MODALE (meme raisonnement que les
+        dialogues de verification)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        sectors_files = [f.path for f in self.workspace.working.sectors if f.path.name == "Sectors.yaml"]
+        if not sectors_files:
+            QMessageBox.information(self, t("galaxy.title"), t("galaxy.not_found"))
+            return
+        try:
+            doc = parse_yaml_file(sectors_files[0])
+        except Exception as e:
+            QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
+            return
+        from gui.galaxy_viewer_dialog import GalaxyViewerDialog
+        self._galaxy_viewer_dialog = GalaxyViewerDialog(doc, parent=self)
+        self._galaxy_viewer_dialog.show()
 
     def _set_author_dialog(self):
         current = settings.get_author()

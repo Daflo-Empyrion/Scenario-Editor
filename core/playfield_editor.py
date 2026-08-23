@@ -206,6 +206,58 @@ def get_creature_biome(item: YamlEntry) -> str:
     return getattr(item, "_biome", "")
 
 
+def find_fixed_poi_items(doc: YamlDocument) -> List[YamlEntry]:
+    """Entrees 'POIs > Fixed' -- POI a position absolue fixe (cle d'item 'Type',
+    PAS 'GroupName' comme les entrees Random -- confirme sur un vrai
+    playfield_akua.yaml : '- Type: BA_Player / Name: ... / Pos: [x,y,z]').
+    Utilise le suivi de sous-section (comme FreeDrones/SpaceVessels) car
+    'Fixed' 'fuit' au niveau racine sur ce meme fichier reel a cause du meme
+    piege des commentaires a indentation zero deja rencontre pour 'Random' --
+    une simple descente dans les enfants directs de POIs ne suffit pas.
+
+    'FixedPlayerStart' est inclus dans les cles de sous-section suivies (mais
+    jamais retourne ici) uniquement pour delimiter correctement les zones --
+    confirme sur un vrai fichier ou 'FixedPlayerStart' est imbrique ENTRE deux
+    occurrences successives de 'Random:' (meme fichier reutilisant deux fois
+    ce marqueur), sans quoi les items suivant la reprise de 'Random:' apres
+    'FixedPlayerStart' resteraient a tort tagues avec l'ancienne sous-section."""
+    rng = _section_index_range(doc, "POIs")
+    if rng is None:
+        return []
+    tagged = _find_items_with_subsection_tracking(
+        doc, rng[0], rng[1], "Type", ["Fixed", "Random", "FixedPlayerStart"])
+    return [item for item, subsection in tagged if subsection == "Fixed"]
+
+
+def find_random_poi_items(doc: YamlDocument) -> List[YamlEntry]:
+    """Entrees 'POIs > Random' uniquement (sous-ensemble de find_poi_items(),
+    qui remonte TOUTES les entrees POI -- utile quand on doit specifiquement
+    distinguer Fixed de Random, ex: le canvas 2D ou seules les Fixed ont une
+    position absolue directement exploitable). Voir find_fixed_poi_items()
+    pour le role de 'FixedPlayerStart' dans les cles de sous-section suivies."""
+    rng = _section_index_range(doc, "POIs")
+    if rng is None:
+        return []
+    tagged = _find_items_with_subsection_tracking(
+        doc, rng[0], rng[1], "GroupName", ["Fixed", "Random", "FixedPlayerStart"])
+    return [item for item, subsection in tagged if subsection == "Random"]
+
+
+def find_fixed_player_start_items(doc: YamlDocument) -> List[YamlEntry]:
+    """Entrees 'POIs > FixedPlayerStart' -- points d'apparition fixes du joueur
+    par Mode (Debug/Survival/Creative...), cle d'item 'Mode'. Confirme
+    imbrique sous POIs (indentation non-zero), PAS une cle de niveau racine
+    comme suppose initialement -- 4 entrees trouvees sur un vrai
+    playfield_static.yaml, entre les deux occurrences de 'Random:' de ce meme
+    fichier."""
+    rng = _section_index_range(doc, "POIs")
+    if rng is None:
+        return []
+    tagged = _find_items_with_subsection_tracking(
+        doc, rng[0], rng[1], "Mode", ["Fixed", "Random", "FixedPlayerStart"])
+    return [item for item, subsection in tagged if subsection == "FixedPlayerStart"]
+
+
 # ============================================================================
 # Lecture/ecriture des parametres d'un item (colonnes du tableau)
 # ============================================================================

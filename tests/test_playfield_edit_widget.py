@@ -25,11 +25,11 @@ def playfield_widget(qapp, tmp_path):
 
 def test_widget_has_four_tabs(playfield_widget):
     from core.i18n import t
-    assert playfield_widget.tab_widget.count() == 7
+    assert playfield_widget.tab_widget.count() == 8
 
 
 def test_resources_tab_shows_correct_counts(playfield_widget):
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table, asteroid_table, space_table = resources_tab._playfield_tables
     assert random_table.table.rowCount() == 5
     assert asteroid_table.table.rowCount() == 4
@@ -37,33 +37,33 @@ def test_resources_tab_shows_correct_counts(playfield_widget):
 
 
 def test_poi_tab_shows_correct_count(playfield_widget):
-    poi_tab = playfield_widget.tab_widget.widget(1)
+    poi_tab = playfield_widget.tab_widget.widget(2)
     table = poi_tab._playfield_tables[0]
     assert table.table.rowCount() == 41
 
 
 def test_creatures_tab_shows_correct_count(playfield_widget):
-    creatures_tab = playfield_widget.tab_widget.widget(2)
+    creatures_tab = playfield_widget.tab_widget.widget(3)
     table = creatures_tab._playfield_tables[0]
     assert table.table.rowCount() == 88
 
 
 def test_poi_tab_has_no_add_remove_buttons(playfield_widget):
-    poi_tab = playfield_widget.tab_widget.widget(1)
+    poi_tab = playfield_widget.tab_widget.widget(2)
     table = poi_tab._playfield_tables[0]
     assert not hasattr(table, "btn_add")
     assert not hasattr(table, "btn_remove")
 
 
 def test_resources_tab_has_add_remove_buttons(playfield_widget):
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
     assert hasattr(random_table, "btn_add")
     assert hasattr(random_table, "btn_remove")
 
 
 def test_editing_a_cell_updates_the_document(playfield_widget):
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
     headers = [random_table.table.horizontalHeaderItem(c).text()
                for c in range(random_table.table.columnCount())]
@@ -77,7 +77,7 @@ def test_editing_a_cell_updates_the_document(playfield_widget):
 
 
 def test_undo_reverts_cell_edit_and_refreshes_table(playfield_widget):
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
     headers = [random_table.table.horizontalHeaderItem(c).text()
                for c in range(random_table.table.columnCount())]
@@ -87,7 +87,7 @@ def test_undo_reverts_cell_edit_and_refreshes_table(playfield_widget):
     playfield_widget.undo()
 
     assert "DroneProb: 0.5" in playfield_widget.doc.render()
-    refreshed_table = playfield_widget.tab_widget.widget(0)._playfield_tables[0]
+    refreshed_table = playfield_widget.tab_widget.widget(1)._playfield_tables[0]
     assert refreshed_table.table.item(0, col).text() == "0.5"
 
 
@@ -99,7 +99,7 @@ def test_add_resource_via_dialog(playfield_widget, monkeypatch):
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(AddResourceDialog, "exec", fake_exec)
 
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
     before = random_table.table.rowCount()
 
@@ -113,7 +113,7 @@ def test_remove_resource_via_button(playfield_widget, monkeypatch):
     monkeypatch.setattr(QMessageBox, "question",
                          staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
 
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
     before = random_table.table.rowCount()
 
@@ -125,7 +125,7 @@ def test_remove_resource_via_button(playfield_widget, monkeypatch):
 
 def test_complex_nested_param_shown_as_placeholder_not_editable(playfield_widget):
     from core.i18n import t
-    poi_tab = playfield_widget.tab_widget.widget(1)
+    poi_tab = playfield_widget.tab_widget.widget(2)
     table = poi_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     props_col = headers.index("Properties")
@@ -135,7 +135,7 @@ def test_complex_nested_param_shown_as_placeholder_not_editable(playfield_widget
 
 def test_raw_yaml_tab_is_real_yaml_edit_widget(playfield_widget):
     from gui.yaml_edit_widget import YamlEditWidget
-    raw_tab = playfield_widget.tab_widget.widget(6)
+    raw_tab = playfield_widget.tab_widget.widget(7)
     assert isinstance(raw_tab, YamlEditWidget)
     assert raw_tab is playfield_widget.raw_widget
 
@@ -163,7 +163,7 @@ def test_playfield_detection_routes_to_structured_widget(qapp, tmp_path):
 
     widget = window.open_working_file_tab(pf_dir / "playfield_static.yaml")
     assert isinstance(widget, PlayfieldEditWidget)
-    assert widget.tab_widget.widget(0)._playfield_tables[0].table.rowCount() == 5
+    assert widget.tab_widget.widget(1)._playfield_tables[0].table.rowCount() == 5
 
 
 def test_non_playfield_yaml_still_uses_generic_editor(qapp, tmp_path):
@@ -189,21 +189,21 @@ def test_non_playfield_yaml_still_uses_generic_editor(qapp, tmp_path):
 
 
 def test_poi_table_has_regen_after_column(playfield_widget):
-    poi_tab = playfield_widget.tab_widget.widget(1)
+    poi_tab = playfield_widget.tab_widget.widget(2)
     table = poi_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     assert any("RegenAfter" in h for h in headers)
 
 
 def test_creatures_table_has_biome_column(playfield_widget):
-    creatures_tab = playfield_widget.tab_widget.widget(2)
+    creatures_tab = playfield_widget.tab_widget.widget(3)
     table = creatures_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     assert "Biome" in headers
 
 
 def test_same_creature_name_shows_different_biomes(playfield_widget):
-    creatures_tab = playfield_widget.tab_widget.widget(2)
+    creatures_tab = playfield_widget.tab_widget.widget(3)
     table = creatures_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     biome_col = headers.index("Biome")
@@ -216,7 +216,7 @@ def test_same_creature_name_shows_different_biomes(playfield_widget):
 
 
 def test_editing_regen_after_updates_document(playfield_widget):
-    poi_tab = playfield_widget.tab_widget.widget(1)
+    poi_tab = playfield_widget.tab_widget.widget(2)
     table = poi_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     regen_col = headers.index([h for h in headers if "RegenAfter" in h][0])
@@ -228,7 +228,7 @@ def test_editing_regen_after_updates_document(playfield_widget):
 
 def test_biome_column_is_not_editable(playfield_widget):
     from PyQt6.QtCore import Qt
-    creatures_tab = playfield_widget.tab_widget.widget(2)
+    creatures_tab = playfield_widget.tab_widget.widget(3)
     table = creatures_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     biome_col = headers.index("Biome")
@@ -250,13 +250,13 @@ def space_playfield_widget(qapp, tmp_path):
 
 
 def test_space_resources_table_shows_thirteen_entries(space_playfield_widget):
-    resources_tab = space_playfield_widget.tab_widget.widget(0)
+    resources_tab = space_playfield_widget.tab_widget.widget(1)
     _, _, space_table = resources_tab._playfield_tables
     assert space_table.table.rowCount() == 18
 
 
 def test_space_resources_table_shows_readable_display_name(space_playfield_widget):
-    resources_tab = space_playfield_widget.tab_widget.widget(0)
+    resources_tab = space_playfield_widget.tab_widget.widget(1)
     _, _, space_table = resources_tab._playfield_tables
     names = {space_table.table.item(r, 0).text() for r in range(space_table.table.rowCount())}
     assert "Iron Asteroid" in names
@@ -264,7 +264,7 @@ def test_space_resources_table_shows_readable_display_name(space_playfield_widge
 
 
 def test_space_resources_table_has_regen_after_column(space_playfield_widget):
-    resources_tab = space_playfield_widget.tab_widget.widget(0)
+    resources_tab = space_playfield_widget.tab_widget.widget(1)
     _, _, space_table = resources_tab._playfield_tables
     headers = [space_table.table.horizontalHeaderItem(c).text() for c in range(space_table.table.columnCount())]
     assert any("RegenAfter" in h for h in headers)
@@ -278,7 +278,7 @@ def test_add_space_resource_via_dialog(space_playfield_widget, monkeypatch):
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(AddResourceDialog, "exec", fake_exec)
 
-    resources_tab = space_playfield_widget.tab_widget.widget(0)
+    resources_tab = space_playfield_widget.tab_widget.widget(1)
     _, _, space_table = resources_tab._playfield_tables
     before = space_table.table.rowCount()
 
@@ -299,7 +299,7 @@ def test_save_button_present_and_visible_regardless_of_active_tab(playfield_widg
 
 
 def test_save_button_saves_changes_made_from_resources_tab(playfield_widget, tmp_path):
-    resources_tab = playfield_widget.tab_widget.widget(0)
+    resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
     headers = [random_table.table.horizontalHeaderItem(c).text()
                for c in range(random_table.table.columnCount())]
@@ -358,18 +358,18 @@ def test_space_file_naming_convention_routes_to_structured_widget(qapp, tmp_path
 
     widget = window.open_working_file_tab(pf_dir / "space_dynamic.yaml")
     assert isinstance(widget, PlayfieldEditWidget)
-    resources_tab = widget.tab_widget.widget(0)
+    resources_tab = widget.tab_widget.widget(1)
     _, _, space_table = resources_tab._playfield_tables
     assert space_table.table.rowCount() == 18
 
 
-def test_widget_has_seven_tabs_including_drones(playfield_widget):
-    assert playfield_widget.tab_widget.count() == 7
-    assert playfield_widget.tab_widget.tabText(3) in ("Drones/Vaisseaux", "Drones/Vessels")
+def test_widget_has_eight_tabs_including_drones(playfield_widget):
+    assert playfield_widget.tab_widget.count() == 8
+    assert playfield_widget.tab_widget.tabText(4) in ("Drones/Vaisseaux", "Drones/Vessels")
 
 
 def test_drones_tab_shows_stock_on_planet_file(playfield_widget):
-    drones_tab = playfield_widget.tab_widget.widget(3)
+    drones_tab = playfield_widget.tab_widget.widget(4)
     stock_table, free_drones_table, vessels_table = drones_tab._playfield_tables
     assert stock_table.table.rowCount() == 16  # ce fichier a plusieurs bases de drones
     assert free_drones_table.table.rowCount() == 0
@@ -377,7 +377,7 @@ def test_drones_tab_shows_stock_on_planet_file(playfield_widget):
 
 
 def test_drones_tab_shows_free_drones_and_vessels_on_space_file(space_playfield_widget):
-    drones_tab = space_playfield_widget.tab_widget.widget(3)
+    drones_tab = space_playfield_widget.tab_widget.widget(4)
     stock_table, free_drones_table, vessels_table = drones_tab._playfield_tables
     assert stock_table.table.rowCount() == 0
     assert free_drones_table.table.rowCount() == 4
@@ -385,7 +385,7 @@ def test_drones_tab_shows_free_drones_and_vessels_on_space_file(space_playfield_
 
 
 def test_editing_drone_stock_amount_updates_document(playfield_widget):
-    drones_tab = playfield_widget.tab_widget.widget(3)
+    drones_tab = playfield_widget.tab_widget.widget(4)
     stock_table, _, _ = drones_tab._playfield_tables
     headers = [stock_table.table.horizontalHeaderItem(c).text()
                for c in range(stock_table.table.columnCount())]
@@ -397,7 +397,7 @@ def test_editing_drone_stock_amount_updates_document(playfield_widget):
 
 def test_space_vessels_mission_description_shown_as_placeholder(space_playfield_widget):
     from PyQt6.QtCore import Qt
-    drones_tab = space_playfield_widget.tab_widget.widget(3)
+    drones_tab = space_playfield_widget.tab_widget.widget(4)
     _, _, vessels_table = drones_tab._playfield_tables
     headers = [vessels_table.table.horizontalHeaderItem(c).text()
                for c in range(vessels_table.table.columnCount())]
@@ -407,7 +407,7 @@ def test_space_vessels_mission_description_shown_as_placeholder(space_playfield_
 
 
 def test_spawn_zones_tab_shows_correct_counts_on_planet_file(playfield_widget):
-    spawn_tab = playfield_widget.tab_widget.widget(4)
+    spawn_tab = playfield_widget.tab_widget.widget(5)
     drone_spawning, spawn_rate, spawn_zones = spawn_tab._playfield_tables
     assert drone_spawning.table.rowCount() == 0  # absent de ce fichier precis
     assert spawn_rate.table.rowCount() == 0  # absent de ce fichier precis
@@ -415,14 +415,14 @@ def test_spawn_zones_tab_shows_correct_counts_on_planet_file(playfield_widget):
 
 
 def test_special_effects_tab_present(playfield_widget):
-    effects_tab = playfield_widget.tab_widget.widget(5)
+    effects_tab = playfield_widget.tab_widget.widget(6)
     local_table, global_table = effects_tab._playfield_tables
     assert local_table.table.rowCount() >= 0
     assert global_table.table.rowCount() >= 0
 
 
 def test_editing_spawn_rate_radius_updates_document(playfield_widget):
-    spawn_tab = playfield_widget.tab_widget.widget(4)
+    spawn_tab = playfield_widget.tab_widget.widget(5)
     _, _, spawn_zones_table = spawn_tab._playfield_tables
     headers = [spawn_zones_table.table.horizontalHeaderItem(c).text()
                for c in range(spawn_zones_table.table.columnCount())]
@@ -433,10 +433,10 @@ def test_editing_spawn_rate_radius_updates_document(playfield_widget):
 
 
 def test_spawn_zones_and_special_effects_empty_on_space_file(space_playfield_widget):
-    spawn_tab = space_playfield_widget.tab_widget.widget(4)
+    spawn_tab = space_playfield_widget.tab_widget.widget(5)
     for table in spawn_tab._playfield_tables:
         assert table.table.rowCount() == 0
 
-    effects_tab = space_playfield_widget.tab_widget.widget(5)
+    effects_tab = space_playfield_widget.tab_widget.widget(6)
     for table in effects_tab._playfield_tables:
         assert table.table.rowCount() == 0

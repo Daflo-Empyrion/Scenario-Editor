@@ -520,7 +520,46 @@ the project folder:
 
 ---
 
-## 19. Known limitations
+## 19. 2D map, POI inspector, and galaxy map
+
+### 2D map of a playfield
+First tab of the structured playfield editor (see section 8) — top-down
+(X/Z axis) view of positionable entities: fixed POIs (draggable, with
+direct YAML write-back), resolved random POIs (when they reference a fixed
+POI via `SpawnPOINear`), player start points, drone patrols. Filter by
+entity kind, mouse-wheel zoom.
+
+Some entries deliberately have **no position shown** rather than a made-up
+approximation: space resources (the `RadialInfo` field is not a direct
+cartesian coordinate, confirmed on a real file), and most random POIs (they
+most often reference another random POI rather than a fixed one, an
+unresolved chain in this first version).
+
+### POI inspector
+**"POI Inspector..."** button above the POI tab's table — non-modal window
+with two views: per-POI detail (count, estimated drones) and per-faction
+aggregation (total estimated drones per faction on this playfield). Covers
+random POIs only (fixed POIs don't have these count/probability fields).
+Export and refresh available, same as the verification windows.
+
+### Galaxy map
+**File > Galaxy map (Sectors.yaml)...** — map of the scenario's solar
+systems, automatically locates `Sectors/Sectors.yaml`. Purple for special
+system roles (Gate, Anomaly, HomeSystem...), orange for genuine star
+spectral classes (A, K2V, M2...); dot size proportional to the system's
+local sector count. No warp routes are shown between systems: this data
+isn't declared in `Sectors.yaml` (likely computed by the game engine from
+proximity), impossible to reliably reconstruct.
+
+**"Tilt (Y axis)"** slider below the map: the base view only shows X/Z
+(top-down, galactic height ignored) -- increasing the tilt visually shifts
+each system according to its real Y, useful when several systems close in
+X/Z (e.g. along a beacon chain) overlap on screen despite very different
+heights.
+
+---
+
+## 20. Known limitations
 
 - No spreadsheet-style multi-line copy/paste for YAML (structure too nested)
 - "Smart" merging (working-copy priority, completion) only exists for ECF and CSV

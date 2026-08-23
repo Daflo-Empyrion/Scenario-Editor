@@ -14,24 +14,39 @@ l'application) pour la documentation complete des fonctionnalites.
 ### Edition ECF
 - Arbre de navigation par blocs, recherche, filtrage par propriete
 - Mode tableau automatique pour les structures repetitives
+- **Creation guidee de bloc/item** : choix Id+Name ou Name seul, tableau de
+  proprietes issues du fichier lui-meme (valeurs suggerees par menu
+  deroulant), proposition automatique de creer le Template (recette de
+  craft) associe
 - **Transformation en masse** : multiplier/ajouter/fixer/plafonner/arrondir
   une propriete sur plusieurs blocs a la fois, avec tableau de revue editable
 - Fusion intelligente entre scenarios avec garde-fou anti-collision
-- **Verification de references croisees** : items/blocs references, jetons,
-  heritage Ref — avec navigation directe au clic vers l'endroit exact
+- **Verification de references croisees et de regles metier** : items/blocs
+  references, jetons, dialogues, heritage Ref, limite d'Id du jeu, doublons
+  — fenetres non modales avec actualisation et export
 
 ### Edition de playfields (YAML) — module dedie
 Tout fichier `playfield*.yaml` ou `space*.yaml` s'ouvre avec un editeur
-structure a 7 onglets (Ressources, POI, Creatures, Drones/Vaisseaux, Zones de
-spawn, Effets speciaux, YAML complet) plutot que du texte brut — tableaux
-avec ajout/suppression pour les ressources (liste deroulante peuplee depuis
-les vrais blocs du scenario), modification en tableau pour les autres
+structure a 8 onglets (Carte 2D, Ressources, POI, Creatures, Drones/Vaisseaux,
+Zones de spawn, Effets speciaux, YAML complet) plutot que du texte brut —
+tableaux avec ajout/suppression pour les ressources (liste deroulante peuplee
+depuis les vrais blocs du scenario), modification en tableau pour les autres
 sections, colonnes speciales (Biome pour les creatures, RegenAfter pour les
 POI/ressources spatiales).
 
+- **Carte 2D** — vue du dessus des entites positionnables d'un playfield
+  (POI fixes deplacables par glisser-depose, points de depart joueur,
+  patrouilles de drones...), filtres, zoom
+- **Inspecteur de POI** — statistiques de drones estimes par POI et par
+  faction, fenetre non modale avec export
+- **Carte de la galaxie** (`Sectors.yaml`) — systemes solaires du scenario,
+  positions reelles, curseur d'inclinaison pour separer les systemes proches
+  en X/Z mais distants en hauteur
+
 ### Traduction et CSV
-- Traduction automatique (LLM local via Ollama, ou service en ligne) avec
-  protection du BBCode/placeholders et memoire de traduction
+- Traduction automatique (Google Translate, sans cle API) avec protection du
+  BBCode/placeholders et memoire de traduction locale — desactivable
+  entierement dans les options (voir `PRIVACY.md`)
 - Edition CSV (tables de localisation) avec recherche/remplacement cible
 
 ### Et aussi

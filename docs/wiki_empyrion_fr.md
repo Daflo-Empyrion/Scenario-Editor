@@ -240,9 +240,16 @@ clarifies (jamais une simple traduction mot a mot).
 
 **Identifiants (Id)**
 
-- `Id 0 a 255` -- Reserves au terrain (sol, roches...). Ne jamais reutiliser ces numeros pour autre chose.
-- `Id jusqu'a 2048` -- Les blocs identifies par un numero (Id) doivent rester sous cette limite.
-- `Au-dela de 2048` -- Pour ajouter un bloc au-dela de cette limite, ne mets pas de Id du tout -- utilise seulement 'Block Name: MonBloc' (identifie par son nom, pas par un numero).
+- `Id jusqu'a 8192` -- Les blocs identifies par un numero (Id) doivent rester
+  sous cette limite (confirmee via les notes de mise a jour officielles Eleon
+  v1.17 -- la limite a ete augmentee en plusieurs etapes au fil des versions
+  du jeu, 2048 puis 4096 etant des valeurs historiques desormais perimees).
+- `Au-dela de 8192` -- Pour ajouter un bloc au-dela de cette limite, ne mets pas de Id du tout -- utilise seulement 'Block Name: MonBloc' (identifie par son nom, pas par un numero).
+- `Id 0 a 255 "reserves au terrain"` -- affirmation frequemment reprise dans
+  la communaute, mais **non confirmee** malgre recherche -- possible
+  confusion avec `BlockColor`, qui lui utilise reellement une plage 0-255
+  (valeurs RVB). A traiter avec prudence plutot que comme une regle
+  absolue tant qu'aucune source fiable n'est trouvee.
 
 **Masse des blocs**
 
