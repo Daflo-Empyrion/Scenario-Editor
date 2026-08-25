@@ -152,3 +152,46 @@ def test_list_craftable_names_combines_items_and_blocks():
 def test_list_craftable_names_handles_missing_files_gracefully():
     names = list_craftable_names(None, None)
     assert names == []
+
+
+_PLAYERS_ONLY_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "players_only_scenario"
+
+
+def test_list_craftable_names_players_only_excludes_blocks_without_allowplacingat():
+    """Un bloc sans AllowPlacingAt n'est jamais posable par un joueur (reserve
+    POI/blueprint) -- voir is_player_placeable_block."""
+    names = list_craftable_names(
+        _PLAYERS_ONLY_FIXTURE_DIR / "ItemsConfig.ecf",
+        _PLAYERS_ONLY_FIXTURE_DIR / "BlocksConfig.ecf",
+        players_only=True)
+    assert "PlayerConstructibleWall" in names
+    assert "PlayerConstructibleDoor" in names
+    assert "PoiOnlyDecoration" not in names
+
+
+def test_list_craftable_names_players_only_still_includes_all_items():
+    """Les items d'ItemsConfig.ecf n'ont pas de concept equivalent a
+    AllowPlacingAt -- toujours inclus, meme avec players_only=True."""
+    names = list_craftable_names(
+        _PLAYERS_ONLY_FIXTURE_DIR / "ItemsConfig.ecf",
+        _PLAYERS_ONLY_FIXTURE_DIR / "BlocksConfig.ecf",
+        players_only=True)
+    assert "SomeRegularItem" in names
+
+
+def test_list_craftable_names_without_players_only_includes_everything():
+    names = list_craftable_names(
+        _PLAYERS_ONLY_FIXTURE_DIR / "ItemsConfig.ecf",
+        _PLAYERS_ONLY_FIXTURE_DIR / "BlocksConfig.ecf",
+        players_only=False)
+    assert "PoiOnlyDecoration" in names
+    assert "PlayerConstructibleWall" in names
+    assert "SomeRegularItem" in names
+
+
+def test_is_player_placeable_block():
+    from core.ecf.block_creation import is_player_placeable_block
+    doc = parse_ecf_file(_PLAYERS_ONLY_FIXTURE_DIR / "BlocksConfig.ecf")
+    blocks = {b.get_property("Name"): b for b in doc.iter_blocks()}
+    assert is_player_placeable_block(blocks["PlayerConstructibleWall"]) is True
+    assert is_player_placeable_block(blocks["PoiOnlyDecoration"]) is False

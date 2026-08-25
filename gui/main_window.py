@@ -39,7 +39,7 @@ from PyQt6.QtWidgets import (
     QProgressDialog, QInputDialog, QPushButton, QSizePolicy, QDialog, QCheckBox,
     QRadioButton, QButtonGroup, QListWidget, QListWidgetItem, QTextBrowser,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
 from PyQt6.QtGui import QColor, QBrush, QDesktopServices, QPixmap
 from PyQt6.QtCore import QUrl
@@ -100,6 +100,17 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage(t("status.no_project"))
 
+        # Sauvegarde automatique periodique (voir core/autosave.py) -- dossier
+        # de recuperation SEPARE de la vraie copie de travail, jamais ecrit
+        # dans les vrais fichiers du scenario. Intervalle fixe (pas de reglage
+        # de duree expose, une valeur raisonnable suffit) ; le minuteur tourne
+        # en permanence mais _run_autosave_tick() ne fait rien tant qu'aucun
+        # projet n'est ouvert ou que le reglage est desactive.
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(3 * 60 * 1000)  # 3 minutes
+        self._autosave_timer.timeout.connect(self._run_autosave_tick)
+        self._autosave_timer.start()
+
     # ------------------------------------------------------------------
     # Construction de l'interface
     # ------------------------------------------------------------------
@@ -132,6 +143,10 @@ class MainWindow(QMainWindow):
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
         self.action_galaxy_viewer = self.menu_file.addAction(t("menu.tools.galaxy_viewer"))
         self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
+        self.action_search_scenario = self.menu_file.addAction(t("menu.file.search_scenario"))
+        self.action_search_scenario.triggered.connect(self._open_search_dialog)
+        self.action_pda_mission = self.menu_file.addAction(t("menu.tools.pda_mission"))
+        self.action_pda_mission.triggered.connect(self._open_pda_mission_dialog)
         self.menu_file.addSeparator()
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
@@ -146,6 +161,11 @@ class MainWindow(QMainWindow):
 
         self.action_validate = self.menu_check.addAction(t("validation.menu_action"))
         self.action_validate.triggered.connect(self.validate_scenario_dialog)
+        self.action_orphans = self.menu_check.addAction(t("menu.verification.orphans"))
+        self.action_orphans.triggered.connect(self._open_orphan_dialog)
+        self.menu_check.addSeparator()
+        self.action_health_check = self.menu_check.addAction(t("menu.verification.health_check"))
+        self.action_health_check.triggered.connect(self._open_health_check_dialog)
 
         self.menu_options = self.menuBar().addMenu(t("menu.options"))
         self.action_author = self.menu_options.addAction(t("menu.options.author"))
@@ -163,6 +183,10 @@ class MainWindow(QMainWindow):
         self.action_toggle_online_translation.setCheckable(True)
         self.action_toggle_online_translation.setChecked(settings.get_online_translation_enabled())
         self.action_toggle_online_translation.toggled.connect(settings.set_online_translation_enabled)
+        self.action_toggle_autosave = self.menu_options.addAction(t("menu.options.autosave_enabled"))
+        self.action_toggle_autosave.setCheckable(True)
+        self.action_toggle_autosave.setChecked(settings.get_autosave_enabled())
+        self.action_toggle_autosave.toggled.connect(settings.set_autosave_enabled)
         self.action_default_language = self.menu_options.addAction(t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
 
@@ -381,12 +405,16 @@ class MainWindow(QMainWindow):
         self.action_repair_permissions.setText(t("menu.file.repair_permissions"))
         self.action_extract_properties.setText(t("menu.file.extract_properties"))
         self.action_galaxy_viewer.setText(t("menu.tools.galaxy_viewer"))
+        self.action_search_scenario.setText(t("menu.file.search_scenario"))
+        self.action_pda_mission.setText(t("menu.tools.pda_mission"))
         self.action_quit.setText(t("menu.file.quit"))
 
         self.menu_check.setTitle(t("menu.verification"))
         self.action_refs.setText(t("menu.verification.check_refs"))
         self.action_cross_refs.setText(t("menu.verification.cross_refs"))
         self.action_validate.setText(t("validation.menu_action"))
+        self.action_orphans.setText(t("menu.verification.orphans"))
+        self.action_health_check.setText(t("menu.verification.health_check"))
         self.action_pending.setText(t("menu.verification.pending"))
 
         self.menu_options.setTitle(t("menu.options"))
@@ -394,6 +422,7 @@ class MainWindow(QMainWindow):
         self.action_toggle_annotations.setText(t("menu.options.annotations"))
         self.action_toggle_merge.setText(t("menu.options.merge_enabled"))
         self.action_toggle_online_translation.setText(t("menu.options.online_translation"))
+        self.action_toggle_autosave.setText(t("menu.options.autosave_enabled"))
         self.action_default_language.setText(t("menu.options.default_language"))
 
         self.menu_help.setTitle(t("menu.help"))
@@ -697,6 +726,50 @@ class MainWindow(QMainWindow):
         self._galaxy_viewer_dialog = GalaxyViewerDialog(doc, parent=self)
         self._galaxy_viewer_dialog.show()
 
+    def _open_search_dialog(self):
+        """Recherche a travers tous les fichiers de la copie de travail --
+        voir core/scenario_search.py et gui/scenario_search_dialog.py.
+        Fenetre NON MODALE (meme raisonnement que les autres fenetres de
+        resultats)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        from gui.scenario_search_dialog import ScenarioSearchDialog
+        self._search_dialog = ScenarioSearchDialog(self, parent=self)
+        self._search_dialog.show()
+
+    def _open_pda_mission_dialog(self):
+        """Creation guidee d'une mission PDA -- localise PDA.yaml/PDA.csv dans
+        Extras/PDA/ du scenario (voir core/pda_mission.py), les ouvre comme de
+        VRAIS onglets de la copie de travail (jamais une ecriture directe sur
+        disque -- meme raisonnement que la creation du Template associe a un
+        bloc, voir EcfEditWidget._create_associated_template : evite tout
+        conflit si l'un des deux fichiers etait deja ouvert ailleurs)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        yaml_path = next((f.path for f in self.workspace.working.extras if f.path.name == "PDA.yaml"), None)
+        csv_path = next((f.path for f in self.workspace.working.extras if f.path.name == "PDA.csv"), None)
+        if yaml_path is None or csv_path is None:
+            QMessageBox.information(self, t("pda_mission.title"), t("pda_mission.err_files_not_found"))
+            return
+
+        yaml_widget = self.open_working_file_tab(yaml_path)
+        csv_widget = self.open_working_file_tab(csv_path)
+        if yaml_widget is None or csv_widget is None:
+            return
+
+        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
+        from gui.pda_mission_dialog import PdaMissionDialog
+        dialog = PdaMissionDialog(yaml_widget.doc, csv_widget.doc, sibling_ecf_files=ecf_files, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        yaml_widget._set_modified(True)
+        csv_widget._set_modified(True)
+        if hasattr(csv_widget, "_populate_table"):
+            csv_widget._populate_table()
+
     def _set_author_dialog(self):
         current = settings.get_author()
         name, ok = QInputDialog.getText(self, t("author.title"), t("author.label"), text=current)
@@ -821,6 +894,29 @@ class MainWindow(QMainWindow):
         self._validation_dialog = ValidationDialog(self, parent=self)
         self._validation_dialog.show()
 
+    def _open_orphan_dialog(self):
+        """Jetons potentiellement non utilises -- suggestion de Begebum
+        (commentaire Steam). Voir core/ecf/orphan_check.py pour la portee
+        (jetons uniquement) et le raisonnement complet. Fenetre NON MODALE."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
+        from gui.orphan_dialog import OrphanDialog
+        self._orphan_dialog = OrphanDialog(ecf_files, parent=self)
+        self._orphan_dialog.show()
+
+    def _open_health_check_dialog(self):
+        """Bilan de sante consolide -- voir gui/health_check_dialog.py, qui
+        reutilise entierement les 4 fenetres de verification existantes,
+        jamais de reimplementation de leur affichage detaille."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        from gui.health_check_dialog import HealthCheckDialog
+        self._health_check_dialog = HealthCheckDialog(self, parent=self)
+        self._health_check_dialog.show()
+
     def _build_layout(self):
         # Layout vertical : en HAUT les fichiers ouverts (l'espace de travail principal,
         # comparaison + edition -- ce qui merite le plus de place), en BAS une bande
@@ -933,6 +1029,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             t("status.project_opened", mode=mode, path=self.workspace.working_root)
         )
+        self._check_for_recovery()
 
     def _remember_current_project(self):
         if not self.workspace:
@@ -988,6 +1085,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             t("status.project_resumed", mode=mode, path=self.workspace.working_root)
         )
+        self._check_for_recovery()
 
     def _refresh_all_trees(self):
         if not self.workspace:
@@ -1659,6 +1757,7 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentIndex(index)
             widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
             widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
+            widget.saved.connect(lambda w=widget: self._clear_autosave_for_widget(w))
             return widget
 
         simple_editors = {
@@ -1678,6 +1777,7 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentIndex(index)
             widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
             widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
+            widget.saved.connect(lambda w=widget: self._clear_autosave_for_widget(w))
             return widget
 
         if ext != '.ecf':
@@ -1715,12 +1815,21 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
             return
 
+        # Dialogues.ecf -- ajoute le navigateur de dialogues en plus de
+        # l'edition ECF classique (voir gui/dialogue_edit_widget.py), plutot
+        # que de la remplacer -- le CompareWidget/EcfEditWidget deja
+        # construit ci-dessus est injecte, jamais reconstruit.
+        if path.name.lower() == "dialogues.ecf":
+            from gui.dialogue_edit_widget import DialogueEditWidget
+            widget = DialogueEditWidget(path, widget)
+
         index = self.tabs.addTab(widget, "✎ " + path.name)
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
 
         widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
         widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.edit_widget.path)))
+        widget.saved.connect(lambda w=widget: self._clear_autosave_for_widget(w))
         return widget
 
     def _update_tab_title(self, widget, modified: bool):
@@ -1730,6 +1839,57 @@ class MainWindow(QMainWindow):
         inner = getattr(widget, 'edit_widget', widget)  # CompareWidget a un sous-widget, CsvEditWidget non
         base = inner.path.name
         self.tabs.setTabText(idx, ("✎ * " if modified else "✎ ") + base)
+
+    def _clear_autosave_for_widget(self, widget):
+        """A connecter au signal 'saved' de chaque onglet -- des qu'un fichier
+        est reellement enregistre, son instantane de recuperation n'a plus de
+        raison d'etre (voir core/autosave.py, avertissement de tete de
+        module : c'est CE nettoyage qui garantit qu'un fichier de
+        recuperation encore present au demarrage represente forcement du
+        contenu jamais ecrit dans la copie de travail)."""
+        if not self.workspace:
+            return
+        inner = getattr(widget, 'edit_widget', widget)
+        from core import autosave
+        autosave.clear_recovery_file(self.workspace.working_root, inner.path)
+
+    def _check_for_recovery(self):
+        """Appele juste apres l'ouverture d'un projet (nouveau ou repris),
+        avant que le moindre onglet ne soit ouvert -- voir
+        gui/recovery_dialog.py pour le raisonnement complet sur pourquoi ce
+        moment precis est sur pour restaurer directement dans les vrais
+        fichiers."""
+        if not self.workspace:
+            return
+        from core import autosave
+        files = autosave.list_recovery_files(self.workspace.working_root)
+        if not files:
+            return
+        from gui.recovery_dialog import RecoveryDialog
+        dialog = RecoveryDialog(self.workspace.working_root, files, parent=self)
+        dialog.exec()
+        self._refresh_all_trees()  # au cas ou une restauration aurait change des fichiers
+
+    def _run_autosave_tick(self):
+        """Appele periodiquement par self._autosave_timer -- ecrit un
+        instantane de recuperation pour chaque onglet modifie mais pas encore
+        enregistre. Ne touche jamais les vrais fichiers de la copie de
+        travail (voir core/autosave.py)."""
+        if not self.workspace or not settings.get_autosave_enabled():
+            return
+        from core import autosave
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            inner = getattr(widget, 'edit_widget', widget)
+            if not hasattr(inner, '_get_content_for_autosave'):
+                continue
+            if not hasattr(inner, 'is_modified') or not inner.is_modified():
+                continue
+            try:
+                content = inner._get_content_for_autosave()
+                autosave.write_recovery_snapshot(self.workspace.working_root, inner.path, content)
+            except Exception:
+                continue  # la sauvegarde automatique ne doit jamais interrompre l'utilisateur
 
     def open_file_tab(self, path: Path, read_only: bool,
                        source_root: Optional[Path] = None, source_label: Optional[str] = None):

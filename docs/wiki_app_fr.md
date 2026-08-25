@@ -105,13 +105,19 @@ planetes...), **.csv** (traductions, tables), **.txt** (texte brut).
   le Name pre-rempli pour correspondre exactement au bloc/item cree, et une
   section **Ingredients** ou chaque ligne se choisit par liste deroulante
   (items et blocs reellement definis dans le scenario, jamais de saisie
-  libre). L'Id est verifie en direct contre la limite du jeu et les doublons
-  deja presents dans le fichier.
+  libre), avec la meme case a cocher **"Uniquement les blocs autorises aux
+  joueurs"** que pour LootGroups.ecf. L'Id est verifie en direct contre la
+  limite du jeu et les doublons deja presents dans le fichier.
 - **+ Propriete** — ajoute une propriete au bloc selectionne ; plusieurs paires
   peuvent etre tapees en une fois (`valeur, param1: X, param2: "Y,Z"`) pour rester
   groupees sur la meme ligne comme le fait le jeu
 - **+ Ligne** (mode tableau uniquement) — formulaire dedie (Type/Valeur/params),
-  numerotation et position calculees automatiquement
+  numerotation et position calculees automatiquement. Sur `LootGroups.ecf`, le
+  champ Valeur devient un menu deroulant des vrais items/blocs du scenario
+  (ItemsConfig.ecf/BlocksConfig.ecf) plutot qu'une saisie libre, avec une case
+  a cocher **"Uniquement les blocs autorises aux joueurs"** pour exclure les
+  blocs reserves aux POI (ceux sans propriete `AllowPlacingAt`) — les items
+  restent toujours proposes, ce concept ne s'applique qu'aux blocs.
 
 ### Supprimer et desactiver
 - **Supprimer** (clic droit) — retire definitivement l'element, confirmation
@@ -163,6 +169,31 @@ plusieurs valeurs d'un coup, pour une meme cle de propriete (ex: `param1`,
 - Boutons **"Tout cocher"** / **"Tout decocher"**
 - S'integre au **Annuler (Ctrl+Z)** normal de l'onglet comme n'importe quelle
   autre modification
+
+---
+
+## 4bis. Cas particulier -- Dialogues.ecf
+
+Ouvrir un fichier nomme exactement `Dialogues.ecf` bascule automatiquement sur
+un conteneur a deux onglets plutot que l'edition ECF seule :
+
+- **Navigateur de dialogues** — vue structuree et navigable, en lecture seule.
+  Liste filtrable de tous les dialogues a gauche ; a droite, pour le dialogue
+  selectionne : PNJ, texte affiche, variables (avec leur type), scripts
+  executes, transitions automatiques (`Next_N`/`NextIf_N`) et choix proposes
+  au joueur (`Option_N`/`OptionNext_N`/`OptionIf_N`/`OptionExecute_N`) --
+  chaque cible de transition ou de choix est **cliquable**, navigue
+  directement vers le dialogue vise sans avoir a le chercher soi-meme dans
+  une liste de plusieurs milliers d'entrees. Les cibles cassees (dialogue
+  inexistant) s'affichent en rouge ; les sentinelles reservees
+  (`End`, `GotoAndReset`, `Return`) sont grisees, non cliquables. Une section
+  **"Reference par (N)"** liste tous les dialogues qui menent vers celui
+  affiche.
+- **Edition ECF** — le meme editeur generique que pour tout autre fichier
+  .ecf, pour la modification reelle (le navigateur reste lecture seule). Les
+  deux onglets partagent le meme document en memoire ; une modification faite
+  cote edition se reflete automatiquement dans le navigateur en revenant sur
+  son onglet, ou apres enregistrement.
 
 ---
 
@@ -411,6 +442,25 @@ Double-clique un resultat pour ouvrir le fichier et naviguer jusqu'au bloc
 concerne, comme pour les references croisees. Filtre erreurs/avertissements
 disponible en haut du dialogue.
 
+### Jetons potentiellement non utilises
+**Verification > Jetons potentiellement non utilises...** — suggestion
+directe d'un membre de la communaute (Begebum, commentaire Steam) : liste
+les jetons definis dans `TokenConfig.ecf` mais jamais references
+(`Token:XXXX`) ailleurs dans le scenario. Purement informatif, jamais une
+erreur — certains jetons peuvent etre utilises implicitement par le jeu sans
+reference explicite. Volontairement restreint aux jetons (contrairement aux
+blocs/items generiques, dont l'absence de reference ne signifie rien — un
+bloc de construction basique n'a pas besoin d'etre "reference" pour etre
+utile, il est simplement place en jeu).
+
+### Bilan de sante du scenario
+**Verification > Bilan de sante du scenario...** — lance en un clic les 4
+verifications ci-dessus et affiche un resume consolide (vert/aucun probleme
+ou rouge/nombre de problemes par categorie), avec un bouton "Voir le
+detail" qui ouvre la vraie fenetre complete correspondante. Ne reimplemente
+aucun affichage — un simple point d'entree unique quand on veut un etat des
+lieux rapide sans ouvrir les 4 fenetres une par une.
+
 ---
 
 ## 12. Sauvegardes
@@ -439,6 +489,96 @@ n'importe quels deux dossiers :
   CSV, cle par cle pour le YAML)
 - **Afficher aussi les fichiers identiques** (case a cocher)
 - **Exporter le rapport...** (fichier texte complet)
+
+---
+
+## 13bis. Rechercher dans tout le scenario
+
+**Fichier > Rechercher dans le scenario...** — contrairement aux recherches
+existantes (filtrer par propriete en ECF, recherche CSV) qui portent sur le
+fichier ouvert, celle-ci parcourt **tous les fichiers de la copie de
+travail** en une seule fois : ECF (genre, Id/Name, toutes les proprietes y
+compris imbriquees), YAML de playfield (toutes les entrees), CSV (chaque
+ligne). Double-clique un resultat pour ouvrir directement le fichier
+concerne et naviguer jusqu'au bloc/entree exact — memes mecanismes de
+navigation que les fenetres de verification.
+
+Limitation connue : les resultats CSV ouvrent le fichier concerne sans
+naviguer jusqu'a la ligne exacte (aucun mecanisme de selection de ligne
+construit pour l'instant dans l'editeur CSV).
+
+---
+
+## 13ter. Creer une mission PDA
+
+**Fichier > Nouvelle mission PDA...** — creation guidee d'une mission
+(Chapitre PDA avec sa Tache et son objectif), localise automatiquement
+`Extras/PDA/PDA.yaml` et `PDA.csv` dans le scenario ouvert. Structure
+confirmee sur un vrai fichier (530 chapitres, memes auteurs que
+`Dialogues.ecf`) : Chapitre > Tache > Action.
+
+Deux types d'objectifs geres :
+- **Tuer des ennemis** — noms des creatures/entites cibles (suggestions
+  issues des noms deja utilises ailleurs dans le meme `PDA.yaml`, saisie
+  libre possible), quantite requise
+- **Detruire une structure OU miner une ressource** — meme mecanisme cote
+  jeu (`BlockDestroyed`) : detruire le coeur d'une base/vaisseau ennemi et
+  miner une ressource sont techniquement la meme chose (une ressource minee
+  est un bloc detruit). Le champ **Types** distingue les deux (`CoreNPC`
+  pour une structure ennemie, `IronResource`/`CopperResource`... pour une
+  ressource) — suggestions issues des Types deja utilises dans le meme
+  fichier. Pour le minage specifiquement, le champ **Noms des cibles** propose
+  aussi automatiquement les vrais blocs de ressource planetaires
+  (`BlocksConfig.ecf`, ex: `IronResource`) et les variantes d'asteroides
+  spatiaux (`AsteroidVoxel01/02/03<Materiau>`, motif technique confirme des
+  playfields spatiaux) — bascule automatiquement selon le type d'objectif
+  choisi.
+
+**Recompenses** : XP, UP (points de competence), Reputation (avec choix de
+faction), ou Item (liste deroulante peuplee des vrais items/blocs du
+scenario, meme infrastructure que le choix d'ingredients de Template, avec
+la meme case a cocher "Uniquement les blocs autorises aux joueurs") —
+plusieurs recompenses possibles par mission. Pour recompenser en argent :
+choisis **`MoneyCard`** s'il est propose (mis automatiquement en tete de
+liste s'il existe dans `ItemsConfig.ecf`) — 1 carte = 1 credit, confirme sur
+un vrai fichier de scenario (commentaire `## Please do not rename -
+referenced in code` juste au-dessus de sa definition). <span
+style="color:#7c859c"><i>Le nom litteral "Credits" ne fonctionne PAS malgre
+ce que suggere le wiki communautaire du jeu — infirme sur deux logs client
+reels (v1.19.2) : la recompense est systematiquement rejetee par le
+moteur.</i></span>
+
+**Repetition** (mission a un seul palier uniquement) : case a cocher
+"Mission repetable", avec nombre de repetitions et delai avant reactivation
+(en heures) — correspond au mecanisme reel `RepeatConditions` du jeu (repete
+IDENTIQUEMENT le meme objectif/la meme recompense).
+
+**Paliers** — **"+ Ajouter un palier"** : pour une mission a etapes avec un
+objectif/une recompense DIFFERENTS a chaque palier (ex: palier 1 = miner
+1000 unites -> recompense X, puis palier 2 = miner 2000 unites -> recompense
+Y, etc.), chaque palier obtient son propre titre, description, objectif et
+recompenses. Mecanisme reel confirme sur une vraie chaine du jeu (50 -> 100
+-> 35 kills sur 3 chapitres successifs) : chaque palier devient un
+**Chapitre PDA distinct**, jamais une repetition du meme chapitre — le
+premier est immediatement disponible, chaque suivant ne s'active qu'une fois
+le precedent recompense (`RewardedChapters` + `Activatable: WhenRewarded`).
+La case "Mission repetable" est automatiquement desactivee des qu'un second
+palier existe : les deux mecanismes ne se combinent jamais dans le jeu.
+
+Les fichiers sont ouverts comme de **vrais onglets** de la copie de travail
+(jamais une ecriture directe sur disque) — rien n'est enregistre tant que tu
+ne cliques pas toi-meme sur Enregistrer sur ces deux onglets.
+
+<span style="color:#7c859c"><i>Limite assumee (objectif "Tuer des ennemis"
+uniquement -- le minage beneficie de vraies suggestions, voir ci-dessus) :
+les noms de cibles precis propres a un blueprint donne (ex: le nom
+personnalise d'un bloc "coeur" specifique a l'interieur d'un vaisseau
+ennemi particulier) ne sont pas extraits automatiquement des fichiers de
+blueprint (`.epb`) -- meme famille de risques que les sauvegardes de partie
+(format binaire proprietaire non documente, aucun outil communautaire sous
+licence reutilisable). Seuls les noms deja utilises ailleurs dans le meme
+`PDA.yaml` sont proposes comme suggestions ; la saisie libre reste toujours
+possible.</i></span>
 
 ---
 
@@ -475,8 +615,33 @@ Menu **Options**, reglages globaux valables pour tous les projets :
 - **Nom pour les annotations...** — nom utilise dans les commentaires automatiques
 - **Annoter les modifications automatiquement** (case a cocher)
 - **Autoriser la fusion** (case a cocher, desactivee par defaut)
+- **Traduction en ligne (Google Translate)** (case a cocher, activee par
+  defaut) — decoche pour desactiver completement l'envoi de texte a Google ;
+  voir `PRIVACY.md`
+- **Sauvegarde automatique (recuperation apres plantage)** (case a cocher,
+  activee par defaut) — voir section 12bis ci-dessous
 - **Langue de traduction par defaut...** — langue utilisee par le bouton "Traduire"
   rapide
+
+---
+
+## 12bis. Sauvegarde automatique et recuperation apres plantage
+
+Toutes les 3 minutes, chaque onglet modifie mais pas encore enregistre est
+sauvegarde dans un dossier de recuperation **separe** de la vraie copie de
+travail — jamais ecrit dans les vrais fichiers du scenario tant que
+l'utilisateur ne clique pas explicitement sur Enregistrer. Des qu'un fichier
+est reellement enregistre, son instantane de recuperation est aussitot
+supprime.
+
+Si l'application se ferme de facon inattendue (plantage, coupure de
+courant...) alors que des instantanes de recuperation existent encore pour
+un scenario, une fenetre propose de les **restaurer** (ecrit directement
+dans les vrais fichiers de la copie de travail, avant que le moindre onglet
+ne soit rouvert) ou de les **ignorer** definitivement — a l'ouverture ou a
+la reprise de ce scenario.
+
+Desactivable dans **Options > Sauvegarde automatique**.
 
 ---
 

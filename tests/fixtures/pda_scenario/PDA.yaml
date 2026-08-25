@@ -1,0 +1,393 @@
+Chapters:
+  - ChapterTitle: pda_iG40h
+    Category: SoloMission
+    NoSkip: false
+    PlayerLevel: 1
+    Activatable: Always
+    Visibility: Always
+    StartMessage: mbox;20|pda_mKuKK
+    Description: pda_isaCK
+    SkipMessage: pda_4uW88
+    HideTasks: true
+    PictureFile: WelcomeBack.jpg
+    Tasks:
+      - TaskTitle: pda_t8uSu
+        Actions:
+          - ActionTitle: pda_OHW4q
+            CompletedMessage: norm;20|pda_44CuO
+            Description: pda_gLC84
+            Check: WaitAction
+            Amount: 13
+        StartMessage: norm;20|pda_CO0i4
+      - TaskTitle: pda_m00mm
+        Actions:
+          - ActionTitle: pda_40bGa
+            Description: pda_cVmKO
+            CompletedMessage: norm;20|pda_r08G8
+            Check: WaitAction
+            Amount: 8
+        StartMessage: norm;20|pda_qSOuO
+        StartDelay: 9
+      - TaskTitle: pda_8SOmG
+        Actions:
+          - ActionTitle: pda_4W48m
+            Description: pda_2SmuW
+            CompletedMessage: norm;13|pda_u0u8q
+            Check: WaitAction
+            Amount: 8
+        StartMessage: norm;20|pda_u8OGs
+        StartDelay: 10
+      - TaskTitle: pda_m4We4
+        Actions:
+          - ActionTitle: pda_Cui84
+            Description: pda_sWeam
+            CompletedMessage: norm;30|pda_e0m8O
+            Check: WaitAction
+            Amount: 10
+        StartMessage: norm;20|pda_qu8qK
+        StartDelay: 10
+      - TaskTitle: pda_mS0u0
+        Actions:
+          - ActionTitle: pda_uqiiG
+            Description: pda_WG08Y
+            CompletedMessage: norm;15|pda_iqSK4
+            AllowManualCompletion: true
+            Check: NearPoi
+            Names:
+              - R2AntennaStory
+            GuidingDistance: 50000
+            TriggerDistance: 80
+      - TaskTitle: pda_0kOaC
+        Actions:
+          - ActionTitle: pda_uceeuua
+            Description: pda_2acKO4S
+            Check: WaitAction
+            Amount: 13
+            IsOptional: 'true'
+            AllowManualCompletion: true
+            CompletedMessage: mbox;20|pda_kaOsqOi
+          - ActionTitle: pda_eiClS
+            Description: pda_Be0uK
+            CompletedMessage: norm;13|pda_08iKi4e
+            AllowManualCompletion: true
+            Check: NearUnit
+            GuidingDistance: 1500
+            IsOptional: 'true'
+            Names:
+              - Broken Antenna
+              - Data Port
+          - ActionTitle: pda_iexqeAM
+            Description: pda_sO000CO
+            Check: DialogOption
+            Names:
+              - SM_AntennaStory_End
+            Value: 1
+            CompletedMessage: ''
+        StartMessage: norm;20|pda_a6saq
+        StartDelay: 11
+      - TaskTitle: pda_uOCSK
+        Actions:
+          - ActionTitle: pda_ii0e0
+            Description: pda_Cn4Wm
+            CompletedMessage: norm;20|pda_0KRGG
+            Check: WaitAction
+            Amount: 9
+        StartMessage: norm;20|pda_2ECOu
+        StartDelay: 4
+      - TaskTitle: pda_8ieqC
+        Actions:
+          - ActionTitle: pda_aGi4C
+            Description: pda_m0ai0
+            CompletedMessage: norm;20|pda_eqqm0
+            Check: WaitAction
+            Amount: 17
+        StartMessage: norm;20|pda_0i8Se
+        StartDelay: 9
+      - TaskTitle: pda_4Sa0G
+        Actions:
+          - ActionTitle: pda_d8Nm0
+            Description: pda_0ZCqe
+            CompletedMessage: norm;20|pda_8Quxi
+            Check: WaitAction
+            Amount: 15
+        StartMessage: norm;20|pda_aWCCi
+        StartDelay: 14
+    AutoActivateOnGameStart: true
+    ActivateChapterOnCompletion: pda_u8qi4
+    RewardedChapters:
+      - pda_u8qi4
+    CompletedMessage: ''
+    Rewards:
+      - Type: XP
+        Count: 5000
+    VisibleOnStartPlayfieldTypes:
+      - TemperateStarter
+      - AridStarter
+      - SwampStarter
+      - SnowStarter
+  - ChapterTitle: pda_u8qi4
+    Category: SoloMission
+    NoSkip: false
+    PlayerLevel: 1
+    Activatable: WhenRewarded
+    Visibility: Always
+    StartMessage: mbox;20|pda_WmuK5
+    SkipMessage: pda_0YSoK
+    Tasks:
+      - TaskTitle: pda_SmWuC
+        Actions:
+          - ActionTitle: pda_mu4K4
+            Description: pda_a0WSS
+            Check: WaitAction
+            Amount: 13
+            CompletedMessage: norm;25|pda_qu1Cp
+        StartMessage: norm;20|pda_KiaOd
+        StartDelay: 1
+      - TaskTitle: pda_a8mOi
+        Actions:
+          - ActionTitle: pda_uuSa4
+            Description: pda_WSaau
+            Check: NearPoi
+            Names:
+              - R2HeidelbergStory
+            GuidingDistance: 25000
+            TriggerDistance: 280
+            CompletedMessage: norm;10|pda_C4qeM
+            AllowManualCompletion: true
+        StartMessage: norm;20|pda_K8KSi
+        StartDelay: 24
+      - TaskTitle: pda_4Km0i
+        Actions:
+          - ActionTitle: pda_amqOC
+            Description: pda_qCGSO
+            AllowManualCompletion: true
+            Check: NearPoi
+            Names:
+              - R2HeidelbergStory
+            GuidingDistance: -1
+            TriggerDistance: 95
+            CompletedMessage: norm;18|pda_0SG40
+      - TaskTitle: pda_0GiqG
+        Actions:
+          - ActionTitle: pda_Sraa0
+            Description: pda_YuuiS
+            CompletedMessage: dlg;SM_HDMain_Init;SM_HDMain_End;1|
+            Check: WaitAction
+            Amount: 20
+            AllowManualCompletion: false
+        StartDelay: 12
+        StartMessage: norm;20|pda_rKqwe
+      - TaskTitle: pda_Km4iq
+        Actions:
+          - ActionTitle: pda_8m2ii
+            Description: pda_7IJaW
+            CompletedMessage: ''
+            AllowManualCompletion: true
+            Check: DialogOption
+            GuidingDistance: 200
+            TriggerDistance: 3
+            Names:
+              - SM_HDCargoBox_End
+            Value: 1
+          - ActionTitle: pda_G8mS8
+            Description: pda_eSmC4
+            CompletedMessage: norm;20|pda_Qa48N
+            AllowManualCompletion: true
+            Check: NearUnit
+            GuidingDistance: 2500
+            TriggerDistance: 10
+            IsOptional: 'true'
+            Names:
+              - Crashed Ship
+              - Electromagnetic Signature
+        StartMessage: norm;20|pda_GCeuK
+        StartDelay: 4
+      - TaskTitle: pda_WiuOu
+        Actions:
+          - ActionTitle: pda_K440q
+            CompletedMessage: norm;20|pda_mkTim|pda_KmOqm
+            Check: WaitAction
+            Amount: 1
+            Description: pda_m04aS
+        StartDelay: 3
+      - TaskTitle: pda_sGWGq
+        Actions:
+          - ActionTitle: pda_SeOWK
+            Description: pda_aoum4
+            CompletedMessage: norm;20|pda_OSSs0
+            AllowManualCompletion: true
+            Check: NearUnit
+            GuidingDistance: 250
+            TriggerDistance: 7
+            IsOptional: 'true'
+            Names:
+              - Crashed Ship
+              - Energy Signature
+          - ActionTitle: pda_LMSu0Eq
+            Description: pda_48iiGud
+            AllowManualCompletion: true
+            Check: DialogOption
+            GuidingDistance: 200
+            TriggerDistance: 3
+            Names:
+              - SM_HDCargoPDA_End
+            Value: 1
+            IsOptional: 'false'
+        StartMessage: norm;20|pda_Siu20
+        StartDelay: 18
+      - TaskTitle: pda_q8GSu
+        Actions:
+          - ActionTitle: pda_Ktuiq
+            Description: pda_OaAUS
+            CompletedMessage: norm;20|pda_Wimua|pda_OqqaM
+            Check: WaitAction
+            Amount: 1
+        StartDelay: 3
+      - TaskTitle: pda_0OuOC
+        Actions:
+          - ActionTitle: pda_qa4Wq
+            Description: pda_0qSeS
+            CompletedMessage: norm;20|pda_8qeO0
+            Check: WaitAction
+            Amount: 8
+        StartMessage: norm;20|pda_GGGKC
+        StartDelay: 10
+      - TaskTitle: pda_Kaeei
+        Actions:
+          - ActionTitle: pda_4eOcK
+            Description: pda_aemmW
+            CompletedMessage: norm;20|pda_ZiWCeKC
+            Check: NearUnit
+            GuidingDistance: 100
+            TriggerDistance: 9
+            AllowManualCompletion: true
+            IsOptional: 'false'
+            Names:
+              - Crashed Ship
+              - Constructor Logs
+          - ActionTitle: pda_aWuSeui
+            Description: pda_Chm008Z
+            AllowManualCompletion: true
+            Check: DialogOption
+            GuidingDistance: 200
+            TriggerDistance: 3
+            Names:
+              - SM_HDConstructorPDA_End
+            Value: 1
+            IsOptional: 'false'
+      - TaskTitle: pda_UeuqW
+        Actions:
+          - ActionTitle: pda_gGi74
+            Description: pda_GfY0e
+            CompletedMessage: norm;15|pda_qWm8c|pda_8gS4m
+            Check: WaitAction
+            Amount: 4
+      - TaskTitle: pda_WOieG
+        Actions:
+          - ActionTitle: pda_OaL4W
+            Description: pda_eWq4a
+            CompletedMessage: norm;20|pda_OuSO0
+            Check: WaitAction
+            Amount: 16
+          - ActionTitle: pda_SCCKb
+            Description: pda_qmKCu
+            Check: NearUnit
+            GuidingDistance: 100
+            TriggerDistance: 4
+            CompletedMessage: norm;10|pda_qWmua
+            AllowManualCompletion: true
+            IsOptional: 'true'
+            Names:
+              - Crashed Ship
+              - Bridge Console
+          - ActionTitle: pda_CSUqe
+            Description: pda_amaC0
+            AllowManualCompletion: true
+            Check: DialogOption
+            Names:
+              - SM_HDBridgeConsole_End
+            Value: 1
+        StartDelay: 11
+        StartMessage: norm;30|pda_OS8je
+      - TaskTitle: pda_WOSWq
+        Actions:
+          - ActionTitle: pda_8aO4m
+            Description: pda_iWAWo
+            Check: SubjectKilled
+            Names:
+              - DroneAeroZiraxMinigun
+            Amount: 1
+            AllowManualCompletion: true
+            CompletedMessage: norm;20|pda_SOKSX
+        OnActivatePlayfieldOps:
+          - >-
+            SpawnDrone: 1; DroneAeroZiraxMinigun; NearPlayer; dummy;
+            Zirax;false;false
+        StartMessage: high;10|pda_Cqqq0
+        StartDelay: 3
+      - TaskTitle: pda_8OOOS
+        Actions:
+          - ActionTitle: pda_CK4aw
+            Description: pda_aeimW
+            CompletedMessage: dlg;SM_HDFinal_Init;SM_HDFinal_End;1|
+            Check: WaitAction
+            Amount: 12
+        StartDelay: 8
+        StartMessage: norm;20|pda_iGu88
+      - TaskTitle: pda_G8KSa
+        Actions:
+          - ActionTitle: pda_e6Oou
+            Description: pda_0W8aS
+            CompletedMessage: norm;7|pda_8e8iu
+            Check: WaitAction
+            Amount: 9
+        StartMessage: norm;20|pda_0kOqW
+        StartDelay: 5
+    ActivateChapterOnCompletion: pda_p3Ke0
+    HideTasks: true
+    Description: pda_00KW4
+    RewardedChapters:
+      - pda_p3Ke0
+      - pda_4iage
+      - pda_EeWeS
+    Rewards:
+      - Type: UP
+        Count: 5
+      - Type: XP
+        Count: 7500
+  - ChapterTitle: pda_qaeW0CC
+    Category: FAQ
+    NoSkip: true
+    PlayerLevel: 1
+    Activatable: Never
+    Visibility: Always
+    HideTasks: true
+    Tasks:
+      - TaskTitle: pda_MWmCKCO
+        Actions:
+          - ActionTitle: pda_C4GwOOK
+            Check: WaitAction
+            Description: pda_KeKO0ii
+    Description: pda_4OKquGe
+    CompletedMessage: norm;10|pda_8LGm8W4
+    RepeatConditions:
+      NumRepeats: 1
+  - ChapterTitle: pda_OWumWW0
+    Category: FAQ
+    NoSkip: true
+    PlayerLevel: 1
+    Activatable: Never
+    Visibility: Always
+    HideTasks: true
+    Tasks:
+      - TaskTitle: pda_SOrK0KS
+        Actions:
+          - ActionTitle: pda_StC4WuC
+            Check: WaitAction
+            Description: pda_WiS04iC
+    Description: pda_C0S000q
+    CompletedMessage: norm;10|pda_eCKSu8r
+    RepeatConditions:
+      NumRepeats: 1
+    PictureFile: ClassSystem.png
+Creator: "Test"

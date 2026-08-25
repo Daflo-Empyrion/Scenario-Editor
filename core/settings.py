@@ -97,6 +97,19 @@ def get_online_translation_enabled() -> bool:
     return _get('online_translation_enabled', True)
 
 
+def get_autosave_enabled() -> bool:
+    """True (par defaut) -- sauvegarde automatique periodique des onglets
+    modifies vers un dossier de recuperation SEPARE de la vraie copie de
+    travail (voir core/autosave.py), jamais dans les vrais fichiers du
+    scenario. Uniquement utile pour recuperer du travail non enregistre apres
+    un plantage ou une fermeture inattendue."""
+    return _get('autosave_enabled', True)
+
+
+def set_autosave_enabled(enabled: bool) -> None:
+    _set('autosave_enabled', enabled)
+
+
 def set_online_translation_enabled(enabled: bool) -> None:
     _set('online_translation_enabled', enabled)
 

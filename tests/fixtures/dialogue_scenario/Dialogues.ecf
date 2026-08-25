@@ -1,0 +1,54 @@
+{ +Dialogue Name: TC_Start
+  NPCName: "Talon Chief"
+  Variable_1: "FoodCounter", param1: int
+  Variable_2: "TalkCount", param1: dbstate_int
+  Variable_3: "PlayerTalkExp", param1: dbplayer_int
+  Variable_4: "GlobalVar", param1: dbglobal_int
+  Execute_1: "TalkCount = TalkCount + 1"
+  Execute_2: "PlayerTalkExp = PlayerTalkExp + 1"
+  Execute_3: "GlobalVar += AddToGlobalVar('GlobalVar', 3)"
+  Next_1: TC_RepuBad
+  NextIf_1: "GetReputation(Faction.Talon) < Reputation.NeutralMin"
+  Next_2: TC_HasHolyStatus
+  NextIf_2: "HasItem('KeyCardBlack',3)"
+  Next_3: TC_TalkingOk
+  NextIf_3: "TalkCount > 3 && Random(1, 4) == 1"
+  Next_4: TC_CameBack
+  NextIf_4: "TalkCount > 1"
+  Next_5: TC_DefaultEntry
+}
+{ +Dialogue Name: TC_CameBack
+  Output: "Hey we talked already {TalkCount} times, that's enough for now!"
+}
+{ +Dialogue Name: TC_TalkingOk
+  Output: "Let's start from the beginning"
+  Execute_1: "TalkCount = 1"
+  Next_1: TC_DefaultEntry
+}
+{ +Dialogue Name: TC_RepuBad
+  Output: dlgTCBadRepu
+}
+{ +Dialogue Name: TC_HasHolyStatus
+  Output: dlgTCHolyStatue
+  Option_1: "Yes, I give it to you as a present"
+  OptionNext_1: TC_GiveHolyStatue
+  Option_2: "No, I want to keep it"
+  OptionNext_2: TC_DefaultEntryCont
+  Option_3: "I need to go"
+  OptionNext_3: End
+}
+{ +Dialogue Name: TC_DefaultEntry
+  Output: dlgTCGreetings
+  Next_1: TC_DefaultEntryCont
+}
+{ +Dialogue Name: TC_DefaultEntryCont
+  Option_1: dlgTCTellMeStory
+  OptionNext_1: TC_AskStoryAboutPeople
+  Option_2: "Can you give me some food?"
+  OptionNext_2: TC_CheckFood
+  Option_3: "I need to go."
+  OptionNext_3: End
+}
+{ +Dialogue Name: TC_GiveHolyStatue
+  Output: "I never dreamt that I will get back the statue! I will give you rich presents for that."
+}

@@ -45,6 +45,44 @@ def test_sibling_ecf_files_correctly_transmitted(window_with_scenario):
     assert names == {"BlocksConfig.ecf", "ItemsConfig.ecf", "Templates.ecf"}
 
 
+def test_ingredients_players_only_checkbox_filters_new_rows(qapp):
+    """La case a cocher au-dessus des ingredients doit filtrer la liste
+    proposee pour les LIGNES AJOUTEES APRES son activation (voir
+    core.ecf.block_creation.list_craftable_names, players_only=True)."""
+    from gui.add_block_dialog import PropertyTableDialog, IdentityModeDialog
+    from core.yamllite.parser import parse_yaml_text  # noqa: F401 (garde l'import group coherent)
+    from core.ecf.parser import parse_ecf_text
+
+    doc = parse_ecf_text("{ Template Name: X\n}\n")
+    dialog = PropertyTableDialog(
+        doc, IdentityModeDialog.MODE_NAME_ONLY, set(), enable_ingredients=True,
+        craftable_names=["IronIngot", "PoiOnlyDecoration"],
+        craftable_names_players_only=["IronIngot"])
+    assert dialog.ingredients_players_only_check is not None
+
+    dialog._add_ingredient_row()
+    combo_before = dialog.ingredients_table.cellWidget(0, 0)
+    items_before = [combo_before.itemText(i) for i in range(combo_before.count())]
+    assert "PoiOnlyDecoration" in items_before
+
+    dialog.ingredients_players_only_check.setChecked(True)
+    dialog._add_ingredient_row()
+    combo_after = dialog.ingredients_table.cellWidget(1, 0)
+    items_after = [combo_after.itemText(i) for i in range(combo_after.count())]
+    assert items_after == ["IronIngot"]
+
+
+def test_ingredients_no_players_only_checkbox_without_filtered_list(qapp):
+    from gui.add_block_dialog import PropertyTableDialog, IdentityModeDialog
+    from core.ecf.parser import parse_ecf_text
+
+    doc = parse_ecf_text("{ Template Name: X\n}\n")
+    dialog = PropertyTableDialog(
+        doc, IdentityModeDialog.MODE_NAME_ONLY, set(), enable_ingredients=True,
+        craftable_names=["IronIngot"])
+    assert dialog.ingredients_players_only_check is None
+
+
 def test_full_workflow_creates_block_and_template(window_with_scenario, monkeypatch):
     from gui.add_block_dialog import IdentityModeDialog, PropertyTableDialog
     window, config_dir = window_with_scenario
@@ -342,3 +380,117 @@ def test_property_filter_hides_non_matching_rows(window_with_scenario):
         assert dialog.table.isRowHidden(material_rows[0]) is False
     if other_rows:
         assert dialog.table.isRowHidden(other_rows[0]) is True
+
+
+# ============================================================================
+# Menu deroulant d'items pour LootGroups.ecf (bouton "+ Ligne") -- confirme
+# sur un vrai LootGroups.ecf : un seul prefixe utilise ('Item'), toujours des
+# noms reels d'ItemsConfig.ecf/BlocksConfig.ecf.
+# ============================================================================
+
+def test_add_row_dialog_shows_dropdown_for_lootgroups(window_with_scenario):
+    from gui.ecf_edit_widget import AddTableRowDialog
+    from core.ecf.block_creation import find_file_by_name, list_craftable_names
+    from PyQt6.QtWidgets import QComboBox
+    window, config_dir = window_with_scenario
+
+    items_path = find_file_by_name([config_dir / "ItemsConfig.ecf"], "ItemsConfig.ecf")
+    suggestions = list_craftable_names(items_path, None)
+    dialog = AddTableRowDialog([], ["Item"], None, value_suggestions=suggestions)
+    assert isinstance(dialog.value_edit, QComboBox)
+    assert dialog.value_edit.isEditable() is True
+
+
+def test_add_row_dialog_stays_free_text_without_suggestions(window_with_scenario):
+    from gui.ecf_edit_widget import AddTableRowDialog
+    from PyQt6.QtWidgets import QLineEdit
+    window, config_dir = window_with_scenario
+    dialog = AddTableRowDialog([], ["Name"], None, value_suggestions=None)
+    assert isinstance(dialog.value_edit, QLineEdit)
+
+
+def test_add_row_dialog_reads_value_from_combobox_correctly(window_with_scenario):
+    from gui.ecf_edit_widget import AddTableRowDialog
+    window, config_dir = window_with_scenario
+    dialog = AddTableRowDialog([], ["Item"], None, value_suggestions=["EmergencyRations", "WaterBottle"])
+    dialog.value_edit.setCurrentText("WaterBottle")
+    dialog.type_combo.setCurrentText("Item")
+    dialog._on_accept()
+    assert dialog.result_value == "WaterBottle"
+    assert dialog.result_type == "Item"
+
+
+def test_add_row_dialog_players_only_checkbox_toggles_suggestions(window_with_scenario):
+    """La case 'Uniquement les blocs autorises aux joueurs' doit basculer le
+    contenu du menu deroulant, sans effacer un texte deja saisi."""
+    from gui.ecf_edit_widget import AddTableRowDialog
+    window, config_dir = window_with_scenario
+    dialog = AddTableRowDialog(
+        [], ["Item"], None,
+        value_suggestions=["IronIngot", "PoiOnlyDecoration"],
+        value_suggestions_players_only=["IronIngot"])
+    assert dialog.players_only_check is not None
+    assert dialog.value_edit.count() == 2
+
+    dialog.players_only_check.setChecked(True)
+    items = [dialog.value_edit.itemText(i) for i in range(dialog.value_edit.count())]
+    assert items == ["IronIngot"]
+
+    dialog.players_only_check.setChecked(False)
+    items = [dialog.value_edit.itemText(i) for i in range(dialog.value_edit.count())]
+    assert "PoiOnlyDecoration" in items
+
+
+def test_add_row_dialog_no_players_only_checkbox_without_filtered_list(window_with_scenario):
+    from gui.ecf_edit_widget import AddTableRowDialog
+    window, config_dir = window_with_scenario
+    dialog = AddTableRowDialog([], ["Item"], None, value_suggestions=["IronIngot"])
+    assert dialog.players_only_check is None
+
+
+def test_add_table_row_dialog_wires_lootgroups_suggestions(qapp, tmp_path):
+    """Test d'integration complet : ouvre un vrai LootGroups.ecf reduit dans
+    un scenario, verifie que _add_table_row_dialog propose bien les vraies
+    suggestions -- sans passer par .exec() (bloquant), verifie juste la
+    construction du dialogue via un monkeypatch."""
+    import shutil
+    from gui.theme import apply_theme
+    from gui.main_window import MainWindow
+    from gui.ecf_edit_widget import AddTableRowDialog
+    from core.scanner import scan_scenario
+    from core.workspace import Workspace
+    from PyQt6.QtWidgets import QDialog, QComboBox
+
+    apply_theme(qapp)
+    config_dir = tmp_path / "Content" / "Configuration"
+    config_dir.mkdir(parents=True)
+    fixture_dir = FIXTURE_DIR
+    shutil.copy(fixture_dir / "LootGroups.ecf", config_dir / "LootGroups.ecf")
+    shutil.copy(fixture_dir / "ItemsConfig.ecf", config_dir / "ItemsConfig.ecf")
+    shutil.copy(fixture_dir / "BlocksConfig.ecf", config_dir / "BlocksConfig.ecf")
+
+    scenario = scan_scenario(tmp_path)
+    window = MainWindow()
+    window.workspace = Workspace(source_a=scenario, source_a_root=tmp_path,
+                                  working=scenario, working_root=tmp_path)
+    widget_wrapper = window.open_working_file_tab(config_dir / "LootGroups.ecf")
+    edit_widget = widget_wrapper.edit_widget
+
+    first_block = next(b for b in edit_widget.doc.iter_blocks() if b.get_property("Name") == "EscapePodEasy")
+    edit_widget._current_block = first_block
+    edit_widget._table_mode = True
+
+    captured = {}
+    original_init = AddTableRowDialog.__init__
+
+    def capturing_init(self, *args, **kwargs):
+        captured["value_suggestions"] = kwargs.get("value_suggestions")
+        original_init(self, *args, **kwargs)
+
+    import unittest.mock
+    with unittest.mock.patch.object(AddTableRowDialog, "__init__", capturing_init):
+        with unittest.mock.patch.object(QDialog, "exec", lambda self: QDialog.DialogCode.Rejected):
+            edit_widget._add_table_row_dialog()
+
+    assert captured["value_suggestions"] is not None
+    assert "IronOre" in captured["value_suggestions"]

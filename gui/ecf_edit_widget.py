@@ -783,10 +783,25 @@ class AddTableRowDialog(QDialog):
     Item_3, DamageMultiplier_7...) est calculee automatiquement par l'appli, jamais
     saisie a la main."""
 
-    def __init__(self, param_columns: List[str], prefixes: List[str], parent=None):
+    def __init__(self, param_columns: List[str], prefixes: List[str], parent=None,
+                 value_suggestions: Optional[List[str]] = None,
+                 value_suggestions_players_only: Optional[List[str]] = None):
+        """value_suggestions : si fourni (ex: noms reels d'ItemsConfig.ecf/
+        BlocksConfig.ecf pour LootGroups.ecf), le champ Valeur devient un menu
+        deroulant EDITABLE peuple de ces noms plutot qu'un champ de texte libre --
+        reste modifiable si aucune suggestion ne convient, comme partout ailleurs
+        dans l'application ou ce motif est deja utilise (creation de bloc,
+        ingredients de Template).
+
+        value_suggestions_players_only : meme liste, filtree aux seuls blocs
+        posables par un joueur (voir core.ecf.block_creation.list_craftable_names,
+        players_only=True) -- si fourni, une case a cocher permet de basculer
+        entre les deux listes sans fermer le dialogue."""
         super().__init__(parent)
         self.setWindowTitle(t("ecf.add_row_title"))
         self.param_columns = param_columns
+        self._value_suggestions_all = value_suggestions or []
+        self._value_suggestions_players_only = value_suggestions_players_only or []
 
         layout = QFormLayout(self)
         self.type_combo = QComboBox()
@@ -795,8 +810,22 @@ class AddTableRowDialog(QDialog):
                                             # prefixe absent du bloc jusqu'ici
         layout.addRow(t("ecf.add_row_type_label"), self.type_combo)
 
-        self.value_edit = QLineEdit()
+        if value_suggestions:
+            self.value_edit = QComboBox()
+            self.value_edit.setEditable(True)
+            self.value_edit.addItems(value_suggestions)
+            self.value_edit.setCurrentText("")
+        else:
+            self.value_edit = QLineEdit()
         layout.addRow(t("ecf.add_row_value_label"), self.value_edit)
+
+        if value_suggestions and value_suggestions_players_only is not None:
+            self.players_only_check = QCheckBox(t("ecf.players_only_checkbox"))
+            self.players_only_check.setToolTip(t("ecf.tooltip_players_only"))
+            self.players_only_check.toggled.connect(self._on_players_only_toggled)
+            layout.addRow("", self.players_only_check)
+        else:
+            self.players_only_check = None
 
         self.param_edits: Dict[str, QLineEdit] = {}
         for col in param_columns:
@@ -818,12 +847,32 @@ class AddTableRowDialog(QDialog):
         self.result_value = None
         self.result_extra_pairs: List[tuple] = []
 
+    def _on_players_only_toggled(self, checked: bool):
+        """Rebascule le contenu du menu deroulant Valeur entre la liste complete
+        et la liste filtree aux blocs posables par un joueur, en conservant le
+        texte deja saisi (le champ reste editable dans tous les cas)."""
+        if not isinstance(self.value_edit, QComboBox):
+            return
+        current_text = self.value_edit.currentText()
+        self.value_edit.clear()
+        source = self._value_suggestions_players_only if checked else self._value_suggestions_all
+        self.value_edit.addItems(source)
+        self.value_edit.setCurrentText(current_text)
+
+    def _get_value_text(self) -> str:
+        """Lit le texte du champ Valeur, qu'il s'agisse d'un QLineEdit (cas
+        general) ou d'un QComboBox editable (cas LootGroups.ecf, voir
+        __init__)."""
+        if isinstance(self.value_edit, QComboBox):
+            return self.value_edit.currentText().strip()
+        return self.value_edit.text().strip()
+
     def _on_accept(self):
-        if not self.value_edit.text().strip():
+        if not self._get_value_text():
             QMessageBox.warning(self, t("err.missing_field"), t("ecf.add_row_value_required"))
             return
         self.result_type = self.type_combo.currentText()
-        self.result_value = self.value_edit.text().strip()
+        self.result_value = self._get_value_text()
         self.result_extra_pairs = [
             (col, edit.text().strip()) for col, edit in self.param_edits.items() if edit.text().strip()
         ]
@@ -975,6 +1024,14 @@ class EcfEditWidget(QWidget):
             return
         self._set_modified(False)
         self.saved.emit()
+
+    def _get_content_for_autosave(self) -> str:
+        """Contenu actuel (non enregistre) pour un instantane de recuperation
+        -- voir core/autosave.py. Duplique volontairement la logique de
+        preparation du contenu de save() ci-dessus plutot que de la
+        reutiliser directement, pour ne jamais risquer de perturber le
+        chemin critique d'enregistrement reel."""
+        return self.doc.render()
 
     def _snapshot_undo(self):
         """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
@@ -1480,7 +1537,24 @@ class EcfEditWidget(QWidget):
             return
         detected = self._detect_repeating_items(self._current_block)
         param_columns, prefixes = detected if detected else ([], ["Name", "Group"])
-        dialog = AddTableRowDialog(param_columns, prefixes, self)
+
+        # LootGroups.ecf : propose un menu deroulant des vrais items/blocs du
+        # scenario plutot qu'une saisie libre -- confirme sur un vrai fichier,
+        # un seul prefixe utilise ('Item'), toujours des noms reels
+        # d'ItemsConfig.ecf/BlocksConfig.ecf.
+        value_suggestions = None
+        value_suggestions_players_only = None
+        if self.path.name.lower() == "lootgroups.ecf" and self.sibling_ecf_files:
+            from core.ecf.block_creation import find_file_by_name, list_craftable_names
+            items_path = find_file_by_name(self.sibling_ecf_files, "ItemsConfig.ecf")
+            blocks_path = find_file_by_name(self.sibling_ecf_files, "BlocksConfig.ecf")
+            if items_path or blocks_path:
+                value_suggestions = list_craftable_names(items_path, blocks_path)
+                value_suggestions_players_only = list_craftable_names(
+                    items_path, blocks_path, players_only=True)
+
+        dialog = AddTableRowDialog(param_columns, prefixes, self, value_suggestions=value_suggestions,
+                                    value_suggestions_players_only=value_suggestions_players_only)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -1654,6 +1728,7 @@ class EcfEditWidget(QWidget):
         items_path = find_file_by_name(self.sibling_ecf_files, 'ItemsConfig.ecf')
         blocks_path = find_file_by_name(self.sibling_ecf_files, 'BlocksConfig.ecf')
         craftable_names = list_craftable_names(items_path, blocks_path)
+        craftable_names_players_only = list_craftable_names(items_path, blocks_path, players_only=True)
 
         kind_counts = scan_kind_frequency(templates_doc)
         default_kind = kind_counts.most_common(1)[0][0] if kind_counts else "+Template"
@@ -1662,6 +1737,7 @@ class EcfEditWidget(QWidget):
             templates_doc, IdentityModeDialog.MODE_NAME_ONLY, existing_ids,
             default_kind=default_kind, name_prefill=prefill_name, name_readonly=True,
             enable_ingredients=True, craftable_names=craftable_names,
+            craftable_names_players_only=craftable_names_players_only,
             window_title_key="addblock.template_table_title", parent=self)
         if template_dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -1742,3 +1818,6 @@ class CompareWidget(QWidget):
 
     def save(self):
         self.edit_widget.save()
+
+    def _get_content_for_autosave(self) -> str:
+        return self.edit_widget._get_content_for_autosave()

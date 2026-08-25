@@ -86,6 +86,254 @@ STRINGS = {
     "galaxy.title": {"fr": "Carte de la galaxie", "en": "Galaxy map"},
     "galaxy.not_found": {"fr": "Aucun fichier Sectors.yaml trouve dans ce scenario.",
                           "en": "No Sectors.yaml file found in this scenario."},
+
+    "orphan.title": {"fr": "Jetons potentiellement non utilises", "en": "Potentially unused tokens"},
+    "orphan.intro": {"fr": "Jetons definis dans TokenConfig.ecf mais jamais references "
+                          "(Token:XXXX) ailleurs dans le scenario -- purement informatif, "
+                          "pas une erreur : certains jetons peuvent etre utilises "
+                          "implicitement par le jeu sans reference explicite.",
+                      "en": "Tokens defined in TokenConfig.ecf but never referenced "
+                            "(Token:XXXX) elsewhere in the scenario -- purely informational, "
+                            "not an error: some tokens may be used implicitly by the game "
+                            "without an explicit reference."},
+    "orphan.all_used": {"fr": "Tous les jetons definis sont references quelque part.",
+                         "en": "All defined tokens are referenced somewhere."},
+    "orphan.n_found": {"fr": "{n} jeton(s) potentiellement non utilise(s)",
+                        "en": "{n} potentially unused token(s)"},
+    "menu.verification.orphans": {"fr": "Jetons potentiellement non utilises...",
+                                   "en": "Potentially unused tokens..."},
+
+    "health.title": {"fr": "Bilan de sante du scenario", "en": "Scenario health check"},
+    "health.intro": {"fr": "Lance en un clic les 4 verifications de l'application et affiche "
+                          "un resume -- clique \"Voir le detail\" sur une categorie pour "
+                          "ouvrir la fenetre complete correspondante.",
+                      "en": "Runs all 4 of the application's checks in one click and shows a "
+                            "summary -- click \"View details\" on a category to open the full "
+                            "corresponding window."},
+    "health.category_refs": {"fr": "References (Ref, items/blocs, jetons, dialogues)",
+                              "en": "References (Ref, items/blocks, tokens, dialogues)"},
+    "health.category_validation": {"fr": "Regles metier (valeurs)", "en": "Business rules (values)"},
+    "health.category_pending": {"fr": "Blocs en attente", "en": "Pending blocks"},
+    "health.category_orphans": {"fr": "Jetons potentiellement non utilises",
+                                 "en": "Potentially unused tokens"},
+    "health.btn_view_detail": {"fr": "Voir le detail", "en": "View details"},
+    "health.all_ok": {"fr": "Aucun probleme", "en": "No issues"},
+    "health.n_issues": {"fr": "{n} probleme(s) trouve(s)", "en": "{n} issue(s) found"},
+    "health.overall_ok": {"fr": "Tout va bien -- aucun probleme detecte sur ce scenario.",
+                           "en": "Everything looks good -- no issues found in this scenario."},
+    "health.overall_problems": {"fr": "{n} probleme(s) au total (hors jetons non utilises, "
+                                     "purement informatif).",
+                                 "en": "{n} issue(s) in total (excluding unused tokens, "
+                                       "purely informational)."},
+    "menu.verification.health_check": {"fr": "Bilan de sante du scenario...",
+                                        "en": "Scenario health check..."},
+
+    "recovery.title": {"fr": "Modifications non enregistrees trouvees", "en": "Unsaved changes found"},
+    "recovery.intro": {"fr": "L'application semble s'etre fermee de facon inattendue avec des "
+                            "modifications non enregistrees dans ce scenario. Restaurer les "
+                            "fichiers suivants dans la copie de travail, ou les ignorer "
+                            "definitivement ?",
+                        "en": "The application appears to have closed unexpectedly with unsaved "
+                              "changes in this scenario. Restore the following files into the "
+                              "working copy, or discard them permanently?"},
+    "recovery.btn_restore": {"fr": "Restaurer", "en": "Restore"},
+    "recovery.btn_discard": {"fr": "Ignorer", "en": "Discard"},
+    "menu.options.autosave_enabled": {"fr": "Sauvegarde automatique (recuperation apres plantage)",
+                                       "en": "Autosave (crash recovery)"},
+
+    "search.title": {"fr": "Recherche dans le scenario", "en": "Search in scenario"},
+    "search.placeholder": {"fr": "Terme a rechercher dans tous les fichiers...",
+                            "en": "Term to search across all files..."},
+    "search.case_sensitive": {"fr": "Respecter la casse", "en": "Case sensitive"},
+    "search.btn_search": {"fr": "Rechercher", "en": "Search"},
+    "search.csv_limitation_note": {"fr": "Les resultats CSV ouvrent le fichier concerne, sans "
+                                        "naviguer jusqu'a la ligne exacte (limitation connue).",
+                                    "en": "CSV results open the relevant file, without navigating "
+                                          "to the exact row (known limitation)."},
+    "search.n_results": {"fr": "{n} resultat(s)", "en": "{n} result(s)"},
+    "menu.file.search_scenario": {"fr": "Rechercher dans le scenario...", "en": "Search in scenario..."},
+
+    "dialogue_browser.search_placeholder": {"fr": "Filtrer les dialogues...", "en": "Filter dialogues..."},
+    "dialogue_browser.npc_name": {"fr": "PNJ", "en": "NPC"},
+    "dialogue_browser.output": {"fr": "Texte affiche", "en": "Displayed text"},
+    "dialogue_browser.variables": {"fr": "Variables", "en": "Variables"},
+    "dialogue_browser.executes": {"fr": "Scripts executes", "en": "Executed scripts"},
+    "dialogue_browser.transitions": {"fr": "Transitions automatiques", "en": "Automatic transitions"},
+    "dialogue_browser.options": {"fr": "Choix proposes au joueur", "en": "Player choices"},
+    "dialogue_browser.always": {"fr": "(toujours)", "en": "(always)"},
+    "dialogue_browser.condition_prefix": {"fr": "Si : ", "en": "If: "},
+    "dialogue_browser.return_to": {"fr": "retour vers : ", "en": "return to: "},
+    "dialogue_browser.referenced_by": {"fr": "Reference par ({n})", "en": "Referenced by ({n})"},
+    "playfield.tab_dialogue_browser": {"fr": "Navigateur de dialogues", "en": "Dialogue browser"},
+
+    "pda_mission.title": {"fr": "Nouvelle mission PDA", "en": "New PDA mission"},
+    "pda_mission.section_info": {"fr": "Informations generales", "en": "General information"},
+    "pda_mission.title_en": {"fr": "Titre (anglais)", "en": "Title (English)"},
+    "pda_mission.title_fr": {"fr": "Titre (francais)", "en": "Title (French)"},
+    "pda_mission.desc_en": {"fr": "Description (anglais)", "en": "Description (English)"},
+    "pda_mission.desc_fr": {"fr": "Description (francais)", "en": "Description (French)"},
+    "pda_mission.category": {"fr": "Categorie", "en": "Category"},
+    "pda_mission.section_objective": {"fr": "Objectif", "en": "Objective"},
+    "pda_mission.check_kill": {"fr": "Tuer des ennemis", "en": "Kill enemies"},
+    "pda_mission.check_destroy_or_mine": {"fr": "Detruire une structure OU miner une ressource",
+                                           "en": "Destroy a structure OR mine a resource"},
+    "pda_mission.names_label": {"fr": "Noms des cibles (creatures, blocs...)",
+                                 "en": "Target names (creatures, blocks...)"},
+    "pda_mission.types_label": {"fr": "Types de bloc (ex: IronResource, CoreNPC)",
+                                 "en": "Block types (e.g. IronResource, CoreNPC)"},
+    "pda_mission.amount": {"fr": "Quantite requise :", "en": "Required amount:"},
+    "pda_mission.btn_add_value": {"fr": "+ Ajouter", "en": "+ Add"},
+    "pda_mission.btn_remove_value": {"fr": "Supprimer", "en": "Remove"},
+    "pda_mission.section_rewards": {"fr": "Recompenses", "en": "Rewards"},
+    "pda_mission.btn_add_reward": {"fr": "+ Recompense", "en": "+ Reward"},
+    "pda_mission.btn_remove_reward": {"fr": "Supprimer", "en": "Remove"},
+    "pda_mission.tooltip_remove_reward": {"fr": "Supprime cette ligne de recompense.",
+                                           "en": "Removes this reward row."},
+    "pda_mission.section_repeat": {"fr": "Repetition", "en": "Repeatability"},
+    "pda_mission.repeatable_checkbox": {"fr": "Mission repetable (reactivable une fois reussie)",
+                                         "en": "Repeatable mission (reactivatable once completed)"},
+    "pda_mission.num_repeats": {"fr": "Nombre de repetitions", "en": "Number of repeats"},
+    "pda_mission.delay_hours": {"fr": "Delai avant reactivation (heures)", "en": "Delay before reactivation (hours)"},
+    "pda_mission.btn_create": {"fr": "Creer la mission", "en": "Create mission"},
+    "pda_mission.err_title_required": {"fr": "Le titre (anglais) est obligatoire.",
+                                        "en": "The title (English) is required."},
+    "pda_mission.err_names_required": {"fr": "Ajoute au moins un nom de cible.",
+                                        "en": "Add at least one target name."},
+    "pda_mission.err_no_chapters_key": {"fr": "Cle 'Chapters' introuvable dans ce fichier -- "
+                                              "ce n'est peut-etre pas un vrai PDA.yaml.",
+                                         "en": "'Chapters' key not found in this file -- this may "
+                                               "not be a real PDA.yaml."},
+    "pda_mission.err_files_not_found": {"fr": "PDA.yaml et/ou PDA.csv introuvables dans "
+                                              "Extras/PDA/ de ce scenario.",
+                                         "en": "PDA.yaml and/or PDA.csv not found in this "
+                                               "scenario's Extras/PDA/ folder."},
+    "menu.tools.pda_mission": {"fr": "Nouvelle mission PDA...", "en": "New PDA mission..."},
+
+    "pda_mission.tooltip_title_en": {
+        "fr": "Titre affiche dans le PDA du joueur. Exemple : \"Kill 10 Zirax soldiers\"",
+        "en": "Title shown in the player's PDA. Example: \"Kill 10 Zirax soldiers\""},
+    "pda_mission.tooltip_title_fr": {
+        "fr": "Traduction francaise du titre. Exemple : \"Tue 10 soldats Zirax\"",
+        "en": "French translation of the title. Example: \"Tue 10 soldats Zirax\""},
+    "pda_mission.tooltip_desc_en": {
+        "fr": "Texte de briefing affiche dans le detail de la mission. Peut contenir "
+              "du BBCode (ex: [b]gras[/b], [c][ff0000]rouge[-][/c]).",
+        "en": "Briefing text shown in the mission's detail view. Can contain BBCode "
+              "(e.g. [b]bold[/b], [c][ff0000]red[-][/c])."},
+    "pda_mission.tooltip_desc_fr": {
+        "fr": "Traduction francaise du briefing.",
+        "en": "French translation of the briefing."},
+    "pda_mission.tooltip_category": {
+        "fr": "Determine l'onglet du PDA ou la mission apparait : SoloMission (missions "
+              "solo classiques), FactionMission (liees a une faction), Tutorial, "
+              "Knowledgebase (documentation en jeu), FAQ.",
+        "en": "Determines which PDA tab the mission appears in: SoloMission (classic solo "
+              "missions), FactionMission (faction-related), Tutorial, Knowledgebase "
+              "(in-game documentation), FAQ."},
+    "pda_mission.tooltip_check": {
+        "fr": "Type d'objectif -- determine le sens du champ 'Noms des cibles' juste en "
+              "dessous (l'infobulle de ce champ change selon ton choix ici).",
+        "en": "Objective type -- determines the meaning of the 'Target names' field just "
+              "below (that field's tooltip changes based on your choice here)."},
+    "pda_mission.tooltip_names_kill": {
+        "fr": "Noms EXACTS des entites/creatures/drones a tuer, tels que definis dans "
+              "EClassConfig.ecf. Exemples reels confirmes : WeakZiraxSoldier, "
+              "ZiraxSoldier, MiningShuttle (un drone ennemi, pas une ressource a miner "
+              "malgre son nom). Plusieurs noms possibles : le joueur doit en tuer "
+              "'Quantite requise' au total, tous types confondus.",
+        "en": "EXACT names of entities/creatures/drones to kill, as defined in "
+              "EClassConfig.ecf. Real confirmed examples: WeakZiraxSoldier, "
+              "ZiraxSoldier, MiningShuttle (an enemy drone, not a resource to mine "
+              "despite its name). Several names possible: the player must kill "
+              "'Required amount' total, across all listed types."},
+    "pda_mission.tooltip_names_destroy_or_mine": {
+        "fr": "Noms EXACTS des blocs a detruire. Pour MINER une ressource, c'est le nom "
+              "de la ressource elle-meme (ex: IronResource, CopperResource) -- miner "
+              "un gisement EST une destruction de bloc cote moteur du jeu, meme "
+              "mecanisme que detruire une structure ennemie (ex: CoreNPC). Renseigne "
+              "aussi le champ 'Types' juste en dessous avec la meme valeur.",
+        "en": "EXACT names of blocks to destroy. To MINE a resource, this is the "
+              "resource's own name (e.g. IronResource, CopperResource) -- mining a "
+              "deposit IS a block destruction under the hood, same mechanism as "
+              "destroying an enemy structure (e.g. CoreNPC). Also fill the 'Types' "
+              "field just below with the same value."},
+    "pda_mission.tooltip_types": {
+        "fr": "Filtre de type pour la destruction de bloc. Pour miner une ressource : "
+              "le nom de la ressource (ex: IronResource). Pour detruire une structure "
+              "ennemie : CoreNPC (base/vaisseau ennemi standard) ou CoreNPCAdmin.",
+        "en": "Type filter for block destruction. To mine a resource: the resource's "
+              "name (e.g. IronResource). To destroy an enemy structure: CoreNPC "
+              "(standard enemy base/ship) or CoreNPCAdmin."},
+    "pda_mission.tooltip_amount": {
+        "fr": "Quantite totale requise pour valider l'objectif -- ex: 1000 pour "
+              "\"miner 1000 unites de fer\", 10 pour \"tuer 10 soldats\".",
+        "en": "Total quantity required to complete the objective -- e.g. 1000 for "
+              "\"mine 1000 units of iron\", 10 for \"kill 10 soldiers\"."},
+    "pda_mission.tooltip_rewards": {
+        "fr": "Ce que le joueur recoit a la fin de la mission. XP/UP sont des nombres "
+              "simples ; Reputation demande une faction (ex: Zirax, Talon, Polaris) ; "
+              "Item demande un nom reel du scenario (ex: IronIngot, SteelPlate).",
+        "en": "What the player receives when the mission completes. XP/UP are plain "
+              "numbers; Reputation needs a faction (e.g. Zirax, Talon, Polaris); Item "
+              "needs a real scenario name (e.g. IronIngot, SteelPlate)."},
+    "pda_mission.tooltip_reward_kind": {
+        "fr": "Type de recompense : XP (points d'experience), UP (points de "
+              "competence), Reputation (envers une faction), Item (objet ou "
+              "ressource donne au joueur).",
+        "en": "Reward type: XP (experience points), UP (skill points), Reputation "
+              "(toward a faction), Item (object or resource given to the player)."},
+    "pda_mission.tooltip_reward_count": {
+        "fr": "Quantite de la recompense -- ex: 5000 pour de l'XP, 50 pour un item.",
+        "en": "Reward quantity -- e.g. 5000 for XP, 50 for an item."},
+    "pda_mission.tooltip_reward_extra": {
+        "fr": "Selon le type choisi : nom de faction (Reputation) ou nom d'item/bloc "
+              "reel du scenario (Item). Sans effet pour XP/UP. Pour recompenser en "
+              "argent : choisis 'MoneyCard' si propose (1 carte = 1 credit, confirme "
+              "sur un vrai fichier -- Count = montant de credits voulu, jusqu'a 50000).",
+        "en": "Depending on the chosen type: faction name (Reputation) or a real "
+              "item/block name from the scenario (Item). No effect for XP/UP. For a "
+              "money reward: pick 'MoneyCard' if offered (1 card = 1 credit, confirmed "
+              "on a real file -- Count = desired credit amount, up to 50000)."},
+    "pda_mission.tooltip_repeatable": {
+        "fr": "Si coche, la mission peut etre reactivee plusieurs fois une fois "
+              "reussie (meme objectif, meme recompense a chaque fois). Pour des "
+              "paliers avec des objectifs/recompenses DIFFERENTS a chaque etape "
+              "(ex: 1000 puis 2000 puis 5000 unites minees), utilise plutot "
+              "\"Ajouter un palier\" -- mecanisme different cote jeu (enchainement "
+              "de chapitres, pas une simple repetition).",
+        "en": "If checked, the mission can be reactivated several times once "
+              "completed (same objective, same reward each time). For tiers with "
+              "DIFFERENT objectives/rewards at each step (e.g. 1000 then 2000 then "
+              "5000 units mined), use \"Add a tier\" instead -- a different game "
+              "mechanism (chapter chaining, not simple repetition)."},
+    "pda_mission.tooltip_num_repeats": {
+        "fr": "Nombre de fois ou la mission peut etre reactivee apres sa premiere "
+              "reussite -- ex: 5 pour 5 repetitions possibles.",
+        "en": "Number of times the mission can be reactivated after its first "
+              "completion -- e.g. 5 for 5 possible repeats."},
+    "pda_mission.tooltip_delay_hours": {
+        "fr": "Delai d'attente (en heures) avant que la mission redevienne "
+              "disponible apres avoir ete reussie -- 0 pour une reactivation "
+              "immediate.",
+        "en": "Waiting time (in hours) before the mission becomes available again "
+              "after being completed -- 0 for immediate reactivation."},
+    "pda_mission.tier_group_title": {"fr": "Palier {n}", "en": "Tier {n}"},
+    "pda_mission.btn_add_tier": {"fr": "+ Ajouter un palier", "en": "+ Add a tier"},
+    "pda_mission.tooltip_add_tier": {
+        "fr": "Ajoute un nouveau palier avec son propre objectif et sa propre "
+              "recompense -- ex: palier 1 = miner 1000 unites -> recompense, puis "
+              "palier 2 = miner 2000 unites -> recompense, etc. Chaque palier "
+              "s'active automatiquement une fois le precedent recompense (chaine "
+              "de chapitres, mecanisme confirme sur une vraie mission du jeu). "
+              "Desactive la repetition simple ci-dessous, qui ne s'applique qu'a "
+              "une mission a un seul palier.",
+        "en": "Adds a new tier with its own objective and reward -- e.g. tier 1 = "
+              "mine 1000 units -> reward, then tier 2 = mine 2000 units -> reward, "
+              "etc. Each tier automatically activates once the previous one is "
+              "rewarded (chapter chain, mechanism confirmed on a real in-game "
+              "mission). Disables the simple repeat option below, which only "
+              "applies to a single-tier mission."},
+    "dialogue_edit.tab_edit": {"fr": "Edition ECF", "en": "ECF Editing"},
     "galaxy.n_systems": {"fr": "{n} systeme(s) solaire(s)", "en": "{n} solar system(s)"},
     "galaxy.n_sectors": {"fr": "{n} secteur(s) local(aux)", "en": "{n} local sector(s)"},
     "galaxy.tilt_label": {"fr": "Inclinaison (axe Y) :", "en": "Tilt (Y axis):"},
@@ -1018,6 +1266,19 @@ STRINGS = {
     "ecf.add_row_title": {"fr": "Ajouter une ligne", "en": "Add a row"},
     "ecf.add_row_type_label": {"fr": "Type :", "en": "Type:"},
     "ecf.add_row_value_label": {"fr": "Valeur :", "en": "Value:"},
+    "ecf.players_only_checkbox": {"fr": "Uniquement les blocs autorises aux joueurs",
+                                   "en": "Player-allowed blocks only"},
+    "ecf.tooltip_players_only": {
+        "fr": "Coche : n'affiche que les blocs ayant une 'AllowPlacingAt' non vide "
+              "(posables par un joueur via le constructeur). Decoche : affiche aussi "
+              "les blocs sans cette propriete, reserves aux POI/blueprints places par "
+              "le scenario. Les items d'ItemsConfig.ecf restent toujours affiches, ce "
+              "concept ne s'applique qu'aux blocs.",
+        "en": "Checked: only shows blocks with a non-empty 'AllowPlacingAt' (placeable "
+              "by a player via the constructor). Unchecked: also shows blocks without "
+              "that property, reserved for POIs/blueprints placed by the scenario. "
+              "Items from ItemsConfig.ecf are always shown, this concept only applies "
+              "to blocks."},
     "ecf.add_row_value_required": {"fr": "Indique une valeur.", "en": "Enter a value."},
     "status.row_added_numbered": {"fr": "'{key}' ajoute (numerote automatiquement)",
                                    "en": "'{key}' added (automatically numbered)"},

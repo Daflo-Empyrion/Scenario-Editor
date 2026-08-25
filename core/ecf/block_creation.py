@@ -134,16 +134,34 @@ def find_file_by_name(ecf_files: List[Path], filename: str) -> Optional[Path]:
     return None
 
 
-def list_craftable_names(items_path: Optional[Path], blocks_path: Optional[Path]) -> List[str]:
+def is_player_placeable_block(block: EcfBlock) -> bool:
+    """True si ce bloc porte une 'AllowPlacingAt' non vide -- la propriete qui
+    liste les types de structure (Base/MS/SS/GV) ou un JOUEUR peut le poser
+    via le constructeur (confirmee dans le glossaire et les tutoriels de
+    l'application). Un bloc sans cette propriete du tout n'est jamais posable
+    par un joueur : il n'existe que dans des blueprints de POI places par le
+    scenario/les devs (bloc 'reserve POI'). Ne s'applique qu'aux BLOCS
+    (BlocksConfig.ecf) -- les items (ItemsConfig.ecf) n'ont pas ce concept de
+    restriction, voir list_craftable_names ci-dessous."""
+    return bool(block.get_property('AllowPlacingAt'))
+
+
+def list_craftable_names(items_path: Optional[Path], blocks_path: Optional[Path],
+                          players_only: bool = False) -> List[str]:
     """Union triee des Name reellement definis dans ItemsConfig.ecf et
     BlocksConfig.ecf -- utilise pour peupler la liste deroulante d'ingredients
     lors de la creation d'un Template (memes deux fichiers deja utilises comme
     pool combine par la verification croisee 'Items/blocs references', voir
-    core/ecf/cross_reference_check.py)."""
+    core/ecf/cross_reference_check.py).
+
+    players_only : si True, exclut les blocs de BlocksConfig.ecf sans
+    'AllowPlacingAt' (voir is_player_placeable_block) -- typiquement des blocs
+    reserves aux POI, jamais posables par un joueur. Les items d'ItemsConfig.ecf
+    restent TOUJOURS inclus (aucune propriete equivalente fiable pour eux)."""
     from .parser import parse_ecf_file
 
     names: set = set()
-    for path in (items_path, blocks_path):
+    for path, is_blocks_file in ((items_path, False), (blocks_path, True)):
         if path is None:
             continue
         try:
@@ -151,6 +169,8 @@ def list_craftable_names(items_path: Optional[Path], blocks_path: Optional[Path]
         except Exception:
             continue
         for block in doc.iter_blocks():
+            if players_only and is_blocks_file and not is_player_placeable_block(block):
+                continue
             name = block.get_property('Name')
             if name:
                 names.add(name)

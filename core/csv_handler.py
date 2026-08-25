@@ -18,12 +18,10 @@
 Handler CSV, pour l'edition des fichiers de traduction Empyrion (Localization.csv,
 PDA.csv, Dialogues.csv...).
 
-IMPORTANT -- contrairement au parser ECF (valide sur 240+ fichiers reels) et au parser
-YAML (valide sur 561 fichiers reels), ce handler n'a pas encore ete teste sur un vrai
-fichier CSV Empyrion. Il utilise le module 'csv' standard de Python, avec detection
-automatique du delimiteur (virgule, point-virgule...) et du style de fin de ligne
-(CRLF/LF). A VALIDER avec verifier_parser_csv.py sur tes vrais fichiers avant de lui
-faire confiance pour de l'edition reelle -- meme demarche que pour l'ECF et le YAML.
+Valide contre de vrais fichiers Empyrion (PDA.csv, 9267 lignes ; Dialogues.csv) --
+round-trip parfait confirme. Un vrai bug trouve et corrige lors de cette
+verification : voir _detect_dialect() ci-dessous pour le detail (doublequote mal
+detecte par le Sniffer standard sur certains fichiers reels).
 """
 import csv
 import io
@@ -49,9 +47,18 @@ def _detect_lineterminator(raw_text: str) -> str:
 
 
 def _detect_dialect(raw_text: str) -> csv.Dialect:
+    """Detecte delimiteur/guillemets automatiquement -- MAIS force toujours
+    doublequote=True quel que soit le resultat du Sniffer, meme quand celui-ci
+    reussit sans lever d'erreur : confirme sur un vrai PDA.yaml/PDA.csv que le
+    Sniffer peut detecter a tort doublequote=False sur un fichier qui utilise
+    pourtant bel et bien l'echappement standard "" pour les guillemets
+    imbriques (ex: une citation entre guillemets a l'interieur d'un texte de
+    mission) -- sans ce correctif, un aller-retour casse silencieusement ces
+    valeurs (guillemets dupliques a chaque sauvegarde). Meme categorie de
+    defaillance deja connue et deja contournee pour has_header() ci-dessous."""
     sample = raw_text[:4096]
     try:
-        return csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
     except csv.Error:
         class _Default(csv.Dialect):
             delimiter = ','
@@ -61,6 +68,8 @@ def _detect_dialect(raw_text: str) -> csv.Dialect:
             lineterminator = '\r\n'
             quoting = csv.QUOTE_MINIMAL
         return _Default
+    dialect.doublequote = True
+    return dialect
 
 
 def _detect_has_header(raw_text: str, dialect: csv.Dialect) -> bool:

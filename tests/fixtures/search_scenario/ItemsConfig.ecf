@@ -1,0 +1,7 @@
+{ +Item Id: 201, Name: IronOre
+  Meshfile: Entities/Items/Ores/IronOrePrefab
+}
+
+{ +Item Id: 202, Name: CopperOre
+  Meshfile: Entities/Items/Ores/CopperOrePrefab
+}

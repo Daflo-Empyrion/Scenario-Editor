@@ -341,9 +341,11 @@ def test_no_file_path_applies_all_rules_by_default():
 
 def test_full_real_gameconfig_produces_only_known_issues():
     """Test d'integration large : sur l'ensemble des vrais fichiers ECF du
-    jeu disponibles, seuls les 2 problemes deja identifies et confirmes sur
-    BlocksConfig.ecf doivent remonter -- tout le reste doit rester silencieux
-    apres le filtrage par fichier."""
+    jeu disponibles, seul le probleme E005 deja identifie et confirme sur
+    BlocksConfig.ecf doit remonter -- tout le reste doit rester silencieux
+    apres le filtrage par fichier. (Anciennement 2 : le second etait le
+    faux positif W007 sur 'edenvoidiumt2', corrige depuis -- voir
+    test_edenvoidiumt2_no_longer_flagged_as_unrecognized ci-dessous.)"""
     from core.ecf.validation import validate_file
     uploads = Path("/mnt/user-data/uploads")
     if not uploads.exists():
@@ -351,4 +353,12 @@ def test_full_real_gameconfig_produces_only_known_issues():
     total = 0
     for ecf_path in sorted(uploads.glob("*.ecf")):
         total += len(validate_file(ecf_path))
-    assert total == 2
+    assert total == 1
+
+
+def test_edenvoidiumt2_no_longer_flagged_as_unrecognized():
+    """Regression : signale par un utilisateur comme faux positif -- la serie
+    de paliers edenvoidium/edenvoidiumt etait deja confirmee, edenvoidiumt2
+    manquait de la liste par manque de couverture de l'echantillon initial."""
+    from core.ecf.validation import VALID_MATERIALS
+    assert 'edenvoidiumt2' in VALID_MATERIALS

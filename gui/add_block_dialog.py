@@ -93,12 +93,14 @@ class PropertyTableDialog(QDialog):
     def __init__(self, doc, id_mode: str, existing_ids: set, default_kind: str = "",
                  name_prefill: str = "", name_readonly: bool = False,
                  enable_ingredients: bool = False, craftable_names: Optional[List[str]] = None,
+                 craftable_names_players_only: Optional[List[str]] = None,
                  window_title_key: str = "addblock.table_title", parent=None):
         super().__init__(parent)
         self.doc = doc
         self.id_mode = id_mode
         self.existing_ids = existing_ids
         self.craftable_names = craftable_names or []
+        self.craftable_names_players_only = craftable_names_players_only or []
         self._properties_by_key = {}
         self._all_rows: List[Tuple[QCheckBox, str, QTableWidgetItem]] = []
 
@@ -164,6 +166,7 @@ class PropertyTableDialog(QDialog):
 
         # --- Ingredients (Template uniquement) ---
         self.ingredients_table = None
+        self.ingredients_players_only_check = None
         if enable_ingredients:
             layout.addWidget(QLabel(t("addblock.ingredients_label")))
             self.ingredients_table = QTableWidget(0, 2)
@@ -182,6 +185,12 @@ class PropertyTableDialog(QDialog):
             ing_buttons.addWidget(btn_remove_ingredient)
             ing_buttons.addStretch()
             layout.addLayout(ing_buttons)
+
+            self.ingredients_players_only_check = None
+            if self.craftable_names_players_only:
+                self.ingredients_players_only_check = QCheckBox(t("ecf.players_only_checkbox"))
+                self.ingredients_players_only_check.setToolTip(t("ecf.tooltip_players_only"))
+                layout.addWidget(self.ingredients_players_only_check)
 
         # --- Boutons ---
         buttons = QHBoxLayout()
@@ -248,7 +257,9 @@ class PropertyTableDialog(QDialog):
         self.ingredients_table.insertRow(row)
         combo = QComboBox()
         combo.setEditable(True)
-        combo.addItems(self.craftable_names)
+        use_players_only = bool(self.ingredients_players_only_check
+                                 and self.ingredients_players_only_check.isChecked())
+        combo.addItems(self.craftable_names_players_only if use_players_only else self.craftable_names)
         self.ingredients_table.setCellWidget(row, 0, combo)
         self.ingredients_table.setItem(row, 1, QTableWidgetItem("1"))
 

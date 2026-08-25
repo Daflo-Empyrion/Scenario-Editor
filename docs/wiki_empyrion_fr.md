@@ -395,6 +395,30 @@ clarifies (jamais une simple traduction mot a mot).
 - `Ingredients` -- Matiere brute sans recette (ramassee dans le monde).
 - `Components` -- Materiau transforme, avec une recette (Templates.ecf).
 
+**Credits (argent du joueur)**
+
+- `MoneyCard` (Id 248) -- VRAI item representant les credits, confirme via un
+  vrai fichier utilisateur (commentaire `## Please do not rename -
+  referenced in code` juste au-dessus de sa definition -- cable en dur dans
+  le moteur). Propriete `Credits: 1` (chaque carte vaut 1 credit),
+  `StackSize: 50000`. Pour une recompense en argent dans une mission PDA
+  (`Item: MoneyCard, Count: N`), N = montant de credits voulu (jusqu'a 50000
+  par pile).
+- `Le nom litteral 'Credits' ne fonctionne PAS` -- Infirme sur deux logs
+  client reels (v1.19.2) : meme avec une entree 'Credits' + StackSize
+  ajoutee a la main dans ItemsConfig.ecf ET un rechargement complet de la
+  partie, le moteur rejette systematiquement la recompense
+  ('-WRN- PDA: No max stack size found for 'Credits'' puis 'Malformed item
+  reward specification : count too high'), rendant le titre du chapitre
+  illisible et faisant planter le client au clic sur la mission concernee.
+  Le wiki communautaire du jeu ('Item: Can be an item, device, credits,
+  gold or XP') est donc incorrect ou obsolete sur ce point pour cette
+  version.
+- `GoldCoins` (Id 251) -- Autre item de type monnaie, `Credits: 50` par
+  unite, sans StackSize explicite dans le fichier observe.
+- `PlatinumCard` (Id 195) -- Variante 'CashCard' de rang superieur, meme
+  principe que MoneyCard (StackSize: 50000).
+
 **Types de prise en main (HoldType)**
 
 - `0` -- Non specifie.

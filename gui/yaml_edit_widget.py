@@ -169,6 +169,16 @@ class YamlEditWidget(QWidget):
         self._set_modified(False)
         self.saved.emit()
 
+    def _get_content_for_autosave(self) -> str:
+        """Voir core/autosave.py -- meme raisonnement que
+        EcfEditWidget._get_content_for_autosave() (duplique volontairement la
+        preparation du contenu de save(), sans jamais toucher a son chemin
+        critique)."""
+        if not self.editable:
+            return self.doc.render()
+        self._apply_value()
+        return self.doc.render()
+
     def _snapshot_undo(self):
         """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
         (texte serialise) pour pouvoir l'annuler."""

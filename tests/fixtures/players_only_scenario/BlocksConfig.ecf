@@ -1,0 +1,16 @@
+# Extrait de test -- blocs avec/sans AllowPlacingAt, pour tester le filtre
+# players_only de list_craftable_names.
+
+{ Block Id: 1000, Name: PlayerConstructibleWall
+  Material: concrete
+  AllowPlacingAt: "Base,MS,SS,GV", display: true
+}
+
+{ Block Id: 1001, Name: PoiOnlyDecoration
+  Material: concrete
+}
+
+{ Block Id: 1002, Name: PlayerConstructibleDoor
+  Material: hullarmored
+  AllowPlacingAt: "Base,MS", display: true
+}

@@ -1,0 +1,3 @@
+{ Block Id: 500, Name: RedDoor
+  ExecuteOnActivate: "Token:1"
+}

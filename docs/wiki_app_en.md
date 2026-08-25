@@ -99,13 +99,19 @@ planets...), **.csv** (translations, tables), **.txt** (plain text).
   table-based mechanism, with the Name pre-filled to exactly match the
   block/item just created, and an **Ingredients** section where each row is
   picked from a dropdown (items and blocks genuinely defined in the
-  scenario, never free text). The Id is validated live against the game
+  scenario, never free text), with the same "Player-allowed blocks only"
+  checkbox as for LootGroups.ecf. The Id is validated live against the game
   limit and existing duplicates in the file.
 - **+ Property** — adds a property to the selected block; several pairs can be
   typed at once (`value, param1: X, param2: "Y,Z"`) to stay grouped on the same
   line as the game does
 - **+ Row** (table mode only) — dedicated form (Type/Value/params), numbering and
-  position calculated automatically
+  position calculated automatically. On `LootGroups.ecf`, the Value field
+  becomes a dropdown of the scenario's real items/blocks (ItemsConfig.ecf/
+  BlocksConfig.ecf) rather than free text, with a "Player-allowed blocks
+  only" checkbox to exclude POI-reserved blocks (those without an
+  `AllowPlacingAt` property) — items are always shown, this concept only
+  applies to blocks.
 
 ### Deleting and disabling
 - **Delete** (right-click) — permanently removes the element, confirmation
@@ -151,6 +157,29 @@ once, for a given property key (e.g. `param1`, `Count`, `HitPoints`):
   engine limitation, even if the overall rule multiplies everything else by 2)
 - **"Check all" / "Uncheck all"** buttons
 - Integrates with the tab's normal **Undo (Ctrl+Z)** like any other edit
+
+---
+
+## 4bis. Special case -- Dialogues.ecf
+
+Opening a file named exactly `Dialogues.ecf` automatically switches to a
+two-tab container instead of plain ECF editing:
+
+- **Dialogue browser** — structured, navigable, read-only view. Filterable
+  list of all dialogues on the left; on the right, for the selected
+  dialogue: NPC, displayed text, variables (with their type), executed
+  scripts, automatic transitions (`Next_N`/`NextIf_N`) and player choices
+  (`Option_N`/`OptionNext_N`/`OptionIf_N`/`OptionExecute_N`) -- every
+  transition or choice target is **clickable**, navigating directly to the
+  targeted dialogue without having to hunt for it in a list of several
+  thousand entries. Broken targets (nonexistent dialogue) show in red;
+  reserved sentinels (`End`, `GotoAndReset`, `Return`) are greyed out,
+  non-clickable. A **"Referenced by (N)"** section lists every dialogue that
+  leads to the one shown.
+- **ECF Editing** — the same generic editor as any other .ecf file, for
+  actual editing (the browser stays read-only). Both tabs share the same
+  in-memory document; an edit made on the editing side is reflected in the
+  browser automatically when switching back to it, or after saving.
 
 ---
 
@@ -389,6 +418,24 @@ Double-click a result to open the file and jump to the relevant block, same
 as for cross-file references. An error/warning filter is available at the
 top of the dialog.
 
+### Potentially unused tokens
+**Verification > Potentially unused tokens...** — a direct suggestion from
+a community member (Begebum, Steam comment): lists tokens defined in
+`TokenConfig.ecf` but never referenced (`Token:XXXX`) elsewhere in the
+scenario. Purely informational, never an error — some tokens may be used
+implicitly by the game without an explicit reference. Deliberately
+restricted to tokens (unlike generic blocks/items, where a lack of
+reference means nothing -- a basic building block doesn't need to be
+"referenced" to be useful, it's simply placed in-game).
+
+### Scenario health check
+**Verification > Scenario health check...** — runs the 4 checks above in
+one click and shows a consolidated summary (green/no issues or red/issue
+count per category), with a "View details" button that opens the real full
+window for that category. Doesn't reimplement any display — just a single
+entry point for a quick status overview without opening 4 separate windows
+one by one.
+
 ---
 
 ## 12. Backups
@@ -416,6 +463,90 @@ project, compares any two folders:
   for YAML)
 - **Also show identical files** (checkbox)
 - **Export report...** (complete text file)
+
+---
+
+## 13bis. Search across the whole scenario
+
+**File > Search in scenario...** — unlike the existing searches (filter by
+property in ECF, CSV search) which work within the open file, this one
+scans **every file of the working copy** at once: ECF (kind, Id/Name, every
+property including nested), playfield YAML (every entry), CSV (each row).
+Double-click a result to directly open the relevant file and jump to the
+exact block/entry -- same navigation mechanisms as the verification
+windows.
+
+Known limitation: CSV results open the relevant file without navigating to
+the exact row (no row-selection mechanism currently built for the CSV
+editor).
+
+---
+
+## 13ter. Creating a PDA mission
+
+**File > New PDA mission...** — guided creation of a mission (a PDA Chapter
+with its Task and objective), automatically locates
+`Extras/PDA/PDA.yaml` and `PDA.csv` in the open scenario. Structure
+confirmed on a real file (530 chapters, same authors as `Dialogues.ecf`):
+Chapter > Task > Action.
+
+Two objective types handled:
+- **Kill enemies** — target creature/entity names (suggestions drawn from
+  names already used elsewhere in the same `PDA.yaml`, free text also
+  possible), required amount
+- **Destroy a structure OR mine a resource** — same underlying game
+  mechanism (`BlockDestroyed`): destroying an enemy base/ship's core and
+  mining a resource are technically the same thing (a mined resource is a
+  destroyed block). The **Types** field distinguishes the two (`CoreNPC`
+  for an enemy structure, `IronResource`/`CopperResource`... for a
+  resource) — suggestions drawn from Types already used in the same file.
+  For mining specifically, the **Target names** field also automatically
+  suggests real planetary resource blocks (`BlocksConfig.ecf`, e.g.
+  `IronResource`) and space asteroid variants
+  (`AsteroidVoxel01/02/03<Material>`, confirmed technical pattern from
+  space playfields) — switches automatically based on the chosen objective
+  type.
+
+**Rewards**: XP, UP (skill points), Reputation (with faction choice), or
+Item (dropdown populated with the scenario's real items/blocks, same
+infrastructure as the Template ingredient picker, with the same
+"Player-allowed blocks only" checkbox) — several rewards possible per
+mission. For a money reward: pick **`MoneyCard`** if offered (automatically
+placed at the top of the list when it exists in `ItemsConfig.ecf`) — 1 card
+= 1 credit, confirmed on a real scenario file (`## Please do not rename -
+referenced in code` comment right above its definition). <span
+style="color:#7c859c"><i>The literal name "Credits" does NOT work despite
+what the game's community wiki suggests — disproven on two real client logs
+(v1.19.2): the reward is systematically rejected by the engine.</i></span>
+
+**Repeatability** (single-tier missions only): "Repeatable mission"
+checkbox, with number of repeats and delay before reactivation (in hours)
+— matches the game's real `RepeatConditions` mechanism (repeats the SAME
+objective/reward IDENTICALLY).
+
+**Tiers** — **"+ Add a tier"**: for a staged mission with a DIFFERENT
+objective/reward at each step (e.g. tier 1 = mine 1000 units -> reward X,
+then tier 2 = mine 2000 units -> reward Y, etc.), each tier gets its own
+title, description, objective and rewards. Real mechanism confirmed on an
+actual in-game chain (50 -> 100 -> 35 kills across 3 successive chapters):
+each tier becomes a **distinct PDA Chapter**, never a repeat of the same
+chapter — the first is immediately available, each next one only activates
+once the previous is rewarded (`RewardedChapters` + `Activatable:
+WhenRewarded`). The "Repeatable mission" checkbox is automatically disabled
+as soon as a second tier exists: the two mechanisms never combine in the
+game.
+
+Files are opened as **real tabs** of the working copy (never a direct disk
+write) — nothing is saved until you click Save yourself on those two tabs.
+
+<span style="color:#7c859c"><i>Assumed limitation ("Kill enemies" objective
+only -- mining gets real suggestions, see above): target names specific to
+a given blueprint (e.g. the custom name of a "core" block specific to one
+particular enemy ship) are not automatically extracted from blueprint
+files (`.epb`) -- same risk category as game saves (undocumented
+proprietary binary format, no licensed reusable community tool). Only
+names already used elsewhere in the same `PDA.yaml` are suggested; free
+text remains always possible.</i></span>
 
 ---
 
@@ -450,8 +581,29 @@ cases.
 - **Name for annotations...** — name used in automatic comments
 - **Automatically annotate changes** (checkbox)
 - **Allow merging** (checkbox, disabled by default)
+- **Online translation (Google Translate)** (checkbox, enabled by default) --
+  uncheck to fully disable sending text to Google; see `PRIVACY.md`
+- **Autosave (crash recovery)** (checkbox, enabled by default) -- see
+  section 12bis below
 - **Default translation language...** — language used by the quick "Translate"
   button
+
+---
+
+## 12bis. Autosave and crash recovery
+
+Every 3 minutes, each modified-but-not-yet-saved tab is saved into a
+recovery folder **separate** from the real working copy — never written to
+the real scenario files until the user explicitly clicks Save. As soon as a
+file is genuinely saved, its recovery snapshot is immediately removed.
+
+If the application closes unexpectedly (crash, power loss...) while
+recovery snapshots still exist for a scenario, a window offers to
+**restore** them (writes directly to the real working-copy files, before
+any tab is reopened) or **discard** them permanently -- on opening or
+resuming that scenario.
+
+Can be disabled via **Options > Autosave**.
 
 ---
 

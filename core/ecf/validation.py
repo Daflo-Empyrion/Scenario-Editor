@@ -97,14 +97,19 @@ LIST_PROPERTIES = {'AllowPlacingAt', 'ChildBlocks'}
 # d'une supposition -- mais reste marquee comme non garantie exhaustive (un
 # scenario personnalise pourrait en definir d'autres), d'ou le niveau
 # 'warning' plutot que 'error'.
+# 'edenvoidiumt2' ajoute suite a un faux positif signale par l'utilisateur --
+# la serie de paliers edenvoidium/edenvoidiumt deja confirmee suggerait
+# fortement une suite (t2, peut-etre t3...), mais seul t2 a ete confirme
+# reellement present dans un scenario ; pas d'autre palier ajoute sans
+# confirmation, pour ne pas retomber dans la supposition ecartee ci-dessus.
 VALID_MATERIALS = {
     'BossLegacy', 'BossMetal', 'CarbonLarge', 'CarbonSmall', 'CombatLarge',
     'CombatSmall', 'Concrete', 'ConcreteArmored', 'Device', 'Foundation',
     'Human', 'Hydroponics', 'Legacy', 'SteelLarge', 'SteelSmall', 'Thruster',
     'TitaniumLarge', 'TitaniumSmall', 'WeaponLarge', 'WeaponPlanet',
     'WeaponSmall', 'Wood', 'Xenosteel', 'air', 'bedrock', 'dirt', 'edenadmin',
-    'edenice', 'edenrich', 'edenvoidium', 'edenvoidiumt', 'forcefield',
-    'grass', 'lava', 'plants', 'resourcehard', 'resourcemedium',
+    'edenice', 'edenrich', 'edenvoidium', 'edenvoidiumt', 'edenvoidiumt2',
+    'forcefield', 'grass', 'lava', 'plants', 'resourcehard', 'resourcemedium',
     'resourcesoft', 'rock', 'sand', 'snow', 'stone', 'tree', 'water',
 }
 

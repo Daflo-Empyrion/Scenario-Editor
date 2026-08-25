@@ -441,6 +441,25 @@ class CsvEditWidget(QWidget):
         layout.addWidget(self.table, 1)
 
     def _populate_table(self):
+        """Remplit la table depuis self.doc.rows -- redimensionne D'ABORD la
+        table sur len(self.doc.rows) (setRowCount) avant de placer les
+        cellules. BUG CORRIGE (confirme sur un vrai PDA.csv utilisateur,
+        9268 lignes) : sans ce redimensionnement, quand self.doc.rows est
+        agrandi APRES la creation initiale de la table (ex: nouvelles lignes
+        ajoutees par PdaMissionDialog via core.pda_mission.add_pda_text_entries,
+        puis cette methode rappelee), QTableWidget.setItem() sur des index de
+        ligne au-dela de l'ancien rowCount() ne fait RIEN silencieusement --
+        les nouvelles lignes n'apparaissent jamais dans la table. Pire :
+        save()/_get_content_for_autosave() appellent ensuite
+        _sync_doc_from_table(), qui ne relit que range(self.table.rowCount())
+        -- l'ancien compte -- et ECRASE self.doc.rows en perdant les lignes
+        ajoutees, avant meme l'export vers le fichier reel. Resultat observe
+        en jeu : la mission PDA nouvellement creee affiche son jeton brut
+        (pda_XXXX) au lieu du texte, le fichier PDA.csv sur disque ne
+        contenant jamais les nouvelles entrees malgre un 'Enregistrer'
+        explicite sur cet onglet."""
+        if self.table.rowCount() != len(self.doc.rows):
+            self.table.setRowCount(len(self.doc.rows))
         self.table.blockSignals(True)
         for r, row in enumerate(self.doc.rows):
             for c in range(self.table.columnCount()):
@@ -519,6 +538,14 @@ class CsvEditWidget(QWidget):
             return
         self._set_modified(False)
         self.saved.emit()
+
+    def _get_content_for_autosave(self) -> str:
+        """Voir core/autosave.py -- meme raisonnement que
+        EcfEditWidget._get_content_for_autosave()."""
+        if not self.editable:
+            return render_csv(self.doc)
+        self._sync_doc_from_table()
+        return render_csv(self.doc)
 
     def _snapshot_table(self) -> list:
         return [[self.table.item(r, c).text() if self.table.item(r, c) else ""

@@ -1,0 +1,23 @@
+## Line format: Item_x: name , data: count[-range], xdata: probability
+
+{ +LootGroup Name: EscapePodEasy
+  Count: all
+  Item_0: EmergencyRations, param1: 1
+  Item_1: WaterBottle, param1: 5
+  Item_2: RadarSuitT1, param1: 1
+  Item_3: SurvivalTent, param: 1
+  #Item_4: OreScanner, param:1
+}
+
+{ +LootGroup Name: BasicComponents
+  Count: "1,2"
+  Item_0: SteelPlate, param1: "1,8", param2: 0.3
+  Item_1: GlassPlate, param1: "1,2", param2: 0.3
+  Item_2: OpticalFiber, param1: "1,4", param2: 0.3
+  Item_3: MechanicalComponents, param1: "1,4", param2: 0.3
+  Item_4: Electronics, param1: "1,4", param2: 0.2
+  Item_5: PlasticMaterial, param1: "1,8", param2: 0.2
+  Item_6: MetalPieces, param1: "1,8", param2: 0.1
+  Item_7: Nanotubes, param1: "1,4", param2: 0.1
+}
+

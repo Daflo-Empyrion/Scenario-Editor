@@ -1,0 +1,6 @@
+# Extrait de test -- items sans AllowPlacingAt (propriete inexistante pour les
+# items), doivent toujours rester inclus meme avec players_only=True.
+
+{ Item Id: 2000, Name: SomeRegularItem
+  MarketPrice: 10
+}

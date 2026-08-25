@@ -684,6 +684,9 @@ class PlayfieldEditWidget(QWidget):
     def save(self):
         self.raw_widget.save()
 
+    def _get_content_for_autosave(self) -> str:
+        return self.raw_widget._get_content_for_autosave()
+
     def is_modified(self) -> bool:
         return self.raw_widget.is_modified()
 
