@@ -106,12 +106,13 @@ planets...), **.csv** (translations, tables), **.txt** (plain text).
   typed at once (`value, param1: X, param2: "Y,Z"`) to stay grouped on the same
   line as the game does
 - **+ Row** (table mode only) — dedicated form (Type/Value/params), numbering and
-  position calculated automatically. On `LootGroups.ecf`, the Value field
-  becomes a dropdown of the scenario's real items/blocks (ItemsConfig.ecf/
-  BlocksConfig.ecf) rather than free text, with a "Player-allowed blocks
-  only" checkbox to exclude POI-reserved blocks (those without an
-  `AllowPlacingAt` property) — items are always shown, this concept only
-  applies to blocks.
+  position calculated automatically. The Value field becomes a dropdown of
+  the scenario's real items/blocks (ItemsConfig.ecf/BlocksConfig.ecf)
+  rather than free text — available on **all table-mode files**, not just
+  LootGroups.ecf; the field stays editable either way if the suggestions
+  don't fit. "Player-allowed blocks only" checkbox to exclude POI-reserved
+  blocks (those without an `AllowPlacingAt` property) — items are always
+  shown, this concept only applies to blocks.
 
 ### Deleting and disabling
 - **Delete** (right-click) — permanently removes the element, confirmation

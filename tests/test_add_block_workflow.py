@@ -494,3 +494,52 @@ def test_add_table_row_dialog_wires_lootgroups_suggestions(qapp, tmp_path):
 
     assert captured["value_suggestions"] is not None
     assert "IronOre" in captured["value_suggestions"]
+
+
+def test_add_table_row_dialog_wires_suggestions_for_non_lootgroups_files(qapp, tmp_path):
+    """Generalisation demandee par l'utilisateur : la liste deroulante
+    d'items/blocs du scenario ne doit plus se limiter a LootGroups.ecf --
+    disponible sur TOUS les fichiers en mode tableau (le champ reste editable
+    dans tous les cas, donc aucun risque a proposer ces suggestions meme sur
+    un fichier ou 'Valeur' n'est pas un nom d'item/bloc)."""
+    import shutil
+    from gui.theme import apply_theme
+    from gui.main_window import MainWindow
+    from gui.ecf_edit_widget import AddTableRowDialog
+    from core.scanner import scan_scenario
+    from core.workspace import Workspace
+    from PyQt6.QtWidgets import QDialog
+
+    apply_theme(qapp)
+    config_dir = tmp_path / "Content" / "Configuration"
+    config_dir.mkdir(parents=True)
+    fixture_dir = FIXTURE_DIR
+    shutil.copy(fixture_dir / "Containers.ecf", config_dir / "Containers.ecf")
+    shutil.copy(fixture_dir / "ItemsConfig.ecf", config_dir / "ItemsConfig.ecf")
+    shutil.copy(fixture_dir / "BlocksConfig.ecf", config_dir / "BlocksConfig.ecf")
+
+    scenario = scan_scenario(tmp_path)
+    window = MainWindow()
+    window.workspace = Workspace(source_a=scenario, source_a_root=tmp_path,
+                                  working=scenario, working_root=tmp_path)
+    widget_wrapper = window.open_working_file_tab(config_dir / "Containers.ecf")
+    edit_widget = widget_wrapper.edit_widget
+
+    first_block = next(b for b in edit_widget.doc.iter_blocks() if b.get_property("Name") == "SupplyCrateEasy")
+    edit_widget._current_block = first_block
+    edit_widget._table_mode = True
+
+    captured = {}
+    original_init = AddTableRowDialog.__init__
+
+    def capturing_init(self, *args, **kwargs):
+        captured["value_suggestions"] = kwargs.get("value_suggestions")
+        original_init(self, *args, **kwargs)
+
+    import unittest.mock
+    with unittest.mock.patch.object(AddTableRowDialog, "__init__", capturing_init):
+        with unittest.mock.patch.object(QDialog, "exec", lambda self: QDialog.DialogCode.Rejected):
+            edit_widget._add_table_row_dialog()
+
+    assert captured["value_suggestions"] is not None
+    assert "IronOre" in captured["value_suggestions"]

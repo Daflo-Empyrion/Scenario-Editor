@@ -1538,13 +1538,16 @@ class EcfEditWidget(QWidget):
         detected = self._detect_repeating_items(self._current_block)
         param_columns, prefixes = detected if detected else ([], ["Name", "Group"])
 
-        # LootGroups.ecf : propose un menu deroulant des vrais items/blocs du
-        # scenario plutot qu'une saisie libre -- confirme sur un vrai fichier,
-        # un seul prefixe utilise ('Item'), toujours des noms reels
-        # d'ItemsConfig.ecf/BlocksConfig.ecf.
+        # Menu deroulant des vrais items/blocs du scenario (ItemsConfig.ecf/
+        # BlocksConfig.ecf) pour le champ Valeur -- disponible sur TOUS les
+        # fichiers en mode tableau (pas seulement LootGroups.ecf), a la
+        # demande de l'utilisateur : le champ reste de toute facon editable
+        # (QComboBox editable), donc aucun risque a proposer ces suggestions
+        # meme sur un fichier ou 'Valeur' ne represente pas un nom d'item/bloc
+        # -- au pire l'utilisateur les ignore et tape sa propre valeur.
         value_suggestions = None
         value_suggestions_players_only = None
-        if self.path.name.lower() == "lootgroups.ecf" and self.sibling_ecf_files:
+        if self.sibling_ecf_files:
             from core.ecf.block_creation import find_file_by_name, list_craftable_names
             items_path = find_file_by_name(self.sibling_ecf_files, "ItemsConfig.ecf")
             blocks_path = find_file_by_name(self.sibling_ecf_files, "BlocksConfig.ecf")

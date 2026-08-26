@@ -112,10 +112,12 @@ planetes...), **.csv** (traductions, tables), **.txt** (texte brut).
   peuvent etre tapees en une fois (`valeur, param1: X, param2: "Y,Z"`) pour rester
   groupees sur la meme ligne comme le fait le jeu
 - **+ Ligne** (mode tableau uniquement) — formulaire dedie (Type/Valeur/params),
-  numerotation et position calculees automatiquement. Sur `LootGroups.ecf`, le
-  champ Valeur devient un menu deroulant des vrais items/blocs du scenario
-  (ItemsConfig.ecf/BlocksConfig.ecf) plutot qu'une saisie libre, avec une case
-  a cocher **"Uniquement les blocs autorises aux joueurs"** pour exclure les
+  numerotation et position calculees automatiquement. Le champ Valeur devient
+  un menu deroulant des vrais items/blocs du scenario (ItemsConfig.ecf/
+  BlocksConfig.ecf) plutot qu'une saisie libre — disponible sur **tous les
+  fichiers en mode tableau**, pas seulement LootGroups.ecf ; le champ reste
+  editable dans tous les cas si les suggestions ne conviennent pas. Case a
+  cocher **"Uniquement les blocs autorises aux joueurs"** pour exclure les
   blocs reserves aux POI (ceux sans propriete `AllowPlacingAt`) — les items
   restent toujours proposes, ce concept ne s'applique qu'aux blocs.
 
