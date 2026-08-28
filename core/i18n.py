@@ -737,6 +737,32 @@ STRINGS = {
     "dup.duplicate": {"fr": "Dupliquer", "en": "Duplicate"},
     "dup.name_required": {"fr": "Name requis", "en": "Name required"},
     "dup.no_change": {"fr": "Aucun changement", "en": "No change"},
+    "dup.multi_variant_toggle": {"fr": "Creer plusieurs variantes", "en": "Create multiple variants"},
+    "dup.simple_percent_toggle": {
+        "fr": "Appliquer une variation en pourcentage par rapport a l'original",
+        "en": "Apply a percentage variation relative to the original"},
+    "dup.simple_percent_label": {"fr": "Variation :", "en": "Variation:"},
+    "dup.variant_count": {"fr": "Nombre de variantes :", "en": "Number of variants:"},
+    "dup.variant_naming_hint": {
+        "fr": "Nommage automatique : {base}T1, {base}T2, {base}T3...",
+        "en": "Automatic naming: {base}T1, {base}T2, {base}T3..."},
+    "dup.variants_create_templates_prompt": {
+        "fr": "Créer aussi les recettes de craft (Template) pour les {count} variantes :\n{names} ?",
+        "en": "Also create the crafting recipes (Template) for the {count} variants:\n{names}?"},
+    "dup.variants_no_source_template": {
+        "fr": "Aucun Template source nommé '{name}' trouvé dans Templates.ecf -- les Templates des variantes n'ont pas été créés.",
+        "en": "No source Template named '{name}' found in Templates.ecf -- variant Templates were not created."},
+    "dup.first_is_original": {
+        "fr": "Le premier variant (T1) garde les valeurs d'origine (0%)",
+        "en": "The first variant (T1) keeps the original values (0%)"},
+    "dup.total_percent": {"fr": "Variation totale (T1 -> dernier) :", "en": "Total variation (T1 -> last):"},
+    "dup.fields_to_vary": {"fr": "Champs a faire varier :", "en": "Fields to vary:"},
+    "dup.manual_field_placeholder": {"fr": "Nom d'un autre champ...", "en": "Name of another field..."},
+    "dup.add_field_btn": {"fr": "Ajouter", "en": "Add"},
+    "dup.variants_created": {"fr": "{count} variantes creees : {names}", "en": "{count} variants created: {names}"},
+    "dup.row_title": {"fr": "Dupliquer cette ligne", "en": "Duplicate this row"},
+    "dup.current_row": {"fr": "Ligne actuelle : {name}", "en": "Current row: {name}"},
+    "dup.new_row_name": {"fr": "Nouveau nom :", "en": "New name:"},
 
     # --- Dialogue Blocs en attente ---
     "pending.title": {"fr": "Blocs en attente (conflits d'Id)", "en": "Pending blocks (Id conflicts)"},
@@ -1262,6 +1288,12 @@ STRINGS = {
     "ecf.col_value": {"fr": "Valeur", "en": "Value"},
     "ecf.col_type": {"fr": "Type", "en": "Type"},
     "ecf.col_item_value": {"fr": "Valeur", "en": "Value"},
+    "ecf.col_type_tooltip": {
+        "fr": "<b>Type</b><br>Prefixe de la ligne repetitive (ex: Item, Name, Group) -- indique quelle sorte d'entree est declaree sur cette ligne.",
+        "en": "<b>Type</b><br>Prefix of the repeating line (e.g. Item, Name, Group) -- indicates what kind of entry this line declares."},
+    "ecf.col_item_value_tooltip": {
+        "fr": "<b>Valeur</b><br>Identifiant ou nom de cette entree (ex: le nom de l'item pour une ligne Item_x).",
+        "en": "<b>Value</b><br>Identifier or name of this entry (e.g. the item name for an Item_x line)."},
     "btn.add_row_table": {"fr": "+ Ligne", "en": "+ Row"},
     "ecf.add_row_title": {"fr": "Ajouter une ligne", "en": "Add a row"},
     "ecf.add_row_type_label": {"fr": "Type :", "en": "Type:"},
@@ -1516,6 +1548,7 @@ STRINGS = {
     # --- Bouton traduction rapide ---
     "btn.quick_translate": {"fr": "Traduire", "en": "Translate"},
     "menu.options.default_language": {"fr": "Langue de traduction par defaut...", "en": "Default translation language..."},
+    "menu.options.theme": {"fr": "Theme", "en": "Theme"},
     "trans.pick_default_language_title": {"fr": "Langue par defaut", "en": "Default language"},
     "trans.pick_default_language_label": {"fr": "Traduire vers (utilisee par le bouton 'Traduire' rapide) :",
                                            "en": "Translate to (used by the quick 'Translate' button):"},

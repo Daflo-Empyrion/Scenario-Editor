@@ -35,7 +35,8 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import t
 from core.ecf.validation import ValidationIssue, validate_scenario
-from gui.theme import icon, icon_size, PRIMARY_DARK, RED, ORANGE
+from gui.theme import icon, icon_size
+from gui import theme as _theme
 from gui.results_window_helpers import export_text_to_file
 
 
@@ -59,7 +60,7 @@ class ValidationDialog(QDialog):
         layout = QVBoxLayout(self)
 
         header = QLabel(t("validation.header", root=self.scenario_root.name))
-        header.setStyleSheet(f"font-weight: 700; color: {PRIMARY_DARK}; padding: 4px 0;")
+        header.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY_DARK}; padding: 4px 0;")
         layout.addWidget(header)
 
         filter_row = QHBoxLayout()
@@ -141,7 +142,7 @@ class ValidationDialog(QDialog):
             file_item.setExpanded(True)
 
     def _colorize_item(self, item: QTreeWidgetItem, level: str):
-        color = RED if level == 'error' else ORANGE
+        color = _theme.RED if level == 'error' else _theme.ORANGE
         for col in range(3):
             item.setForeground(col, Qt.GlobalColor.red if level == 'error' else Qt.GlobalColor.darkYellow)
 

@@ -30,7 +30,7 @@ importer un fichier (mesh, icone, ECF, YAML...).
 import sys
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
@@ -50,7 +50,8 @@ from core.workspace import (
     Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
     merge_file_into_working, merge_folder_into_working, merge_block_into_working,
     merge_csv_row_into_working, translate_csv_cell_into_working,
-    duplicate_ecf_block_into_working, duplicate_csv_row_into_working,
+    duplicate_ecf_block_into_working, insert_ecf_block_into_working,
+    duplicate_csv_row_into_working,
     copy_yaml_entry_into_working, duplicate_yaml_entry_into_working, MergeHighlight,
 )
 from core.ecf.parser import parse_ecf_file
@@ -74,7 +75,8 @@ from gui.playfield_edit_widget import PlayfieldEditWidget
 from gui.validation_dialog import ValidationDialog
 from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
-from gui.theme import NAVY, PRIMARY_DARK, PRIMARY, icon, icon_size
+from gui.theme import icon, icon_size
+from gui import theme as _theme
 from core.workspace_undo import WorkspaceUndoStack, FileStateUndo, MultiFileStateUndo, FolderStateUndo, capture_file, capture_folder
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
@@ -189,6 +191,17 @@ class MainWindow(QMainWindow):
         self.action_toggle_autosave.toggled.connect(settings.set_autosave_enabled)
         self.action_default_language = self.menu_options.addAction(t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
+
+        self.menu_theme = self.menu_options.addMenu(t("menu.options.theme"))
+        self._theme_actions = {}
+        from core.themes import THEMES, THEME_ORDER
+        current_theme_id = settings.get_theme()
+        for theme_id in THEME_ORDER:
+            theme_action = self.menu_theme.addAction(THEMES[theme_id]["label"])
+            theme_action.setCheckable(True)
+            theme_action.setChecked(theme_id == current_theme_id)
+            theme_action.triggered.connect(lambda checked, tid=theme_id: self._set_theme(tid))
+            self._theme_actions[theme_id] = theme_action
 
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
         self.action_tutorials = self.menu_help.addAction(t("menu.help.tutorials"))
@@ -770,6 +783,23 @@ class MainWindow(QMainWindow):
         if hasattr(csv_widget, "_populate_table"):
             csv_widget._populate_table()
 
+    def _set_theme(self, theme_id: str):
+        """Bascule le theme visuel a l'execution -- appelle apply_theme sur
+        l'instance QApplication (jamais None dans l'app reelle : main()
+        cree toujours QApplication avant MainWindow ; les tests utilisant
+        cette methode doivent fournir un QApplication actif via la fixture
+        qapp) et persiste le choix. Les icones/couleurs semantiques (RED,
+        ORANGE, GREEN...) des dialogues deja ouverts ne se mettent a jour
+        qu'a leur prochaine ouverture -- voir gui/theme.py."""
+        from PyQt6.QtWidgets import QApplication
+        from gui.theme import apply_theme
+        app = QApplication.instance()
+        if app is not None:
+            apply_theme(app, theme_id)
+        settings.set_theme(theme_id)
+        for tid, action in self._theme_actions.items():
+            action.setChecked(tid == theme_id)
+
     def _set_author_dialog(self):
         current = settings.get_author()
         name, ok = QInputDialog.getText(self, t("author.title"), t("author.label"), text=current)
@@ -936,7 +966,7 @@ class MainWindow(QMainWindow):
         layout_a = QVBoxLayout(self.panel_a)
         layout_a.setContentsMargins(4, 2, 4, 2)
         self.label_a = QLabel(t("panel.scenario_a"))
-        self.label_a.setStyleSheet(f"font-weight: 700; color: {NAVY};")
+        self.label_a.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.tree_a = QTreeWidget()
         self.tree_a.setHeaderLabels(["Scenario A"])
         self.tree_a.itemDoubleClicked.connect(lambda item, col: self._on_source_double_clicked(item, self._root_a))
@@ -951,7 +981,7 @@ class MainWindow(QMainWindow):
         layout_w = QVBoxLayout(self.panel_working)
         layout_w.setContentsMargins(4, 2, 4, 2)
         self.label_working = QLabel(t("panel.working_copy"))
-        self.label_working.setStyleSheet(f"font-weight: 700; color: {PRIMARY_DARK};")
+        self.label_working.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY_DARK};")
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
@@ -965,7 +995,7 @@ class MainWindow(QMainWindow):
         layout_b = QVBoxLayout(self.panel_b)
         layout_b.setContentsMargins(4, 2, 4, 2)
         self.label_b = QLabel(t("panel.scenario_b"))
-        self.label_b.setStyleSheet(f"font-weight: 700; color: {NAVY};")
+        self.label_b.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.tree_b = QTreeWidget()
         self.tree_b.setHeaderLabels(["Scenario B"])
         self.tree_b.itemDoubleClicked.connect(lambda item, col: self._on_source_double_clicked(item, self._root_b))
@@ -1411,58 +1441,106 @@ class MainWindow(QMainWindow):
 
     def _duplicate_ecf_block_dialog(self, block: EcfBlock, parent_chain: list, source_file_path: Path,
                                      source_root: Path, source_label: str):
-        """Duplique un bloc en lui donnant un nouvel Id et/ou un nouveau Name, comme un
-        element independant (pas une fusion) -- utile pour partir d'un bloc existant
-        comme modele pour en creer un nouveau distinct (ex: variante d'un item).
-        L'utilisateur choisit librement : nouvel Id, nouveau Name, les deux, ou
-        abandonner l'Id pour n'identifier le nouveau bloc que par Name (certains blocs
-        reels n'ont pas d'Id du tout, ex: '{ Block Name: LegacyForcefield ...}')."""
+        """Duplique un bloc depuis Scenario A/B vers la copie de travail, soit en
+        une copie unique (nouvel Id/Name), soit en plusieurs variantes nommées
+        automatiquement {Name}T1..TN avec variation en pourcentage sur des champs
+        numériques. Pour chaque bloc créé, propose la création du Template associé
+        en dupliquant le Template source (s'il existe dans le scenario source A/B)
+        vers Templates.ecf de la copie de travail."""
         from core.ecf.pending_conflicts import find_used_ids, suggest_free_ids
-
+        from core.ecf.variants import detect_numeric_fields_block, generate_block_variants, apply_percent_to_block
+        from gui.duplicate_variants_dialog import DuplicateVariantsDialog
+        current_id = block.get('Id')
+        current_name = block.get_property('Name')
+        # Les Ids utilisés sont vérifiés dans le fichier destination (copie de travail)
         rel = source_file_path.relative_to(source_root)
         dest_path = self.workspace.working_root / rel
         if not dest_path.exists():
             QMessageBox.warning(self, t("dup.file_missing_title"), t("dup.file_missing_msg", file=dest_path.name))
             return
-
         used_ids = find_used_ids([dest_path])
         suggestions = suggest_free_ids(used_ids, 5)
-
-        dialog = DuplicateBlockDialog(block, suggestions, self)
+        numeric_fields = detect_numeric_fields_block(block)
+        dialog = DuplicateVariantsDialog(current_id, current_name, suggestions,
+                                          numeric_fields, parent=self, show_id_field=True)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-
-        prior = capture_file(dest_path)
         annotation = None
         if settings.get_annotations_enabled():
-            annotation = f"# Duplique par {settings.get_author()}"
+            annotation = f"# Dupliqué par {settings.get_author()} (depuis {source_label})"
+        # --- Mode multi-variantes ---
+        if dialog.result_multi:
+            m = dialog.result_multi
+            new_blocks = generate_block_variants(
+                block, current_name or "Bloc", m['num_variants'],
+                m['varying_fields'], m['total_percent'], m['first_is_original'])
+            created_names = []
+            prior = capture_file(dest_path)
+            for variant_block in new_blocks:
+                try:
+                    dest, status = insert_ecf_block_into_working(
+                        self.workspace, rel, variant_block, source_label,
+                        parent_chain=parent_chain, annotation=annotation)
+                except Exception as e:
+                    QMessageBox.critical(self, t("err.title"), f"{t('dup.block_error')} :\n{e}")
+                    return
+                if status == 'exists':
+                    QMessageBox.warning(self, t("dup.already_used_title"),
+                                        t("dup.already_used_msg", file=dest.name))
+                    continue
+                if status == 'parent_not_found':
+                    QMessageBox.warning(self, t("dup.parent_not_found_title"),
+                                        t("dup.parent_not_found_msg", file=dest.name))
+                    return
+                created_names.append(variant_block.get_property('Name'))
+            self._push_workspace_undo(FileStateUndo(dest, prior,
+                                                     t("wsundo.duplicate_block", name=dest.name)))
+            self.workspace.rescan_working()
+            for i in range(self.tabs.count()):
+                if self.tabs.tabToolTip(i) == str(dest):
+                    self.tabs.removeTab(i)
+                    self.open_working_file_tab(dest)
+                    break
+            if created_names:
+                self.statusBar().showMessage(
+                    t("status.block_duplicated",
+                      details=f"{len(created_names)} variantes",
+                      file=dest.name))
+                # NOUVEAU : propose la création des Templates associés depuis A/B
+                self._maybe_propose_templates_from_source(
+                    source_root, source_label, current_name, created_names)
+            return
+        # --- Mode simple (copie unique) ---
+        source_block = block
+        if dialog.result_simple_percent is not None and dialog.result_simple_fields:
+            # Applique la variation en pourcentage sur une copie AVANT duplication --
+            # duplicate_ecf_block_into_working fait sa propre copie profonde en
+            # interne pour les overrides Id/Name, donc on lui passe deja la version
+            # avec les champs modifies plutot que de dupliquer le mecanisme ici.
+            source_block = apply_percent_to_block(block, dialog.result_simple_fields, dialog.result_simple_percent)
+        prior = capture_file(dest_path)
         try:
             dest, status = duplicate_ecf_block_into_working(
-                self.workspace, rel, block,
+                self.workspace, rel, source_block,
                 dialog.result_new_id, dialog.result_new_name, dialog.result_remove_id,
                 source_label, parent_chain=parent_chain, annotation=annotation)
             self.workspace.rescan_working()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('dup.block_error')} :\n{e}")
             return
-
         if status == 'parent_not_found':
             QMessageBox.warning(self, t("dup.parent_not_found_title"),
                                  t("dup.parent_not_found_msg", file=dest.name))
             return
-
         if status == 'exists':
             QMessageBox.warning(self, t("dup.already_used_title"), t("dup.already_used_msg", file=dest.name))
             return
-
         self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.duplicate_block", name=dest.name)))
-
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):
                 self.tabs.removeTab(i)
                 self.open_working_file_tab(dest)
                 break
-
         details = []
         if dialog.result_new_id:
             details.append(f"Id={dialog.result_new_id}")
@@ -1471,6 +1549,104 @@ class MainWindow(QMainWindow):
         if dialog.result_new_name:
             details.append(f"Name={dialog.result_new_name}")
         self.statusBar().showMessage(t("status.block_duplicated", details=', '.join(details), file=dest.name))
+        # NOUVEAU : propose la création du Template associé depuis A/B
+        created_name = dialog.result_new_name or current_name
+        if created_name:
+            self._maybe_propose_templates_from_source(
+                source_root, source_label, current_name, [created_name])
+
+
+    def _maybe_propose_templates_from_source(self, source_root: Path, source_label: str,
+                                              source_block_name: str,
+                                              target_names: List[str]):
+        """Après duplication depuis A/B, propose de créer les Templates associés
+        dans la copie de travail. Le Template source est lu depuis le scenario
+        source (A ou B) et copié/dupliqué pour chaque variante dans Templates.ecf
+        de la copie de travail."""
+        if not self.workspace:
+            return
+        from core.ecf.block_creation import find_file_by_name
+        # Templates.ecf source (dans A ou B)
+        if source_label == "Scenario A":
+            source_cfg = self.workspace.source_a.configuration
+        else:
+            source_cfg = self.workspace.source_b.configuration if self.workspace.source_b else []
+        source_ecf_files = [f.path for f in source_cfg if f.extension == '.ecf']
+        source_templates_path = find_file_by_name(source_ecf_files, 'Templates.ecf')
+        # Templates.ecf destination (toujours dans la copie de travail)
+        working_ecf_files = [f.path for f in self.workspace.working.configuration
+                             if f.extension == '.ecf']
+        dest_templates_path = find_file_by_name(working_ecf_files, 'Templates.ecf')
+        if dest_templates_path is None:
+            return
+        if source_templates_path is None:
+            return
+        reply = QMessageBox.question(
+            self, t("addblock.ask_template_title"),
+            t("dup.variants_create_templates_prompt",
+              count=len(target_names),
+              names=', '.join(target_names[:3]) + ('...' if len(target_names) > 3 else '')),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._create_templates_from_source(
+            source_templates_path, dest_templates_path, source_block_name, target_names)
+
+    def _create_templates_from_source(self, source_templates_path: Path,
+                                       dest_templates_path: Path,
+                                       source_template_name: str,
+                                       target_names: List[str]):
+        """Lit le Template source depuis le scenario A/B, le duplique pour chaque
+        variante et écrit le résultat dans Templates.ecf de la copie de travail."""
+        from core.ecf.parser import parse_ecf_file
+        import copy as _copy
+        try:
+            source_doc = parse_ecf_file(source_templates_path)
+        except Exception as e:
+            QMessageBox.warning(self, t("err.title"),
+                                f"Impossible de lire Templates.ecf source :\n{e}")
+            return
+        source_template = None
+        for block in source_doc.iter_blocks():
+            if block.get_property('Name') == source_template_name:
+                source_template = block
+                break
+        if source_template is None:
+            QMessageBox.information(
+                self, t("addblock.templates_not_found_title"),
+                t("dup.variants_no_source_template", name=source_template_name))
+            return
+        templates_widget = self.open_working_file_tab(dest_templates_path)
+        if templates_widget is None:
+            return
+        templates_edit = getattr(templates_widget, "edit_widget", templates_widget)
+        if not hasattr(templates_edit, "doc"):
+            return
+        dest_doc = templates_edit.doc
+        if hasattr(templates_edit, "_snapshot_undo"):
+            templates_edit._snapshot_undo()
+        created = 0
+        for target_name in target_names:
+            if any(b.get_property('Name') == target_name for b in dest_doc.iter_blocks()):
+                continue
+            new_template = _copy.deepcopy(source_template)
+            new_template.dirty = True
+            if not new_template.set('Name', target_name):
+                new_template.set_property('Name', target_name)
+            new_template.remove('Id')
+            if settings.get_annotations_enabled():
+                author = settings.get_author()
+                src_name = self.workspace.source_a_root.name if self.workspace.source_a_root else '?'
+                new_template.comment = (
+                    f"# Ajouté par {author} (variante de {source_template_name}, "
+                    f"depuis {src_name})")
+            dest_doc.nodes.append(new_template)
+            created += 1
+        if created > 0:
+            if hasattr(templates_edit, "_set_modified"):
+                templates_edit._set_modified(True)
+            if hasattr(templates_edit, "_populate_tree"):
+                templates_edit._populate_tree()
 
     def _copy_block_into_working(self, block: EcfBlock, source_file_path: Path,
                                   source_root: Path, source_label: str):
@@ -2314,7 +2490,7 @@ class EcfViewWidget(QWidget):
     def _make_group_header_item(self, title: str) -> QTreeWidgetItem:
         item = QTreeWidgetItem([f"\u25a0 {title}"])
         item.setFlags(Qt.ItemFlag.NoItemFlags)
-        item.setForeground(0, QBrush(QColor(PRIMARY_DARK)))
+        item.setForeground(0, QBrush(QColor(_theme.PRIMARY_DARK)))
         font = item.font(0)
         font.setBold(True)
         item.setFont(0, font)

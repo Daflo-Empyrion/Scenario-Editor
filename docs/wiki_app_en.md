@@ -608,6 +608,29 @@ Can be disabled via **Options > Autosave**.
 
 ---
 
+## 16bis. Visual theme
+
+**Options > Theme** — 8 selectable themes, switches immediately without
+restarting:
+- **Classic** — original theme (blue/navy admin dashboard), stays the
+  default until another one is explicitly chosen
+- **A — Mission control** — dark, cyan/amber, spaceship control panel feel
+- **B — Drafting table** — light, technical blueprint blue
+- **C — Engineering terminal** — warm dark, copper/teal
+- **D — Night crystal** — dark, violet/cyan
+- **E — Sun crystal** — light, violet/cyan
+- **F — Dusk** — mid-tone slate, designed for comfortable multi-hour use
+  (moderate contrast, off-white rather than pure white)
+- **G — Mother-of-pearl** — light, iridescent multicolor gradient menu bar
+
+<span style="color:#7c859c"><i>Assumed limitation: these themes are a
+faithful color/gradient approximation of the original mockups, but without
+the real frosted-glass background blur -- PyQt6 Widgets doesn't support it
+natively (would require Windows 11's Acrylic/Mica API, or a rewrite in Qt
+Quick/QML).</i></span>
+
+---
+
 ## 17. Help
 
 - **Help > Tutorials...** — built-in step-by-step tutorial module, navigable

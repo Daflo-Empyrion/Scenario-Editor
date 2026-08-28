@@ -750,3 +750,30 @@ GLOSSARY_BY_FILE = {
     "Factions.ecf": FACTIONS_GLOSSARY,
     "FactionWarfare.ecf": FACTION_WARFARE_GLOSSARY,
 }
+
+
+def find_term_explanation(filename: str, term: str) -> "str | None":
+    """Cherche l'explication d'un terme precis (typiquement un nom de
+    propriete/colonne, ex: 'AllowPlacingAt', 'EnergyIn') dans le glossaire
+    du fichier concerne -- utilise pour les infobulles d'en-tete de
+    colonne (mode tableau) et de cle de propriete (mode liste), toujours
+    coherent avec le VRAI fichier ouvert puisque le glossaire est indexe
+    par nom de fichier.
+
+    Comparaison insensible a la casse. Gere aussi les entrees groupees
+    comme 'EnergyIn / EnergyOut' (le terme cherche peut correspondre a
+    l'un des deux membres separes par '/'). Retourne None si aucune
+    correspondance -- l'appelant doit alors se rabattre sur d'autres
+    sources (commentaire du fichier lui-meme, ou aucune infobulle)."""
+    glossary = GLOSSARY_BY_FILE.get(filename)
+    if not glossary:
+        return None
+    term_lower = term.strip().lower()
+    for _section_title, entries in glossary:
+        for entry_term, explanation in entries:
+            # Un terme de glossaire peut grouper plusieurs cles reelles,
+            # ex: "EnergyIn / EnergyOut" ou "Texture" seul.
+            candidates = [c.strip().lower() for c in entry_term.split('/')]
+            if term_lower in candidates:
+                return explanation
+    return None

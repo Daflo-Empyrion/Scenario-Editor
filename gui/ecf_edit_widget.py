@@ -44,12 +44,15 @@ from core.ecf.transform import TransformRule, preview_transform, format_block_la
 from core.ecf.model import (
     EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
     add_property_line, remove_property_line, remove_block, create_block, annotate_property,
-    add_repeating_item_row,
+    add_repeating_item_row, detect_repeating_items, _ITEM_KEY_RE,
+    find_first_inline_comment_for_key, duplicate_block,
 )
+from core.ecf_header_glossary import find_term_explanation
 from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
 from core.i18n import t
-from gui.theme import icon, icon_size, PRIMARY_DARK
+from gui.theme import icon, icon_size
+from gui import theme as _theme
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
@@ -1075,7 +1078,7 @@ class EcfEditWidget(QWidget):
         'Zirax'...)."""
         item = QTreeWidgetItem([f"\u25a0 {title}"])
         item.setFlags(Qt.ItemFlag.NoItemFlags)
-        item.setForeground(0, QBrush(QColor(PRIMARY_DARK)))
+        item.setForeground(0, QBrush(QColor(_theme.PRIMARY_DARK)))
         font = item.font(0)
         font.setBold(True)
         item.setFont(0, font)
@@ -1216,50 +1219,32 @@ class EcfEditWidget(QWidget):
         self._current_block = block
         self._refresh_props_table()
 
-    _ITEM_KEY_RE = re.compile(r'^([A-Za-z]+)_(\d+)$')
-
     def _detect_repeating_items(self, block: EcfBlock):
-        """Detecte les sous-blocs a structure repetitive : une suite de lignes de
-        propriete dont la PREMIERE paire suit le motif 'Prefixe_N: valeur' (N
-        croissant -- Name_0/Name_1, Group_0/Group_1, mais aussi Item_0/Item_1
-        (LootGroups.ecf), DamageMultiplier_1/DamageMultiplier_2
-        (DamageMultiplierConfig.ecf), et tout autre prefixe suivant la meme
-        convention), suivie d'un jeu de parametres (param1, param2, display...)
-        globalement coherent d'une ligne a l'autre.
+        """Delegue a core.ecf.model.detect_repeating_items -- extrait pour
+        garder une source unique de verite (evite toute divergence future
+        si cette logique est reutilisee ailleurs)."""
+        return detect_repeating_items(block)
 
-        Retourne (param_columns, prefixes) si detecte -- param_columns : liste
-        ordonnee des noms de colonnes parametres (peut etre vide) ; prefixes : liste
-        ordonnee des prefixes distincts vus (ex: ['Name', 'Group'] ou ['Item'] ou
-        ['DamageMultiplier']), utilisee pour peupler le choix 'Type' du formulaire
-        d'ajout de ligne. Retourne None si la structure ne correspond pas (retombe
-        alors sur l'affichage classique cle/valeur)."""
-        prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
-        if len(prop_children) < 2:
-            return None
-        matches = 0
-        param_keys_seen = []
-        prefixes_seen = []
-        for prop in prop_children:
-            if not prop.pairs:
-                continue
-            first_key = prop.pairs[0][0]
-            m = self._ITEM_KEY_RE.match(first_key) if first_key else None
-            if m:
-                matches += 1
-                if m.group(1) not in prefixes_seen:
-                    prefixes_seen.append(m.group(1))
-                for k, v in prop.pairs[1:]:
-                    if k and k not in param_keys_seen:
-                        param_keys_seen.append(k)
-        if matches < 2 or matches < len(prop_children) * 0.5:
-            return None
-        # Trie les colonnes param naturellement (param1, param2, ..., param10) plutot
-        # qu'alphabetiquement (qui mettrait param10 avant param2)
-        def _natural_key(k):
-            m = re.search(r'(\d+)$', k)
-            return (k[:m.start()] if m else k, int(m.group(1)) if m else 0)
-        param_keys_seen.sort(key=_natural_key)
-        return param_keys_seen, prefixes_seen
+    def _field_tooltip(self, key: str) -> str:
+        """Construit le texte d'infobulle pour une cle de propriete/colonne
+        (ex: 'AllowPlacingAt', 'param1') -- TOUJOURS coherent avec le
+        fichier reellement ouvert :
+        1. Glossaire manuel dedie a ce fichier (core/ecf_header_glossary.py)
+           si une entree correspond exactement a cette cle -- explication
+           claire et verifiee.
+        2. Sinon, premier commentaire de fin de ligne trouve dans LE
+           FICHIER LUI-MEME pour cette cle (jamais invente).
+        3. Sinon, chaine vide (Qt n'affiche alors aucune infobulle) --
+           mieux vaut rien qu'une explication inventee."""
+        if not key:
+            return ""
+        explanation = find_term_explanation(self.path.name, key)
+        if explanation:
+            return f"<b>{key}</b><br>{explanation}"
+        inline = find_first_inline_comment_for_key(self.doc, key)
+        if inline:
+            return f"<b>{key}</b><br>{inline}"
+        return ""
 
     def _refresh_props_table(self):
         if not self._current_block:
@@ -1302,8 +1287,16 @@ class EcfEditWidget(QWidget):
             item_k.setData(Qt.ItemDataRole.UserRole, (prop_node, k))
             item_v = QTableWidgetItem(v)
             item_v.setData(Qt.ItemDataRole.UserRole, (prop_node, k))
+            # Infobulle specifique a CETTE cle (glossaire du fichier ou
+            # commentaire reel trouve dans le fichier), avec une note
+            # structurelle en plus si la propriete est sur la ligne
+            # d'ouverture du bloc (ex: Id, Name).
+            tooltip = self._field_tooltip(k)
             if prop_node is block:
-                item_k.setToolTip(t("ecf.header_property_tooltip"))
+                header_note = t("ecf.header_property_tooltip")
+                tooltip = f"{tooltip}<br><br><i>{header_note}</i>" if tooltip else header_note
+            if tooltip:
+                item_k.setToolTip(tooltip)
             if id(prop_node) in self._edited_prop_nodes:
                 item_k.setBackground(COLOR_MODIFIED_ROW)
                 item_v.setBackground(COLOR_MODIFIED_ROW)
@@ -1319,13 +1312,28 @@ class EcfEditWidget(QWidget):
         self.props_table.setColumnCount(len(columns))
         self.props_table.setHorizontalHeaderLabels(columns)
 
+        # Infobulles d'en-tete de colonne (apparition apres une courte pause du
+        # curseur, comportement standard Qt) -- toujours coherentes avec le VRAI
+        # fichier ouvert : glossaire dedie si disponible, sinon commentaire reel
+        # trouve dans le fichier pour cette cle precise, sinon aucune infobulle.
+        header_type = self.props_table.horizontalHeaderItem(0)
+        if header_type:
+            header_type.setToolTip(t("ecf.col_type_tooltip"))
+        header_value = self.props_table.horizontalHeaderItem(1)
+        if header_value:
+            header_value.setToolTip(t("ecf.col_item_value_tooltip"))
+        for col_idx, param_key in enumerate(param_columns):
+            header_item = self.props_table.horizontalHeaderItem(2 + col_idx)
+            if header_item:
+                header_item.setToolTip(self._field_tooltip(param_key))
+
         prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
         self.props_table.setRowCount(len(prop_children))
         for row, prop in enumerate(prop_children):
             if not prop.pairs:
                 continue
             first_key, first_value = prop.pairs[0]
-            m = self._ITEM_KEY_RE.match(first_key) if first_key else None
+            m = _ITEM_KEY_RE.match(first_key) if first_key else None
             item_type = QTableWidgetItem(m.group(1) if m else (first_key or ""))
             item_type.setData(Qt.ItemDataRole.UserRole, (prop, "__TYPE__"))
             item_value = QTableWidgetItem(first_value)
@@ -1366,7 +1374,7 @@ class EcfEditWidget(QWidget):
             if not isinstance(prop_node, EcfProperty) or not prop_node.pairs:
                 return
             old_first_key, first_value = prop_node.pairs[0]
-            m = self._ITEM_KEY_RE.match(old_first_key) if old_first_key else None
+            m = _ITEM_KEY_RE.match(old_first_key) if old_first_key else None
             suffix = m.group(2) if m else "0"
             new_type = new_value.strip()
             if not new_type or not re.match(r'^[A-Za-z]+$', new_type):
@@ -1451,6 +1459,10 @@ class EcfEditWidget(QWidget):
 
         action_bbcode = menu.addAction(t("ctx.bbcode"))
 
+        action_duplicate_row = None
+        if self._table_mode and isinstance(prop_node, EcfProperty):
+            action_duplicate_row = menu.addAction(t("dup.row_title"))
+
         action_del = None
         if not is_header_prop:
             action_del = menu.addAction(t("ecf.delete_property_action"))
@@ -1463,9 +1475,79 @@ class EcfEditWidget(QWidget):
                 value_item.setText(new_text)
         elif chosen in lang_actions:
             self._translate_cell(value_item, None, prop_node, lang_actions[chosen])
+        elif chosen == action_duplicate_row and isinstance(prop_node, EcfProperty):
+            self._duplicate_row_action(prop_node)
         elif chosen == action_del and isinstance(prop_node, EcfProperty):
             self._snapshot_undo()
             remove_property_line(self._current_block, prop_node)
+            self._set_modified(True)
+            self._refresh_props_table()
+
+    def _duplicate_row_action(self, prop: EcfProperty):
+        """Duplique une ligne de structure repetitive (mode tableau) --
+        soit une copie unique avec un nouveau nom, soit plusieurs
+        variantes nommees {Nom}T1..TN avec variation en pourcentage sur
+        des champs numeriques choisis (voir core/ecf/variants.py). Les
+        lignes de ce type n'ont pas d'Id (identite = valeur du premier
+        couple cle/valeur, ex: 'IronOre' dans 'Item: IronOre, ...')."""
+        from core.ecf.variants import (
+            detect_numeric_fields_row, generate_row_variants, compute_single_variant_value,
+        )
+        from gui.duplicate_variants_dialog import DuplicateVariantsDialog
+
+        if not prop.pairs or not self._current_block:
+            return
+        current_name = prop.pairs[0][1]
+        numeric_fields = detect_numeric_fields_row(prop)
+
+        dialog = DuplicateVariantsDialog(None, current_name, [], numeric_fields,
+                                          parent=self, show_id_field=False)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        siblings = [c for c in self._current_block.children if isinstance(c, EcfProperty)]
+        try:
+            idx = self._current_block.children.index(prop)
+        except ValueError:
+            return
+        existing_names = {p.pairs[0][1] for p in siblings if p.pairs}
+
+        if dialog.result_multi:
+            m = dialog.result_multi
+            new_rows = generate_row_variants(
+                prop, m['num_variants'], m['varying_fields'], m['total_percent'], m['first_is_original'])
+            colliding = [r for r in new_rows if r.pairs and r.pairs[0][1] in existing_names]
+            if colliding:
+                QMessageBox.warning(self, t("dup.already_used_title"),
+                                     t("dup.already_used_msg", file=self.path.name))
+                return
+            self._snapshot_undo()
+            for offset, new_row in enumerate(new_rows):
+                self._current_block.children.insert(idx + 1 + offset, new_row)
+            self._set_modified(True)
+            self._refresh_props_table()
+            names = ', '.join(r.pairs[0][1] for r in new_rows)
+            QMessageBox.information(self, t("dup.row_title"),
+                                     t("dup.variants_created", count=len(new_rows), names=names))
+        else:
+            import copy as _copy
+            new_name = dialog.result_new_name
+            if new_name in existing_names:
+                QMessageBox.warning(self, t("dup.already_used_title"),
+                                     t("dup.already_used_msg", file=self.path.name))
+                return
+            new_row = _copy.deepcopy(prop)
+            new_row.dirty = True
+            first_key = new_row.pairs[0][0]
+            new_row.set(first_key, new_name)
+            if dialog.result_simple_percent is not None and dialog.result_simple_fields:
+                for field_key in dialog.result_simple_fields:
+                    original_value = prop.get(field_key)
+                    if original_value is None:
+                        continue
+                    new_row.set(field_key, compute_single_variant_value(original_value, dialog.result_simple_percent))
+            self._snapshot_undo()
+            self._current_block.children.insert(idx + 1, new_row)
             self._set_modified(True)
             self._refresh_props_table()
 
@@ -1582,10 +1664,14 @@ class EcfEditWidget(QWidget):
         if not isinstance(block, EcfBlock):
             return
         menu = QMenu(self)
+        action_duplicate = menu.addAction(t("dup.duplicate"))
+        menu.addSeparator()
         action_disable = menu.addAction(t("ecf.disable_block_action"))
         action_del = menu.addAction(t("ecf.delete_block_action"))
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if chosen == action_disable:
+        if chosen == action_duplicate:
+            self._duplicate_block_action(block)
+        elif chosen == action_disable:
             confirm = QMessageBox.question(self, t("merge.confirm_title"),
                                             t("ecf.confirm_disable_block", name=item.text(0)))
             if confirm == QMessageBox.StandardButton.Yes:
@@ -1608,6 +1694,188 @@ class EcfEditWidget(QWidget):
                     self._current_block = None
                     self.props_table.setRowCount(0)
                 self._populate_tree()
+
+    def _find_container_list(self, target_block: EcfBlock) -> Optional[list]:
+        """Cherche la VRAIE liste (self.doc.nodes au niveau racine, ou
+        children d'un bloc parent si le bloc est imbrique) qui contient
+        actuellement ce bloc -- necessaire pour inserer un duplicata juste
+        apres, peu importe sa profondeur d'imbrication."""
+        def search(nodes):
+            if target_block in nodes:
+                return nodes
+            for node in nodes:
+                if isinstance(node, EcfBlock):
+                    found = search(node.children)
+                    if found is not None:
+                        return found
+            return None
+        return search(self.doc.nodes)
+
+    def _duplicate_block_action(self, block: EcfBlock):
+        """Duplique un bloc DANS LE MEME FICHIER en cours d'edition -- soit
+        une copie unique (Id/Name, comme le dialogue historique de
+        duplication depuis Scenario A/B), soit plusieurs variantes
+        nommees {Name}T1..TN avec variation en pourcentage sur des champs
+        numeriques choisis (voir core/ecf/variants.py). Inseree juste
+        apres le bloc source, au meme niveau d'imbrication."""
+        from core.ecf.pending_conflicts import find_used_ids, suggest_free_ids
+        from core.ecf.variants import (
+            detect_numeric_fields_block, generate_block_variants,
+            get_block_field, set_block_field, compute_single_variant_value,
+        )
+        from gui.duplicate_variants_dialog import DuplicateVariantsDialog
+
+        current_id = block.get('Id')
+        current_name = block.get_property('Name')
+        used_ids = find_used_ids([self.path])
+        suggestions = suggest_free_ids(used_ids, 5)
+        numeric_fields = detect_numeric_fields_block(block)
+
+        dialog = DuplicateVariantsDialog(current_id, current_name, suggestions, numeric_fields,
+                                          parent=self, show_id_field=True)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        container = self._find_container_list(block)
+        if container is None:
+            return
+        idx = container.index(block)
+        existing_identities = {block_identity(b) for b in self.doc.iter_blocks()}
+
+        if dialog.result_multi:
+            m = dialog.result_multi
+            new_blocks = generate_block_variants(
+                block, current_name or "Bloc", m['num_variants'], m['varying_fields'],
+                m['total_percent'], m['first_is_original'])
+            colliding = [b for b in new_blocks if block_identity(b) in existing_identities]
+            if colliding:
+                QMessageBox.warning(self, t("dup.already_used_title"),
+                                     t("dup.already_used_msg", file=self.path.name))
+                return
+            self._snapshot_undo()
+            for offset, new_block in enumerate(new_blocks):
+                new_block.indent = block.indent
+                container.insert(idx + 1 + offset, new_block)
+            self._set_modified(True)
+            self._populate_tree()
+            names = ', '.join(b.get_property('Name') for b in new_blocks)
+            QMessageBox.information(self, t("dup.title"),
+                                     t("dup.variants_created", count=len(new_blocks), names=names))
+            # NOUVEAU : propose la création des Templates associés à chaque variante
+            self._maybe_propose_templates_for_variants(
+                current_name,
+                [b.get_property('Name') for b in new_blocks if b.get_property('Name')])
+        else:
+            overrides = {}
+            if dialog.result_new_id:
+                overrides['Id'] = dialog.result_new_id
+            if dialog.result_new_name:
+                overrides['Name'] = dialog.result_new_name
+            remove_keys = ['Id'] if dialog.result_remove_id else []
+            new_block = duplicate_block(block, overrides=overrides, remove_keys=remove_keys)
+            if dialog.result_simple_percent is not None and dialog.result_simple_fields:
+                for field_key in dialog.result_simple_fields:
+                    original_value = get_block_field(block, field_key)
+                    if original_value is None:
+                        continue
+                    new_value = compute_single_variant_value(original_value, dialog.result_simple_percent)
+                    set_block_field(new_block, field_key, new_value)
+            if block_identity(new_block) in existing_identities:
+                QMessageBox.warning(self, t("dup.already_used_title"),
+                                     t("dup.already_used_msg", file=self.path.name))
+                return
+            new_block.indent = block.indent
+            self._snapshot_undo()
+            container.insert(idx + 1, new_block)
+            self._set_modified(True)
+            self._populate_tree()
+
+
+    def _maybe_propose_templates_for_variants(self, source_name: Optional[str],
+                                               variant_names: List[str]):
+        """Après la création de plusieurs variantes d'un bloc, propose de créer
+        les Templates (recettes de craft) associés à chaque variante. Le Template
+        source (s'il existe, même nom que le bloc source -- `source_name`, transmis
+        explicitement par l'appelant plutôt que relu depuis self._current_block, qui
+        n'est mis à jour que par un CLIC GAUCHE (itemClicked) et resterait donc
+        périmé après un clic droit sur un bloc différent) est dupliqué pour chaque
+        variante -- même structure, mêmes ingrédients, même Target, seul le Name
+        change. Si aucun Template source n'existe, la proposition est sautée.
+        """
+        if self.path.name.lower() == 'templates.ecf':
+            return
+        if not self.sibling_ecf_files:
+            return
+        if not source_name:
+            return
+        from core.ecf.block_creation import find_file_by_name
+        templates_path = find_file_by_name(self.sibling_ecf_files, 'Templates.ecf')
+        if templates_path is None:
+            return
+        reply = QMessageBox.question(
+            self, t("addblock.ask_template_title"),
+            t("dup.variants_create_templates_prompt",
+              count=len(variant_names),
+              names=', '.join(variant_names[:3]) + ('...' if len(variant_names) > 3 else '')),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._create_templates_for_variants(templates_path, source_name, variant_names)
+
+    def _create_templates_for_variants(self, templates_path: Path,
+                                        source_template_name: str,
+                                        variant_names: List[str]):
+        """Duplique le Template source (Name = source_template_name) pour chaque
+        variante : copie exacte de la structure (Target, CraftTime, Child Inputs...),
+        seul le Name est remplacé. Ouvre (ou active) Templates.ecf comme un VRAI
+        onglet de la copie de travail."""
+        from core.ecf.parser import parse_ecf_file
+        import copy as _copy
+        main_window = self.window()
+        if not hasattr(main_window, "open_working_file_tab"):
+            return
+        templates_widget = main_window.open_working_file_tab(templates_path)
+        if templates_widget is None:
+            return
+        templates_edit = getattr(templates_widget, "edit_widget", templates_widget)
+        if not hasattr(templates_edit, "doc"):
+            return
+        templates_doc = templates_edit.doc
+        # Cherche le Template source
+        source_template = None
+        for block in templates_doc.iter_blocks():
+            if block.get_property('Name') == source_template_name:
+                source_template = block
+                break
+        if source_template is None:
+            QMessageBox.information(
+                self, t("addblock.templates_not_found_title"),
+                t("dup.variants_no_source_template", name=source_template_name))
+            return
+        if hasattr(templates_edit, "_snapshot_undo"):
+            templates_edit._snapshot_undo()
+        created = 0
+        for variant_name in variant_names:
+            # Vérifie qu'un Template du même nom n'existe pas déjà
+            if any(b.get_property('Name') == variant_name for b in templates_doc.iter_blocks()):
+                continue
+            new_template = _copy.deepcopy(source_template)
+            new_template.dirty = True
+            # Remplace le Name
+            if not new_template.set('Name', variant_name):
+                new_template.set_property('Name', variant_name)
+            # Retire l'Id s'il y en a un
+            new_template.remove('Id')
+            if settings.get_annotations_enabled():
+                author = settings.get_author()
+                new_template.comment = f"# Ajouté par {author} (variante de {source_template_name})"
+            templates_doc.nodes.append(new_template)
+            created += 1
+        if created > 0:
+            if hasattr(templates_edit, "_set_modified"):
+                templates_edit._set_modified(True)
+            if hasattr(templates_edit, "_populate_tree"):
+                templates_edit._populate_tree()
 
     def _open_disabled_blocks_dialog(self):
         from core.ecf.disable_block import find_disabled_blocks, enable_disabled_block

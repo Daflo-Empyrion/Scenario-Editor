@@ -147,3 +147,15 @@ def get_default_translation_language() -> tuple:
 
 def set_default_translation_language(code: str, label: str) -> None:
     _set('default_translation_language', [code, label])
+
+
+def get_theme() -> str:
+    """Id du theme visuel choisi (voir core/themes.py) -- 'classic' par
+    defaut pour ne rien changer visuellement tant que l'utilisateur n'a pas
+    choisi explicitement un autre theme dans Options > Theme."""
+    from core.themes import DEFAULT_THEME_ID
+    return _get('theme', DEFAULT_THEME_ID)
+
+
+def set_theme(theme_id: str) -> None:
+    _set('theme', theme_id)

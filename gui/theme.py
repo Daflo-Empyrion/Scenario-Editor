@@ -15,16 +15,34 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Theme visuel de l'application, inspire d'un tableau de bord admin moderne (bleu/marine,
-cartes arrondies, icones vectorielles). Un seul point d'entree : apply_theme(app).
+Theme visuel de l'application -- systeme multi-themes selectionnable (voir
+core/themes.py pour le registre des palettes). Un seul point d'entree :
+apply_theme(app, theme_id=None).
 
-Palette extraite d'une reference visuelle fournie par l'utilisateur (capture d'ecran
-d'un dashboard admin) : bleu primaire vif, fond gris-bleu tres clair, cartes blanches
-a coins arrondis, accents vert/orange/rouge pour les statuts, marine fonce pour les
-zones de navigation.
+Historique : theme unique a l'origine (palette 'classic' ci-dessous, un
+tableau de bord admin bleu/marine), etendu en systeme multi-themes suite a
+une demande utilisateur de plusieurs propositions visuelles (maquettes A a
+G, voir core/themes.py). 'classic' reste le theme par defaut pour ne rien
+changer visuellement tant que l'utilisateur n'a pas choisi explicitement un
+autre theme dans Options > Theme.
+
+LIMITE ASSUMEE : PyQt6 Widgets ne supporte pas le vrai flou d'arriere-plan
+(backdrop-filter) des maquettes HTML d'origine -- necessiterait soit l'API
+Acrylic/Mica propre a Windows 11, soit une reecriture en Qt Quick/QML.
+L'approximation ici reste fidele en couleurs/degrades/coins arrondis mais
+sans le flou litteral.
+
+IMPORTANT (evite un piege de staleness Python) : les constantes de module
+ci-dessous (PRIMARY, TEXT_DARK, etc.) sont REASSIGNEES a chaque appel de
+apply_theme() -- tout code qui les utilise doit donc y acceder via
+'from gui import theme' puis 'theme.PRIMARY' (acces d'attribut, toujours a
+jour), JAMAIS via 'from gui.theme import PRIMARY' (copie figee a l'import,
+ne reverra plus les changements de theme a l'execution).
 """
 from PyQt6.QtGui import QIcon, QFont, QFontDatabase
 from PyQt6.QtCore import QSize
+
+from core.themes import get_palette, DEFAULT_THEME_ID
 
 try:
     import qtawesome as qta
@@ -34,39 +52,52 @@ except ImportError:
 
 
 # ------------------------------------------------------------------
-# Palette
+# Palette active -- reassignee par apply_theme() a chaque changement de
+# theme. Valeurs de depart = palette 'classic', pour que tout code appele
+# avant le tout premier apply_theme() (ne devrait pas arriver en usage
+# normal) ait quand meme des couleurs valides plutot qu'un crash.
 # ------------------------------------------------------------------
-PRIMARY = "#4a7dfc"
-PRIMARY_DARK = "#3a63d8"
-PRIMARY_DARKER = "#2f52b8"
-PRIMARY_LIGHT = "#7ba3f5"
-PRIMARY_BG_TINT = "#eaf0fe"
+_INITIAL = get_palette(DEFAULT_THEME_ID)
 
-NAVY = "#131a2e"
-NAVY_LIGHT = "#1c2440"
+PRIMARY = _INITIAL["accent"]
+PRIMARY_DARK = _INITIAL["accent_hover"]
+PRIMARY_DARKER = _INITIAL["accent_pressed"]
+PRIMARY_LIGHT = _INITIAL["accent_hover"]
+PRIMARY_BG_TINT = _INITIAL["accent_bg_tint"]
 
-BG = "#eef1f6"
-CARD_BG = "#ffffff"
-BORDER = "#e2e6f0"
-BORDER_STRONG = "#c9d0e0"
+NAVY = _INITIAL["nav_gradient"]
+NAVY_LIGHT = _INITIAL["surface_alt"]
 
-TEXT_DARK = "#1a1f36"
-TEXT_GRAY = "#7c859c"
-TEXT_ON_PRIMARY = "#ffffff"
+BG = _INITIAL["bg"]
+CARD_BG = _INITIAL["surface"]
+BORDER = _INITIAL["border"]
+BORDER_STRONG = _INITIAL["border_strong"]
 
-GREEN = "#22c55e"
-ORANGE = "#f5a623"
-RED = "#ef4444"
-RED_DARK = "#dc2626"
+TEXT_DARK = _INITIAL["text_primary"]
+TEXT_GRAY = _INITIAL["text_muted"]
+TEXT_ON_PRIMARY = _INITIAL["text_on_primary"]
 
-FONT_FAMILY = "Segoe UI"
+GREEN = _INITIAL["success"]
+ORANGE = _INITIAL["warning"]
+RED = _INITIAL["danger"]
+RED_DARK = _INITIAL["danger_dark"]
+
+FONT_FAMILY = _INITIAL["font_family"]
+
+CURRENT_THEME_ID = DEFAULT_THEME_ID
 
 
 # ------------------------------------------------------------------
 # Icones (qtawesome si disponible -- degrade proprement sinon : QIcon() vide,
 # les boutons gardent alors juste leur texte, rien ne casse).
 # ------------------------------------------------------------------
-def icon(name: str, color: str = TEXT_DARK, size: int = 16) -> QIcon:
+def icon(name: str, color: str = None, size: int = 16) -> QIcon:
+    """color=None (par defaut) lit TEXT_DARK au moment de l'APPEL, pas a la
+    definition de la fonction -- un defaut d'argument fige en Python
+    n'aurait capture qu'une seule fois la couleur du tout premier theme
+    charge, jamais mise a jour lors d'un changement de theme a l'execution."""
+    if color is None:
+        color = TEXT_DARK
     if not _HAS_QTA:
         return QIcon()
     try:
@@ -80,9 +111,28 @@ def icon_size() -> QSize:
 
 
 # ------------------------------------------------------------------
-# Feuille de style Qt (QSS) globale
+# Feuille de style Qt (QSS) -- construite a partir d'une palette (voir
+# core/themes.py). Les noms de variables gardent leur forme historique
+# (PRIMARY, NAVY, BG...) par souci de continuite avec le reste du code.
 # ------------------------------------------------------------------
-STYLESHEET = f"""
+def build_stylesheet(palette: dict) -> str:
+    PRIMARY = palette["accent"]
+    PRIMARY_DARK = palette["accent_hover"]
+    PRIMARY_DARKER = palette["accent_pressed"]
+    PRIMARY_LIGHT = palette["accent_hover"]
+    PRIMARY_BG_TINT = palette["accent_bg_tint"]
+    NAVY = palette["nav_gradient"]
+    BG = palette["bg"]
+    CARD_BG = palette["surface"]
+    BORDER = palette["border"]
+    BORDER_STRONG = palette["border_strong"]
+    TEXT_DARK = palette["text_primary"]
+    TEXT_GRAY = palette["text_muted"]
+    TEXT_ON_PRIMARY = palette["text_on_primary"]
+    NAV_TEXT = palette["nav_text"]
+    FONT_FAMILY = palette["font_family"]
+
+    return f"""
 * {{
     font-family: "{FONT_FAMILY}", "Segoe UI", sans-serif;
 }}
@@ -98,8 +148,8 @@ QDialog {{
 
 /* --- Barre de menus --- */
 QMenuBar {{
-    background-color: {NAVY};
-    color: #ffffff;
+    background: {NAVY};
+    color: {NAV_TEXT};
     padding: 4px;
     font-weight: 600;
 }}
@@ -111,6 +161,7 @@ QMenuBar::item {{
 }}
 QMenuBar::item:selected {{
     background-color: {PRIMARY};
+    color: {TEXT_ON_PRIMARY};
 }}
 QMenu {{
     background-color: {CARD_BG};
@@ -135,7 +186,7 @@ QMenu::separator {{
 
 /* --- Barre d'outils --- */
 QToolBar {{
-    background-color: {NAVY};
+    background: {NAVY};
     border: none;
     padding: 6px;
     spacing: 6px;
@@ -335,8 +386,8 @@ QProgressBar::chunk {{
 
 /* --- Info-bulles --- */
 QToolTip {{
-    background-color: {NAVY};
-    color: #ffffff;
+    background: {NAVY};
+    color: {NAV_TEXT};
     border: none;
     border-radius: 6px;
     padding: 6px 10px;
@@ -367,6 +418,46 @@ QLabel#mutedLabel {{
 """
 
 
-def apply_theme(app):
-    """A appeler une seule fois, juste apres la creation de QApplication."""
-    app.setStyleSheet(STYLESHEET)
+def apply_theme(app, theme_id: str = None):
+    """A appeler une premiere fois juste apres la creation de QApplication,
+    puis a nouveau a chaque changement de theme choisi par l'utilisateur
+    (voir MainWindow._set_theme). theme_id=None relit le theme persiste
+    (voir core.settings.get_theme), ou 'classic' par defaut."""
+    global PRIMARY, PRIMARY_DARK, PRIMARY_DARKER, PRIMARY_LIGHT, PRIMARY_BG_TINT
+    global NAVY, NAVY_LIGHT, BG, CARD_BG, BORDER, BORDER_STRONG
+    global TEXT_DARK, TEXT_GRAY, TEXT_ON_PRIMARY, GREEN, ORANGE, RED, RED_DARK
+    global FONT_FAMILY, CURRENT_THEME_ID
+
+    if theme_id is None:
+        from core.settings import get_theme
+        theme_id = get_theme()
+
+    palette = get_palette(theme_id)
+    CURRENT_THEME_ID = theme_id if theme_id in _known_theme_ids() else DEFAULT_THEME_ID
+
+    PRIMARY = palette["accent"]
+    PRIMARY_DARK = palette["accent_hover"]
+    PRIMARY_DARKER = palette["accent_pressed"]
+    PRIMARY_LIGHT = palette["accent_hover"]
+    PRIMARY_BG_TINT = palette["accent_bg_tint"]
+    NAVY = palette["nav_gradient"]
+    NAVY_LIGHT = palette["surface_alt"]
+    BG = palette["bg"]
+    CARD_BG = palette["surface"]
+    BORDER = palette["border"]
+    BORDER_STRONG = palette["border_strong"]
+    TEXT_DARK = palette["text_primary"]
+    TEXT_GRAY = palette["text_muted"]
+    TEXT_ON_PRIMARY = palette["text_on_primary"]
+    GREEN = palette["success"]
+    ORANGE = palette["warning"]
+    RED = palette["danger"]
+    RED_DARK = palette["danger_dark"]
+    FONT_FAMILY = palette["font_family"]
+
+    app.setStyleSheet(build_stylesheet(palette))
+
+
+def _known_theme_ids():
+    from core.themes import THEMES
+    return THEMES.keys()

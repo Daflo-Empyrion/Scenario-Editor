@@ -36,15 +36,19 @@ from PyQt6.QtGui import QColor, QBrush
 
 from core.i18n import t
 from core.scenario_diff import compare_scenarios, ScenarioDiffResult, FileDiffEntry
-from gui.theme import icon, icon_size, GREEN, RED, ORANGE, TEXT_GRAY, PRIMARY_DARK
+from gui.theme import icon, icon_size
+from gui import theme as _theme
 
 
-STATUS_COLORS = {
-    'added': GREEN,
-    'removed': RED,
-    'modified': ORANGE,
-    'unchanged': TEXT_GRAY,
-}
+def _status_colors() -> dict:
+    """Construit le mapping a chaque appel (pas au niveau module) pour lire
+    les couleurs du theme ACTUELLEMENT actif -- voir gui/theme.py."""
+    return {
+        'added': _theme.GREEN,
+        'removed': _theme.RED,
+        'modified': _theme.ORANGE,
+        'unchanged': _theme.TEXT_GRAY,
+    }
 
 
 class ScenarioCompareDialog(QDialog):
@@ -89,7 +93,7 @@ class ScenarioCompareDialog(QDialog):
         layout.addLayout(top_row)
 
         self.direction_label = QLabel("")
-        self.direction_label.setStyleSheet(f"font-weight: 700; color: {PRIMARY_DARK}; padding: 4px 0;")
+        self.direction_label.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY_DARK}; padding: 4px 0;")
         layout.addWidget(self.direction_label)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -191,7 +195,7 @@ class ScenarioCompareDialog(QDialog):
             symbol = {'added': '+', 'removed': '-', 'modified': '~', 'unchanged': ' '}[entry.status]
             file_item = QTreeWidgetItem(parent_item, [f"{symbol} {filename}"])
             file_item.setData(0, Qt.ItemDataRole.UserRole, entry)
-            color = QColor(STATUS_COLORS[entry.status])
+            color = QColor(_status_colors()[entry.status])
             file_item.setForeground(0, QBrush(color))
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int):

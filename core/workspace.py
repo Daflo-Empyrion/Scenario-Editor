@@ -478,6 +478,54 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
     return dest, 'added'
 
 
+def insert_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
+                                   block, source_label: str,
+                                   parent_chain: Optional[list] = None,
+                                   annotation: Optional[str] = None) -> Tuple[Path, str]:
+    """Insère un bloc ECF déjà construit (ex: variante générée par
+    core.ecf.variants.generate_block_variants) dans la copie de travail.
+    Diffère de duplicate_ecf_block_into_working qui part d'un bloc source et
+    applique des overrides : ici le bloc est déjà finalisé, on l'insère tel
+    quel. Vérifie les collisions d'identité (Id/Name) dans le conteneur cible.
+    Retourne (chemin_du_fichier, statut) -- statut : 'added', 'exists' ou
+    'parent_not_found'.
+    """
+    dest = workspace.working_root / working_relative_path
+    if not dest.exists():
+        raise FileNotFoundError(f"Le fichier {dest} n'existe pas encore dans la copie de travail.")
+    from .ecf.parser import parse_ecf_file
+    from .ecf.model import normalized_kind
+    working_doc = parse_ecf_file(dest)
+    target_nodes = working_doc.nodes
+    if parent_chain:
+        found_nodes = _find_ecf_parent_children(working_doc.nodes, parent_chain)
+        if found_nodes is None:
+            return dest, 'parent_not_found'
+        target_nodes = found_nodes
+    # Vérification de collision d'identité dans le conteneur cible
+    final_id = block.get('Id')
+    final_name = block.get_property('Name')
+    for node in target_nodes:
+        if not (hasattr(node, 'kind') and normalized_kind(node.kind) == normalized_kind(block.kind)):
+            continue
+        if final_id is not None:
+            if node.get('Id') == final_id:
+                return dest, 'exists'
+        elif final_name is not None:
+            if node.get('Id') is None and node.get_property('Name') == final_name:
+                return dest, 'exists'
+    # Ajuste l'indentation au niveau d'imbrication réel de destination
+    block.indent = "  " * len(parent_chain) if parent_chain else ""
+    if annotation and hasattr(block, 'comment'):
+        block.comment = (block.comment + "  " + annotation) if block.comment else annotation
+        block.dirty = True
+    target_nodes.append(block)
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(working_doc.render())
+    return dest, 'added'
+
+
+
 def _find_yaml_parent_path(doc, key_path: List[str]):
     """Retrouve, dans un YamlDocument, la liste d'enfants correspondant a un chemin de
     cles ancetres (ex: ['Playfield', 'POIs']) -- pour savoir ou inserer une entree

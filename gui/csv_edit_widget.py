@@ -32,6 +32,7 @@ from PyQt6.QtGui import QColor, QBrush
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
 from core import translation, settings
 from core.i18n import t
+from core.csv_column_glossary import get_csv_column_tooltip
 from gui.theme import icon, icon_size
 from gui.text_tools import (
     copy_selection, cut_selection, paste_into_selection, delete_selection, delete_selected_rows,
@@ -415,6 +416,16 @@ class CsvEditWidget(QWidget):
         self.table = QTableWidget(len(self.doc.rows), n_cols)
         if self.doc.header:
             self.table.setHorizontalHeaderLabels(self.doc.header)
+            # Infobulles d'en-tete de colonne (apparition apres une courte pause
+            # du curseur, comportement standard Qt) -- coherentes avec le format
+            # REEL des fichiers CSV de ce projet (KEY + colonnes de langues, voir
+            # core/csv_column_glossary.py).
+            for col_idx, col_name in enumerate(self.doc.header):
+                tooltip = get_csv_column_tooltip(col_name)
+                if tooltip:
+                    header_item = self.table.horizontalHeaderItem(col_idx)
+                    if header_item:
+                        header_item.setToolTip(tooltip)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.horizontalHeader().customContextMenuRequested.connect(self._show_header_context_menu)

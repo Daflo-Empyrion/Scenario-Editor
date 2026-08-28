@@ -1,5 +1,0 @@
-POIs:
-  - Name: ExistingPOI
-    Prefab: ExistingPOI
-  - Name: MissingPOI
-    Prefab: MissingPOI

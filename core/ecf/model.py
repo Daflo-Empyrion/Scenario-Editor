@@ -357,6 +357,87 @@ def duplicate_block(block: EcfBlock, overrides: Optional[dict] = None,
     return new_block
 
 
+_ITEM_KEY_RE = re.compile(r'^([A-Za-z]+)_(\d+)$')
+
+
+def detect_repeating_items(block: "EcfBlock") -> Optional[Tuple[List[str], List[str]]]:
+    """Detecte les sous-blocs a structure repetitive : une suite de lignes de
+    propriete dont la PREMIERE paire suit le motif 'Prefixe_N: valeur' (N
+    croissant -- Name_0/Name_1, Group_0/Group_1, mais aussi Item_0/Item_1
+    (LootGroups.ecf), DamageMultiplier_1/DamageMultiplier_2
+    (DamageMultiplierConfig.ecf), et tout autre prefixe suivant la meme
+    convention), suivie d'un jeu de parametres (param1, param2, display...)
+    globalement coherent d'une ligne a l'autre.
+
+    Retourne (param_columns, prefixes) si detecte -- param_columns : liste
+    ordonnee des noms de colonnes parametres (peut etre vide) ; prefixes : liste
+    ordonnee des prefixes distincts vus (ex: ['Name', 'Group'] ou ['Item'] ou
+    ['DamageMultiplier']), utilisee pour peupler le choix 'Type' du formulaire
+    d'ajout de ligne. Retourne None si la structure ne correspond pas (retombe
+    alors sur l'affichage classique cle/valeur).
+
+    EXTRAIT depuis gui/ecf_edit_widget.py (etait une methode d'instance
+    utilisant self._ITEM_KEY_RE) pour garder une source unique de verite --
+    voir EcfEditWidget._detect_repeating_items qui delegue desormais ici."""
+    prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
+    if len(prop_children) < 2:
+        return None
+    matches = 0
+    param_keys_seen = []
+    prefixes_seen = []
+    for prop in prop_children:
+        if not prop.pairs:
+            continue
+        first_key = prop.pairs[0][0]
+        m = _ITEM_KEY_RE.match(first_key) if first_key else None
+        if m:
+            matches += 1
+            if m.group(1) not in prefixes_seen:
+                prefixes_seen.append(m.group(1))
+            for k, v in prop.pairs[1:]:
+                if k and k not in param_keys_seen:
+                    param_keys_seen.append(k)
+    if matches < 2 or matches < len(prop_children) * 0.5:
+        return None
+
+    def _natural_key(k):
+        m = re.search(r'(\d+)$', k)
+        return (k[:m.start()] if m else k, int(m.group(1)) if m else 0)
+    param_keys_seen.sort(key=_natural_key)
+    return param_keys_seen, prefixes_seen
+
+
+def find_first_inline_comment_for_key(doc: "EcfDocument", key: str) -> Optional[str]:
+    """Repli pour les infobulles de colonne/propriete quand le glossaire
+    manuel (core/ecf_header_glossary.py) ne couvre pas ce champ precis :
+    cherche dans le VRAI fichier ouvert la premiere ligne ou cette cle
+    apparait avec un commentaire de fin ('# ...'), et retourne ce
+    commentaire tel quel -- jamais une explication inventee, uniquement
+    ce que le fichier documente lui-meme a cet endroit precis. Utile pour
+    les fichiers hors glossaire, ou pour des champs que le glossaire
+    n'a pas encore couverts."""
+    def _scan(nodes) -> Optional[str]:
+        for node in nodes:
+            if isinstance(node, EcfProperty) and node.comment:
+                for k, _v in node.pairs:
+                    if k == key:
+                        cleaned = node.comment.lstrip('#').strip()
+                        if cleaned:
+                            return cleaned
+            if isinstance(node, EcfBlock):
+                if node.comment:
+                    for k, _v in node.pairs:
+                        if k == key:
+                            cleaned = node.comment.lstrip('#').strip()
+                            if cleaned:
+                                return cleaned
+                found = _scan(node.children)
+                if found:
+                    return found
+        return None
+    return _scan(doc.nodes)
+
+
 @dataclass
 class EcfDocument:
     nodes: List[EcfNode]

@@ -647,6 +647,30 @@ Desactivable dans **Options > Sauvegarde automatique**.
 
 ---
 
+## 16bis. Theme visuel
+
+**Options > Theme** — 8 themes selectionnables, bascule immediate sans
+redemarrer :
+- **Classique** — theme d'origine (tableau de bord bleu/marine), reste le
+  theme par defaut tant qu'aucun autre n'est choisi explicitement
+- **A — Console de bord** — sombre, cyan/ambre, esthetique tableau de
+  commande spatial
+- **B — Table a dessin** — clair, bleu plan technique
+- **C — Terminal d'ingenierie** — sombre chaud, cuivre/sarcelle
+- **D — Cristal nocturne** — sombre, violet/cyan
+- **E — Cristal solaire** — clair, violet/cyan
+- **F — Crepuscule** — ardoise moyen, pense pour un usage confortable sur
+  plusieurs heures (contraste modere, blanc casse plutot que blanc pur)
+- **G — Nacre** — clair, degrade irise multicolore en bandeau de menu
+
+<span style="color:#7c859c"><i>Limite assumee : ces themes sont une
+approximation fidele en couleurs/degrades des maquettes originales, mais
+sans le vrai flou d'arriere-plan (verre depoli) -- PyQt6 Widgets ne le
+supporte pas nativement (necessiterait l'API Acrylic/Mica propre a Windows
+11, ou une reecriture en Qt Quick/QML).</i></span>
+
+---
+
 ## 17. Aide
 
 - **Aide > Tutoriels...** — module de tutoriels pas a pas integre, navigable

@@ -211,6 +211,16 @@ class YamlEditWidget(QWidget):
         preview = entry.value[:60] if entry.value else ""
         item = QTreeWidgetItem([label or "", preview])
         item.setData(0, Qt.ItemDataRole.UserRole, entry)
+        # Infobulle coherente avec le VRAI fichier ouvert : si cette ligne a
+        # un commentaire de fin ('# ...') dans le fichier source, on
+        # l'affiche tel quel -- jamais une explication inventee. Beaucoup
+        # de fichiers YAML de playfields documentent leurs champs ainsi
+        # (ex: 'Difficulty: 2  # 1=facile ... 5=extreme').
+        if entry.comment:
+            cleaned = entry.comment.lstrip('#').strip()
+            if cleaned:
+                item.setToolTip(0, f"<b>{label}</b><br>{cleaned}")
+                item.setToolTip(1, f"<b>{label}</b><br>{cleaned}")
         for child in entry.children:
             if isinstance(child, YamlEntry):
                 item.addChild(self._make_item(child))

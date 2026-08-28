@@ -22,3 +22,37 @@ def test_no_stale_2048_id_limit():
     assert "Id jusqu'a 2048" not in all_terms
     assert "Id jusqu'a 8192" in all_terms
     assert "8192" in all_text
+
+
+def test_find_term_explanation_exact_match():
+    """Cle de propriete correspondant exactement a un terme du glossaire."""
+    from core.ecf_header_glossary import find_term_explanation
+    result = find_term_explanation("BlocksConfig.ecf", "AllowPlacingAt")
+    assert result is not None
+    assert "Base" in result
+
+
+def test_find_term_explanation_grouped_term():
+    """Un terme groupe comme 'EnergyIn / EnergyOut' doit repondre pour
+    chacun des deux membres separement."""
+    from core.ecf_header_glossary import find_term_explanation
+    result_in = find_term_explanation("BlocksConfig.ecf", "EnergyIn")
+    result_out = find_term_explanation("BlocksConfig.ecf", "EnergyOut")
+    assert result_in is not None
+    assert result_in == result_out
+
+
+def test_find_term_explanation_case_insensitive():
+    from core.ecf_header_glossary import find_term_explanation
+    result = find_term_explanation("BlocksConfig.ecf", "allowplacingat")
+    assert result is not None
+
+
+def test_find_term_explanation_unknown_file_returns_none():
+    from core.ecf_header_glossary import find_term_explanation
+    assert find_term_explanation("FichierInconnu.ecf", "AllowPlacingAt") is None
+
+
+def test_find_term_explanation_unknown_term_returns_none():
+    from core.ecf_header_glossary import find_term_explanation
+    assert find_term_explanation("BlocksConfig.ecf", "ProprieteQuiNexistePas") is None
