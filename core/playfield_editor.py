@@ -34,6 +34,14 @@ ItemsConfig.ecf (pas devinee) :
 - Meme constat et meme limitation pour les noms de creatures/drones
   ("RipperDog", "Spiders01"...) -- absents des deux fichiers verifies,
   probablement definis par le jeu de base plutot que par le scenario.
+
+Piege des commentaires a indentation zero (playfield_static.yaml, Sectors.yaml
+-- fichiers reels) : CORRIGE A LA RACINE dans core/yamllite/parser.py (un
+commentaire n'etablit/ne rompt plus jamais un niveau d'imbrication). Les
+fonctions par plage d'indices ci-dessous (_section_index_range et consorts)
+restent en place comme filet de securite redondant mais ne sont plus
+necessaires au fonctionnement correct -- voir list_items() pour le detail de
+la verification.
 """
 import re
 from dataclasses import dataclass, field
@@ -62,17 +70,23 @@ def list_items(doc: YamlDocument, section_key: str, item_key: str = "Name") -> L
     is_sequence_item=True.
 
     Cherche par PLAGE D'INDICES au sein du document plutot que par simple
-    descente dans les enfants directs de la section -- necessaire car des
-    commentaires a indentation zero au milieu d'une liste (frequents dans de
-    vrais fichiers : "# Smaller scattered around planet", "### Resource
-    Asteroids"...) cassent le rattachement hierarchique du parseur ; les items
-    qui suivent un tel commentaire "fuient" alors au niveau racine du document
-    plutot que de rester enfants de la section. Round-trip toujours parfait
-    (rien n'est corrompu a l'ecriture), mais une simple descente dans
-    section.children en manquait la plupart -- confirme sur un vrai
-    RandomResources ou seul 1 item sur 9 etait trouve avant cette correction.
-    Meme principe deja utilise par find_poi_items()/find_creature_items(),
-    desormais partage par toutes les sections via cette fonction unique."""
+    descente dans les enfants directs de la section -- a l'origine
+    necessaire car des commentaires a indentation zero au milieu d'une liste
+    (frequents dans de vrais fichiers : "# Smaller scattered around planet",
+    "### Resource Asteroids"...) cassaient le rattachement hierarchique du
+    parseur ; les items qui suivaient un tel commentaire "fuyaient" alors au
+    niveau racine du document plutot que de rester enfants de la section.
+    CORRIGE A LA RACINE depuis dans core/yamllite/parser.py (un commentaire
+    n'etablit/ne rompt plus jamais un niveau d'imbrication, quelle que soit
+    son indentation) -- verifie sur playfield_static.yaml/Sectors.yaml
+    (fichiers reels) : une simple descente dans section.children retrouve
+    desormais exactement le meme compte qu'ici. Cette fonction par plage
+    d'indices est conservee telle quelle (filet de securite redondant mais
+    inoffensif) plutot que remplacee par une descente directe, pour ne pas
+    reintroduire de risque de regression sur du code GUI deja teste pour un
+    gain desormais purement cosmetique. Meme principe deja utilise par
+    find_poi_items()/find_creature_items(), desormais partage par toutes les
+    sections via cette fonction unique."""
     rng = _section_index_range(doc, section_key)
     if rng is None:
         return []
@@ -82,15 +96,12 @@ def list_items(doc: YamlDocument, section_key: str, item_key: str = "Name") -> L
 def _section_index_range(doc: YamlDocument, section_key: str) -> Optional[tuple]:
     """Indices (debut inclus, fin exclue) delimitant une section de niveau racine
     dans doc.nodes, du noeud lui-meme jusqu'au prochain noeud de niveau racine
-    (indent vide) -- ou la fin du document. Utilise plutot qu'une simple
-    descente recursive dans les enfants, car certains fichiers reels (confirme
-    sur un vrai playfield.yaml) contiennent des commentaires a indentation zero
-    au milieu d'une liste profondement imbriquee, ce qui casse le rattachement
-    hierarchique du parseur -- le round-trip reste parfait (les commentaires et
-    items retombent bien au bon endroit a l'ecriture), mais les items censes
-    etre enfants de la section 'fuient' au niveau racine du document. Chercher
-    par PLAGE D'INDICES plutot que par vraie profondeur d'arbre contourne ce
-    probleme de facon fiable."""
+    (indent vide) -- ou la fin du document. A l'origine utilisee plutot qu'une
+    simple descente recursive car certains fichiers reels contenaient des
+    commentaires a indentation zero cassant le rattachement hierarchique du
+    parseur -- CORRIGE A LA RACINE depuis dans core/yamllite/parser.py (voir
+    list_items() ci-dessus pour le detail et la verification sur fichiers
+    reels). Fonction conservee en l'etat comme filet de securite redondant."""
     start = None
     for i, node in enumerate(doc.nodes):
         if isinstance(node, YamlEntry) and node.key == section_key and node.indent == "":
@@ -157,10 +168,7 @@ def _find_items_with_subsection_tracking(doc: YamlDocument, start: int, end: int
 def find_poi_items(doc: YamlDocument) -> List[YamlEntry]:
     """Toutes les entrees POI ('GroupName:') de la section POIs, quel que soit
     leur niveau d'imbrication reel dans l'arbre (voir _section_index_range)."""
-    rng = _section_index_range(doc, "POIs")
-    if rng is None:
-        return []
-    return _find_items_in_range(doc, rng[0], rng[1], "GroupName")
+    return list_items(doc, "POIs", "GroupName")
 
 
 def find_creature_items(doc: YamlDocument) -> List[YamlEntry]:
@@ -206,6 +214,20 @@ def get_creature_biome(item: YamlEntry) -> str:
     return getattr(item, "_biome", "")
 
 
+def _find_subsection_items(doc: YamlDocument, section_key: str, item_key: str,
+                            subsection_keys: List[str], target_subsection: str) -> List[YamlEntry]:
+    """Combine _section_index_range + _find_items_with_subsection_tracking + filtre
+    sur `target_subsection` -- factorise le motif partage par toutes les
+    sections ou plusieurs listes distinctes cohabitent sous la meme cle de
+    niveau racine (POIs > Fixed/Random/FixedPlayerStart,
+    DroneBaseSetup > Stock/FreeDrones/SpaceVessels)."""
+    rng = _section_index_range(doc, section_key)
+    if rng is None:
+        return []
+    tagged = _find_items_with_subsection_tracking(doc, rng[0], rng[1], item_key, subsection_keys)
+    return [item for item, subsection in tagged if subsection == target_subsection]
+
+
 def find_fixed_poi_items(doc: YamlDocument) -> List[YamlEntry]:
     """Entrees 'POIs > Fixed' -- POI a position absolue fixe (cle d'item 'Type',
     PAS 'GroupName' comme les entrees Random -- confirme sur un vrai
@@ -221,12 +243,7 @@ def find_fixed_poi_items(doc: YamlDocument) -> List[YamlEntry]:
     occurrences successives de 'Random:' (meme fichier reutilisant deux fois
     ce marqueur), sans quoi les items suivant la reprise de 'Random:' apres
     'FixedPlayerStart' resteraient a tort tagues avec l'ancienne sous-section."""
-    rng = _section_index_range(doc, "POIs")
-    if rng is None:
-        return []
-    tagged = _find_items_with_subsection_tracking(
-        doc, rng[0], rng[1], "Type", ["Fixed", "Random", "FixedPlayerStart"])
-    return [item for item, subsection in tagged if subsection == "Fixed"]
+    return _find_subsection_items(doc, "POIs", "Type", ["Fixed", "Random", "FixedPlayerStart"], "Fixed")
 
 
 def find_random_poi_items(doc: YamlDocument) -> List[YamlEntry]:
@@ -235,12 +252,7 @@ def find_random_poi_items(doc: YamlDocument) -> List[YamlEntry]:
     distinguer Fixed de Random, ex: le canvas 2D ou seules les Fixed ont une
     position absolue directement exploitable). Voir find_fixed_poi_items()
     pour le role de 'FixedPlayerStart' dans les cles de sous-section suivies."""
-    rng = _section_index_range(doc, "POIs")
-    if rng is None:
-        return []
-    tagged = _find_items_with_subsection_tracking(
-        doc, rng[0], rng[1], "GroupName", ["Fixed", "Random", "FixedPlayerStart"])
-    return [item for item, subsection in tagged if subsection == "Random"]
+    return _find_subsection_items(doc, "POIs", "GroupName", ["Fixed", "Random", "FixedPlayerStart"], "Random")
 
 
 def find_fixed_player_start_items(doc: YamlDocument) -> List[YamlEntry]:
@@ -250,12 +262,7 @@ def find_fixed_player_start_items(doc: YamlDocument) -> List[YamlEntry]:
     comme suppose initialement -- 4 entrees trouvees sur un vrai
     playfield_static.yaml, entre les deux occurrences de 'Random:' de ce meme
     fichier."""
-    rng = _section_index_range(doc, "POIs")
-    if rng is None:
-        return []
-    tagged = _find_items_with_subsection_tracking(
-        doc, rng[0], rng[1], "Mode", ["Fixed", "Random", "FixedPlayerStart"])
-    return [item for item, subsection in tagged if subsection == "FixedPlayerStart"]
+    return _find_subsection_items(doc, "POIs", "Mode", ["Fixed", "Random", "FixedPlayerStart"], "FixedPlayerStart")
 
 
 # ============================================================================
@@ -534,24 +541,14 @@ def find_drone_stock_items(doc: YamlDocument) -> List[YamlEntry]:
     (juste FreeDrones/SpaceVessels) : sans ce filtre, cette fonction
     remontait a tort TOUTES les entrees 'Name:' de la section entiere,
     confondant Stock/FreeDrones/SpaceVessels ensemble."""
-    rng = _section_index_range(doc, "DroneBaseSetup")
-    if rng is None:
-        return []
-    tagged = _find_items_with_subsection_tracking(
-        doc, rng[0], rng[1], "Name", ["Stock", "FreeDrones", "SpaceVessels"])
-    return [item for item, subsection in tagged if subsection == "Stock"]
+    return _find_subsection_items(doc, "DroneBaseSetup", "Name", ["Stock", "FreeDrones", "SpaceVessels"], "Stock")
 
 
 def find_free_drones_items(doc: YamlDocument) -> List[YamlEntry]:
     """Drones de patrouille libres (playfield ESPACE) -- section 'FreeDrones'
     au sein de DroneBaseSetup. Distingue de SpaceVessels (meme cle 'Name:')
     via la derniere sous-section rencontree dans l'ordre du texte."""
-    rng = _section_index_range(doc, "DroneBaseSetup")
-    if rng is None:
-        return []
-    tagged = _find_items_with_subsection_tracking(
-        doc, rng[0], rng[1], "Name", ["FreeDrones", "SpaceVessels"])
-    return [item for item, subsection in tagged if subsection == "FreeDrones"]
+    return _find_subsection_items(doc, "DroneBaseSetup", "Name", ["FreeDrones", "SpaceVessels"], "FreeDrones")
 
 
 def find_space_vessels_items(doc: YamlDocument) -> List[YamlEntry]:
@@ -561,12 +558,7 @@ def find_space_vessels_items(doc: YamlDocument) -> List[YamlEntry]:
     plusieurs niveaux -- non editables directement en tableau, voir
     _is_complex_param cote GUI, seuls les parametres simples type Faction/
     CountMinMax/Probability le sont)."""
-    rng = _section_index_range(doc, "DroneBaseSetup")
-    if rng is None:
-        return []
-    tagged = _find_items_with_subsection_tracking(
-        doc, rng[0], rng[1], "Name", ["FreeDrones", "SpaceVessels"])
-    return [item for item, subsection in tagged if subsection == "SpaceVessels"]
+    return _find_subsection_items(doc, "DroneBaseSetup", "Name", ["FreeDrones", "SpaceVessels"], "SpaceVessels")
 
 
 # ============================================================================
@@ -580,20 +572,14 @@ def find_space_vessels_items(doc: YamlDocument) -> List[YamlEntry]:
 def find_drone_spawning_items(doc: YamlDocument) -> List[YamlEntry]:
     """Zones de patrouille de drones planetaires (DroneSpawning > Random) --
     chaque entree a DronesMinMax/CenterX(/CenterY/CenterZ)."""
-    rng = _section_index_range(doc, "DroneSpawning")
-    if rng is None:
-        return []
-    return _find_items_in_range(doc, rng[0], rng[1], "DronesMinMax")
+    return list_items(doc, "DroneSpawning", "DronesMinMax")
 
 
 def find_spawn_rate_zones_items(doc: YamlDocument) -> List[YamlEntry]:
     """Zones de modulation du taux d'apparition de creatures autour d'un POI --
     chaque entree a SpawnAt (liste de POI ou [START]), Radius, et des
     multiplicateurs de taux."""
-    rng = _section_index_range(doc, "SpawnRateZones")
-    if rng is None:
-        return []
-    return _find_items_in_range(doc, rng[0], rng[1], "SpawnAt")
+    return list_items(doc, "SpawnRateZones", "SpawnAt")
 
 
 def find_spawn_zones_items(doc: YamlDocument) -> List[YamlEntry]:
@@ -601,19 +587,13 @@ def find_spawn_zones_items(doc: YamlDocument) -> List[YamlEntry]:
     par biome plutot que par POI) -- chaque entree a SpawnAt, Radius, et une
     sous-liste 'Entities' imbriquee (non editable directement en tableau, voir
     _is_complex_param cote GUI)."""
-    rng = _section_index_range(doc, "SpawnZones")
-    if rng is None:
-        return []
-    return _find_items_in_range(doc, rng[0], rng[1], "SpawnAt")
+    return list_items(doc, "SpawnZones", "SpawnAt")
 
 
 def find_special_effects_local_items(doc: YamlDocument) -> List[YamlEntry]:
     """Petits effets visuels locaux par biome (pollen, papillons, lucioles...) --
     chaque entree a Name, Biome, Time, MaxHeight (optionnel)."""
-    rng = _section_index_range(doc, "SpecialEffectsLocal")
-    if rng is None:
-        return []
-    return _find_items_in_range(doc, rng[0], rng[1], "Name")
+    return list_items(doc, "SpecialEffectsLocal", "Name")
 
 
 def find_special_effects_global_items(doc: YamlDocument) -> List[YamlEntry]:
@@ -621,7 +601,4 @@ def find_special_effects_global_items(doc: YamlDocument) -> List[YamlEntry]:
     melange d'entrees 'Type: Weather' (InitialDelay/Delay/Lifetime) et
     d'entrees biome-specifiques (Biome/PlyDist/SpawnY) -- colonnes
     heterogenes, gerees normalement par l'union des cles existante."""
-    rng = _section_index_range(doc, "SpecialEffectsGlobal")
-    if rng is None:
-        return []
-    return _find_items_in_range(doc, rng[0], rng[1], "Name")
+    return list_items(doc, "SpecialEffectsGlobal", "Name")

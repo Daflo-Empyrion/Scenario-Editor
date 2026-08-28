@@ -154,13 +154,22 @@ def _parse_block(lines: List[str], start: int, end: int, base_indent: int) -> Li
             i += 1
             continue
 
-        if indent_len <= base_indent:
-            break
-
         if stripped.startswith('#'):
+            # Un commentaire n'etablit et ne rompt JAMAIS un niveau d'imbrication --
+            # verifie sur de vrais fichiers reels (playfield_static.yaml,
+            # Sectors.yaml) : des commentaires a indentation ZERO apparaissent
+            # couramment au milieu d'une liste profondement imbriquee (ex: sous
+            # 'POIs > Random', indente a 8+ espaces), sans que cela signifie une
+            # sortie de section. Seule une VRAIE ligne de contenu (mapping/sequence)
+            # dont l'indentation est <= base_indent marque la fin du bloc courant --
+            # voir le test indent_len <= base_indent juste apres, qui ne s'applique
+            # donc plus qu'aux lignes de contenu reel.
             nodes.append(YamlComment(raw=raw))
             i += 1
             continue
+
+        if indent_len <= base_indent:
+            break
 
         is_seq, key, value, comment = _classify(stripped)
 
@@ -235,7 +244,12 @@ def _parse_block(lines: List[str], start: int, end: int, base_indent: int) -> Li
         j = child_start
         while j < end:
             c2, _, ind2 = _split_line(lines[j])
-            if c2.strip() == '':
+            stripped2 = c2.strip()
+            if stripped2 == '' or stripped2.startswith('#'):
+                # Meme principe que dans la boucle principale ci-dessus : un
+                # commentaire (quelle que soit son indentation, y compris zero)
+                # ne marque jamais la fin du bloc d'enfants -- seule une vraie
+                # ligne de contenu moins indentee le fait.
                 j += 1
                 continue
             if len(ind2) > child_base_indent:

@@ -44,7 +44,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, block_identity, property_lines, normalized_kind
+from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, block_identity, property_lines, normalized_kind, add_property_line
 
 
 @dataclass
@@ -216,7 +216,7 @@ def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock,
         for ident, pairs in other_lines.items():
             if ident in base_lines:
                 continue  # une source plus prioritaire definit deja cette ligne
-            _add_property_line(merged, pairs)
+            add_property_line(merged, pairs)
             base_lines[ident] = pairs
             overrides.append(f"{ident} (depuis {label})")
 
@@ -226,25 +226,6 @@ def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock,
     merged.children = [c for c in merged.children if not isinstance(c, EcfBlock)] + merged_sub_blocks
 
     return merged, overrides
-
-
-def _add_property_line(block: EcfBlock, pairs: List[Tuple[Optional[str], str]]) -> None:
-    """Insere une nouvelle ligne de propriete (copiee depuis une autre source) dans un
-    bloc. Placee avant le premier sous-bloc s'il y en a un, pour rester groupee avec les
-    autres proprietes simples plutot qu'apres un bloc imbrique comme 'Child Items'."""
-    indent = "  "
-    for child in block.children:
-        if isinstance(child, EcfProperty):
-            indent = child.indent
-            break
-    new_prop = EcfProperty(raw="", indent=indent, pairs=list(pairs), comment=None, eol=block.eol, dirty=True)
-
-    insert_at = len(block.children)
-    for i, child in enumerate(block.children):
-        if isinstance(child, EcfBlock):
-            insert_at = i
-            break
-    block.children.insert(insert_at, new_prop)
 
 
 def _merge_child_blocks(candidates: List[Tuple[str, EcfBlock]]) -> List[EcfBlock]:

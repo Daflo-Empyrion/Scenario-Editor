@@ -357,9 +357,6 @@ def duplicate_block(block: EcfBlock, overrides: Optional[dict] = None,
     return new_block
 
 
-_ITEM_KEY_RE = re.compile(r'^([A-Za-z]+)_(\d+)$')
-
-
 def detect_repeating_items(block: "EcfBlock") -> Optional[Tuple[List[str], List[str]]]:
     """Detecte les sous-blocs a structure repetitive : une suite de lignes de
     propriete dont la PREMIERE paire suit le motif 'Prefixe_N: valeur' (N

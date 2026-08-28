@@ -66,6 +66,7 @@ from core import i18n
 from core.i18n import t
 from core.project_store import ProjectRecord
 
+from gui.tutorial_dialog import TutorialDialog
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
 from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys, EcfHeaderExplanationPanel
@@ -118,6 +119,16 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_menu(self):
+        """Construit la barre de menu complete -- decoupe en une methode privee par
+        menu (Fichier/Verification/Options/Aide) pour rester lisible, voir
+        _build_menu_file/_build_menu_verification/_build_menu_options/_build_menu_help
+        ci-dessous."""
+        self._build_menu_file()
+        self._build_menu_verification()
+        self._build_menu_options()
+        self._build_menu_help()
+
+    def _build_menu_file(self):
         self.menu_file = self.menuBar().addMenu(t("menu.file"))
         self.action_new = self.menu_file.addAction(t("menu.file.new_project"))
         self.action_new.triggered.connect(self.new_project_dialog)
@@ -153,6 +164,7 @@ class MainWindow(QMainWindow):
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
 
+    def _build_menu_verification(self):
         self.menu_check = self.menuBar().addMenu(t("menu.verification"))
         self.action_refs = self.menu_check.addAction(t("menu.verification.check_refs"))
         self.action_refs.triggered.connect(self.check_references_dialog)
@@ -169,6 +181,7 @@ class MainWindow(QMainWindow):
         self.action_health_check = self.menu_check.addAction(t("menu.verification.health_check"))
         self.action_health_check.triggered.connect(self._open_health_check_dialog)
 
+    def _build_menu_options(self):
         self.menu_options = self.menuBar().addMenu(t("menu.options"))
         self.action_author = self.menu_options.addAction(t("menu.options.author"))
         self.action_author.triggered.connect(self._set_author_dialog)
@@ -203,6 +216,7 @@ class MainWindow(QMainWindow):
             theme_action.triggered.connect(lambda checked, tid=theme_id: self._set_theme(tid))
             self._theme_actions[theme_id] = theme_action
 
+    def _build_menu_help(self):
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
         self.action_tutorials = self.menu_help.addAction(t("menu.help.tutorials"))
         self.action_tutorials.triggered.connect(self._open_tutorials_dialog)
@@ -2128,198 +2142,6 @@ class MainWindow(QMainWindow):
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
         return widget
-
-
-class TutorialDialog(QDialog):
-    """Fenetre des tutoriels : liste a gauche (lue dynamiquement depuis
-    core/tutorials.py -- aucune modification necessaire ici pour ajouter un nouveau
-    tutoriel), navigation pas a pas a droite (titre d'etape, contenu, Precedent/
-    Suivant, compteur).
-
-    Peut s'ouvrir automatiquement au demarrage (auto_opened=True, voir main()) :
-    dans ce cas, un bandeau rappelle ou retrouver ce tutoriel plus tard (chemin de
-    menu exact), avec une case a cocher pour ne plus l'ouvrir automatiquement aux
-    prochains lancements -- jamais affiche quand ouvert manuellement depuis le
-    menu Aide, ou l'utilisateur sait deja qu'il vient de choisir de le voir."""
-
-    def __init__(self, parent=None, auto_opened: bool = False):
-        super().__init__(parent)
-        from core.tutorials import TUTORIALS
-        from core import i18n, settings as _settings
-        self.tutorials = TUTORIALS
-        self.current_tutorial = None
-        self.current_step_index = 0
-        self._lang = i18n.get_language()
-
-        self.setWindowTitle(t("tutorials.dialog_title"))
-        self.resize(800, 620 if auto_opened else 550)
-
-        outer = QVBoxLayout(self)
-
-        if auto_opened:
-            banner = QLabel(t("tutorials.auto_open_banner"))
-            banner.setWordWrap(True)
-            banner.setStyleSheet(
-                "background: #eef1f6; border: 1px solid #d0d7e5; border-radius: 6px; padding: 8px;")
-            outer.addWidget(banner)
-            self.checkbox_dont_show = QCheckBox(t("tutorials.dont_show_again"))
-            self.checkbox_dont_show.toggled.connect(
-                lambda checked: _settings.set_auto_open_tutorial(not checked))
-            outer.addWidget(self.checkbox_dont_show)
-
-        layout = QHBoxLayout()
-        outer.addLayout(layout, 1)
-
-        left_col = QVBoxLayout()
-        left_col.addWidget(QLabel(t("tutorials.list_title")))
-        self.list_widget = QListWidget()
-        self.list_widget.setMaximumWidth(220)
-        for tut in self.tutorials:
-            item = QListWidgetItem(tut.title(self._lang))
-            item.setToolTip(tut.summary(self._lang))
-            self.list_widget.addItem(item)
-        self.list_widget.currentRowChanged.connect(self._on_tutorial_selected)
-        left_col.addWidget(self.list_widget, 1)
-        layout.addLayout(left_col)
-
-        right_col = QVBoxLayout()
-        self.step_counter_label = QLabel("")
-        self.step_counter_label.setStyleSheet("color: gray; font-size: 11px;")
-        right_col.addWidget(self.step_counter_label)
-
-        self.step_title_label = QLabel("")
-        title_font = self.step_title_label.font()
-        title_font.setBold(True)
-        title_font.setPointSize(title_font.pointSize() + 2)
-        self.step_title_label.setFont(title_font)
-        right_col.addWidget(self.step_title_label)
-
-        self.content_browser = QTextBrowser()
-        self.content_browser.setOpenExternalLinks(True)
-        self.content_browser.setHtml(t("tutorials.select_prompt"))
-        right_col.addWidget(self.content_browser, 1)
-
-        nav_row = QHBoxLayout()
-        self.btn_previous = QPushButton(t("tutorials.btn_previous"))
-        self.btn_previous.setObjectName("secondaryButton")
-        self.btn_previous.clicked.connect(self._go_previous)
-        self.btn_previous.setEnabled(False)
-        nav_row.addWidget(self.btn_previous)
-        nav_row.addStretch()
-        self.btn_next = QPushButton(t("tutorials.btn_next"))
-        self.btn_next.clicked.connect(self._go_next)
-        self.btn_next.setEnabled(False)
-        nav_row.addWidget(self.btn_next)
-        right_col.addLayout(nav_row)
-
-        layout.addLayout(right_col, 1)
-
-        if self.tutorials:
-            self.list_widget.setCurrentRow(0)
-
-    def _on_tutorial_selected(self, row: int):
-        if row < 0 or row >= len(self.tutorials):
-            return
-        self.current_tutorial = self.tutorials[row]
-        self.current_step_index = 0
-        self._refresh_step()
-
-    def _refresh_step(self):
-        if not self.current_tutorial or not self.current_tutorial.steps:
-            return
-        steps = self.current_tutorial.steps
-        step = steps[self.current_step_index]
-        self.step_counter_label.setText(
-            t("tutorials.step_counter", current=self.current_step_index + 1, total=len(steps)))
-        self.step_title_label.setText(step.title(self._lang))
-        self.content_browser.setHtml(step.content_html(self._lang))
-        self.btn_previous.setEnabled(self.current_step_index > 0)
-        self.btn_next.setEnabled(self.current_step_index < len(steps) - 1)
-
-    def _go_previous(self):
-        if self.current_step_index > 0:
-            self.current_step_index -= 1
-            self._refresh_step()
-
-    def _go_next(self):
-        if self.current_tutorial and self.current_step_index < len(self.current_tutorial.steps) - 1:
-            self.current_step_index += 1
-            self._refresh_step()
-
-
-class DuplicateBlockDialog(QDialog):
-    """Fenetre de duplication d'un bloc ECF : les deux champs (Id, Name) sont visibles
-    en meme temps, avec une case a cocher pour abandonner completement l'Id (certains
-    blocs reels n'ont pas d'Id du tout, identifies seulement par Name)."""
-
-    def __init__(self, block: EcfBlock, suggestions: list, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(t("dup.title"))
-        self.setMinimumWidth(450)
-
-        current_id = block.get('Id')
-        current_name = block.get_property('Name')
-
-        layout = QVBoxLayout(self)
-        none_placeholder = t("dup.none_placeholder")
-        layout.addWidget(QLabel(
-            t("dup.current_block", id=current_id or none_placeholder, name=current_name or none_placeholder) +
-            "\n\n" + t("dup.instructions")
-        ))
-
-        id_row = QHBoxLayout()
-        id_row.addWidget(QLabel(t("dup.new_id")))
-        self.id_edit = QLineEdit(str(suggestions[0]) if current_id and suggestions else "")
-        id_row.addWidget(self.id_edit)
-        layout.addLayout(id_row)
-        if suggestions:
-            sugg_label = QLabel(t("dup.suggestions_label", ids=', '.join(str(s) for s in suggestions)))
-            sugg_label.setStyleSheet("color: gray; font-size: 11px;")
-            layout.addWidget(sugg_label)
-
-        name_row = QHBoxLayout()
-        name_row.addWidget(QLabel(t("dup.new_name")))
-        self.name_edit = QLineEdit(current_name or "")
-        name_row.addWidget(self.name_edit)
-        layout.addLayout(name_row)
-
-        self.remove_id_checkbox = None
-        if current_id:
-            self.remove_id_checkbox = QCheckBox(t("dup.remove_id"))
-            layout.addWidget(self.remove_id_checkbox)
-
-        buttons = QHBoxLayout()
-        btn_ok = QPushButton(t("dup.duplicate"))
-        btn_ok.clicked.connect(self._on_accept)
-        buttons.addWidget(btn_ok)
-        btn_cancel = QPushButton(t("btn.cancel"))
-        btn_cancel.setObjectName("secondaryButton")
-        btn_cancel.clicked.connect(self.reject)
-        buttons.addWidget(btn_cancel)
-        layout.addLayout(buttons)
-
-        self._current_id = current_id
-        self._current_name = current_name
-
-    def _on_accept(self):
-        new_id = self.id_edit.text().strip() or None
-        new_name = self.name_edit.text().strip() or None
-        remove_id = self.remove_id_checkbox.isChecked() if self.remove_id_checkbox else False
-
-        if remove_id and not new_name:
-            QMessageBox.warning(self, t("dup.name_required"), t("dup.name_required_msg"))
-            return
-
-        id_changed = new_id is not None and new_id != self._current_id
-        name_changed = new_name is not None and new_name != self._current_name
-        if not remove_id and not id_changed and not name_changed:
-            QMessageBox.warning(self, t("dup.no_change"), t("dup.no_change_msg"))
-            return
-
-        self.result_new_id = new_id
-        self.result_new_name = new_name
-        self.result_remove_id = remove_id
-        self.accept()
 
 
 class EcfViewWidget(QWidget):

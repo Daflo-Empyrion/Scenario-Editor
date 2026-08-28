@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .parser import parse_ecf_file
+from .model import EcfBlock, EcfProperty, EcfComment
 
 _TOKEN_REF_PATTERN = re.compile(r'Token:\s*(\d+)')
 
@@ -56,6 +57,25 @@ class OrphanedDefinition:
     def display(self) -> str:
         loc = f" ({self.source_file.name})" if self.source_file else ""
         return f"Token:{self.identifier} -- {self.label}{loc}"
+
+
+def _iter_token_refs(nodes) -> "set":
+    """Parcourt l'arbre du document (blocs/proprietes/commentaires) a la
+    recherche de references 'Token:XXXX', en appelant render()/render_open()
+    sur chaque noeud INDIVIDUEL plutot que de re-serialiser tout le document
+    d'un coup (doc.render()) -- evite de reconstruire une chaine de texte
+    complete juste pour y faire une recherche regex, plus couteux et plus
+    fragile en cas de changement du format de rendu global."""
+    found: set = set()
+    for node in nodes:
+        if isinstance(node, EcfBlock):
+            for match in _TOKEN_REF_PATTERN.finditer(node.render_open()):
+                found.add(match.group(1))
+            found |= _iter_token_refs(node.children)
+        elif isinstance(node, (EcfProperty, EcfComment)):
+            for match in _TOKEN_REF_PATTERN.finditer(node.render()):
+                found.add(match.group(1))
+    return found
 
 
 def find_unused_tokens(ecf_files: List[Path]) -> List[OrphanedDefinition]:
@@ -86,8 +106,7 @@ def find_unused_tokens(ecf_files: List[Path]) -> List[OrphanedDefinition]:
             doc = parse_ecf_file(path)
         except Exception:
             continue
-        for match in _TOKEN_REF_PATTERN.finditer(doc.render()):
-            referenced.add(match.group(1))
+        referenced |= _iter_token_refs(doc.nodes)
 
     unused = []
     for token_id, name in sorted(defined.items(), key=lambda kv: int(kv[0])):

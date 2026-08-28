@@ -39,6 +39,7 @@ a = Analysis(
         (str(project_root / 'docs'), 'docs'),
         # Badge GPLv3 affiche dans le dialogue "A propos" -- meme logique.
         (str(project_root / 'assets'), 'assets'),
+        (str(project_root / 'data'), 'data'),
         *_dt_datas, *_bs4_datas, *_requests_datas, *_certifi_datas,
     ],
     hiddenimports=[

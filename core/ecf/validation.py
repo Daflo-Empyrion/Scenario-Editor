@@ -198,20 +198,16 @@ def validate_block(block: EcfBlock, name_index: Optional[Dict[str, EcfBlock]] = 
     blocks_scoped=False desactive Material/VolumeCapacity (fiables uniquement
     sur BlocksConfig.ecf) ; items_scoped=False desactive HoldType (fiable
     uniquement sur ItemsConfig.ecf) -- voir _is_blocks_config_file/
-    _is_items_config_file."""
+    _is_items_config_file.
+
+    Parcourt le REGISTRE de regles (_BLOCK_RULES, voir plus bas) plutot que
+    d'appeler chaque _check_* en dur ici -- ajouter une regle se fait
+    desormais en l'ajoutant au registre, sans toucher a cette fonction."""
     issues: List[ValidationIssue] = []
-    issues.extend(_check_id(block))
-    issues.extend(_check_unquoted_commas(block))
-    issues.extend(_check_block_color(block))
-    issues.extend(_check_custom_icon(block))
-    issues.extend(_check_hitpoints(block))
-    issues.extend(_check_mass(block))
-    issues.extend(_check_maxcount(block))
-    if blocks_scoped:
-        issues.extend(_check_container_volume(block, name_index or {}))
-        issues.extend(_check_material(block))
-    if items_scoped:
-        issues.extend(_check_hold_type(block))
+    context = {'name_index': name_index or {}, 'blocks_scoped': blocks_scoped, 'items_scoped': items_scoped}
+    for rule in _BLOCK_RULES:
+        if rule.applies(context):
+            issues.extend(rule.run(block, context))
     return issues
 
 
@@ -457,3 +453,40 @@ def _check_maxcount(block: EcfBlock) -> List[ValidationIssue]:
         except ValueError:
             pass
     return issues
+
+
+# ============================================================================
+# Registre de regles -- une entree par regle, avec sa condition d'application
+# (voir validate_block ci-dessus, qui parcourt ce registre au lieu d'appeler
+# chaque _check_* en dur). Ajouter une regle : ecrire une fonction _check_*
+# puis l'enregistrer ici, sans toucher a validate_block.
+# ============================================================================
+
+@dataclass
+class _BlockRule:
+    name: str
+    check_fn: object          # Callable[[EcfBlock, dict], List[ValidationIssue]]
+    condition: object = None  # Callable[[dict], bool] ou None (= toujours applicable)
+
+    def applies(self, context: dict) -> bool:
+        return self.condition is None or self.condition(context)
+
+    def run(self, block: EcfBlock, context: dict) -> List[ValidationIssue]:
+        return self.check_fn(block, context)
+
+
+_BLOCK_RULES: List[_BlockRule] = [
+    _BlockRule('id', lambda block, ctx: _check_id(block)),
+    _BlockRule('unquoted_commas', lambda block, ctx: _check_unquoted_commas(block)),
+    _BlockRule('block_color', lambda block, ctx: _check_block_color(block)),
+    _BlockRule('custom_icon', lambda block, ctx: _check_custom_icon(block)),
+    _BlockRule('hitpoints', lambda block, ctx: _check_hitpoints(block)),
+    _BlockRule('mass', lambda block, ctx: _check_mass(block)),
+    _BlockRule('maxcount', lambda block, ctx: _check_maxcount(block)),
+    _BlockRule('container_volume', lambda block, ctx: _check_container_volume(block, ctx['name_index']),
+                condition=lambda ctx: ctx['blocks_scoped']),
+    _BlockRule('material', lambda block, ctx: _check_material(block),
+                condition=lambda ctx: ctx['blocks_scoped']),
+    _BlockRule('hold_type', lambda block, ctx: _check_hold_type(block),
+                condition=lambda ctx: ctx['items_scoped']),
+]
