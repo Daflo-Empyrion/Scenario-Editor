@@ -34,6 +34,8 @@ import shutil
 from pathlib import Path
 from typing import Optional, Dict, List
 
+from core.constants import UNDO_STACK_MAX_DEPTH
+
 
 class UndoAction:
     def undo(self) -> None:
@@ -104,7 +106,7 @@ class FolderStateUndo(UndoAction):
 
 
 class WorkspaceUndoStack:
-    def __init__(self, max_depth: int = 15):
+    def __init__(self, max_depth: int = UNDO_STACK_MAX_DEPTH):
         self._stack: List[UndoAction] = []
         self.max_depth = max_depth
 

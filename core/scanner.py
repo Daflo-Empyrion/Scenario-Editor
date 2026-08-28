@@ -20,7 +20,7 @@ soit d'une simple liste de chemins (utile pour tester à partir d'un listing tre
 sans avoir les fichiers réels disponibles).
 """
 from pathlib import Path, PureWindowsPath, PurePath
-from typing import Iterable, List
+from typing import Iterable, List, Type
 
 from .models import Scenario, Playfield, FileEntry, EDITABLE_EXTENSIONS
 
@@ -98,7 +98,7 @@ def scan_from_paths(paths: Iterable[str], root_hint: str = None) -> Scenario:
     return _build_scenario(root, path_objs, entries_are_confirmed_files=False)
 
 
-def _detect_path_class(paths: List[str]):
+def _detect_path_class(paths: List[str]) -> Type[PurePath]:
     """Devine s'il faut interpréter les chemins comme Windows (antislash) ou natifs."""
     if paths and ('\\' in paths[0] or (len(paths[0]) > 1 and paths[0][1] == ':')):
         return PureWindowsPath

@@ -114,9 +114,9 @@ cli_a = Analysis(
         # avec une variable, pas un "import" litteral) -- invisible pour l'analyse
         # statique de PyInstaller, donc declares ici explicitement. Toute nouvelle
         # commande ajoutee a cli_tools.py doit aussi etre ajoutee ici.
-        'verifier_parser_ecf', 'verifier_parser_yaml', 'verifier_parser_csv',
-        'diagnostic_bloc', 'detecter_imbrication_anormale', 'diff_ecf',
-        'edit_ecf', 'merge_ecf', 'transform_ecf',
+        'cli.verifier_parser_ecf', 'cli.verifier_parser_yaml', 'cli.verifier_parser_csv',
+        'cli.diagnostic_bloc', 'cli.detecter_imbrication_anormale', 'cli.diff_ecf',
+        'cli.edit_ecf', 'cli.merge_ecf', 'cli.transform_ecf',
     ],
     hookspath=[],
     hooksconfig={},

@@ -62,6 +62,7 @@ from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, n
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
 from core import project_store, settings
+from core.constants import AUTOSAVE_INTERVAL_MS
 from core import i18n
 from core.i18n import t
 from core.project_store import ProjectRecord
@@ -110,7 +111,7 @@ class MainWindow(QMainWindow):
         # en permanence mais _run_autosave_tick() ne fait rien tant qu'aucun
         # projet n'est ouvert ou que le reglage est desactive.
         self._autosave_timer = QTimer(self)
-        self._autosave_timer.setInterval(3 * 60 * 1000)  # 3 minutes
+        self._autosave_timer.setInterval(AUTOSAVE_INTERVAL_MS)
         self._autosave_timer.timeout.connect(self._run_autosave_tick)
         self._autosave_timer.start()
 

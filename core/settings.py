@@ -18,6 +18,7 @@ Reglages persistants simples de l'application.
 """
 import json
 import logging
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -26,8 +27,24 @@ CONFIG_DIR = Path.home() / ".empyrion_editor"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 DEFAULT_AUTHOR = "utilisateur"
 
+# Protege les sequences lecture-modification-ecriture ci-dessous contre une
+# corruption si deux threads du MEME processus ecrivent en meme temps (ex:
+# un toggle utilisateur dans l'UI pendant qu'un autosave en arriere-plan lit
+# les reglages) -- ne protege pas contre deux PROCESSUS distincts (hors de
+# portee : l'appli ne gere qu'une seule instance de settings.json a la fois
+# en usage normal).
+_LOCK = threading.Lock()
+
 
 def _read_settings() -> dict:
+    with _LOCK:
+        return _read_settings_locked()
+
+
+def _read_settings_locked() -> dict:
+    """Version sans verrou de _read_settings(), a utiliser UNIQUEMENT depuis
+    une section deja protegee par _LOCK (evite un deadlock si appelee depuis
+    _set()/set_annotations_enabled(), qui tiennent deja le verrou)."""
     if SETTINGS_FILE.exists():
         try:
             return json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
@@ -37,6 +54,13 @@ def _read_settings() -> dict:
 
 
 def _write_settings(data: dict) -> None:
+    with _LOCK:
+        _write_settings_locked(data)
+
+
+def _write_settings_locked(data: dict) -> None:
+    """Version sans verrou de _write_settings() -- meme raison que
+    _read_settings_locked()."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
 
@@ -46,9 +70,10 @@ def _get(key: str, default):
 
 
 def _set(key: str, value) -> None:
-    data = _read_settings()
-    data[key] = value
-    _write_settings(data)
+    with _LOCK:
+        data = _read_settings_locked()
+        data[key] = value
+        _write_settings_locked(data)
 
 
 def get_author() -> str:
@@ -64,10 +89,11 @@ def get_annotations_enabled() -> bool:
 
 
 def set_annotations_enabled(enabled: bool) -> None:
-    data = _read_settings()
-    data['annotations_enabled'] = enabled
-    data['author'] = data.get('author', DEFAULT_AUTHOR)
-    _write_settings(data)
+    with _LOCK:
+        data = _read_settings_locked()
+        data['annotations_enabled'] = enabled
+        data['author'] = data.get('author', DEFAULT_AUTHOR)
+        _write_settings_locked(data)
 
 
 def get_language() -> str:

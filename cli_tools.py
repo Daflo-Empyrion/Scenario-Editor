@@ -25,23 +25,23 @@ if str(_ici) not in sys.path:
 # fichier .py d'origine (ex: verifier_parser_ecf.py) -- volontairement plus court
 # et lisible en ligne de commande.
 COMMANDS = {
-    "verifier-ecf": ("verifier_parser_ecf",
+    "verifier-ecf": ("cli.verifier_parser_ecf",
                       "Verifie le round-trip d'un ou plusieurs fichiers ECF"),
-    "verifier-yaml": ("verifier_parser_yaml",
+    "verifier-yaml": ("cli.verifier_parser_yaml",
                        "Verifie le round-trip d'un ou plusieurs fichiers YAML"),
-    "verifier-csv": ("verifier_parser_csv",
+    "verifier-csv": ("cli.verifier_parser_csv",
                       "Verifie le round-trip d'un ou plusieurs fichiers CSV"),
-    "diagnostic-bloc": ("diagnostic_bloc",
+    "diagnostic-bloc": ("cli.diagnostic_bloc",
                          "Cherche un bloc precis par Id, y compris dans les commentaires"),
-    "detecter-imbrication": ("detecter_imbrication_anormale",
+    "detecter-imbrication": ("cli.detecter_imbrication_anormale",
                               "Detecte les blocs qui ont 'avale' le reste du fichier"),
-    "diff": ("diff_ecf",
+    "diff": ("cli.diff_ecf",
              "Compare deux fichiers ECF (blocs ajoutes/supprimes/modifies)"),
-    "edit": ("edit_ecf",
+    "edit": ("cli.edit_ecf",
               "Editeur ECF interactif en ligne de commande"),
-    "merge": ("merge_ecf",
+    "merge": ("cli.merge_ecf",
                "Fusionne plusieurs fichiers ECF par ordre de priorite"),
-    "transform": ("transform_ecf",
+    "transform": ("cli.transform_ecf",
                    "Transformation numerique en masse sur une propriete"),
 }
 

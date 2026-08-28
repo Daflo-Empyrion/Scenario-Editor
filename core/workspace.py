@@ -23,11 +23,15 @@ seul scenario modifiable. Les sources A et B ne sont jamais touchees.
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, TYPE_CHECKING
 
 from .scanner import scan_scenario
 from .models import Scenario
 from .fsutil import clear_readonly
+
+if TYPE_CHECKING:
+    from .ecf.model import EcfBlock
+    from .yamllite.model import YamlDocument, YamlEntry
 
 
 @dataclass
@@ -126,48 +130,52 @@ class MergeHighlight:
     changed_blocks: dict  # {(kind, identite): {cles ajoutees/completees}} -- blocs existants completes
 
 
-def merge_file_into_working(workspace: Workspace, source_file: Path, source_root: Path,
-                             source_label: str) -> Tuple[Path, Optional["MergeHighlight"], list, Optional[list]]:
-    """
-    Importe un fichier depuis une source (A ou B) vers la copie de travail :
-      - .ecf qui existe deja -> FUSION intelligente (mode 'properties', copie de
-        travail prioritaire, garde-fou anti-collision d'Id -- voir plus bas).
-      - .csv qui existe deja -> FUSION par cle (1ere colonne) : la copie de travail
-        est prioritaire, seules les cellules VIDES sont completees depuis la source,
-        les lignes de cle absente sont ajoutees. Retourne un rapport texte (4eme
-        valeur) au lieu d'un MergeHighlight.
-      - tout le reste (fichier absent de la copie de travail, ou format sans moteur de
-        fusion dedie) -> simple copie.
+@dataclass
+class _FileMergeResult:
+    """Resultat commun aux 3 strategies de fusion d'un fichier (voir
+    merge_file_into_working ci-dessous) -- chaque strategie ne remplit que les
+    champs pertinents pour son format (highlight pour ECF, csv_report pour
+    CSV), les autres restent a leur valeur par defaut."""
+    dest: Path
+    highlight: Optional["MergeHighlight"] = None
+    id_conflicts: list = None
+    csv_report: Optional[list] = None
 
-    IMPORTANT -- garde-fou anti-collision (ECF uniquement) : si un Id est partage
-    entre deux blocs dont la propriete 'Name' differe (meme Id, materiel different),
-    le bloc n'est JAMAIS fusionne a l'aveugle -- ajoute en fin de fichier, DESACTIVE
-    (commente), pour revue manuelle.
+    def __post_init__(self) -> None:
+        if self.id_conflicts is None:
+            self.id_conflicts = []
 
-    Retourne (chemin_destination, highlight_ecf_ou_None, conflits_id_ecf, rapport_csv_ou_None).
-    """
-    rel = source_file.relative_to(source_root)
-    dest = workspace.working_root / rel
 
-    if dest.suffix.lower() == '.csv' and dest.exists():
-        from .csv_handler import CsvHandler, merge_csv_documents, render_csv
+def _merge_csv_strategy(workspace: Workspace, dest: Path, source_file: Path) -> _FileMergeResult:
+    """Fusion par cle (1ere colonne) : la copie de travail est prioritaire,
+    seules les cellules VIDES sont completees depuis la source, les lignes de
+    cle absente sont ajoutees."""
+    from .csv_handler import CsvHandler, merge_csv_documents, render_csv
 
-        handler = CsvHandler()
-        working_doc = handler.parse(handler.load(dest))
-        source_doc = handler.parse(handler.load(source_file))
-        merged_doc, csv_report = merge_csv_documents(working_doc, source_doc)
+    handler = CsvHandler()
+    working_doc = handler.parse(handler.load(dest))
+    source_doc = handler.parse(handler.load(source_file))
+    merged_doc, csv_report = merge_csv_documents(working_doc, source_doc)
 
-        with open(dest, 'w', encoding='utf-8', newline='') as f:
-            f.write(render_csv(merged_doc))
+    with open(dest, 'w', encoding='utf-8', newline='') as f:
+        f.write(render_csv(merged_doc))
 
-        return dest, None, [], csv_report
+    return _FileMergeResult(dest=dest, csv_report=csv_report)
 
-    if dest.suffix.lower() != '.ecf' or not dest.exists():
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_file, dest)
-        clear_readonly(dest)
-        return dest, None, [], None
 
+def _copy_strategy(dest: Path, source_file: Path) -> _FileMergeResult:
+    """Fichier absent de la copie de travail, ou format sans moteur de fusion
+    dedie -- simple copie."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_file, dest)
+    clear_readonly(dest)
+    return _FileMergeResult(dest=dest)
+
+
+def _merge_ecf_strategy(dest: Path, source_file: Path, source_label: str) -> _FileMergeResult:
+    """Fusion intelligente (mode 'properties', copie de travail prioritaire,
+    garde-fou anti-collision d'Id) -- voir le docstring de
+    merge_file_into_working pour le detail complet du garde-fou."""
     from .ecf.parser import parse_ecf_file
     from .ecf.merge import merge_documents
 
@@ -192,7 +200,44 @@ def merge_file_into_working(workspace: Workspace, source_file: Path, source_root
             changed_blocks[(e.kind, e.identity)] = idents
 
     highlight = MergeHighlight(new_blocks=new_blocks, changed_blocks=changed_blocks)
-    return dest, highlight, result.id_conflicts, None
+    return _FileMergeResult(dest=dest, highlight=highlight, id_conflicts=result.id_conflicts)
+
+
+def merge_file_into_working(workspace: Workspace, source_file: Path, source_root: Path,
+                             source_label: str) -> Tuple[Path, Optional["MergeHighlight"], list, Optional[list]]:
+    """
+    Importe un fichier depuis une source (A ou B) vers la copie de travail :
+      - .ecf qui existe deja -> FUSION intelligente (mode 'properties', copie de
+        travail prioritaire, garde-fou anti-collision d'Id -- voir plus bas).
+      - .csv qui existe deja -> FUSION par cle (1ere colonne) : la copie de travail
+        est prioritaire, seules les cellules VIDES sont completees depuis la source,
+        les lignes de cle absente sont ajoutees. Retourne un rapport texte (4eme
+        valeur) au lieu d'un MergeHighlight.
+      - tout le reste (fichier absent de la copie de travail, ou format sans moteur de
+        fusion dedie) -> simple copie.
+
+    IMPORTANT -- garde-fou anti-collision (ECF uniquement) : si un Id est partage
+    entre deux blocs dont la propriete 'Name' differe (meme Id, materiel different),
+    le bloc n'est JAMAIS fusionne a l'aveugle -- ajoute en fin de fichier, DESACTIVE
+    (commente), pour revue manuelle.
+
+    Retourne (chemin_destination, highlight_ecf_ou_None, conflits_id_ecf, rapport_csv_ou_None).
+
+    Delegue a l'une des 3 strategies ci-dessus (_merge_csv_strategy/_copy_strategy/
+    _merge_ecf_strategy) selon le format et l'existence du fichier de destination --
+    le choix de strategie reste ici, chaque strategie ne connait que sa propre logique
+    de fusion."""
+    rel = source_file.relative_to(source_root)
+    dest = workspace.working_root / rel
+
+    if dest.suffix.lower() == '.csv' and dest.exists():
+        result = _merge_csv_strategy(workspace, dest, source_file)
+    elif dest.suffix.lower() != '.ecf' or not dest.exists():
+        result = _copy_strategy(dest, source_file)
+    else:
+        result = _merge_ecf_strategy(dest, source_file, source_label)
+
+    return result.dest, result.highlight, result.id_conflicts, result.csv_report
 
 
 def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_root: Path,
@@ -342,7 +387,7 @@ def duplicate_csv_row_into_working(workspace: Workspace, working_relative_path: 
 
 
 def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
-                              block, source_label: str) -> Tuple[Path, str, Optional["MergeHighlight"]]:
+                              block: "EcfBlock", source_label: str) -> Tuple[Path, str, Optional["MergeHighlight"]]:
     """
     Fusionne UN SEUL bloc (venant d'une source) dans le fichier correspondant de la
     copie de travail, SANS toucher au reste du fichier -- utile pour importer une
@@ -400,7 +445,7 @@ def _find_ecf_parent_children(nodes: list, parent_chain: list) -> Optional[list]
 
 
 def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
-                                      block, new_id: Optional[str], new_name: Optional[str],
+                                      block: "EcfBlock", new_id: Optional[str], new_name: Optional[str],
                                       remove_id: bool, source_label: str,
                                       parent_chain: Optional[list] = None,
                                       annotation: Optional[str] = None) -> Tuple[Path, str]:
@@ -479,7 +524,7 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
 
 
 def insert_ecf_block_into_working(workspace: Workspace, working_relative_path: Path,
-                                   block, source_label: str,
+                                   block: "EcfBlock", source_label: str,
                                    parent_chain: Optional[list] = None,
                                    annotation: Optional[str] = None) -> Tuple[Path, str]:
     """Insère un bloc ECF déjà construit (ex: variante générée par
@@ -526,7 +571,7 @@ def insert_ecf_block_into_working(workspace: Workspace, working_relative_path: P
 
 
 
-def _find_yaml_parent_path(doc, key_path: List[str]):
+def _find_yaml_parent_path(doc: "YamlDocument", key_path: List[str]) -> Optional[list]:
     """Retrouve, dans un YamlDocument, la liste d'enfants correspondant a un chemin de
     cles ancetres (ex: ['Playfield', 'POIs']) -- pour savoir ou inserer une entree
     copiee au bon endroit. Retourne None si le chemin n'existe pas."""
@@ -546,7 +591,7 @@ def _find_yaml_parent_path(doc, key_path: List[str]):
 
 
 def copy_yaml_entry_into_working(workspace: Workspace, working_relative_path: Path,
-                                  entry, key_path: List[str]) -> Tuple[Path, str]:
+                                  entry: "YamlEntry", key_path: List[str]) -> Tuple[Path, str]:
     """Copie une entree YAML (venant d'une source) vers la copie de travail, au meme
     emplacement (meme chemin de cles ancetres) si on le retrouve, sinon au niveau
     racine. Retourne (chemin_du_fichier, statut) -- statut : 'added' ou 'added_at_root'."""
@@ -576,7 +621,7 @@ def copy_yaml_entry_into_working(workspace: Workspace, working_relative_path: Pa
 
 
 def duplicate_yaml_entry_into_working(workspace: Workspace, working_relative_path: Path,
-                                       entry, key_path: List[str], new_key: Optional[str],
+                                       entry: "YamlEntry", key_path: List[str], new_key: Optional[str],
                                        annotation: Optional[str] = None) -> Tuple[Path, str]:
     """Duplique une entree YAML (venant d'une source) avec une NOUVELLE cle (si
     applicable), et l'ajoute a la copie de travail comme une entree INDEPENDANTE, au
