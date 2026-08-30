@@ -99,12 +99,19 @@ class PropertyTableDialog(QDialog):
                  tech_tree_source: Optional[str] = None, working_root: Optional[Path] = None,
                  sibling_ecf_files: Optional[List[Path]] = None,
                  prechecked_properties: Optional[List[Tuple[str, str]]] = None,
-                 prefill_ingredients: Optional[List[Tuple[str, str]]] = None):
+                 prefill_ingredients: Optional[List[Tuple[str, str]]] = None,
+                 common_quantities: Optional[List[str]] = None):
         """`prechecked_properties` : [(cle, valeur)] a COCHER d'office avec
         cette valeur -- utilise pour pre-remplir le Template associe avec les
-        proprietes les plus courantes du fichier (CraftTime, Target...).
+        proprietes les plus courantes du fichier (depuis le 30/08/2026 :
+        TOUTES les proprietes observees sur les autres Templates, pas
+        seulement CraftTime/Target -- voir scan_template_defaults).
         `prefill_ingredients` : [(ingredient, quantite)] pre-remplis dans la
-        table des ingredients (creation d'un Template sans source)."""
+        table des ingredients (creation d'un Template sans source).
+        `common_quantities` : quantites d'ingredients observees dans le
+        fichier -- liste deroulante (editable) de la colonne quantite
+        (demande du 30/08/2026 : liste deroulante PARTOUT ou c'est
+        possible)."""
         super().__init__(parent)
         self.doc = doc
         self.id_mode = id_mode
@@ -113,6 +120,7 @@ class PropertyTableDialog(QDialog):
         self.craftable_names_players_only = craftable_names_players_only or []
         self._prechecked = {k: v for k, v in (prechecked_properties or [])}
         self._prefill_ingredients = list(prefill_ingredients or [])
+        self._common_quantities = list(common_quantities or [])
         self._properties_by_key = {}
         self._all_rows: List[Tuple[QCheckBox, str, QTableWidgetItem]] = []
         # Previsualisation dans l'arbre technologique (voir
@@ -407,7 +415,14 @@ class PropertyTableDialog(QDialog):
         if name:
             combo.setCurrentText(name)
         self.ingredients_table.setCellWidget(row, 0, combo)
-        self.ingredients_table.setItem(row, 1, QTableWidgetItem(quantity or "1"))
+        # Quantite en liste deroulante EDITABLE des quantites courantes
+        # observees dans le fichier (saisie libre toujours permise) --
+        # demande du 30/08/2026 : liste deroulante PARTOUT ou c'est possible.
+        qty_combo = QComboBox()
+        qty_combo.setEditable(True)
+        qty_combo.addItems(self._common_quantities)
+        qty_combo.setCurrentText(quantity or "1")
+        self.ingredients_table.setCellWidget(row, 1, qty_combo)
 
     def _remove_ingredient_row(self):
         row = self.ingredients_table.currentRow()
@@ -482,9 +497,9 @@ class PropertyTableDialog(QDialog):
         if self.ingredients_table is not None:
             for row in range(self.ingredients_table.rowCount()):
                 combo = self.ingredients_table.cellWidget(row, 0)
-                qty_item = self.ingredients_table.item(row, 1)
+                qty_combo = self.ingredients_table.cellWidget(row, 1)
                 ing_name = combo.currentText().strip() if combo else ""
-                qty = qty_item.text().strip() if qty_item else ""
+                qty = qty_combo.currentText().strip() if qty_combo else ""
                 if ing_name and qty:
                     ingredients.append((ing_name, qty))
 

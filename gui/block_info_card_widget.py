@@ -19,10 +19,14 @@ Fiche d'information flottante d'un bloc/item, reproduisant la fiche affichee
 EN JEU (voir core/block_info_card.py pour l'assemblage des donnees et sa
 verification detaillee contre une vraie capture d'ecran F3).
 
-Comportement confirme aupres de l'utilisateur (session du 29/08/2026) :
-  - S'ouvre UNIQUEMENT sur un clic explicite sur un bloc (jamais au survol,
-    contrairement aux tooltips de l'arbre technologique) -- voir
-    gui/ecf_edit_widget.py::_on_block_selected, seul point d'appel.
+Comportement confirme aupres de l'utilisateur (session du 29/08/2026,
+modifie le 30/08/2026 -- demande explicite) :
+  - S'ouvre UNIQUEMENT sur un DOUBLE-clic explicite sur un bloc (jamais au
+    survol, jamais sur un simple clic : la fiche s'ouvrait a chaque clic et
+    c'etait envahissant -- retour du 30/08/2026 ; un double-clic sur le bloc
+    deja affiche la referme) -- voir
+    gui/ecf_edit_widget.py::_on_tree_item_double_clicked_for_info_card,
+    seul point d'appel.
   - Se rafraichit EN DIRECT si le bloc affiche est modifie pendant que la
     fiche est ouverte -- voir refresh_if_showing().
   - Se ferme via la croix.
@@ -42,6 +46,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.block_info_card import BlockInfoCard
+from core.i18n import t
 from gui.theme import icon
 
 _GENERIC_ICON_NAME = "fa5s.cube"
@@ -224,11 +229,27 @@ class BlockInfoCardWidget(QWidget):
         self.title_label.setWordWrap(True)
         self.title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         header_row.addWidget(self.title_label, 1)
-        self.btn_close = QPushButton("\u2715")
+        # Glyphe unicode '\u2715' INVISIBLE dans certains environnements
+        # Windows (retour utilisateur du 30/08/2026 : croix absente) --
+        # icone qtawesome fa5s.times de l'application, rendue partout, comme
+        # les autres boutons de l'interface.
+        self.btn_close = QPushButton()
         self.btn_close.setFixedSize(22, 22)
+        self.btn_close.setIcon(icon("fa5s.times", color=_CARD_TEXT))
+        self.btn_close.setIconSize(QSize(13, 13))
+        self.btn_close.setText("")
+        # Curseur FLECHE explicite : l'en-tete parent utilise le curseur
+        # 'main ouverte' (deplacement de la fiche) et les enfants heritent
+        # -- la croix heritait d'un curseur main absurde (retour utilisateur
+        # du 30/08/2026). Style plat SANS bord ni fond : discrete au repos,
+        # legere pastille grise au survol uniquement.
+        self.btn_close.setCursor(Qt.CursorShape.ArrowCursor)
+        self.btn_close.setToolTip(t("btn.close"))
         self.btn_close.setStyleSheet(
-            f"QPushButton {{ background: #2a2a2a; color: {_CARD_TEXT}; border: 1px solid {_CARD_BORDER}; "
-            f"border-radius: 4px; }} QPushButton:hover {{ background: #3a3a3a; }}"
+            f"QPushButton {{ background: transparent; border: none; "
+            f"border-radius: 4px; }}"
+            f"QPushButton:hover {{ background: #3a3a3a; }}"
+            f"QPushButton:pressed {{ background: #4a4a4a; }}"
         )
         self.btn_close.clicked.connect(self.close_card)
         header_row.addWidget(self.btn_close, 0, Qt.AlignmentFlag.AlignTop)
@@ -352,6 +373,11 @@ class BlockInfoCardWidget(QWidget):
 
     def _make_stat_label(self, label: str, value: str, source_key: Optional[str] = None,
                           source_raw_value: Optional[str] = None) -> QLabel:
+        # Certaines chaines du jeu se terminent par ':' (ex: biwOutputCount ->
+        # 'Volume de production:') -- sans ce retrait, l'etiquette composée
+        # affichait un double deux-points ('Volume de production: : 1'),
+        # constate le 30/08/2026.
+        label = label.rstrip().rstrip(':').rstrip()
         text = f"{label} : <b>{value}</b>"
         lbl = _ClickableStatLabel(text, self, source_key, source_raw_value)
         return lbl

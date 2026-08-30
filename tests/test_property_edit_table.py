@@ -61,3 +61,36 @@ def test_empty_fields_list(qapp):
     table = PropertyEditTable([])
     assert table.rowCount() == 0
     assert table.get_changed_values() == {}
+
+
+# ------------------------------------------------ values_by_key (30/08/2026)
+def test_values_by_key_creates_editable_dropdown(qapp):
+    """Demande du 30/08/2026 : liste deroulante PARTOUT ou c'est possible --
+    les valeurs observees dans le fichier pre-remplissent la cellule."""
+    from gui.property_edit_table import PropertyEditTable
+    table = PropertyEditTable([("Material", "resourcehard")],
+                              values_by_key={"Material": ["resourcehard", "metal", "wood"]})
+    combo = table.cellWidget(0, 1)
+    assert combo is not None
+    assert [combo.itemText(i) for i in range(combo.count())] == ["resourcehard", "metal", "wood"]
+    assert combo.currentText() == "resourcehard"
+    assert table.get_changed_values() == {}
+
+
+def test_values_by_key_change_detected_via_dropdown(qapp):
+    from gui.property_edit_table import PropertyEditTable
+    table = PropertyEditTable([("Material", "resourcehard")],
+                              values_by_key={"Material": ["resourcehard", "metal"]})
+    table.cellWidget(0, 1).setCurrentText("metal")
+    assert table.get_changed_values() == {"Material": "metal"}
+
+
+def test_unknown_key_stays_free_text_cell(qapp):
+    """Une cle absente du pool garde la saisie libre classique."""
+    from gui.property_edit_table import PropertyEditTable
+    table = PropertyEditTable([("Material", "resourcehard"), ("Obscure", "x")],
+                              values_by_key={"Material": ["resourcehard"]})
+    assert table.cellWidget(0, 1) is not None
+    assert table.cellWidget(1, 1) is None
+    table.item(1, 1).setText("y")
+    assert table.get_changed_values() == {"Obscure": "y"}

@@ -135,7 +135,7 @@ def find_file_by_name(ecf_files: List[Path], filename: str) -> Optional[Path]:
 
 
 def scan_template_defaults(templates_doc: EcfDocument,
-                           scalar_keys: Tuple[str, ...] = ("CraftTime", "Target"),
+                           scalar_keys: Optional[Tuple[str, ...]] = None,
                            max_ingredients: int = 3) -> Optional[dict]:
     """Valeurs LES PLUS COURANTES des Templates du fichier -- utilise pour
     pre-remplir un NOUVEAU Template quand le bloc/item cree ou duplique n'en
@@ -143,9 +143,26 @@ def scan_template_defaults(templates_doc: EcfDocument,
     30/08/2026), pour la creation guidee (cases pre-cochees) et pour la
     fusion. Retourne :
       {"kind": genre de Template le plus frequent,
-       "scalars": [(cle, valeur la plus courante)] pour `scalar_keys` presents,
+       "scalars": [(cle, valeur la plus courante)] -- par defaut TOUTES les
+                  cles observees sur les autres Templates, triees par
+                  frequence d'usage decroissante (demande explicite du
+                  30/08/2026 : le Template de base doit contenir TOUTES les
+                  proprietes presentes sur les autres Templates -- on
+                  supprime ensuite ce qui ne convient pas, jamais l'inverse,
+                  une propriete absente du depart etant une propriete
+                  oubliee) ;
        "ingredients": [(ingredient, quantite la plus courante)] les
-                      `max_ingredients` plus frequents du fichier}
+                      `max_ingredients` plus frequents du fichier ;
+       "values_by_key": {cle: [valeurs distinctes, triees par frequence]} --
+                        pool pour les listes deroulantes de valeurs
+                        (ajout/edition d'une propriete dans l'apercu
+                        editable, gui/template_recipe_editor.py) ;
+       "quantities": [quantites d'ingredients distinctes, triees par
+                      frequence] -- pool pour la liste deroulante des
+                      quantites (meme apercu) ;
+       "ingredient_values_by_key": {ingredient: [quantites observees, triees
+                      par frequence]} -- pool PER-INGREDIENT pour les listes
+                      deroulantes de quantite de la table des ingredients}
     None si le document ne contient aucun Template (aucune valeur courante
     exploitable)."""
     kind_counts = scan_kind_frequency(templates_doc)
@@ -155,6 +172,15 @@ def scan_template_defaults(templates_doc: EcfDocument,
     ingredient_counter: Counter = Counter()
     ingredient_qty: Dict[str, Counter] = {}
     for block in templates_doc.iter_blocks():
+        # iter_blocks est RECURSIF : il yield aussi les sous-blocs
+        # 'Child Inputs' -- sans ce filtre, les noms d'ingredients
+        # (SteelPlate: 5...) polluaient les proprietes SCALAIRES du Template
+        # de base (bug signale par l'utilisateur le 30/08/2026 : les
+        # proprietes du child se melangeaient aux proprietes du Template).
+        # Les scalaires ne viennent QUE des lignes directes des Templates ;
+        # les ingredients, SEULS du contenu 'Child Inputs' -- et reciproquement.
+        if block.kind == 'Child Inputs':
+            continue
         for child in block.children:
             if isinstance(child, EcfProperty):
                 for key, value in child.pairs:
@@ -167,13 +193,29 @@ def scan_template_defaults(templates_doc: EcfDocument,
                             if ing and qty is not None:
                                 ingredient_counter[ing] += 1
                                 ingredient_qty.setdefault(ing, Counter())[qty] += 1
-    scalars = [(k, scalar_counters[k].most_common(1)[0][0])
-               for k in scalar_keys if scalar_counters.get(k)]
+    values_by_key = {key: [v for v, _c in counter.most_common()]
+                     for key, counter in scalar_counters.items()}
+    ingredient_values_by_key = {name: [v for v, _c in counter.most_common()]
+                                for name, counter in ingredient_qty.items()}
+    if scalar_keys is None:
+        # TOUTES les cles observees, les plus utilisees d'abord (a frequence
+        # egale, ordre alphabetique pour rester deterministe).
+        ordered_keys = sorted(scalar_counters,
+                              key=lambda k: (-sum(scalar_counters[k].values()), k))
+    else:
+        ordered_keys = [k for k in scalar_keys if scalar_counters.get(k)]
+    scalars = [(k, scalar_counters[k].most_common(1)[0][0]) for k in ordered_keys]
     ingredients = [(name, ingredient_qty[name].most_common(1)[0][0])
                    for name, _count in ingredient_counter.most_common(max_ingredients)
                    if ingredient_qty.get(name)]
+    quantities = [qty for qty, _c in
+                  sorted((pair for counter in ingredient_qty.values()
+                          for pair in counter.items()),
+                         key=lambda pair: (-pair[1], pair[0]))]
     return {"kind": kind_counts.most_common(1)[0][0], "scalars": scalars,
-            "ingredients": ingredients}
+            "ingredients": ingredients, "values_by_key": values_by_key,
+            "quantities": quantities,
+            "ingredient_values_by_key": ingredient_values_by_key}
 
 
 def is_player_placeable_block(block: EcfBlock) -> bool:

@@ -134,11 +134,17 @@ def test_show_card_falls_back_to_generic_icon_when_pixmap_none(qapp, sample_card
     from PyQt6.QtGui import QPixmap, QColor
     import gui.block_info_card_widget as bicw
 
-    class _FakeIcon:
-        def pixmap(self, w, h):
-            pix = QPixmap(w, h)
+    from PyQt6.QtGui import QIcon
+
+    class _FakeIcon(QIcon):
+        """Vrai QIcon ( acceptable par setIcon de la croix) dont le pixmap
+        est grise pour verifier le repli d'icone generique de show_card."""
+
+        def __init__(self):
+            super().__init__()
+            pix = QPixmap(32, 32)
             pix.fill(QColor('gray'))
-            return pix
+            self.addPixmap(pix)
 
     monkeypatch.setattr(bicw, "icon", lambda *a, **k: _FakeIcon())
 
@@ -324,3 +330,38 @@ def test_clicking_stat_label_without_source_emits_nothing(qapp):
     label.mousePressEvent(press)
 
     assert received == []
+
+
+# --------------------------------------- retours utilisateur 30/08/2026
+def test_close_button_uses_arrow_cursor(qapp):
+    """La croix heritait du curseur 'main ouverte' de l'en-tete draggable --
+    un curseur fleche est explicite (retour utilisateur du 30/08/2026)."""
+    from PyQt6.QtCore import Qt
+    widget = BlockInfoCardWidget()
+    assert widget.btn_close.cursor().shape() == Qt.CursorShape.ArrowCursor
+
+
+def test_stat_label_strips_trailing_colon(qapp):
+    """biwOutputCount = 'Volume de production:' (deux-points inclus dans la
+    chaine du jeu) : la ligne composée ne doit pas afficher un double
+    deux-points ('Volume de production: : 1')."""
+    widget = BlockInfoCardWidget()
+    lbl = widget._make_stat_label("Volume de production:", "1")
+    assert lbl.text() == "Volume de production : <b>1</b>"
+
+
+def test_stat_label_keeps_normal_labels_untouched(qapp):
+    widget = BlockInfoCardWidget()
+    lbl = widget._make_stat_label("Points dommages", "80")
+    assert lbl.text() == "Points dommages : <b>80</b>"
+
+
+def test_close_button_has_visible_icon(qapp):
+    """Le glyphe unicode '\u2715' etait INVISIBLE dans certains environnements
+    Windows (retour du 30/08/2026) : desormais icone fa5s.times de
+    l'application, jamais vide."""
+    from PyQt6.QtGui import QIcon
+    widget = BlockInfoCardWidget()
+    assert not widget.btn_close.icon().isNull()
+    assert widget.btn_close.text() == ""
+    assert isinstance(widget.btn_close.icon(), QIcon)

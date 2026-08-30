@@ -166,7 +166,7 @@ def _label_containing(widget, text: str):
 def test_nested_child_stats_visible_in_widget(widget_with_nested_scenario):
     widget = widget_with_nested_scenario
     item = _find_tree_item(widget, "AssaultRifle")
-    widget._on_tree_item_clicked_for_info_card(item, 0)
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
 
     assert _label_containing(widget, "Dégâts") is not None
     assert _label_containing(widget, "Munition") is not None
@@ -175,7 +175,7 @@ def test_nested_child_stats_visible_in_widget(widget_with_nested_scenario):
 def test_crafting_section_visible_in_widget(widget_with_nested_scenario):
     widget = widget_with_nested_scenario
     item = _find_tree_item(widget, "AssaultRifle")
-    widget._on_tree_item_clicked_for_info_card(item, 0)
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
 
     assert _label_containing(widget, "FABRICATION") is not None
     assert _label_containing(widget, "Composants mécaniques") is not None
@@ -188,7 +188,7 @@ def test_clicking_nested_field_navigates_to_correct_row(widget_with_nested_scena
     widget = widget_with_nested_scenario
     item = _find_tree_item(widget, "AssaultRifle")
     widget._on_block_selected(item, 0)
-    widget._on_tree_item_clicked_for_info_card(item, 0)
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
 
     damage_label = _label_containing(widget, "Dégâts")
     assert damage_label is not None
@@ -208,7 +208,7 @@ def test_clicking_top_level_field_navigates_to_root_row(widget_with_nested_scena
     widget = widget_with_nested_scenario
     item = _find_tree_item(widget, "AssaultRifle")
     widget._on_block_selected(item, 0)
-    widget._on_tree_item_clicked_for_info_card(item, 0)
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
 
     mass_label = _label_containing(widget, "Poids")
     assert mass_label is not None

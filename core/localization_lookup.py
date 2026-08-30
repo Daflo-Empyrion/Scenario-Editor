@@ -51,6 +51,26 @@ LOCALIZATION_PACK_CSV_MEMBER = "Localization.csv"
 _LANGUAGE_COLUMN = {'fr': 'Français', 'en': 'English'}
 _FALLBACK_COLUMN = 'English'
 
+# Alias de NOMS DE COLONNES reelslement rencontres dans la nature : les
+# Localization.csv de SCENARIO (workshop, Reforged Eden...) ecrivent souvent
+# l'en-tete en anglais ('French') au lieu du vanilla ('Français') -- sans
+# alias, la colonne francaise du scenario n'etait JAMAIS lue et les
+# descriptions de fiches restaient en anglais (bug signale par l'utilisateur
+# le 30/08/2026). Comparaison insensible a la casse/apres strip.
+_COLUMN_ALIASES = {
+    'french': 'Français', 'français': 'Français', 'francais': 'Français',
+    'english': 'English', 'anglais': 'English',
+    'german': 'Deutsch', 'deutsch': 'Deutsch',
+    'spanish': 'Spanish', 'italian': 'Italiano', 'italiano': 'Italiano',
+}
+
+
+def _normalize_column(name: str) -> str:
+    """Nom de colonne canonique : 'French'/'francais' -> 'Français', etc.
+    Les colonnes sans alias connus gardent leur nom d'origine."""
+    canonical = _COLUMN_ALIASES.get(name.strip().lower())
+    return canonical or name
+
 
 def localization_pack_path() -> Optional[Path]:
     """Chemin de l'archive distribuee data/localization_vanilla.pak, si elle
@@ -67,18 +87,21 @@ def _parse_csv_text(text: str) -> Dict[str, Dict[str, str]]:
     """Parse un Localization.csv (texte complet) en
     {cle: {nom_colonne: valeur}}. Cles en double (rare) : la DERNIERE
     occurrence gagne (comportement standard d'un dict, coherent avec un
-    fichier ou une correction ulterieure dans le fichier doit prevaloir)."""
+    fichier ou une correction ulterieure dans le fichier doit prevaloir).
+    Les noms de colonnes sont normalises via _normalize_column (alias
+    'French' -> 'Français'...)."""
     index: Dict[str, Dict[str, str]] = {}
     reader = csv.reader(io.StringIO(text))
     try:
         header = next(reader)
     except StopIteration:
         return {}
+    normalized = ["KEY"] + [_normalize_column(h) for h in header[1:]]
     for row in reader:
         if not row or not row[0]:
             continue
         key = row[0]
-        row_dict = {header[i]: row[i] for i in range(1, min(len(row), len(header)))}
+        row_dict = {normalized[i]: row[i] for i in range(1, min(len(row), len(normalized)))}
         index[key] = row_dict
     return index
 
@@ -222,10 +245,26 @@ class LocalizationIndex:
 
 
 def build_localization_index(working_root: Optional[Path]) -> LocalizationIndex:
-    """Construit l'index fusionne -- le scenario est charge EN DERNIER pour
-    que ses entrees ecrasent celles du pack vanilla en cas de meme cle (voir
-    docstring du module)."""
+    """Construit l'index fusionne -- fusion COLONNE PAR COLONNE (depuis le
+    30/08/2026, bug signale par l'utilisateur : une ligne du scenario ne
+    contenant que l'anglais ecrasait TOUTE la ligne vanilla et masquait sa
+    traduction francaise). Regles :
+      - une cle presente SEULEMENT dans le scenario : ligne scenario telle
+        quelle ;
+      - une cle presente dans les DEUX : chaque cellule scenario NON VIDE
+        remplace la cellule vanilla ; une cellule scenario VIDE herite de la
+        vanilla. Le scenario reste prioritaire pour le modding, mais ne peut
+        plus masquer par omission une traduction qu'il ne fournit pas."""
     merged: Dict[str, Dict[str, str]] = {}
     merged.update(_load_vanilla_pack())
-    merged.update(_load_scenario_csv(working_root))
+    for key, scenario_row in _load_scenario_csv(working_root).items():
+        base = merged.get(key)
+        if base is None:
+            merged[key] = scenario_row
+            continue
+        filled = dict(base)
+        for column, value in scenario_row.items():
+            if value and value.strip():  # cellule reellement fournie
+                filled[column] = value
+        merged[key] = filled
     return LocalizationIndex(merged)

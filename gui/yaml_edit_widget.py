@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import QTreeWidgetItemIterator
 
 from core.yamllite.parser import parse_yaml_file, parse_yaml_text
 from core.yamllite.model import YamlDocument, YamlEntry, create_entry, remove_entry
+from gui.msgboxes import ask_yes_no
 from core import translation, settings
 from core.i18n import t
 from gui.theme import icon, icon_size
@@ -73,7 +74,7 @@ class YamlEditWidget(QWidget):
         search_row.setSpacing(4)
         search_row.addWidget(QLabel(t("label.search")))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Cle ou valeur...")
+        self.search_box.setPlaceholderText(t("yaml.search_placeholder"))
         self.search_box.returnPressed.connect(self._search_next)
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
@@ -324,7 +325,7 @@ class YamlEditWidget(QWidget):
             self._search_last_query = query
 
         if not self._search_matches:
-            self.search_status.setText("Aucun resultat")
+            self.search_status.setText(t("search.no_results"))
             return
         self._search_index = (self._search_index + 1) % len(self._search_matches)
         item = self._search_matches[self._search_index]
@@ -378,9 +379,8 @@ class YamlEditWidget(QWidget):
         if not self._current_entry:
             QMessageBox.information(self, t("yaml.no_selection_title"), t("yaml.no_selection_msg"))
             return
-        confirm = QMessageBox.question(self, t("merge.confirm_title"),
-                                        t("yaml.confirm_delete", name=self._current_entry.key or self._current_entry.value))
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("merge.confirm_title"),
+                          t("yaml.confirm_delete", name=self._current_entry.key or self._current_entry.value)):
             return
         self._snapshot_undo()
         remove_entry(self.doc.nodes, self._current_entry)

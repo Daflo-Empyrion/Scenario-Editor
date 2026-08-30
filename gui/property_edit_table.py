@@ -30,19 +30,27 @@ champs dedies ailleurs dans le dialogue) -- voir l'appelant pour la liste
 exacte fournie. Ne renvoie QUE les valeurs reellement MODIFIEES par
 l'utilisateur (voir get_changed_values), pour ne jamais ecraser un champ non
 touche avec une valeur re-tapee identique par erreur d'arrondi d'affichage.
-"""
-from typing import Dict, List, Tuple
 
-from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+`values_by_key` (optionnel) : {cle: [valeurs observees triees par
+frequence]} -- chaque cellule de valeur devient une liste deroulante
+EDITABLE pre-remplie avec ces valeurs (demande du 30/08/2026 : liste
+deroulante PARTOUT ou c'est possible) ; une cle absente du pool garde une
+saisie libre classique.
+"""
+from typing import Dict, List, Optional, Tuple
+
+from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QComboBox
 from PyQt6.QtCore import Qt
 
 from core.i18n import t
 
 
 class PropertyEditTable(QTableWidget):
-    def __init__(self, fields: List[Tuple[str, str]], parent=None):
+    def __init__(self, fields: List[Tuple[str, str]], parent=None,
+                 values_by_key: Optional[Dict[str, List[str]]] = None):
         super().__init__(parent)
         self._original_values: Dict[str, str] = {k: v for k, v in fields}
+        self._values_by_key: Dict[str, List[str]] = dict(values_by_key or {})
         self.setColumnCount(2)
         self.setHorizontalHeaderLabels([t("dup.preview_col_property"), t("dup.preview_col_value")])
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -53,8 +61,25 @@ class PropertyEditTable(QTableWidget):
             key_item = QTableWidgetItem(key)
             key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.setItem(row, 0, key_item)
-            self.setItem(row, 1, QTableWidgetItem(value))
+            observed = self._values_by_key.get(key)
+            if observed:
+                combo = QComboBox()
+                combo.setEditable(True)  # saisie libre toujours permise
+                combo.addItems(observed)
+                combo.setCurrentText(value)
+                self.setCellWidget(row, 1, combo)
+            else:
+                self.setItem(row, 1, QTableWidgetItem(value))
         self.setMaximumHeight(220)
+
+    def _row_value(self, row: int) -> str:
+        """Valeur courante de la ligne : liste deroulante si la cellule en
+        est une, sinon l'item texte classique."""
+        combo = self.cellWidget(row, 1)
+        if combo is not None:
+            return combo.currentText()
+        item = self.item(row, 1)
+        return item.text() if item is not None else ""
 
     def get_changed_values(self) -> Dict[str, str]:
         """Ne retourne QUE les cles dont la valeur a reellement change par
@@ -62,11 +87,10 @@ class PropertyEditTable(QTableWidget):
         changed: Dict[str, str] = {}
         for row in range(self.rowCount()):
             key_item = self.item(row, 0)
-            value_item = self.item(row, 1)
-            if key_item is None or value_item is None:
+            if key_item is None:
                 continue
             key = key_item.text()
-            new_value = value_item.text()
+            new_value = self._row_value(row)
             if new_value != self._original_values.get(key):
                 changed[key] = new_value
         return changed

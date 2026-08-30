@@ -197,3 +197,61 @@ def test_written_entry_overrides_vanilla_on_same_key(tmp_path, monkeypatch):
 
     idx = ll.build_localization_index(tmp_path)
     assert idx.get("HitPoints", "fr") == "PV personnalises"
+
+
+# --------------------- colonnes alias + fusion scenario/vanilla (30/08/2026)
+def test_french_column_alias_recognized():
+    """Les Localization.csv de SCENARIO ecrivent souvent l'en-tete en
+    anglais ('French') au lieu du vanilla ('Français') : la colonne FR doit
+    quand meme etre lue -- sinon les fiches restaient en anglais (bug
+    signale par l'utilisateur le 30/08/2026)."""
+    from core.localization_lookup import _parse_csv_text, LocalizationIndex
+    text = "KEY,English,French\nMyInfo,Hello world,Bonjour le monde\n"
+    index = LocalizationIndex(_parse_csv_text(text))
+    assert index.get("MyInfo", "fr") == "Bonjour le monde"
+    assert index.get("MyInfo", "en") == "Hello world"
+
+
+def test_scenario_english_only_row_does_not_mask_vanilla_french():
+    """Fusion COLONNE PAR COLONNE : une ligne scenario ne fournissant que
+    l'anglais ne doit pas ecraser la traduction francaise de la ligne
+    vanilla de la meme cle."""
+    from core.localization_lookup import LocalizationIndex
+    vanilla = {"MyInfo": {"English": "Hello", "Français": "Bonjour"}}
+    scenario = {"MyInfo": {"English": "Hello (scenario)"}}
+    merged = dict(vanilla)
+    for key, row in scenario.items():  # meme logique que build_localization_index
+        base = merged.get(key)
+        filled = dict(base)
+        for col, val in row.items():
+            if val and val.strip():
+                filled[col] = val
+        merged[key] = filled
+    index = LocalizationIndex(merged)
+    assert index.get("MyInfo", "fr") == "Bonjour"          # herite du vanilla
+    assert index.get("MyInfo", "en") == "Hello (scenario)"  # scenario prioritaire
+
+
+def test_scenario_french_still_wins_over_vanilla():
+    from core.localization_lookup import LocalizationIndex
+    merged = {"MyInfo": {"English": "Hello (scenario)", "Français": "Bonjour perso"}}
+    index = LocalizationIndex(merged)
+    assert index.get("MyInfo", "fr") == "Bonjour perso"
+
+
+def test_build_localization_index_merges_cell_wise(tmp_path):
+    """Bout-en-bout : un scenario dont le Localization.csv (en-tetes
+    anglais) ne fournit que l'anglais pour une cle vanilla conserve la
+    traduction francaise du pack."""
+    from core.localization_lookup import build_localization_index
+    root = tmp_path / "scenario"
+    (root / "Extras").mkdir(parents=True)
+    (root / "Extras" / "Localization.csv").write_text(
+        "KEY,English,French\nFuelTankMSLarge,My custom tank name,\n",
+        encoding="utf-8")
+    index = build_localization_index(root)
+    # Nom fourni par le scenario (anglais) : pris tel quel.
+    assert index.get("FuelTankMSLarge", "en") == "My custom tank name"
+    # Francais absent du scenario mais PRESENT dans le pack vanilla :
+    # 'Réservoir de carburant v2' doit resurface.
+    assert index.get("FuelTankMSLarge", "fr") == "Réservoir de carburant v2"

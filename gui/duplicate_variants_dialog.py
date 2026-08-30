@@ -52,7 +52,8 @@ class DuplicateVariantsDialog(QDialog):
     def __init__(self, current_id: Optional[str], current_name: Optional[str],
                  id_suggestions: List[str], numeric_fields: List[str],
                  parent=None, show_id_field: bool = True,
-                 source_block: Optional[EcfBlock] = None):
+                 source_block: Optional[EcfBlock] = None,
+                 values_by_key: Optional[dict] = None):
         super().__init__(parent)
         self.setWindowTitle(t("dup.title"))
         self.setMinimumWidth(480)
@@ -215,7 +216,8 @@ class DuplicateVariantsDialog(QDialog):
             self._adjust_hint_label.setWordWrap(True)
             self._adjust_hint_label.setStyleSheet("color: gray; font-size: 11px;")
             adjust_layout.addWidget(self._adjust_hint_label)
-            self.property_table = PropertyEditTable(list_editable_fields_block(source_block))
+            self.property_table = PropertyEditTable(
+                list_editable_fields_block(source_block), values_by_key=values_by_key)
             adjust_layout.addWidget(self.property_table)
             layout.addWidget(self.adjust_properties_group)
             self.adjust_properties_group.setVisible(False)

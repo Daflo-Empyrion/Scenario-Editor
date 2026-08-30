@@ -120,12 +120,11 @@ def test_full_workflow_creates_block_and_template(window_with_scenario, monkeypa
             self._add_ingredient_row()
             combo = self.ingredients_table.cellWidget(0, 0)
             combo.setCurrentText("IronOre")
-            self.ingredients_table.item(0, 1).setText("5")
+            self.ingredients_table.cellWidget(0, 1).setCurrentText("5")
         self._on_validate()
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(PropertyTableDialog, "exec", fake_table_exec)
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
 
     edit_widget._add_block_dialog()
 
@@ -172,8 +171,7 @@ def test_template_name_prefilled_and_readonly(window_with_scenario, monkeypatch)
         self._on_validate()
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(PropertyTableDialog, "exec", fake_table_exec)
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
 
     edit_widget._add_block_dialog()
 
@@ -195,8 +193,7 @@ def test_declining_template_prompt_skips_template_creation(window_with_scenario,
         self._on_validate()
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(PropertyTableDialog, "exec", fake_table_exec)
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     edit_widget._add_block_dialog()
 
@@ -219,8 +216,11 @@ def test_no_template_prompt_when_editing_templates_file_itself(window_with_scena
     monkeypatch.setattr(PropertyTableDialog, "exec", fake_table_exec)
 
     called = []
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: called.append(True) or QMessageBox.StandardButton.Yes))
+    def _spy_exec(box):
+        called.append(True)
+        box.buttons()[0].click()
+        return 0
+    monkeypatch.setattr(QMessageBox, "exec", _spy_exec)
 
     edit_widget._add_block_dialog()
     assert called == []  # jamais demande, on est deja dans Templates.ecf
@@ -245,12 +245,11 @@ def test_saved_block_and_template_survive_reparse(window_with_scenario, monkeypa
         else:
             self._add_ingredient_row()
             self.ingredients_table.cellWidget(0, 0).setCurrentText("IronOre")
-            self.ingredients_table.item(0, 1).setText("5")
+            self.ingredients_table.cellWidget(0, 1).setCurrentText("5")
         self._on_validate()
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(PropertyTableDialog, "exec", fake_table_exec)
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
 
     edit_widget._add_block_dialog()
     window.tabs.widget(0).save()
@@ -276,8 +275,7 @@ def test_undo_removes_created_block(window_with_scenario, monkeypatch):
         self._on_validate()
         return QDialog.DialogCode.Accepted
     monkeypatch.setattr(PropertyTableDialog, "exec", fake_table_exec)
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     edit_widget._add_block_dialog()
     assert any(b.get_property("Name") == "MyTestBlock" for b in edit_widget.doc.iter_blocks())
@@ -553,3 +551,16 @@ def test_add_table_row_dialog_wires_suggestions_for_non_lootgroups_files(qapp, t
 
     assert captured["value_suggestions"] is not None
     assert "IronOre" in captured["value_suggestions"]
+
+
+def _msgbox_yes(box):
+    """Simule un clic OUI sur une boite a boutons APPLICATION
+    (gui.msgboxes.ask_yes_no : boutons[0] = Oui, boutons[1] = Non)."""
+    box.buttons()[0].click()
+    return 0
+
+
+def _msgbox_no(box):
+    """Simule un clic NON sur une boite a boutons APPLICATION."""
+    box.buttons()[1].click()
+    return 0

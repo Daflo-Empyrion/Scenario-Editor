@@ -80,6 +80,7 @@ from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
 from gui.theme import icon, icon_size
 from gui import theme as _theme
+from gui.msgboxes import ask_yes_no
 from core.workspace_undo import WorkspaceUndoStack, FileStateUndo, MultiFileStateUndo, FolderStateUndo, capture_file, capture_folder
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
@@ -306,7 +307,7 @@ class MainWindow(QMainWindow):
                 lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(license_path))))
             layout.addWidget(open_license_button, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        close_button = QPushButton("OK")
+        close_button = QPushButton(t("btn.ok"))
         close_button.clicked.connect(dialog.accept)
         layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -420,6 +421,10 @@ class MainWindow(QMainWindow):
         current = i18n.get_language()
         new_lang = "en" if current == "fr" else "fr"
         i18n.set_language(new_lang)
+        # Les boutons standards de Qt (Yes/No/OK/Cancel...) suivent leur
+        # propre fichier de traduction, pas core.i18n (voir core/qt_translator.py).
+        from core.qt_translator import install_qt_language
+        install_qt_language(new_lang)
         self._apply_language()
 
     def _apply_language(self):
@@ -585,11 +590,9 @@ class MainWindow(QMainWindow):
         new_root = Path(folder)
 
         if self.workspace.is_merge_mode:
-            confirm = QMessageBox.question(
-                self, t("scenariob.confirm_change_title"),
-                t("scenariob.confirm_change_msg", old=self.workspace.source_b_root.name, new=new_root.name)
-            )
-            if confirm != QMessageBox.StandardButton.Yes:
+            if not ask_yes_no(
+                    self, t("scenariob.confirm_change_title"),
+                    t("scenariob.confirm_change_msg", old=self.workspace.source_b_root.name, new=new_root.name)):
                 return
 
         self.workspace.set_scenario_b(new_root)
@@ -601,9 +604,8 @@ class MainWindow(QMainWindow):
         if not self.workspace or not self.workspace.is_merge_mode:
             return
         name = self.workspace.source_b_root.name
-        confirm = QMessageBox.question(
-            self, t("scenariob.confirm_remove_title"), t("scenariob.confirm_remove_msg", name=name))
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("scenariob.confirm_remove_title"),
+                          t("scenariob.confirm_remove_msg", name=name)):
             return
         self.workspace.set_scenario_b(None)
         self._refresh_all_trees()
@@ -728,10 +730,9 @@ class MainWindow(QMainWindow):
                                   t("save.error_msg", name=dest.name, error=str(e)))
             return
 
-        confirm = QMessageBox.question(
-            self, t("extract.done_title"),
-            t("extract.done_msg", count=len(usages), path=str(dest)) + "\n\n" + t("extract.open_now"))
-        if confirm == QMessageBox.StandardButton.Yes:
+        if ask_yes_no(
+                self, t("extract.done_title"),
+                t("extract.done_msg", count=len(usages), path=str(dest)) + "\n\n" + t("extract.open_now")):
             widget = CsvEditWidget(dest, editable=True)
             index = self.tabs.addTab(widget, "✎ " + dest.name)
             self.tabs.setTabToolTip(index, str(dest))
@@ -1307,9 +1308,8 @@ class MainWindow(QMainWindow):
                 self._delete_working_folder(folder)
 
     def _delete_working_file(self, path: Path):
-        confirm = QMessageBox.question(
-            self, t("backup.confirm_delete_title"), t("delete.confirm_file_msg", name=path.name))
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("backup.confirm_delete_title"),
+                          t("delete.confirm_file_msg", name=path.name)):
             return
         try:
             prior = capture_file(path)
@@ -1332,9 +1332,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(t("status.file_deleted", name=path.name))
 
     def _delete_working_folder(self, folder: Path):
-        confirm = QMessageBox.question(
-            self, t("backup.confirm_delete_title"), t("delete.confirm_folder_msg", name=folder.name))
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("backup.confirm_delete_title"),
+                          t("delete.confirm_folder_msg", name=folder.name)):
             return
         try:
             existed, prior_files = capture_folder(folder)
@@ -1363,11 +1362,8 @@ class MainWindow(QMainWindow):
         if nb_files == 0:
             QMessageBox.information(self, t("merge.empty_folder_title"), t("merge.empty_folder_msg"))
             return
-        confirm = QMessageBox.question(
-            self, t("merge.confirm_title"),
-            t("merge.confirm_folder_msg", n=nb_files, folder=folder.name)
-        )
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("merge.confirm_title"),
+                          t("merge.confirm_folder_msg", n=nb_files, folder=folder.name)):
             return
 
         rel = folder.relative_to(source_root)
@@ -1653,13 +1649,11 @@ class MainWindow(QMainWindow):
             return
         if source_templates_path is None:
             return
-        reply = QMessageBox.question(
-            self, t("addblock.ask_template_title"),
-            t("dup.variants_create_templates_prompt",
-              count=len(target_names),
-              names=', '.join(target_names[:3]) + ('...' if len(target_names) > 3 else '')),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(
+                self, t("addblock.ask_template_title"),
+                t("dup.variants_create_templates_prompt",
+                  count=len(target_names),
+                  names=', '.join(target_names[:3]) + ('...' if len(target_names) > 3 else ''))):
             return
         self._create_templates_from_source(
             source_templates_path, dest_templates_path, source_block_name, target_names)
@@ -1676,7 +1670,7 @@ class MainWindow(QMainWindow):
             source_doc = parse_ecf_file(source_templates_path)
         except Exception as e:
             QMessageBox.warning(self, t("err.title"),
-                                f"Impossible de lire Templates.ecf source :\n{e}")
+                                t("templates.read_source_error", error=str(e)))
             return
         source_template = None
         for block in source_doc.iter_blocks():
@@ -1784,11 +1778,8 @@ class MainWindow(QMainWindow):
         if any(b.get_property('Name') == name for b in templates_doc.iter_blocks()):
             return  # un Template existe deja pour ce nom
 
-        reply = QMessageBox.question(
-            self, t("copy.offer_template_title"),
-            t("copy.offer_template_msg", name=name),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("copy.offer_template_title"),
+                          t("copy.offer_template_msg", name=name)):
             return
         items_path = find_file_by_name(ecf_files, 'ItemsConfig.ecf')
         blocks_path = find_file_by_name(ecf_files, 'BlocksConfig.ecf')
@@ -2340,7 +2331,7 @@ class EcfViewWidget(QWidget):
         search_row.setSpacing(4)
         search_row.addWidget(QLabel(t("label.search")))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Id / Name...")
+        self.search_box.setPlaceholderText(t("search.identity_placeholder"))
         self.search_box.returnPressed.connect(self._search_next)
         search_row.addWidget(self.search_box)
         self.search_status = QLabel("")
@@ -2411,7 +2402,7 @@ class EcfViewWidget(QWidget):
             self._search_last_query = query
 
         if not self._search_matches:
-            self.search_status.setText("Aucun resultat")
+            self.search_status.setText(t("search.no_results"))
             return
 
         self._search_index = (self._search_index + 1) % len(self._search_matches)
@@ -2713,6 +2704,12 @@ def main():
     sys.excepthook = _handle_uncaught_exception
 
     _show_first_launch_language_picker()
+
+    # Boutons standards de Qt (Yes/No/OK/Cancel...) dans la langue choisie --
+    # sans ca, ils restent en anglais meme quand l'interface est en francais
+    # (voir core/qt_translator.py, demande d'audit du 30/08/2026).
+    from core.qt_translator import install_qt_language
+    install_qt_language(i18n.get_language())
 
     window = MainWindow()
     window.show()

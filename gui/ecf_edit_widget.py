@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
     QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
     QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
+    QStyledItemDelegate,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -52,11 +53,53 @@ from core.ecf.pending_conflicts import suggest_free_ids
 from core import settings
 from core.i18n import t
 from gui.theme import icon, icon_size
+from gui.msgboxes import ask_yes_no
 from gui import theme as _theme
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
+
+
+class _PropertyValueDelegate(QStyledItemDelegate):
+    """Editeur en liste deroulante EDITABLE pour la colonne Valeur du tableau
+    de proprietes -- demande explicite de l'utilisateur (30/08/2026 : 'avoir
+    une liste deroulante a droite pour chaque valeur' quand un bloc/item/
+    Template est selectionne a gauche). Les valeurs proposees sont celles
+    reellement observees dans le fichier ouvert pour CETTE propriete (meme
+    pool que la creation guidee, voir scan_properties_for_kind), triees par
+    frequence ; la saisie libre reste toujours possible (combo editable, y
+    compris pour une cle sans historique dans le fichier).
+
+    L'ecriture reutilise le mecanisme existant : setModelData ecrit le
+    texte dans l'item -> itemChanged -> _on_cell_changed (aucune logique
+    d'ecriture dupliquee ici)."""
+
+    def __init__(self, values_by_key: Dict[str, List[str]], parent=None):
+        super().__init__(parent)
+        self._values_by_key = values_by_key
+
+    def _key_for(self, index) -> Optional[str]:
+        """Cle de propriete de la ligne : stockee en UserRole sur l'item de
+        la colonne 0 sous la forme (noeud_propriete, cle)."""
+        key_item = index.siblingAtColumn(0)
+        data = key_item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(data, tuple) and len(data) == 2:
+            return data[1]
+        return None
+
+    def createEditor(self, parent, option, index):
+        combo = QComboBox(parent)
+        combo.setEditable(True)
+        combo.addItems(self._values_by_key.get(self._key_for(index), []))
+        combo.setCurrentText(index.data() or "")
+        return combo
+
+    def setEditorData(self, editor, index):
+        editor.setCurrentText(index.data() or "")
+
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.currentText())
 
 
 class DisabledBlocksDialog(QDialog):
@@ -228,11 +271,8 @@ class PendingConflictsDialog(QDialog):
             QMessageBox.warning(self, t("pending.id_missing"), t("pending.id_missing_msg"))
             return
         if new_id.isdigit() and int(new_id) in self.used_ids:
-            confirm = QMessageBox.question(
-                self, t("pending.id_already_used"),
-                t("pending.id_already_used_confirm", id=new_id)
-            )
-            if confirm != QMessageBox.StandardButton.Yes:
+            if not ask_yes_no(self, t("pending.id_already_used"),
+                              t("pending.id_already_used_confirm", id=new_id)):
                 return
 
         self.chosen_entry = self.entries[row]
@@ -765,7 +805,7 @@ class EcfHeaderExplanationPanel(QWidget):
     def _translate(self):
         from core import translation
         if not translation.is_available():
-            QMessageBox.warning(self, t("err.title"), "deep-translator n'est pas installe.")
+            QMessageBox.warning(self, t("err.title"), t("translate.missing_lib"))
             return
         self.content.setPlainText(t("ecf.header_translating"))
         QApplication.processEvents()
@@ -939,7 +979,7 @@ class EcfEditWidget(QWidget):
         search_row.setSpacing(4)
         search_row.addWidget(QLabel(t("label.search")))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Id / Name / CustomIcon...")
+        self.search_box.setPlaceholderText(t("search.identity_icon_placeholder"))
         self.search_box.addAction(icon("fa5s.search", color="#7c859c"), QLineEdit.ActionPosition.LeadingPosition)
         self.search_box.returnPressed.connect(self._search_next)
         search_row.addWidget(self.search_box)
@@ -999,7 +1039,17 @@ class EcfEditWidget(QWidget):
         self.tree.setHeaderLabels(["Bloc"])
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_block_selected)
-        self.tree.itemClicked.connect(self._on_tree_item_clicked_for_info_card)
+        # Fiche d'information : DOUBLE-clic uniquement (demande explicite de
+        # l'utilisateur du 30/08/2026 -- la fiche s'ouvrait a CHAQUE clic
+        # simple, ce qui devenait envahissant). itemClicked reste branche
+        # sur la seule selection du bloc (tableau de proprietes).
+        # L'expansion/repli par double-clic est DESACTIVEE pour que le
+        # double-clic n'ouvre QUE la fiche (l'arborescence reste manipulable
+        # via les fleches de pliage) ; itemDoubleClicked ne branchant pas la
+        # selection, itemClicked (1er clic du double-clic) a deja choisi le
+        # bloc, la table de proprietes suit donc aussi le double-clic.
+        self.tree.setExpandsOnDoubleClick(False)
+        self.tree.itemDoubleClicked.connect(self._on_tree_item_double_clicked_for_info_card)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
         splitter.addWidget(self.tree)
@@ -1138,7 +1188,7 @@ class EcfEditWidget(QWidget):
             self._search_last_query = query
 
         if not self._search_matches:
-            self.search_status.setText("Aucun resultat")
+            self.search_status.setText(t("search.no_results"))
             return
         self._search_index = (self._search_index + 1) % len(self._search_matches)
         item = self._search_matches[self._search_index]
@@ -1264,16 +1314,24 @@ class EcfEditWidget(QWidget):
         self._current_block = block
         self._refresh_props_table()
 
-    def _on_tree_item_clicked_for_info_card(self, item: QTreeWidgetItem, column: int) -> None:
+    def _on_tree_item_double_clicked_for_info_card(self, item: QTreeWidgetItem,
+                                                    column: int) -> None:
         """Distinct de _on_block_selected : celui-ci n'est branche QUE sur un
-        vrai clic utilisateur (QTreeWidget.itemClicked), jamais sur une
-        reselection PROGRAMMATIQUE (recherche, select_block_by_identity,
-        reload_from_disk) -- demande explicite de l'utilisateur, la fiche ne
-        doit s'ouvrir que sur un clic reel, jamais se rouvrir toute seule
-        apres un rechargement externe."""
+        vrai DOUBLE-clic utilisateur (QTreeWidget.itemDoubleClicked), jamais
+        sur une reselection PROGRAMMATIQUE (recherche, select_block_by_identity,
+        reload_from_disk) -- demande explicite de l'utilisateur : la fiche ne
+        doit s'ouvrir que sur un double-clic volontaire (30/08/2026 -- avant,
+        elle s'ouvrait a chaque clic simple), jamais se rouvrir toute seule
+        apres un rechargement externe. Double-clic sur le bloc DEJA affiche =
+        referme la fiche (bascule)."""
         block = item.data(0, Qt.ItemDataRole.UserRole)
-        if isinstance(block, EcfBlock):
-            self._show_info_card_for(block)
+        if not isinstance(block, EcfBlock):
+            return
+        name = block.get('Name') or block.get_property('Name')
+        if name and self._info_card is not None and self._info_card.is_showing(name):
+            self._info_card.close_card()
+            return
+        self._show_info_card_for(block)
 
     def _get_info_card_localization_index(self):
         if self._info_card_localization_index is None:
@@ -1322,9 +1380,10 @@ class EcfEditWidget(QWidget):
 
     def _show_info_card_for(self, block: EcfBlock) -> None:
         """Construit et affiche la fiche d'information du bloc selectionne --
-        voir gui/block_info_card_widget.py. S'ouvre UNIQUEMENT depuis un clic
-        (seul appelant : _on_block_selected, lui-meme branche sur
-        QTreeWidget.itemClicked), jamais au survol ni automatiquement."""
+        voir gui/block_info_card_widget.py. S'ouvre UNIQUEMENT depuis un
+        DOUBLE-clic (seul appelant : _on_tree_item_double_clicked_for_info_card,
+        lui-meme branche sur QTreeWidget.itemDoubleClicked), jamais au survol,
+        sur un clic simple ni automatiquement."""
         name = block.get('Name') or block.get_property('Name')
         if not name:
             return
@@ -1477,6 +1536,16 @@ class EcfEditWidget(QWidget):
             self.props_table.setItem(i, 0, item_k)
             self.props_table.setItem(i, 1, item_v)
 
+        # Liste deroulante (editable) sur CHAQUE cellule de valeur -- valeurs
+        # observees dans le fichier pour la propriete de la ligne, triees par
+        # frequence (demande explicite de l'utilisateur du 30/08/2026).
+        from core.ecf.block_creation import scan_properties_for_kind
+        observed = scan_properties_for_kind(self.doc, block.kind)
+        values_by_key = {key: [v for v, _c in counter.most_common()]
+                         for key, counter in observed.items()}
+        self.props_table.setItemDelegateForColumn(
+            1, _PropertyValueDelegate(values_by_key, self.props_table))
+
     def _refresh_props_table_grid(self, block: EcfBlock, param_columns: List[str]):
         """Affichage en tableau pour les structures repetitives (Child Items, Child
         Inputs...) : une LIGNE par entree (Name_X/Group_X), une COLONNE par parametre
@@ -1485,6 +1554,10 @@ class EcfEditWidget(QWidget):
         columns = [t("ecf.col_type"), t("ecf.col_item_value")] + param_columns
         self.props_table.setColumnCount(len(columns))
         self.props_table.setHorizontalHeaderLabels(columns)
+        # Mode tableau (structures repetitives) : pas de liste deroulante de
+        # valeurs observees ici (la colonne 1 est un nom d'entree Name_N, pas
+        # une propriete unique) -- retire le delegate du mode plat.
+        self.props_table.setItemDelegateForColumn(1, None)
 
         # Infobulles d'en-tete de colonne (apparition apres une courte pause du
         # curseur, comportement standard Qt) -- toujours coherentes avec le VRAI
@@ -1848,9 +1921,8 @@ class EcfEditWidget(QWidget):
         if chosen == action_duplicate:
             self._duplicate_block_action(block)
         elif chosen == action_disable:
-            confirm = QMessageBox.question(self, t("merge.confirm_title"),
-                                            t("ecf.confirm_disable_block", name=item.text(0)))
-            if confirm == QMessageBox.StandardButton.Yes:
+            if ask_yes_no(self, t("merge.confirm_title"),
+                          t("ecf.confirm_disable_block", name=item.text(0))):
                 self._snapshot_undo()
                 from core.ecf.disable_block import disable_block
                 disable_block(self.doc, block, settings.get_author())
@@ -1860,9 +1932,8 @@ class EcfEditWidget(QWidget):
                     self.props_table.setRowCount(0)
                 self._populate_tree()
         elif chosen == action_del:
-            confirm = QMessageBox.question(self, t("merge.confirm_title"),
-                                            t("ecf.confirm_delete_block", name=item.text(0)))
-            if confirm == QMessageBox.StandardButton.Yes:
+            if ask_yes_no(self, t("merge.confirm_title"),
+                          t("ecf.confirm_delete_block", name=item.text(0))):
                 self._snapshot_undo()
                 remove_block(self.doc.nodes, block)
                 self._set_modified(True)
@@ -1907,8 +1978,17 @@ class EcfEditWidget(QWidget):
         suggestions = suggest_free_ids(used_ids, 5)
         numeric_fields = detect_numeric_fields_block(block)
 
+        # Pool des valeurs observees dans le fichier pour ce genre de bloc
+        # (liste deroulante de l'apercu de proprietes -- demande du 30/08/2026 :
+        # liste deroulante PARTOUT ou c'est possible, saisie libre permise).
+        from core.ecf.block_creation import scan_properties_for_kind
+        observed = scan_properties_for_kind(self.doc, block.kind)
+        values_by_key = {key: [v for v, _c in counter.most_common()]
+                         for key, counter in observed.items()}
+
         dialog = DuplicateVariantsDialog(current_id, current_name, suggestions, numeric_fields,
-                                          parent=self, show_id_field=True, source_block=block)
+                                          parent=self, show_id_field=True, source_block=block,
+                                          values_by_key=values_by_key)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -2081,10 +2161,7 @@ class EcfEditWidget(QWidget):
         else:
             prompt = t("dup.no_source_offer_msg", name=source_name,
                        count=len(variant_names))
-        reply = QMessageBox.question(
-            self, t("addblock.ask_template_title"), prompt,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("addblock.ask_template_title"), prompt):
             return
         self._create_templates_for_variants(templates_path, source_name, variant_names)
 
@@ -2237,11 +2314,8 @@ class EcfEditWidget(QWidget):
         if templates_path is None:
             return
 
-        reply = QMessageBox.question(
-            self, t("addblock.ask_template_title"),
-            t("addblock.ask_template_msg", name=created_name),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("addblock.ask_template_title"),
+                          t("addblock.ask_template_msg", name=created_name)):
             return
         self._create_associated_template(templates_path, created_name)
 
@@ -2294,7 +2368,8 @@ class EcfEditWidget(QWidget):
             craftable_names_players_only=craftable_names_players_only,
             window_title_key="addblock.template_table_title", parent=self,
             prechecked_properties=defaults.get("scalars"),
-            prefill_ingredients=defaults.get("ingredients"))
+            prefill_ingredients=defaults.get("ingredients"),
+            common_quantities=defaults.get("quantities"))
         if template_dialog.exec() != QDialog.DialogCode.Accepted:
             return
 

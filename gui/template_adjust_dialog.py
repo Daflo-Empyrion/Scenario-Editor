@@ -27,7 +27,7 @@ essai trop simplifie) :
     via une liste deroulante des blocs/items valides (voir
     core.ecf.block_creation.list_craftable_names), pas seulement d'ajuster
     la quantite d'un ingredient deja present."""
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget
 
@@ -41,10 +41,23 @@ class TemplateAdjustDialog(QDialog):
     duplique comme point de depart identique pour CHAQUE onglet (l'edition
     ulterieure de chaque onglet est independante). `craftable_names` : pool
     pour la liste deroulante d'ajout d'ingredient (voir
-    core.ecf.block_creation.list_craftable_names)."""
+    core.ecf.block_creation.list_craftable_names). `property_pool` : noms de
+    proprietes observes sur les autres Templates du fichier (liste
+    deroulante d'AJOUT de propriete scalaire) ; `values_by_key` : valeurs
+    observees par propriete (liste deroulante de valeurs) ;
+    `common_quantities` : quantites d'ingredients observees (liste
+    deroulante des quantites) ; `ingredient_values_by_key` : quantites
+    observees PER-INGREDIENT (prioritaires sur common_quantities dans la
+    colonne quantite) -- demandes du 30/08/2026 : liste deroulante
+    PARTOUT ou c'est possible."""
 
     def __init__(self, template_names: List[str], scalar_fields: List[Tuple[str, str]],
-                 ingredients: List[Tuple[str, str]], craftable_names: List[str], parent=None):
+                 ingredients: List[Tuple[str, str]], craftable_names: List[str],
+                 property_pool: Optional[List[str]] = None,
+                 values_by_key: Optional[Dict[str, List[str]]] = None,
+                 common_quantities: Optional[List[str]] = None,
+                 ingredient_values_by_key: Optional[Dict[str, List[str]]] = None,
+                 parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("dup.adjust_template_toggle"))
         self.setMinimumSize(520, 480)
@@ -55,7 +68,11 @@ class TemplateAdjustDialog(QDialog):
         self.tabs = QTabWidget()
         self._editors: Dict[str, TemplateRecipeEditor] = {}
         for name in template_names:
-            editor = TemplateRecipeEditor(list(scalar_fields), list(ingredients), craftable_names)
+            editor = TemplateRecipeEditor(
+                list(scalar_fields), list(ingredients), craftable_names,
+                property_pool=property_pool, values_by_key=values_by_key,
+                common_quantities=common_quantities,
+                ingredient_values_by_key=ingredient_values_by_key)
             self._editors[name] = editor
             self.tabs.addTab(editor, name)
         layout.addWidget(self.tabs, 1)
@@ -72,16 +89,18 @@ class TemplateAdjustDialog(QDialog):
 
     def get_entries(self) -> Dict[str, Dict[str, object]]:
         """Retourne {nom_template: {'scalar': {...}, 'ingredients': {...},
-        'removed': [...]}} -- UNIQUEMENT pour les Templates ayant au moins un
-        changement (scalaire, ingredient ajoute/modifie ou RETIRE), chacun
-        avec SES PROPRES modifications (jamais uniformes entre Templates --
-        voir docstring du module)."""
+        'removed': [...], 'removed_scalars': [...]}} -- UNIQUEMENT pour les
+        Templates ayant au moins un changement (scalaire modifie/ajoute,
+        ingredient ajoute/modifie ou retire, PROPRIETE SCALAIRE retiree),
+        chacun avec SES PROPRES modifications (jamais uniformes entre
+        Templates -- voir docstring du module)."""
         entries: Dict[str, Dict[str, object]] = {}
         for name, editor in self._editors.items():
             scalar = editor.get_scalar_overrides()
             ingredients = editor.get_changed_or_added_ingredients()
             removed = editor.get_removed_ingredients()
-            if scalar or ingredients or removed:
+            removed_scalars = editor.get_removed_scalars()
+            if scalar or ingredients or removed or removed_scalars:
                 entries[name] = {'scalar': scalar, 'ingredients': ingredients,
-                                 'removed': removed}
+                                 'removed': removed, 'removed_scalars': removed_scalars}
         return entries

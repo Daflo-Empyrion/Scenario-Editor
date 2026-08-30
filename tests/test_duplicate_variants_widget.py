@@ -422,7 +422,7 @@ def test_duplicate_multi_variant_within_working_copy_proposes_and_creates_templa
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
     monkeypatch.setattr(TemplateAdjustDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
 
     widget._duplicate_block_action(block)
@@ -452,7 +452,7 @@ def test_duplicate_simple_within_working_copy_proposes_and_creates_template(
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
     monkeypatch.setattr(TemplateAdjustDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
 
     widget._duplicate_block_action(block)
@@ -553,7 +553,7 @@ def test_multi_variant_duplication_offers_localization_per_variant(
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     captured_names = []
 
@@ -592,7 +592,7 @@ def test_localization_dialog_prefilled_from_source_translation(
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     prefilled = []
 
@@ -624,7 +624,7 @@ def test_localization_dialog_cancel_writes_nothing(blocks_widget_with_localizati
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
     monkeypatch.setattr(LocalizationAdjustDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
 
     widget._duplicate_block_action(block)
@@ -652,7 +652,7 @@ def test_no_localization_dialog_without_working_root(blocks_widget, monkeypatch)
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     blocks_widget._duplicate_block_action(block)  # ne doit pas lever
 
@@ -707,7 +707,7 @@ def test_duplicate_multi_variant_uses_custom_names(blocks_widget, monkeypatch):
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     blocks_widget._duplicate_block_action(block)
 
@@ -735,7 +735,7 @@ def test_duplicate_multi_variant_without_custom_names_still_uses_default_pattern
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     blocks_widget._duplicate_block_action(block)
 
@@ -803,14 +803,14 @@ def test_multi_variant_templates_edited_individually_end_to_end(blocks_widget_wi
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
     monkeypatch.setattr(LocalizationAdjustDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
 
     def fake_adjust_exec(self):
         editor_light = self._editors["IronLight"]
-        editor_light.scalar_table.item(0, 1).setText("99")
+        editor_light.scalar_table.cellWidget(0, 1).setCurrentText("99")
         editor_light.ingredient_combo.setCurrentText("CobaltAlloy")
-        editor_light.quantity_edit.setText("3")
+        editor_light.quantity_combo.setCurrentText("3")
         editor_light._on_add_ingredient()
         # IronHeavy reste volontairement inchange dans ce test.
         return QDialog.DialogCode.Accepted
@@ -834,3 +834,16 @@ def test_multi_variant_templates_edited_individually_end_to_end(blocks_widget_wi
 
     # Le Template SOURCE ne doit jamais etre modifie.
     assert dict(list_template_scalar_fields(source_tpl))["CraftTime"] == "3"
+
+
+def _msgbox_yes(box):
+    """Simule un clic OUI sur une boite a boutons APPLICATION
+    (gui.msgboxes.ask_yes_no : boutons[0] = Oui, boutons[1] = Non)."""
+    box.buttons()[0].click()
+    return 0
+
+
+def _msgbox_no(box):
+    """Simule un clic NON sur une boite a boutons APPLICATION."""
+    box.buttons()[1].click()
+    return 0

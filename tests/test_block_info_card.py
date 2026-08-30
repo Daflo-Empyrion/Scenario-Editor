@@ -42,6 +42,16 @@ def _get_block(name: str):
     raise AssertionError(f"bloc {name} introuvable dans la fixture")
 
 
+
+def _expected_label(key: str) -> str:
+    """Libelle attendu pour une cle ECF : traduction app si definie
+    (cle 'ecfprop.<propriete>' -- 30/08/2026), sinon la cle brute."""
+    from core.i18n import t
+    i18n_key = f"ecfprop.{key}"
+    label = t(i18n_key)
+    return label if label != i18n_key else key
+
+
 def test_title_from_localization():
     block = _get_block("FuelTankMSLarge")
     loc = _load_loc_index()
@@ -209,3 +219,139 @@ def test_bbcode_tolerates_8digit_color_and_malformed_tags():
 
 def test_bbcode_empty_string():
     assert _bbcode_to_html("") == ""
+
+
+# --------------------------------------- blocs CREES sans attribut display
+# (retour utilisateur du 30/08/2026 : la fiche d'un bloc/Template cree par
+# l'application n'affichait que le nom et les ingredients -- ses proprietes
+# n'ont aucun attribut 'display' et etaient toutes exclues du scan)
+
+CREATED_TEMPLATE_TEXT = """{ Template Name: MaVariante
+  CraftTime: 30
+  Target: "BaseC"
+  OutputCount: 2
+  { Child Inputs
+    SteelPlate: 5
+    Electronics: 2
+  }
+}
+"""
+
+
+def _make_doc(text):
+    from core.ecf.parser import parse_ecf_text
+    return parse_ecf_text(text)
+
+
+def test_created_template_shows_all_scalars_without_display_attr():
+    """Repli 30/08/2026 : aucune propriete ne porte 'display' -> on affiche
+    les proprietes du bloc (CraftTime, Target...) au lieu d'une fiche vide."""
+    doc = _make_doc(CREATED_TEMPLATE_TEXT)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr")
+    by_label = {f.label: f.value for f in card.stat_fields}
+    assert by_label.get(_expected_label("CraftTime")) == "30"
+    # 'Target' est desormais une valeur-liste : chaque code constructeur
+    # est traduit individuellement (demande du 30/08/2026).
+    from core.i18n import t
+    basec = t("ecfprop.BaseC")
+    assert by_label.get(_expected_label("Target")) == (basec if basec != "ecfprop.BaseC" else "BaseC")
+
+
+def test_created_template_child_inputs_never_in_stat_fields():
+    """Separation demandee le 30/08/2026 : le contenu de '{ Child Inputs }'
+    vit DANS la section craft (ingredients), JAMAIS dans les statistiques."""
+    doc = _make_doc(CREATED_TEMPLATE_TEXT)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr")
+    all_labels = {f.label for f in card.stat_fields}
+    assert "SteelPlate" not in all_labels
+    assert "Electronics" not in all_labels
+    # ... et la section craft les affiche bien, elle.
+    assert card.crafting_header is not None
+    ingredient_names = {i.name for i in card.ingredients}
+    assert any("SteelPlate" in n for n in ingredient_names)
+
+
+def test_created_template_output_count_in_dedicated_section_only():
+    """OutputCount : section dediee 'quantite produite', jamais en doublon
+    dans les statistiques."""
+    doc = _make_doc(CREATED_TEMPLATE_TEXT)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr")
+    assert "OutputCount" not in {f.label for f in card.stat_fields}
+    assert card.output_count_value == "2"
+
+
+def test_display_false_still_hides_even_without_display_system():
+    """Un 'display: false' EXPLICITE cache toujours la propriete, meme sur
+    un bloc qui n'utilise pas le systeme display."""
+    text = """{ Template Name: X
+  CraftTime: 10
+  Target: "BaseC", display: false
+}
+"""
+    doc = _make_doc(text)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr")
+    by_label = {f.label: f.value for f in card.stat_fields}
+    assert "Target" not in by_label
+    assert by_label.get(_expected_label("CraftTime")) == "10"
+
+
+def test_real_file_with_display_system_keeps_strict_rule():
+    """Des qu'UNE propriete porte 'display' (vrai fichier du jeu), la regle
+    stricte s'applique : une propriete SANS display n'est pas affichee --
+    fidelite a la fiche F3 preservee."""
+    text = """{ Template Name: Y
+  CraftTime: 10, display: true
+  InternalThing: whatever
+}
+"""
+    doc = _make_doc(text)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr")
+    by_label = {f.label: f.value for f in card.stat_fields}
+    assert by_label.get(_expected_label("CraftTime")) == "10"
+    assert "InternalThing" not in by_label
+
+
+def test_ecfprop_keys_actually_defined():
+    """Garde : les cles ecfprop.* utilisees par le repli de traduction des
+    fiches DOIVENT exister dans i18n_strings.json (sinon retour silencieux
+    a la cle brute, et la fiche redevient non traduite)."""
+    from core.i18n import t
+    for key in ("CraftTime", "Target", "OutputCount", "BaseItem",
+                "Deconstructor", "DeconOverride"):
+        assert t(f"ecfprop.{key}") != f"ecfprop.{key}", f"cle ecfprop.{key} absente"
+
+
+def test_target_constructor_codes_translated_individually():
+    """Demande explicite du 30/08/2026 ('lie le a la fiche une bonne fois
+    pour toute') : les codes de constructeurs de Target (SurvC, AdvC...)
+    s'affichent traduits, un par un. Ces codes sont ABSENTS du
+    Localization.csv du jeu (verifie) : le repli application ecfprop.* les
+    fournit ; un scenario peut toujours les surdefinir."""
+    from core.localization_lookup import _parse_csv_text, LocalizationIndex
+    from core.i18n import t
+    doc = _make_doc('{ Template Name: X\n  Target: "SurvC,SmallC,CodeInconnu"\n}\n')
+    template = next(doc.iter_blocks())
+    empty_loc = LocalizationIndex(_parse_csv_text("KEY,English,Français\n"))
+    card = build_block_info_card(template, empty_loc, "fr")
+    value = next(f.value for f in card.stat_fields if f.label == _expected_label("Target"))
+    assert t("ecfprop.SurvC") in value      # Constructeur portable
+    assert t("ecfprop.SmallC") in value     # Constructeur SV
+    assert "CodeInconnu" in value  # code inconnu -> affiche brut  # inconnu -> brut
+
+
+def test_target_values_still_come_from_game_localization_first():
+    """Un scenario qui definit ses propres codes (Localization.csv) est
+    respecte : priorite jeu, repli application ensuite."""
+    from core.localization_lookup import _parse_csv_text, LocalizationIndex
+    doc = _make_doc('{ Template Name: X\n  Target: "SurvC"\n}\n')
+    template = next(doc.iter_blocks())
+    loc = LocalizationIndex(_parse_csv_text(
+        "KEY,English,Français\nSurvC,Ma Version,Mon Constructeur Perso\n"))
+    card = build_block_info_card(template, loc, "fr")
+    value = next(f.value for f in card.stat_fields if f.label == _expected_label("Target"))
+    assert value == "Mon Constructeur Perso"

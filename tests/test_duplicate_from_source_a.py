@@ -104,7 +104,7 @@ def test_duplicate_from_source_a_simple_still_inserts_block(window_with_separate
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: None)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     rel = Path("Content") / "Configuration" / "BlocksConfig.ecf"
     window._duplicate_ecf_block_dialog(block, [], source_root / rel, source_root, "Scenario A")
@@ -137,10 +137,17 @@ def test_duplicate_from_source_a_never_mutates_source_block(window_with_separate
 
     monkeypatch.setattr(DuplicateVariantsDialog, "exec", fake_exec)
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: None)
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_no)
 
     rel = Path("Content") / "Configuration" / "BlocksConfig.ecf"
     window._duplicate_ecf_block_dialog(block, [], source_root / rel, source_root, "Scenario A")
 
     reloaded_source_block = _find_block(source_root, "IronResource")
     assert reloaded_source_block.get_property("XpFactor") == original_xpfactor
+
+
+def _msgbox_no(box):
+    """Simule un clic NON sur une boite a boutons APPLICATION
+    (gui.msgboxes.ask_yes_no : boutons[0] = Oui, boutons[1] = Non)."""
+    box.buttons()[1].click()
+    return 0

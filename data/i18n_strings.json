@@ -3310,5 +3310,353 @@
  "copy.offer_template_msg": {
   "fr": "Le bloc '{name}' vient d'être ajouté mais n'a pas de Template : il sera impossible à fabriquer en jeu. Lui créer un Template pré-rempli avec les valeurs les plus courantes du scénario (tout reste modifiable) ?",
   "en": "Block '{name}' was just added but has no Template: it will be impossible to craft in-game. Create a Template pre-filled with the scenario's most common values (everything stays editable)?"
+ },
+ "dup.add_property_btn": {
+  "fr": "Ajouter la propriété",
+  "en": "Add property"
+ },
+ "dup.remove_property_btn": {
+  "fr": "Retirer la propriété",
+  "en": "Remove property"
+ },
+ "search.identity_icon_placeholder": {
+  "fr": "Id / Name / CustomIcon...",
+  "en": "Id / Name / CustomIcon..."
+ },
+ "search.identity_placeholder": {
+  "fr": "Id / Name...",
+  "en": "Id / Name..."
+ },
+ "yaml.search_placeholder": {
+  "fr": "Clé ou valeur...",
+  "en": "Key or value..."
+ },
+ "translate.missing_lib": {
+  "fr": "deep-translator n'est pas installé.",
+  "en": "deep-translator is not installed."
+ },
+ "templates.read_source_error": {
+  "fr": "Impossible de lire Templates.ecf source :\n{error}",
+  "en": "Could not read the source Templates.ecf:\n{error}"
+ },
+ "btn.yes": {
+  "fr": "Oui",
+  "en": "Yes"
+ },
+ "btn.no": {
+  "fr": "Non",
+  "en": "No"
+ },
+ "ecfprop.CraftTime": {
+  "fr": "Temps de fabrication",
+  "en": "Craft time"
+ },
+ "ecfprop.Target": {
+  "fr": "Cible (constructeurs autorisés)",
+  "en": "Target (allowed constructors)"
+ },
+ "ecfprop.OutputCount": {
+  "fr": "Quantité produite",
+  "en": "Output count"
+ },
+ "ecfprop.BaseItem": {
+  "fr": "Objet de base (usine à blueprints)",
+  "en": "Base item (blueprint factory)"
+ },
+ "ecfprop.Deconstructor": {
+  "fr": "Déconstructeur",
+  "en": "Deconstructor"
+ },
+ "ecfprop.DeconOverride": {
+  "fr": "Règle de déconstruction",
+  "en": "Deconstruct rule"
+ },
+ "dup.property_add_placeholder": {
+  "fr": "Propriete presente dans le fichier...",
+  "en": "Property present in the file..."
+ },
+ "dup.property_add_empty": {
+  "fr": "Toutes les proprietes du fichier sont deja presentes",
+  "en": "All file properties are already present"
+ },
+ "ecfprop.Accuracy": {
+  "fr": "Précision",
+  "en": "Accuracy"
+ },
+ "ecfprop.AllowAt": {
+  "fr": "Autorisé sur",
+  "en": "Allowed on"
+ },
+ "ecfprop.AllowRemote": {
+  "fr": "Utilisable à distance",
+  "en": "Usable remotely"
+ },
+ "ecfprop.AutoReload": {
+  "fr": "Rechargement automatique",
+  "en": "Auto reload"
+ },
+ "ecfprop.BlastParticleIndex": {
+  "fr": "Index de particule d'explosion",
+  "en": "Blast particle index"
+ },
+ "ecfprop.BlastShieldDamagePenFac": {
+  "fr": "Pénétration de bouclier (explosion)",
+  "en": "Blast shield damage penetration"
+ },
+ "ecfprop.BlockSizeScale": {
+  "fr": "Échelle de taille du bloc",
+  "en": "Block size scale"
+ },
+ "ecfprop.BuffMod": {
+  "fr": "Modificateur d'effet",
+  "en": "Buff modifier"
+ },
+ "ecfprop.Collide": {
+  "fr": "Collision",
+  "en": "Collide"
+ },
+ "ecfprop.Components": {
+  "fr": "Composants",
+  "en": "Components"
+ },
+ "ecfprop.CustomIcon": {
+  "fr": "Icône personnalisée",
+  "en": "Custom icon"
+ },
+ "ecfprop.Cutout": {
+  "fr": "Découpe",
+  "en": "Cutout"
+ },
+ "ecfprop.Device": {
+  "fr": "Appareil",
+  "en": "Device"
+ },
+ "ecfprop.DeviceEmissiveOn": {
+  "fr": "Émissif quand actif",
+  "en": "Emissive when on"
+ },
+ "ecfprop.DeviceNewColoring": {
+  "fr": "Coloration personnalisée",
+  "en": "Custom coloring"
+ },
+ "ecfprop.DialogueSingleUserAccess": {
+  "fr": "Dialogue : accès mono-utilisateur",
+  "en": "Dialogue: single-user access"
+ },
+ "ecfprop.DialogueState": {
+  "fr": "État du dialogue",
+  "en": "Dialogue state"
+ },
+ "ecfprop.DropInventoryEntity": {
+  "fr": "Inventaire déposé à la mort",
+  "en": "Dropped inventory entity"
+ },
+ "ecfprop.DropMeshfile": {
+  "fr": "Modèle déposé au sol",
+  "en": "Dropped mesh"
+ },
+ "ecfprop.DropOnDeath": {
+  "fr": "Déposé à la mort",
+  "en": "Dropped on death"
+ },
+ "ecfprop.ExecuteOnActivate": {
+  "fr": "Exécuté à l'activation",
+  "en": "Executed on activate"
+ },
+ "ecfprop.ExecuteOnCollide": {
+  "fr": "Exécuté à la collision",
+  "en": "Executed on collide"
+ },
+ "ecfprop.ForceMaxCount": {
+  "fr": "Nombre maximal forcé",
+  "en": "Forced max count"
+ },
+ "ecfprop.FuelAccept": {
+  "fr": "Carburant accepté",
+  "en": "Accepted fuel"
+ },
+ "ecfprop.Group": {
+  "fr": "Groupe",
+  "en": "Group"
+ },
+ "ecfprop.Health": {
+  "fr": "Santé",
+  "en": "Health"
+ },
+ "ecfprop.Hp": {
+  "fr": "Points de vie",
+  "en": "Hit points"
+ },
+ "ecfprop.IndexName": {
+  "fr": "Nom d'index",
+  "en": "Index name"
+ },
+ "ecfprop.Ingredients": {
+  "fr": "Ingrédients",
+  "en": "Ingredients"
+ },
+ "ecfprop.IsAccessible": {
+  "fr": "Accessible",
+  "en": "Accessible"
+ },
+ "ecfprop.IsActivateable": {
+  "fr": "Activable",
+  "en": "Activatable"
+ },
+ "ecfprop.IsActivateableInCP": {
+  "fr": "Activable au panneau de contrôle",
+  "en": "Activatable in control panel"
+ },
+ "ecfprop.IsActivatedOnPlace": {
+  "fr": "Activé au placement",
+  "en": "Activated on place"
+ },
+ "ecfprop.IsAntiInfantryWeapon": {
+  "fr": "Arme antipersonnel",
+  "en": "Anti-infantry weapon"
+ },
+ "ecfprop.IsDuplicateable": {
+  "fr": "Dupliquable",
+  "en": "Duplicateable"
+ },
+ "ecfprop.IsKeepContainers": {
+  "fr": "Conserve les conteneurs",
+  "en": "Keeps containers"
+ },
+ "ecfprop.IsPhysicsColliders": {
+  "fr": "Colliders physiques",
+  "en": "Physics colliders"
+ },
+ "ecfprop.LifetimeOnDrop": {
+  "fr": "Durée de vie au sol",
+  "en": "Lifetime on drop"
+ },
+ "ecfprop.Material": {
+  "fr": "Matériau",
+  "en": "Material"
+ },
+ "ecfprop.MaxStackCount": {
+  "fr": "Quantité maximale par pile",
+  "en": "Max stack count"
+ },
+ "ecfprop.MirrorTo": {
+  "fr": "Symétrie vers",
+  "en": "Mirror to"
+ },
+ "ecfprop.NoSI": {
+  "fr": "Sans contrainte structurelle (SI)",
+  "en": "No structural integrity (SI)"
+ },
+ "ecfprop.NoSINewColoring": {
+  "fr": "Sans SI + coloration",
+  "en": "No SI + custom coloring"
+ },
+ "ecfprop.NPC": {
+  "fr": "PNJ",
+  "en": "NPC"
+ },
+ "ecfprop.O2Accept": {
+  "fr": "Oxygène accepté",
+  "en": "Accepted oxygen"
+ },
+ "ecfprop.OccupySizeInBlocks": {
+  "fr": "Taille occupée (blocs)",
+  "en": "Size in blocks"
+ },
+ "ecfprop.OmitCone": {
+  "fr": "Sans cône de tir",
+  "en": "Omit cone"
+ },
+ "ecfprop.OxygenCapacity": {
+  "fr": "Capacité d'oxygène",
+  "en": "Oxygen capacity"
+ },
+ "ecfprop.PickupTarget": {
+  "fr": "Cible de ramassage",
+  "en": "Pickup target"
+ },
+ "ecfprop.RemoveOnSI": {
+  "fr": "Retiré sans SI",
+  "en": "Removed without SI"
+ },
+ "ecfprop.RepFac": {
+  "fr": "Facteur de réparation",
+  "en": "Repair factor"
+ },
+ "ecfprop.ShieldDamagePenFac": {
+  "fr": "Pénétration de bouclier",
+  "en": "Shield damage penetration"
+ },
+ "ecfprop.ShieldHitCooldown": {
+  "fr": "Recharge après impact bouclier",
+  "en": "Shield hit cooldown"
+ },
+ "ecfprop.ShieldMultiplier": {
+  "fr": "Multiplicateur de bouclier",
+  "en": "Shield multiplier"
+ },
+ "ecfprop.StackSize": {
+  "fr": "Taille de pile",
+  "en": "Stack size"
+ },
+ "ecfprop.TemplateRoot": {
+  "fr": "Racine de Template",
+  "en": "Template root"
+ },
+ "ecfprop.Texture": {
+  "fr": "Texture",
+  "en": "Texture"
+ },
+ "ecfprop.Types": {
+  "fr": "Types",
+  "en": "Types"
+ },
+ "ecfprop.Volume": {
+  "fr": "Volume",
+  "en": "Volume"
+ },
+ "ecfprop.Voxelize": {
+  "fr": "Voxélisation",
+  "en": "Voxelize"
+ },
+ "ecfprop.XpFactor": {
+  "fr": "Facteur d'XP",
+  "en": "XP factor"
+ },
+ "ecfprop.SurvC": {
+  "fr": "Constructeur portable",
+  "en": "Portable Constructor"
+ },
+ "ecfprop.SuitC": {
+  "fr": "Constructeur de survie",
+  "en": "Survival Constructor"
+ },
+ "ecfprop.SmallC": {
+  "fr": "Constructeur SV",
+  "en": "Small Vessel Constructor"
+ },
+ "ecfprop.HoverC": {
+  "fr": "Constructeur HV",
+  "en": "Hover Vessel Constructor"
+ },
+ "ecfprop.BaseC": {
+  "fr": "Constructeur T0",
+  "en": "Base Constructor T0"
+ },
+ "ecfprop.LargeC": {
+  "fr": "Constructeur T1V2 (grand)",
+  "en": "Large Constructor T1V2"
+ },
+ "ecfprop.AdvC": {
+  "fr": "Constructeur T2 (avancé)",
+  "en": "Advanced Constructor T2"
+ },
+ "ecfprop.FoodP": {
+  "fr": "Transformateur alimentaire V2",
+  "en": "Food Processor V2"
+ },
+ "ecfprop.Furn": {
+  "fr": "Fournaise",
+  "en": "Furnace"
  }
 }

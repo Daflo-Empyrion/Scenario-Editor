@@ -43,6 +43,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 from core.i18n import t
 from core.yamllite.model import YamlEntry
+from gui.msgboxes import ask_yes_no
 from core.playfield_editor import (
     find_top_level_key, list_items, find_poi_items, find_creature_items,
     get_item_params, set_item_param, list_resource_block_names,
@@ -243,11 +244,8 @@ class PlayfieldSectionTable(QWidget):
             QMessageBox.information(self, t("playfield.btn_remove"), t("playfield.no_row_selected"))
             return
         item = self._items_by_row[row]
-        confirm = QMessageBox.question(
-            self, t("playfield.btn_remove"),
-            t("playfield.confirm_remove", name=item.value),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("playfield.btn_remove"),
+                          t("playfield.confirm_remove", name=item.value)):
             return
         if self.remove_callback:
             self.remove_callback(item)

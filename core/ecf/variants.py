@@ -206,6 +206,30 @@ def remove_template_ingredient(template: EcfBlock, ingredient_name: str) -> bool
     return False
 
 
+def remove_template_scalar(template: EcfBlock, key: str) -> bool:
+    """Retire un champ SCALAIRE d'un Template (complement de
+    set_block_field -- demande explicite de l'utilisateur du 30/08/2026 :
+    le Template de base pre-rempli avec TOUTES les proprietes des autres
+    Templates doit permettre d'en SUPPRIMER, pas seulement d'en modifier).
+    Cherche la cle sur la ligne d'ouverture du bloc puis sur ses proprietes
+    enfants directes, SANS jamais descendre dans '{ Child Inputs }' (les
+    ingredients ont leur propre retrait via remove_template_ingredient).
+    Si la ligne enfant porte plusieurs paires (ex: 'display: X, type: Y'),
+    seule la paire concernee est retiree ; la ligne entiere si c'etait la
+    seule. Retourne False si la cle n'y etait pas."""
+    if template.remove(key):
+        return True
+    for child in template.children:
+        if isinstance(child, EcfProperty) and any(k == key for k, _v in child.pairs):
+            if len(child.pairs) == 1:
+                template.children.remove(child)
+            else:
+                child.pairs = [(k, v) for k, v in child.pairs if k != key]
+                child.dirty = True
+            return True
+    return False
+
+
 def list_template_scalar_fields(template: EcfBlock) -> List["tuple[str, str]"]:
     """Liste les champs SCALAIRES d'un Template (CraftTime, Target,
     OutputCount...) -- EXCLUT deliberement le contenu de '{ Child Inputs }'

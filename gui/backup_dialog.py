@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 import os
+from gui.msgboxes import ask_yes_no
 import subprocess
 import sys
 
@@ -201,11 +202,8 @@ class BackupManagerDialog(QDialog):
             return
         destination = Path(dest_text.strip())
 
-        confirm = QMessageBox.question(
-            self, t("backup.confirm_restore"),
-            f"{t('backup.restore_warning')}\n\n{destination}"
-        )
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("backup.confirm_restore"),
+                          f"{t('backup.restore_warning')}\n\n{destination}"):
             return
 
         progress = QProgressDialog(t("progress.please_wait"), None, 0, 0, self)
@@ -241,11 +239,8 @@ class BackupManagerDialog(QDialog):
         if not record:
             QMessageBox.information(self, t("err.missing_field"), t("backup.select_one"))
             return
-        confirm = QMessageBox.question(
-            self, t("backup.confirm_delete_title"),
-            t("backup.confirm_delete_msg", label=record.label)
-        )
-        if confirm != QMessageBox.StandardButton.Yes:
+        if not ask_yes_no(self, t("backup.confirm_delete_title"),
+                          t("backup.confirm_delete_msg", label=record.label)):
             return
         backup_manager.delete_backup(record)
         self._refresh_list()

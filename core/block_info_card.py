@@ -49,17 +49,21 @@ from .localization_lookup import LocalizationIndex
 
 # Proprietes gerees a PART (sections dediees : titre/icone, description,
 # deblocage, prix) -- exclues du scan generique pour ne jamais les afficher
-# deux fois.
+# deux fois. OutputCount : section dediee 'Quantite produite' de la zone de
+# craft (ajoute le 30/08/2026, sinon duplique quand on clique un Template
+# lui-meme, depuis que le repli sans 'display' inclut ses proprietes).
 _EXCLUDED_FROM_GENERIC_SCAN = {
     "Info", "UnlockCost", "UnlockLevel", "MarketPrice", "Name", "Id",
-    "CustomIcon", "TechTreeParent", "TechTreeNames",
+    "CustomIcon", "TechTreeParent", "TechTreeNames", "OutputCount",
 }
 
 # Proprietes dont la valeur est une LISTE de codes eux-memes traduisibles
 # individuellement (confirme sur AllowPlacingAt="Base,MS" -> deux entrees
 # 'Base'/'MS' ayant CHACUNE sa propre cle de traduction, avec balisage
-# couleur integre -- voir docstring du module).
-_LIST_VALUE_KEYS = {"AllowPlacingAt"}
+# couleur integre -- voir docstring du module). Target ajoute le 30/08/2026
+# (demande explicite de l'utilisateur) : valeur "SurvC,SmallC,..." -- chaque
+# code de constructeur est traduit separement.
+_LIST_VALUE_KEYS = {"AllowPlacingAt", "Target"}
 
 # Suffixe d'unite simple derive de l'attribut 'formatter' de la propriete ECF
 # (ex: 'Mass: 2513, formatter: Kilogram' -- confirme reel) -- PAS de
@@ -135,7 +139,46 @@ def _bbcode_to_html(text: str) -> str:
 
 
 def _translate_label(key: str, loc: LocalizationIndex, language: str) -> str:
-    return _bbcode_to_html(loc.get(key, language) or key)
+    """Traduit le LABEL d'une propriete (la cle ECF EST la cle de traduction
+    du jeu). Trois sources, dans l'ordre :
+    1. Localisation du jeu (scenario d'abord, pack vanilla en repli) ;
+    2. Repli APPLICATION (demande du 30/08/2026) : certaines proprietes ECF
+       n'ont AUCUNE chaine UI dans le jeu (verifie dans le pack vanilla :
+       'CraftTime', 'Target', 'OutputCount'... introuvables) -- l'application
+       fournit ses propres libelles traduits, cles 'ecfprop.<propriete>' de
+       data/i18n_strings.json ;
+    3. Repli final : la cle brute (jamais d'invention)."""
+    translated = loc.get(key, language)
+    if translated:
+        return _bbcode_to_html(translated)
+    from .i18n import t
+    i18n_key = f"ecfprop.{key}"
+    app_label = t(i18n_key)
+    if app_label != i18n_key:  # t() retourne la cle elle-meme si absente
+        return _bbcode_to_html(app_label)
+    return key
+
+
+def _translate_value_token(token: str, loc: LocalizationIndex, language: str) -> str:
+    """Traduit UN token d'une valeur-liste (ex: un code constructeur de
+    Target : 'SurvC', 'AdvC'...). Priorite :
+    1. Localisation du jeu (scenario puis vanilla) -- un scenario peut
+       definir ses propres codes ;
+    2. Repli APPLICATION (demande du 30/08/2026, 'lie a la fiche une bonne
+       fois pour toute') : les codes constructeur sont documentes dans le
+       glossaire Templates.ecf de l'application mais ABSENTS du
+       Localization.csv du jeu (verifie : aucune ligne SurvC/AdvC/...) --
+       traduits via les cles 'ecfprop.<code>' de i18n_strings.json ;
+    3. Repli final : le token brut."""
+    translated = loc.get(token, language)
+    if translated:
+        return _bbcode_to_html(translated)
+    from .i18n import t
+    i18n_key = f"ecfprop.{token}"
+    app_label = t(i18n_key)
+    if app_label != i18n_key:  # t() retourne la cle elle-meme si absente
+        return app_label
+    return token
 
 
 def _format_value(key: str, raw_value: str, formatter: Optional[str],
@@ -143,8 +186,8 @@ def _format_value(key: str, raw_value: str, formatter: Optional[str],
     value = raw_value.strip().strip('"')
     if key in _LIST_VALUE_KEYS:
         parts = [p.strip() for p in value.split(',') if p.strip()]
-        translated = [loc.get(p, language) or p for p in parts]
-        return _bbcode_to_html(", ".join(translated))
+        translated = [_translate_value_token(p, loc, language) for p in parts]
+        return ", ".join(translated)
     suffix = _FORMATTER_SUFFIX.get(formatter, "") if formatter else ""
     return _bbcode_to_html(value) + suffix
 
@@ -163,13 +206,30 @@ def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: s
     bloc racine -- confirme sur le vrai fichier. L'ancien scan ne regardait
     que les enfants DIRECTS du bloc racine et manquait donc entierement ces
     donnees. Descend maintenant recursivement dans TOUT sous-bloc EcfBlock
-    imbrique."""
+    imbrique, SAUF '{ Child Inputs }' (complement du 30/08/2026, retour
+    utilisateur) : le contenu d'un Template vit dans une section CRAFTING
+    dediee (voir build_block_info_card), jamais melange aux proprietes du
+    bloc -- dans un sens comme dans l'autre.
+
+    REPLI sans attribut 'display' (ajout du 30/08/2026, retour utilisateur) :
+    un bloc/item/Template VIENT D'ETRE CREE par l'application (creation
+    guidee, duplication, fusion...) -> ses proprietes n'ont AUCUN attribut
+    'display', l'ancien regle 'display present et != false' les excluait
+    toutes et la fiche n'affichait que le nom et les ingredients de craft.
+    Si AUCUNE propriete du bloc (recursivement) ne porte d'attribut
+    'display', le fichier n'utilise clairement pas ce systeme : on affiche
+    alors TOUTES les proprietes (hors exclusions ci-dessus). Des qu'UNE
+    SEULE propriete porte un 'display', on est sur un vrai fichier du jeu :
+    regle stricte d'origine, pour rester fidele a la fiche F3 en jeu."""
     fields: List[InfoCardField] = []
     seen: set = set()
+    uses_display_system = _block_uses_display_system(block)
 
     def _walk(node: EcfBlock) -> None:
         for child in node.children:
             if isinstance(child, EcfBlock):
+                if getattr(child, 'kind', None) == 'Child Inputs':
+                    continue  # section CRAFTING dediee -- jamais ici
                 _walk(child)
                 continue
             if not isinstance(child, EcfProperty) or not child.pairs:
@@ -184,7 +244,10 @@ def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: s
                     display_value = v2
                 elif k2 == 'formatter':
                     formatter = v2
-            if display_value is None or display_value.strip().lower() == 'false':
+            if display_value is None:
+                if uses_display_system:
+                    continue
+            elif display_value.strip().lower() == 'false':
                 continue
             seen.add(main_key)
             label = _translate_label(main_key, loc, language)
@@ -194,6 +257,28 @@ def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: s
 
     _walk(block)
     return fields
+
+
+def _block_uses_display_system(block: EcfBlock) -> bool:
+    """True si au moins UNE propriete du bloc (recursivement) porte un
+    attribut 'display' ACTIF (valeur differente de 'false') -- dans ce cas
+    on est sur un vrai fichier du jeu et la regle stricte s'applique (ce
+    qui n'a pas 'display' n'est PAS affiche en jeu, confirme par la capture
+    F3 du 29/08/2026). False pour un bloc cree par l'application, dont
+    aucune propriete n'a cet attribut. Un 'display: false' ISOLE ne compte
+    pas comme une utilisation du systeme : il cache sa propre propriete
+    (intention explicite) mais ne doit pas masquer toutes les autres."""
+    def _walk(node: EcfBlock) -> bool:
+        for child in node.children:
+            if isinstance(child, EcfBlock):
+                if _walk(child):
+                    return True
+            elif isinstance(child, EcfProperty):
+                for k2, v2 in child.pairs:
+                    if k2 == 'display' and v2.strip().lower() != 'false':
+                        return True
+        return False
+    return _walk(block)
 
 
 def _find_template(templates_doc: Optional[EcfDocument], name: str):
@@ -246,6 +331,12 @@ def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str
             source_key="MarketPrice", source_raw_value=market_price_raw)
 
     template = _find_template(templates_doc, name)
+    if template is None and block.kind in ("Template", "+Template"):
+        # On clique le Template LUI-MEME dans Templates.ecf : la section
+        # craft se construit depuis ce bloc, sans dependre d'une recherche
+        # reussie dans templates_doc (ajout du 30/08/2026, retour
+        # utilisateur : fiche incomplete sur un Template fraichement cree).
+        template = block
     if template is not None:
         card.crafting_header = _translate_label("biwHeaderCrafting", loc, language)
         card.input_items_label = _translate_label("biwInputItems", loc, language)

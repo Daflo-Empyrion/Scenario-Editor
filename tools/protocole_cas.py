@@ -448,6 +448,15 @@ CASES = [
         "etapes": ["Clic droit dans A sur un fichier ECF > fusionner vers la copie de travail.", "Lis le rapport de fusion."],
         "attendu": "Rapport clair (ajouts/modifications/conflits) ; la copie de travail reste prioritaire.",
     },
+    {
+        "id": "ECF-031", "cat": "ECF", "rev": 2,
+        "titre": "Tableau de proprietes : liste deroulante sur chaque valeur",
+        "pre": "Un fichier ECF ouvert avec plusieurs blocs du meme genre portant la meme propriete (ex: CraftTime).",
+        "etapes": ["Selectionne un bloc a gauche, clique la VALEUR d'une propriete a droite.",
+                   "Ouvre la liste deroulante, choisis une valeur observee ailleurs dans le fichier.",
+                   "Recommence en TAPANT une valeur totalement nouvelle."],
+        "attendu": "La cellule de valeur propose les valeurs reellement observees dans le fichier (tri frequence) ; la saisie libre reste possible ; la modification est appliquee au bloc (ligne jaune + compte a l'enregistrement).",
+    },
 
     # ---------------------------------------------------------------- DLG
     {
@@ -914,6 +923,38 @@ CASES = [
         "etapes": ["Clique le bouton global d'annulation."],
         "attendu": "L'operation est annulee (fichiers restaures) ; les onglets concernes sont fermes/rafraichis.",
     },
+    {
+        "id": "FUS-014", "cat": "FUS", "rev": 2,
+        "titre": "Template sans source : TOUTES les proprietes des autres Templates",
+        "pre": "Templates.ecf contient au moins un Template avec une propriete peu commune (ex: OutputCount).",
+        "etapes": ["Duplique un bloc SANS Template, accepte la proposition de creer la recette.",
+                   "Observe la liste des proprietes proposees dans la fenetre d'ajustement."],
+        "attendu": "La liste contient TOUTES les proprietes observees sur les autres Templates du fichier (pas seulement CraftTime/Target), chacune avec sa valeur la plus courante.",
+    },
+    {
+        "id": "FUS-015", "cat": "FUS",
+        "titre": "Template sans source : ajout de propriete par liste deroulante",
+        "pre": "Fenetre d'ajustement du Template ouverte (bloc sans Template source).",
+        "etapes": ["Ouvre la liste deroulante de noms de proprietes, choisis-en une.",
+                   "Observe la liste deroulante de valeurs associee, choisis-en une, valide."],
+        "attendu": "La propriete est ajoutee au Template cree avec la valeur choisie ; les valeurs proposees sont celles reellement observees dans le fichier, triees par frequence.",
+    },
+    {
+        "id": "FUS-016", "cat": "FUS",
+        "titre": "Template sans source : suppression de proprietes pre-remplies",
+        "pre": "Fenetre d'ajustement du Template ouverte avec plusieurs proprietes pre-remplies.",
+        "etapes": ["Selectionne une propriete, clique 'Retirer la propriete', valide.",
+                   "Verifie Templates.ecf apres creation."],
+        "attendu": "La propriete retiree N'APPARAIT PAS sur le Template cree ; les autres sont conservees.",
+    },
+    {
+        "id": "FUS-017", "cat": "FUS",
+        "titre": "Template : listes deroulantes des valeurs et quantites courantes",
+        "pre": "Templates.ecf contient plusieurs Templates avec des valeurs/quantites variees.",
+        "etapes": ["Dans la fenetre d'ajustement, ouvre la liste de valeur d'une propriete existante.",
+                   "Ouvre la liste de quantite a cote de l'ajout d'ingredient."],
+        "attendu": "Les deux listes proposent les valeurs/quantites reellement observees dans le fichier, triees par frequence, avec saisie libre toujours possible.",
+    },
 
     # ---------------------------------------------------------------- VERIF
     {
@@ -1223,16 +1264,19 @@ CASES = [
         "attendu": "Le formulaire de creation recupere les choix ; RIEN n'est ecrit par la fenetre de previsualisation elle-meme.",
     },
     {
-        "id": "FICHE-001", "cat": "TECH",
-        "titre": "Fiche info : ouverture au clic sur un bloc",
-        "etapes": ["Dans un onglet ECF de la copie de travail, clique un bloc dans l'arbre."],
-        "attendu": "Fiche flottante reproduisant l'affichage F3 du jeu (memes proprietes).",
+        "id": "FICHE-001", "cat": "TECH", "rev": 2,
+        "titre": "Fiche info : ouverture au DOUBLE-clic sur un bloc",
+        "etapes": ["Dans un onglet ECF de la copie de travail, clique UNE fois un bloc de l'arbre.",
+                   "Puis double-clique le meme bloc."],
+        "attendu": "Un clic simple N'OUVRE PAS la fiche ; seul le double-clic affiche la fiche flottante reproduisant l'affichage F3 du jeu.",
     },
     {
-        "id": "FICHE-002", "cat": "TECH",
-        "titre": "Fiche info : proprietes pilotees par l'attribut display",
-        "etapes": ["Compare la fiche d'un bloc connu (ex: FuelTankMSLarge) avec la capture F3 du jeu."],
-        "attendu": "Memes proprietes affichees ; MarketPrice visible bien que display: false (cas confirme).",
+        "id": "FICHE-002", "cat": "TECH", "rev": 4,
+        "titre": "Fiche info : display, blocs crees + libelles et descriptions traduits",
+        "etapes": ["Compare la fiche d'un bloc connu (ex: FuelTankMSLarge) avec la capture F3 du jeu.",
+                   "Cree ou duplique un bloc/Template, ouvre sa fiche AVANT enregistrement.",
+                   "Ouvre la fiche d'un bloc du SCENARIO dont la description existe en francais dans Extras/Localization.csv (meme si son en-tete de colonne s'appelle 'French')."],
+        "attendu": "Vrais fichiers : memes proprietes que le jeu (regle display stricte). Blocs CREES : toutes leurs proprietes s'affichent, libelles traduits (Temps de fabrication, Quantite produite, Constructeur portable pour les codes Target...) meme si le jeu ne connait pas la cle. DESCRIPTION (Info) lue dans la colonne FR du Localization.csv DU SCENARIO en priorite (alias 'French' reconnus), repli pack vanilla ; ingredients confines a FABRICATION ; aucun double deux-points.",
     },
     {
         "id": "FICHE-003", "cat": "TECH",
@@ -1242,10 +1286,11 @@ CASES = [
         "attendu": "Les codes [c][RRGGBB]... se rendent visuellement comme en jeu.",
     },
     {
-        "id": "FICHE-004", "cat": "TECH",
-        "titre": "Fiche info : deplacement et fermeture",
-        "etapes": ["Deplace la fiche a la souris, clique ailleurs pour la fermer, reclique un autre bloc."],
-        "attendu": "La fiche suit, se ferme proprement, se rouvre sur le nouveau bloc.",
+        "id": "FICHE-004", "cat": "TECH", "rev": 2,
+        "titre": "Fiche info : deplacement et fermeture (bascule)",
+        "etapes": ["Ouvre la fiche d'un bloc par double-clic, deplace-la a la souris.",
+                   "Double-clique a nouveau le MEME bloc, puis double-clique un autre bloc."],
+        "attendu": "Double-clic sur le bloc deja affiche = la fiche se referme (bascule) ; double-clic sur un autre bloc = elle se rouvre sur celui-ci, sans perdre son deplacement.",
     },
 
     # ---------------------------------------------------------------- OPT
@@ -1296,6 +1341,19 @@ CASES = [
         "titre": "Aide : tutoriels + politique de confidentialite + a propos",
         "etapes": ["Ouvre les Tutoriels (les 3), la Politique de confidentialite, et A propos."],
         "attendu": "Tout s'ouvre correctement ; A propos affiche la bonne version et la licence.",
+    },
+    {
+        "id": "OPT-009", "cat": "OPT", "rev": 2,
+        "titre": "i18n : boutons standards de Qt dans la langue choisie",
+        "etapes": ["En francais, ouvre une boite de confirmation Oui/Non (ex: duplication avec creation de recettes).",
+                   "Bascule en anglais (bouton FR/EN) et rouvre la meme boite."],
+        "attendu": "Les boutons affichent Oui/Non en francais, Yes/No en anglais (jamais l'inverse ni l'anglais force).",
+    },
+    {
+        "id": "OPT-010", "cat": "OPT",
+        "titre": "Audit i18n automatique sans regression",
+        "etapes": ["python tools/audit_i18n.py"],
+        "attendu": "Code retour 0 : aucune cle t() manquante, aucune cle sans fr/en, aucun litteral affiche en dur dans gui/ et core/.",
     },
 
     # ---------------------------------------------------------------- CLI

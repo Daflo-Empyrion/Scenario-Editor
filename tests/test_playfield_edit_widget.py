@@ -110,8 +110,7 @@ def test_add_resource_via_dialog(playfield_widget, monkeypatch):
 
 
 def test_remove_resource_via_button(playfield_widget, monkeypatch):
-    monkeypatch.setattr(QMessageBox, "question",
-                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    monkeypatch.setattr(QMessageBox, "exec", _msgbox_yes)
 
     resources_tab = playfield_widget.tab_widget.widget(1)
     random_table = resources_tab._playfield_tables[0]
@@ -440,3 +439,10 @@ def test_spawn_zones_and_special_effects_empty_on_space_file(space_playfield_wid
     effects_tab = space_playfield_widget.tab_widget.widget(6)
     for table in effects_tab._playfield_tables:
         assert table.table.rowCount() == 0
+
+
+def _msgbox_yes(box):
+    """Simule un clic OUI sur une boite a boutons APPLICATION
+    (gui.msgboxes.ask_yes_no : boutons[0] = Oui)."""
+    box.buttons()[0].click()
+    return 0
