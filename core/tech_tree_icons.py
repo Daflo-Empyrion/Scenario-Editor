@@ -27,13 +27,15 @@ prioritaire est indexee EN DERNIER, voir build_icon_index) :
    .gitignore) -- assets du jeu extraits MANUELLEMENT par l'utilisateur en
    dev (~70+ Mo, dossier complet non filtre). Confort de developpement
    uniquement, jamais distribue avec l'application.
-3. data/tech_tree_icons.pak -- archive ZIP FILTREE (seules les icones
-   reellement referencees par un vrai BlocksConfig.ecf/ItemsConfig.ecf) et
-   ATTRIBUEE (voir NOTICE.txt a l'interieur), generee par
-   cli/pack_tech_tree_icons.py et distribuee avec l'application (voir
-   empyrion_editor.spec, deja inclus via le dossier data/). C'est la source
-   dont beneficient tous les utilisateurs, meme sans dossier itemicons/ local
-   ni SharedData/ItemIcons dans leur scenario -- LA PROPRIETE DE CES ICONES
+3. data/tech_tree_icons.pak -- archive ZIP (compression LZMA, generee par
+   cli/pack_tech_tree_icons.py : mode filtre aux icones referencees, ou --all
+   pour TOUTES les icones du dossier d'extraction -- retenu depuis le
+   30/08/2026 car des scenarios moddes referenceient des icones hors du filtre
+   vanilla, affichees en icone generique) et ATTRIBUEE (voir NOTICE.txt a
+   l'interieur), distribuee avec l'application (voir empyrion_editor.spec,
+   deja inclus via le dossier data/). C'est la source dont beneficient tous
+   les utilisateurs, meme sans dossier itemicons/ local ni
+   SharedData/ItemIcons dans leur scenario -- LA PROPRIETE DE CES ICONES
    RESTE A ELEON GAME STUDIOS (Empyrion -- Galactic Survival) : incluses
    UNIQUEMENT pour l'affichage dans cet editeur, jamais modifiees, jamais
    extraites sur disque ni redistribuees en tant qu'assets autonomes (lues en
