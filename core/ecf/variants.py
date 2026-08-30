@@ -189,6 +189,23 @@ def list_template_ingredients(template: EcfBlock) -> List["tuple[str, str]"]:
     return []
 
 
+def remove_template_ingredient(template: EcfBlock, ingredient_name: str) -> bool:
+    """Retire un ingredient du sous-bloc '{ Child Inputs }' d'un Template
+    (complement de set_template_ingredient -- demande explicite de
+    l'utilisateur du 30/08/2026 : pouvoir AJOUTER ET SUPPRIMER des
+    ingredients dans TOUS les modes de creation/edition de Template).
+    Retourne False si l'ingredient n'y etait pas. Le sous-bloc Child Inputs
+    reste en place meme vide (structure standard des vrais fichiers)."""
+    for child in template.children:
+        if getattr(child, 'kind', None) == "Child Inputs":
+            for prop in child.children:
+                if isinstance(prop, EcfProperty) and any(k == ingredient_name for k, _v in prop.pairs):
+                    child.children.remove(prop)
+                    return True
+            return False
+    return False
+
+
 def list_template_scalar_fields(template: EcfBlock) -> List["tuple[str, str]"]:
     """Liste les champs SCALAIRES d'un Template (CraftTime, Target,
     OutputCount...) -- EXCLUT deliberement le contenu de '{ Child Inputs }'

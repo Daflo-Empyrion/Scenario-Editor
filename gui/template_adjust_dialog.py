@@ -70,15 +70,18 @@ class TemplateAdjustDialog(QDialog):
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)
 
-    def get_entries(self) -> Dict[str, Dict[str, Dict[str, str]]]:
-        """Retourne {nom_template: {'scalar': {...}, 'ingredients': {...}}}
-        -- UNIQUEMENT pour les Templates ayant au moins un changement
-        (scalaire ou ingredient), chacun avec SES PROPRES modifications
-        (jamais uniformes entre Templates -- voir docstring du module)."""
-        entries: Dict[str, Dict[str, Dict[str, str]]] = {}
+    def get_entries(self) -> Dict[str, Dict[str, object]]:
+        """Retourne {nom_template: {'scalar': {...}, 'ingredients': {...},
+        'removed': [...]}} -- UNIQUEMENT pour les Templates ayant au moins un
+        changement (scalaire, ingredient ajoute/modifie ou RETIRE), chacun
+        avec SES PROPRES modifications (jamais uniformes entre Templates --
+        voir docstring du module)."""
+        entries: Dict[str, Dict[str, object]] = {}
         for name, editor in self._editors.items():
             scalar = editor.get_scalar_overrides()
             ingredients = editor.get_changed_or_added_ingredients()
-            if scalar or ingredients:
-                entries[name] = {'scalar': scalar, 'ingredients': ingredients}
+            removed = editor.get_removed_ingredients()
+            if scalar or ingredients or removed:
+                entries[name] = {'scalar': scalar, 'ingredients': ingredients,
+                                 'removed': removed}
         return entries

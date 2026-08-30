@@ -97,13 +97,22 @@ class PropertyTableDialog(QDialog):
                  craftable_names_players_only: Optional[List[str]] = None,
                  window_title_key: str = "addblock.table_title", parent=None,
                  tech_tree_source: Optional[str] = None, working_root: Optional[Path] = None,
-                 sibling_ecf_files: Optional[List[Path]] = None):
+                 sibling_ecf_files: Optional[List[Path]] = None,
+                 prechecked_properties: Optional[List[Tuple[str, str]]] = None,
+                 prefill_ingredients: Optional[List[Tuple[str, str]]] = None):
+        """`prechecked_properties` : [(cle, valeur)] a COCHER d'office avec
+        cette valeur -- utilise pour pre-remplir le Template associe avec les
+        proprietes les plus courantes du fichier (CraftTime, Target...).
+        `prefill_ingredients` : [(ingredient, quantite)] pre-remplis dans la
+        table des ingredients (creation d'un Template sans source)."""
         super().__init__(parent)
         self.doc = doc
         self.id_mode = id_mode
         self.existing_ids = existing_ids
         self.craftable_names = craftable_names or []
         self.craftable_names_players_only = craftable_names_players_only or []
+        self._prechecked = {k: v for k, v in (prechecked_properties or [])}
+        self._prefill_ingredients = list(prefill_ingredients or [])
         self._properties_by_key = {}
         self._all_rows: List[Tuple[QCheckBox, str, QTableWidgetItem]] = []
         # Previsualisation dans l'arbre technologique (voir
@@ -206,6 +215,12 @@ class PropertyTableDialog(QDialog):
                 self.ingredients_players_only_check.setToolTip(t("ecf.tooltip_players_only"))
                 layout.addWidget(self.ingredients_players_only_check)
 
+            # Ingredients pre-remplis (valeurs les plus courantes du fichier,
+            # voir core.ecf.block_creation.scan_template_defaults) -- modifiables
+            # ensuite ligne par ligne, avec ajout/suppression.
+            for ingredient_name, quantity in self._prefill_ingredients:
+                self._add_ingredient_row(ingredient_name, quantity)
+
         # --- Controle avant validation (les 4 obligations de creation, lues
         # dans les vrais fichiers du scenario -- voir core/ecf/creation_check.py).
         # Rafraichi a chaque frappe (contexte de reference mis en cache) ; les
@@ -299,6 +314,13 @@ class PropertyTableDialog(QDialog):
             checkbox.toggled.connect(lambda _checked: self._refresh_check_panel())
             value_combo.currentTextChanged.connect(lambda _text: self._refresh_check_panel())
 
+            # Pre-remplissage "valeurs les plus courantes" (creation d'un
+            # Template sans source -- demande du 30/08/2026) : les cles
+            # proposees par l'appelant arrivent COCHEES avec leur valeur.
+            if key in self._prechecked:
+                checkbox.setChecked(True)
+                value_combo.setCurrentText(self._prechecked[key])
+
             self._all_rows.append((checkbox, key, value_combo))
         self.table.resizeColumnsToContents()
 
@@ -374,7 +396,7 @@ class PropertyTableDialog(QDialog):
             self._apply_row_value('TechTreeParent', chosen_parent)
         self._refresh_check_panel()
 
-    def _add_ingredient_row(self):
+    def _add_ingredient_row(self, name: str = "", quantity: str = "1"):
         row = self.ingredients_table.rowCount()
         self.ingredients_table.insertRow(row)
         combo = QComboBox()
@@ -382,8 +404,10 @@ class PropertyTableDialog(QDialog):
         use_players_only = bool(self.ingredients_players_only_check
                                  and self.ingredients_players_only_check.isChecked())
         combo.addItems(self.craftable_names_players_only if use_players_only else self.craftable_names)
+        if name:
+            combo.setCurrentText(name)
         self.ingredients_table.setCellWidget(row, 0, combo)
-        self.ingredients_table.setItem(row, 1, QTableWidgetItem("1"))
+        self.ingredients_table.setItem(row, 1, QTableWidgetItem(quantity or "1"))
 
     def _remove_ingredient_row(self):
         row = self.ingredients_table.currentRow()

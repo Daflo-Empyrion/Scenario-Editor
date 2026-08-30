@@ -1752,8 +1752,54 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(t("status.id_conflict_detected", file=dest.name))
         elif status == 'added':
             self.statusBar().showMessage(t("status.block_added", file=dest.name))
+            # Obligation no 2 (recette) en FUSION aussi -- demande du
+            # 30/08/2026 : tous les modes doivent pouvoir doter un bloc sans
+            # Template d'une recette pre-remplie (valeurs les plus courantes).
+            self._offer_template_for_merged_block(block, dest)
         else:
             self.statusBar().showMessage(t("status.block_merged", file=dest.name))
+
+    def _offer_template_for_merged_block(self, block: EcfBlock, dest_path: Path) -> None:
+        """Apres une fusion qui a AJOUTE un bloc depuis Scenario A/B : si ce
+        bloc n'a aucun Template dans la copie de travail, il sera impossible a
+        fabriquer en jeu -- propose un Template pre-rempli avec les valeurs
+        les plus courantes du scenario (gui/template_tools.create_templates,
+        apercu editable avec ajout/suppression d'ingredients)."""
+        name = block.get_property('Name')
+        if not name:
+            return
+        from core.ecf.block_creation import (
+            find_file_by_name, list_craftable_names)
+        from gui.template_tools import create_templates
+
+        ecf_files = [f.path for f in self.workspace.working.configuration
+                     if f.extension == '.ecf']
+        templates_path = find_file_by_name(ecf_files, 'Templates.ecf')
+        if templates_path is None:
+            return
+        try:
+            templates_doc = parse_ecf_file(templates_path)
+        except Exception:
+            return
+        if any(b.get_property('Name') == name for b in templates_doc.iter_blocks()):
+            return  # un Template existe deja pour ce nom
+
+        reply = QMessageBox.question(
+            self, t("copy.offer_template_title"),
+            t("copy.offer_template_msg", name=name),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        items_path = find_file_by_name(ecf_files, 'ItemsConfig.ecf')
+        blocks_path = find_file_by_name(ecf_files, 'BlocksConfig.ecf')
+        craftable_names = list_craftable_names(items_path, blocks_path)
+        created = create_templates(
+            self, self, templates_path, [name],
+            author=settings.get_author() if settings.get_annotations_enabled() else "",
+            craftable_names=craftable_names)
+        if created:
+            self.statusBar().showMessage(
+                t("addblock.template_created_status", name=name), 8000)
 
     def _copy_csv_row_into_working(self, row: list, source_file_path: Path,
                                     source_root: Path, source_label: str):

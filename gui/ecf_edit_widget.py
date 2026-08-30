@@ -2041,14 +2041,16 @@ class EcfEditWidget(QWidget):
 
     def _maybe_propose_templates_for_variants(self, source_name: Optional[str],
                                                variant_names: List[str]):
-        """Après la création de plusieurs variantes d'un bloc, propose de créer
-        les Templates (recettes de craft) associés à chaque variante. Le Template
-        source (s'il existe, même nom que le bloc source -- `source_name`, transmis
-        explicitement par l'appelant plutôt que relu depuis self._current_block, qui
-        n'est mis à jour que par un CLIC GAUCHE (itemClicked) et resterait donc
-        périmé après un clic droit sur un bloc différent) est dupliqué pour chaque
-        variante -- même structure, mêmes ingrédients, même Target, seul le Name
-        change. Si aucun Template source n'existe, la proposition est sautée.
+        """Après la création de plusieurs variantes d'un bloc (ou d'une copie
+        simple), propose de créer les Templates (recettes de craft) associés
+        à chaque variante. Deux cas, depuis la demande du 30/08/2026 :
+        - le bloc SOURCE avait un Template : il est dupliqué pour chaque
+          variante (même structure, seuls les noms changent) ;
+        - le bloc source n'en avait PAS : proposition QUAND MEME d'un
+          Template par variante, pré-rempli avec les valeurs LES PLUS
+          COURANTES du scénario (voir core/ecf/block_creation.py::
+          scan_template_defaults) -- plus jamais de bloc impossible à
+          fabriquer sous prétexte que sa source n'avait pas de recette.
         """
         if self.path.name.lower() == 'templates.ecf':
             return
@@ -2057,14 +2059,30 @@ class EcfEditWidget(QWidget):
         if not source_name:
             return
         from core.ecf.block_creation import find_file_by_name
+        from core.ecf.parser import parse_ecf_file
         templates_path = find_file_by_name(self.sibling_ecf_files, 'Templates.ecf')
         if templates_path is None:
             return
+
+        # Le Template source existe-t-il ? (determine le message ET le mode
+        # de creation : copie du source OU valeurs les plus courantes)
+        source_exists = False
+        try:
+            templates_doc = parse_ecf_file(templates_path)
+            source_exists = any(b.get_property('Name') == source_name
+                                for b in templates_doc.iter_blocks())
+        except Exception:
+            return
+
+        if source_exists:
+            prompt = t("dup.variants_create_templates_prompt",
+                       count=len(variant_names),
+                       names=', '.join(variant_names[:3]) + ('...' if len(variant_names) > 3 else ''))
+        else:
+            prompt = t("dup.no_source_offer_msg", name=source_name,
+                       count=len(variant_names))
         reply = QMessageBox.question(
-            self, t("addblock.ask_template_title"),
-            t("dup.variants_create_templates_prompt",
-              count=len(variant_names),
-              names=', '.join(variant_names[:3]) + ('...' if len(variant_names) > 3 else '')),
+            self, t("addblock.ask_template_title"), prompt,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -2073,90 +2091,24 @@ class EcfEditWidget(QWidget):
     def _create_templates_for_variants(self, templates_path: Path,
                                         source_template_name: str,
                                         variant_names: List[str]):
-        """Duplique le Template source (Name = source_template_name) pour chaque
-        variante : copie exacte de la structure (Target, CraftTime, Child Inputs...),
-        seul le Name est remplacé. Ouvre (ou active) Templates.ecf comme un VRAI
-        onglet de la copie de travail."""
-        from core.ecf.parser import parse_ecf_file
-        from core.ecf.block_creation import find_file_by_name
-        import copy as _copy
+        """Cree un Template par variante via le moteur partage
+        (gui/template_tools.create_templates) : copie du Template source
+        s'il existe, sinon valeurs les plus courantes du fichier. Ouvre (ou
+        active) Templates.ecf comme un VRAI onglet de la copie de travail."""
+        from core.ecf.block_creation import find_file_by_name, list_craftable_names
+        from gui.template_tools import create_templates
+
         main_window = self.window()
         if not hasattr(main_window, "open_working_file_tab"):
             return
-        templates_widget = main_window.open_working_file_tab(templates_path)
-        if templates_widget is None:
-            return
-        templates_edit = getattr(templates_widget, "edit_widget", templates_widget)
-        if not hasattr(templates_edit, "doc"):
-            return
-        templates_doc = templates_edit.doc
-        # Cherche le Template source
-        source_template = None
-        for block in templates_doc.iter_blocks():
-            if block.get_property('Name') == source_template_name:
-                source_template = block
-                break
-        if source_template is None:
-            QMessageBox.information(
-                self, t("addblock.templates_not_found_title"),
-                t("dup.variants_no_source_template", name=source_template_name))
-            return
-
-        # Apercu editable AVANT creation -- demande explicite de
-        # l'utilisateur (session du 29/08/2026, PRECISEE ensuite) : pouvoir
-        # ajuster CHAQUE Template INDIVIDUELLEMENT (pas une valeur uniforme
-        # pour tous), et pouvoir AJOUTER un ingredient via une liste
-        # deroulante de blocs/items valides.
-        from core.ecf.variants import (
-            list_template_scalar_fields, list_template_ingredients, set_block_field, set_template_ingredient,
-        )
-        from core.ecf.block_creation import list_craftable_names
-        from gui.template_adjust_dialog import TemplateAdjustDialog
-
-        items_path = find_file_by_name(self.sibling_ecf_files, 'ItemsConfig.ecf') if self.sibling_ecf_files else None
-        blocks_path = find_file_by_name(self.sibling_ecf_files, 'BlocksConfig.ecf') if self.sibling_ecf_files else None
+        items_path = find_file_by_name(self.sibling_ecf_files, 'ItemsConfig.ecf')
+        blocks_path = find_file_by_name(self.sibling_ecf_files, 'BlocksConfig.ecf')
         craftable_names = list_craftable_names(items_path, blocks_path)
-
-        entries: dict = {}
-        adjust_dialog = TemplateAdjustDialog(
-            variant_names, list_template_scalar_fields(source_template),
-            list_template_ingredients(source_template), craftable_names, parent=self)
-        if adjust_dialog.exec() == QDialog.DialogCode.Accepted:
-            entries = adjust_dialog.get_entries()
-        # Annuler ce dialogue d'ajustement ne bloque PAS la creation des
-        # Templates (deja confirmee via le QMessageBox.question precedent)
-        # -- signifie juste 'sans ajustement supplementaire', pas 'annuler
-        # toute l'operation'.
-
-        if hasattr(templates_edit, "_snapshot_undo"):
-            templates_edit._snapshot_undo()
-        created = 0
-        for variant_name in variant_names:
-            # Vérifie qu'un Template du même nom n'existe pas déjà
-            if any(b.get_property('Name') == variant_name for b in templates_doc.iter_blocks()):
-                continue
-            new_template = _copy.deepcopy(source_template)
-            new_template.dirty = True
-            # Remplace le Name
-            if not new_template.set('Name', variant_name):
-                new_template.set_property('Name', variant_name)
-            # Retire l'Id s'il y en a un
-            new_template.remove('Id')
-            variant_entries = entries.get(variant_name, {})
-            for field_key, field_value in variant_entries.get('scalar', {}).items():
-                set_block_field(new_template, field_key, field_value)
-            for ingredient_name, quantity in variant_entries.get('ingredients', {}).items():
-                set_template_ingredient(new_template, ingredient_name, quantity)
-            if settings.get_annotations_enabled():
-                author = settings.get_author()
-                new_template.comment = f"# Ajouté par {author} (variante de {source_template_name})"
-            templates_doc.nodes.append(new_template)
-            created += 1
-        if created > 0:
-            if hasattr(templates_edit, "_set_modified"):
-                templates_edit._set_modified(True)
-            if hasattr(templates_edit, "_populate_tree"):
-                templates_edit._populate_tree()
+        create_templates(
+            self, main_window, templates_path, variant_names,
+            source_template_name=source_template_name,
+            author=settings.get_author() if settings.get_annotations_enabled() else "",
+            craftable_names=craftable_names)
 
     def _open_disabled_blocks_dialog(self):
         from core.ecf.disable_block import find_disabled_blocks, enable_disabled_block
@@ -2328,12 +2280,21 @@ class EcfEditWidget(QWidget):
         kind_counts = scan_kind_frequency(templates_doc)
         default_kind = kind_counts.most_common(1)[0][0] if kind_counts else "+Template"
 
+        # Pre-remplissage avec les valeurs les plus courantes du fichier
+        # (CraftTime/Target coches, ingredients les plus utilises) -- demande
+        # explicite de l'utilisateur du 30/08/2026. Aucune imposition : tout
+        # reste decochable/modifiable.
+        from core.ecf.block_creation import scan_template_defaults
+        defaults = scan_template_defaults(templates_doc) or {}
+
         template_dialog = PropertyTableDialog(
             templates_doc, IdentityModeDialog.MODE_NAME_ONLY, existing_ids,
             default_kind=default_kind, name_prefill=prefill_name, name_readonly=True,
             enable_ingredients=True, craftable_names=craftable_names,
             craftable_names_players_only=craftable_names_players_only,
-            window_title_key="addblock.template_table_title", parent=self)
+            window_title_key="addblock.template_table_title", parent=self,
+            prechecked_properties=defaults.get("scalars"),
+            prefill_ingredients=defaults.get("ingredients"))
         if template_dialog.exec() != QDialog.DialogCode.Accepted:
             return
 

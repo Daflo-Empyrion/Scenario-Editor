@@ -134,6 +134,48 @@ def find_file_by_name(ecf_files: List[Path], filename: str) -> Optional[Path]:
     return None
 
 
+def scan_template_defaults(templates_doc: EcfDocument,
+                           scalar_keys: Tuple[str, ...] = ("CraftTime", "Target"),
+                           max_ingredients: int = 3) -> Optional[dict]:
+    """Valeurs LES PLUS COURANTES des Templates du fichier -- utilise pour
+    pre-remplir un NOUVEAU Template quand le bloc/item cree ou duplique n'en
+    a pas d'origine (demande explicite de l'utilisateur, session du
+    30/08/2026), pour la creation guidee (cases pre-cochees) et pour la
+    fusion. Retourne :
+      {"kind": genre de Template le plus frequent,
+       "scalars": [(cle, valeur la plus courante)] pour `scalar_keys` presents,
+       "ingredients": [(ingredient, quantite la plus courante)] les
+                      `max_ingredients` plus frequents du fichier}
+    None si le document ne contient aucun Template (aucune valeur courante
+    exploitable)."""
+    kind_counts = scan_kind_frequency(templates_doc)
+    if not kind_counts:
+        return None
+    scalar_counters: Dict[str, Counter] = {}
+    ingredient_counter: Counter = Counter()
+    ingredient_qty: Dict[str, Counter] = {}
+    for block in templates_doc.iter_blocks():
+        for child in block.children:
+            if isinstance(child, EcfProperty):
+                for key, value in child.pairs:
+                    if key and key not in ('Name', 'Id') and value is not None:
+                        scalar_counters.setdefault(key, Counter())[value] += 1
+            elif isinstance(child, EcfBlock) and child.kind == 'Child Inputs':
+                for prop in child.children:
+                    if isinstance(prop, EcfProperty):
+                        for ing, qty in prop.pairs:
+                            if ing and qty is not None:
+                                ingredient_counter[ing] += 1
+                                ingredient_qty.setdefault(ing, Counter())[qty] += 1
+    scalars = [(k, scalar_counters[k].most_common(1)[0][0])
+               for k in scalar_keys if scalar_counters.get(k)]
+    ingredients = [(name, ingredient_qty[name].most_common(1)[0][0])
+                   for name, _count in ingredient_counter.most_common(max_ingredients)
+                   if ingredient_qty.get(name)]
+    return {"kind": kind_counts.most_common(1)[0][0], "scalars": scalars,
+            "ingredients": ingredients}
+
+
 def is_player_placeable_block(block: EcfBlock) -> bool:
     """True si ce bloc porte une 'AllowPlacingAt' non vide -- la propriete qui
     liste les types de structure (Base/MS/SS/GV) ou un JOUEUR peut le poser

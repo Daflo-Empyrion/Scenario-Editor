@@ -63,12 +63,12 @@ def test_different_changes_per_tab(qapp):
     dialog._editors["T2"].ingredients_table.item(0, 1).setText("99")
 
     entries = dialog.get_entries()
-    assert entries["T1"] == {"scalar": {"CraftTime": "10"}, "ingredients": {}}
-    assert entries["T2"] == {"scalar": {}, "ingredients": {"RockDust": "99"}}
+    assert entries["T1"] == {"scalar": {"CraftTime": "10"}, "ingredients": {}, "removed": []}
+    assert entries["T2"] == {"scalar": {}, "ingredients": {"RockDust": "99"}, "removed": []}
 
 
 def test_single_template_name(qapp):
     dialog = _make_dialog(["OnlyOne"])
     assert dialog.tabs.count() == 1
     dialog._editors["OnlyOne"].scalar_table.item(0, 1).setText("20")
-    assert dialog.get_entries() == {"OnlyOne": {"scalar": {"CraftTime": "20"}, "ingredients": {}}}
+    assert dialog.get_entries() == {"OnlyOne": {"scalar": {"CraftTime": "20"}, "ingredients": {}, "removed": []}}

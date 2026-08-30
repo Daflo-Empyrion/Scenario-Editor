@@ -76,6 +76,12 @@ class TemplateRecipeEditor(QWidget):
         btn_add = QPushButton(t("dup.add_ingredient_btn"))
         btn_add.clicked.connect(self._on_add_ingredient)
         add_row.addWidget(btn_add)
+        # Retirer l'ingredient selectionne -- demande explicite de
+        # l'utilisateur du 30/08/2026 : AJOUTER ET SUPPRIMER des ingredients
+        # dans tous les modes (creation, duplication, fusion).
+        btn_remove = QPushButton(t("dup.remove_ingredient_btn"))
+        btn_remove.clicked.connect(self._on_remove_ingredient)
+        add_row.addWidget(btn_remove)
         layout.addLayout(add_row)
 
     def _on_add_ingredient(self) -> None:
@@ -96,8 +102,21 @@ class TemplateRecipeEditor(QWidget):
         self.quantity_edit.setText("1")
         self.ingredient_combo.setCurrentText("")
 
+    def _on_remove_ingredient(self) -> None:
+        row = self.ingredients_table.currentRow()
+        if row >= 0:
+            self.ingredients_table.removeRow(row)
+
     def get_scalar_overrides(self) -> Dict[str, str]:
         return self.scalar_table.get_changed_values()
+
+    def get_removed_ingredients(self) -> List[str]:
+        """Ingredients d'ORIGINE dont la ligne a ete retiree par
+        l'utilisateur (les ajoutes ne peuvent pas etre 'retires' ici : ils
+        n'existeraient que s'ils sont encore affiches)."""
+        remaining = {self.ingredients_table.item(r, 0).text()
+                     for r in range(self.ingredients_table.rowCount())}
+        return [name for name in self._original_ingredients if name not in remaining]
 
     def get_changed_or_added_ingredients(self) -> Dict[str, str]:
         """Ingredients dont la quantite differe de l'original, PLUS tout

@@ -3294,5 +3294,21 @@
  "dup.add_ingredient_btn": {
   "fr": "Ajouter",
   "en": "Add"
+ },
+ "dup.remove_ingredient_btn": {
+  "fr": "Retirer",
+  "en": "Remove"
+ },
+ "dup.no_source_offer_msg": {
+  "fr": "Aucun Template '{name}' n'existe dans Templates.ecf : le bloc ne pourrait jamais être fabriqué. Créer un Template pour chacun des {count} nouveau(x) nom(s), pré-rempli avec les valeurs les plus courantes du scénario (tout reste modifiable : valeurs, ajout et retrait d'ingrédients) ?",
+  "en": "No Template '{name}' exists in Templates.ecf: the block could never be crafted. Create a Template for each of the {count} new name(s), pre-filled with the scenario's most common values (everything stays editable: values, add/remove ingredients)?"
+ },
+ "copy.offer_template_title": {
+  "fr": "Recette de craft manquante",
+  "en": "Missing crafting recipe"
+ },
+ "copy.offer_template_msg": {
+  "fr": "Le bloc '{name}' vient d'être ajouté mais n'a pas de Template : il sera impossible à fabriquer en jeu. Lui créer un Template pré-rempli avec les valeurs les plus courantes du scénario (tout reste modifiable) ?",
+  "en": "Block '{name}' was just added but has no Template: it will be impossible to craft in-game. Create a Template pre-filled with the scenario's most common values (everything stays editable)?"
  }
 }
