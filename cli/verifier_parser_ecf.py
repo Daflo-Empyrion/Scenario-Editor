@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
+r"""
 Verifie que le parser ECF reproduit fidelement (byte pour byte) un ou plusieurs
 fichiers .ecf reels. A lancer sur TES fichiers pour valider le parser au-dela
 de l'exemple deja teste (Containers.ecf).

@@ -27,7 +27,7 @@ from typing import Optional, Tuple, List, TYPE_CHECKING
 
 from .scanner import scan_scenario
 from .models import Scenario
-from .fsutil import clear_readonly
+from .fsutil import atomic_write_text, clear_readonly
 
 if TYPE_CHECKING:
     from .ecf.model import EcfBlock
@@ -157,8 +157,7 @@ def _merge_csv_strategy(workspace: Workspace, dest: Path, source_file: Path) -> 
     source_doc = handler.parse(handler.load(source_file))
     merged_doc, csv_report = merge_csv_documents(working_doc, source_doc)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(render_csv(merged_doc))
+    atomic_write_text(dest, render_csv(merged_doc))
 
     return _FileMergeResult(dest=dest, csv_report=csv_report)
 
@@ -186,8 +185,7 @@ def _merge_ecf_strategy(dest: Path, source_file: Path, source_label: str) -> _Fi
         mode='properties',
     )
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(result.document.render())
+    atomic_write_text(dest, result.document.render())
 
     new_blocks = {
         (e.kind, e.identity) for e in result.report
@@ -285,8 +283,7 @@ def merge_csv_row_into_working(workspace: Workspace, working_relative_path: Path
     doc = handler.parse(handler.load(dest))
     doc, status = merge_single_csv_row(doc, row)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(render_csv(doc))
+    atomic_write_text(dest, render_csv(doc))
 
     return dest, status
 
@@ -339,8 +336,7 @@ def translate_csv_cell_into_working(workspace: Workspace, working_relative_path:
                 new_row.append("")
             new_row[target_col] = translated_value
             doc.rows[i] = new_row
-            with open(dest, 'w', encoding='utf-8', newline='') as f:
-                f.write(render_csv(doc))
+            atomic_write_text(dest, render_csv(doc))
             return dest, 'merged'
 
     n_cols = len(doc.header) if doc.header else (target_col + 1)
@@ -348,8 +344,7 @@ def translate_csv_cell_into_working(workspace: Workspace, working_relative_path:
     new_row[0] = key
     new_row[target_col] = translated_value
     doc.rows.append(new_row)
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(render_csv(doc))
+    atomic_write_text(dest, render_csv(doc))
     return dest, 'added'
 
 
@@ -380,8 +375,7 @@ def duplicate_csv_row_into_working(workspace: Workspace, working_relative_path: 
         new_row[0] = new_key
     doc.rows.append(new_row)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(render_csv(doc))
+    atomic_write_text(dest, render_csv(doc))
 
     return dest, 'added'
 
@@ -413,8 +407,7 @@ def merge_block_into_working(workspace: Workspace, working_relative_path: Path,
     working_doc = parse_ecf_file(dest)
     status, info = merge_single_block(working_doc, block, source_label)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(working_doc.render())
+    atomic_write_text(dest, working_doc.render())
 
     highlight = None
     if status == 'added':
@@ -517,8 +510,7 @@ def duplicate_ecf_block_into_working(workspace: Workspace, working_relative_path
 
     target_nodes.append(new_block)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(working_doc.render())
+    atomic_write_text(dest, working_doc.render())
 
     return dest, 'added'
 
@@ -565,8 +557,7 @@ def insert_ecf_block_into_working(workspace: Workspace, working_relative_path: P
         block.comment = (block.comment + "  " + annotation) if block.comment else annotation
         block.dirty = True
     target_nodes.append(block)
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(working_doc.render())
+    atomic_write_text(dest, working_doc.render())
     return dest, 'added'
 
 
@@ -614,8 +605,7 @@ def copy_yaml_entry_into_working(workspace: Workspace, working_relative_path: Pa
         status = 'added_at_root'
     target_list.append(new_entry)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(doc.render())
+    atomic_write_text(dest, doc.render())
 
     return dest, status
 
@@ -678,7 +668,6 @@ def duplicate_yaml_entry_into_working(workspace: Workspace, working_relative_pat
             new_entry.set_own_value(new_key)
     target_list.append(new_entry)
 
-    with open(dest, 'w', encoding='utf-8', newline='') as f:
-        f.write(doc.render())
+    atomic_write_text(dest, doc.render())
 
     return dest, status

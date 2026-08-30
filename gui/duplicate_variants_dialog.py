@@ -35,6 +35,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from core.i18n import t
+from core.ecf.model import EcfBlock
+from core.ecf.variants import list_editable_fields_block
+from gui.property_edit_table import PropertyEditTable
 
 
 class DuplicateVariantsDialog(QDialog):
@@ -48,7 +51,8 @@ class DuplicateVariantsDialog(QDialog):
 
     def __init__(self, current_id: Optional[str], current_name: Optional[str],
                  id_suggestions: List[str], numeric_fields: List[str],
-                 parent=None, show_id_field: bool = True):
+                 parent=None, show_id_field: bool = True,
+                 source_block: Optional[EcfBlock] = None):
         super().__init__(parent)
         self.setWindowTitle(t("dup.title"))
         self.setMinimumWidth(480)
@@ -147,14 +151,15 @@ class DuplicateVariantsDialog(QDialog):
         self.count_spin = QSpinBox()
         self.count_spin.setRange(2, 50)
         self.count_spin.setValue(3)
-        self.count_spin.valueChanged.connect(self._update_naming_hint)
+        self.count_spin.valueChanged.connect(self._regenerate_variant_name_rows)
         count_row.addWidget(self.count_spin)
         multi_layout.addLayout(count_row)
 
-        self.naming_hint = QLabel()
-        self.naming_hint.setStyleSheet("color: gray; font-size: 11px;")
-        multi_layout.addWidget(self.naming_hint)
-        self._update_naming_hint()
+        multi_layout.addWidget(QLabel(t("dup.variant_names_label")))
+        self.variant_names_list = QListWidget()
+        self.variant_names_list.setMaximumHeight(140)
+        multi_layout.addWidget(self.variant_names_list)
+        self._regenerate_variant_name_rows()
 
         self.first_original_checkbox = QCheckBox(t("dup.first_is_original"))
         self.first_original_checkbox.setChecked(True)
@@ -192,6 +197,31 @@ class DuplicateVariantsDialog(QDialog):
         self.multi_group.setVisible(False)
         self.multi_checkbox.toggled.connect(self._on_mode_toggled)
 
+        # ---------------- Aperçu editable des proprietes (partage entre les
+        # deux modes) -- demande explicite de l'utilisateur (29/08/2026) :
+        # pouvoir ajuster les proprietes du duplicata EN MEME TEMPS que la
+        # duplication, sans avoir a rouvrir le fichier apres coup. Uniquement
+        # si un bloc source complet est fourni (pas en mode ligne de
+        # tableau, ou le contexte est different -- voir l'appelant).
+        self.property_table: Optional[PropertyEditTable] = None
+        if source_block is not None:
+            self.adjust_properties_checkbox = QCheckBox(t("dup.adjust_properties_toggle"))
+            layout.addWidget(self.adjust_properties_checkbox)
+
+            self.adjust_properties_group = QWidget()
+            adjust_layout = QVBoxLayout(self.adjust_properties_group)
+            adjust_layout.setContentsMargins(0, 4, 0, 0)
+            self._adjust_hint_label = QLabel(t("dup.adjust_properties_hint"))
+            self._adjust_hint_label.setWordWrap(True)
+            self._adjust_hint_label.setStyleSheet("color: gray; font-size: 11px;")
+            adjust_layout.addWidget(self._adjust_hint_label)
+            self.property_table = PropertyEditTable(list_editable_fields_block(source_block))
+            adjust_layout.addWidget(self.property_table)
+            layout.addWidget(self.adjust_properties_group)
+            self.adjust_properties_group.setVisible(False)
+            self.adjust_properties_checkbox.toggled.connect(self.adjust_properties_group.setVisible)
+            self.multi_checkbox.toggled.connect(self._on_adjust_hint_mode_changed)
+
         buttons = QHBoxLayout()
         btn_ok = QPushButton(t("dup.duplicate"))
         btn_ok.clicked.connect(self._on_accept)
@@ -212,15 +242,32 @@ class DuplicateVariantsDialog(QDialog):
         self.result_simple_fields: List[str] = []
         # Resultat -- mode multi-variantes (None si mode simple choisi)
         self.result_multi: Optional[dict] = None
+        # Proprietes ajustees dans l'apercu editable (voir property_table
+        # ci-dessus) -- applique au duplicata (mode simple) OU a TOUTES les
+        # variantes creees (mode multi), en plus de la variation en
+        # pourcentage -- demande explicite de l'utilisateur (29/08/2026).
+        self.result_field_overrides: dict = {}
 
-    def _update_naming_hint(self):
+    def _on_adjust_hint_mode_changed(self, multi_checked: bool) -> None:
+        self._adjust_hint_label.setText(
+            t("dup.adjust_properties_hint_multi") if multi_checked else t("dup.adjust_properties_hint"))
+
+    def _regenerate_variant_name_rows(self):
+        """Regenere la liste editable des noms de variantes -- demande
+        explicite de l'utilisateur (29/08/2026) : pouvoir personnaliser
+        chaque nom plutot que subir le suffixe T1..TN automatique. PRESERVE
+        les noms deja saisis manuellement pour les index encore valides
+        (agrandir/reduire le compte ne perd pas le travail deja fait)."""
         base = self._current_name or "Nom"
         count = self.count_spin.value()
-        shown = min(count, 3)
-        names = ", ".join(f"{base}T{i + 1}" for i in range(shown))
-        if count > shown:
-            names += ", ..."
-        self.naming_hint.setText(names)
+        existing = [self.variant_names_list.item(i).text() for i in range(self.variant_names_list.count())]
+        self.variant_names_list.clear()
+        for i in range(count):
+            default_name = f"{base}T{i + 1}"
+            value = existing[i] if i < len(existing) and existing[i].strip() else default_name
+            item = QListWidgetItem(value)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            self.variant_names_list.addItem(item)
 
     def _on_mode_toggled(self, checked: bool):
         self.simple_group.setVisible(not checked)
@@ -252,9 +299,19 @@ class DuplicateVariantsDialog(QDialog):
         self._add_manual_field_to(self.simple_fields_list, self.simple_manual_field_edit)
 
     def _on_accept(self):
+        field_overrides = self.property_table.get_changed_values() if self.property_table is not None else {}
+
         if self.multi_checkbox.isChecked():
             if not self._current_name:
                 QMessageBox.warning(self, t("dup.name_required"), t("dup.name_required_msg"))
+                return
+            variant_names = [self.variant_names_list.item(i).text().strip()
+                              for i in range(self.variant_names_list.count())]
+            if any(not n for n in variant_names):
+                QMessageBox.warning(self, t("dup.variant_name_invalid"), t("dup.variant_name_empty_msg"))
+                return
+            if len(set(variant_names)) != len(variant_names):
+                QMessageBox.warning(self, t("dup.variant_name_invalid"), t("dup.variant_name_duplicate_msg"))
                 return
             fields = [self.fields_list.item(i).text() for i in range(self.fields_list.count())
                       if self.fields_list.item(i).checkState() == Qt.CheckState.Checked]
@@ -263,7 +320,9 @@ class DuplicateVariantsDialog(QDialog):
                 'varying_fields': fields,
                 'total_percent': self.percent_spin.value(),
                 'first_is_original': self.first_original_checkbox.isChecked(),
+                'variant_names': variant_names,
             }
+            self.result_field_overrides = field_overrides
             self.accept()
             return
 
@@ -286,6 +345,7 @@ class DuplicateVariantsDialog(QDialog):
         self.result_new_id = new_id
         self.result_new_name = new_name
         self.result_remove_id = remove_id
+        self.result_field_overrides = field_overrides
         if self.simple_percent_checkbox.isChecked():
             fields = [self.simple_fields_list.item(i).text() for i in range(self.simple_fields_list.count())
                       if self.simple_fields_list.item(i).checkState() == Qt.CheckState.Checked]

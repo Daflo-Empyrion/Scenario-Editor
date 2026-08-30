@@ -65,13 +65,14 @@ def write_recovery_snapshot(working_root: Path, file_path: Path, content: str) -
     scenario_dir.mkdir(parents=True, exist_ok=True)
 
     meta_path = scenario_dir / "metadata.json"
-    meta_path.write_text(json.dumps({
+    from .fsutil import atomic_write_text
+    atomic_write_text(meta_path, json.dumps({
         "working_root": str(working_root.resolve()),
         "last_snapshot": time.time(),
-    }), encoding="utf-8")
+    }))
 
     snapshot_path = scenario_dir / _relative_safe_name(working_root, file_path)
-    snapshot_path.write_text(content, encoding="utf-8")
+    atomic_write_text(snapshot_path, content)
 
 
 def clear_recovery_file(working_root: Path, file_path: Path) -> None:

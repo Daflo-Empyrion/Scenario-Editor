@@ -116,7 +116,8 @@ cli_a = Analysis(
         # commande ajoutee a cli_tools.py doit aussi etre ajoutee ici.
         'cli.verifier_parser_ecf', 'cli.verifier_parser_yaml', 'cli.verifier_parser_csv',
         'cli.diagnostic_bloc', 'cli.detecter_imbrication_anormale', 'cli.diff_ecf',
-        'cli.edit_ecf', 'cli.merge_ecf', 'cli.transform_ecf',
+        'cli.edit_ecf', 'cli.merge_ecf', 'cli.transform_ecf', 'cli.pack_tech_tree_icons',
+        'cli.pack_localization',
     ],
     hookspath=[],
     hooksconfig={},

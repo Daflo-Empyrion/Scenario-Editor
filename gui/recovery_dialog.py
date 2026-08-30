@@ -70,7 +70,8 @@ class RecoveryDialog(QDialog):
                 continue
             real_path = self.working_root / autosave.decode_relative_name(encoded)
             real_path.parent.mkdir(parents=True, exist_ok=True)
-            real_path.write_text(content, encoding="utf-8", newline="")
+            from core.fsutil import atomic_write_text
+            atomic_write_text(real_path, content)
         autosave.clear_recovery_for_scenario(self.working_root)
         self.accept()
 

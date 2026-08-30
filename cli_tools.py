@@ -43,6 +43,10 @@ COMMANDS = {
                "Fusionne plusieurs fichiers ECF par ordre de priorite"),
     "transform": ("cli.transform_ecf",
                    "Transformation numerique en masse sur une propriete"),
+    "pack-tech-tree-icons": ("cli.pack_tech_tree_icons",
+                              "Construit data/tech_tree_icons.pak a partir d'icones extraites du jeu"),
+    "pack-localization": ("cli.pack_localization",
+                           "Construit data/localization_vanilla.pak a partir du Localization.csv vanilla"),
 }
 
 

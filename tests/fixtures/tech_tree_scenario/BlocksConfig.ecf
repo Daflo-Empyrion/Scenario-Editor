@@ -1,0 +1,42 @@
+# Extrait reel (anonymise partiellement) de BlocksConfig.ecf pour les tests
+# pytest de l'arbre technologique -- structure confirmee sur le vrai fichier
+# (session du 28/08/2026).
+
+{ Block Id: 717, Name: OxygenTankSmallMS
+  Class: O2Tank
+  Material: Device
+  UnlockCost: 0, display: true
+  UnlockLevel: 1, display: true
+  TechTreeNames: "Base,Capital Vessel"
+}
+
+{ Block Id: 260, Name: FuelTankMSLarge, Ref: FuelTankMSSmall
+  Material: Device
+  UnlockCost: 12, display: true
+  UnlockLevel: 10, display: true
+  TechTreeParent: FuelTankMSSmall
+  TechTreeNames: "Base,Capital Vessel"
+}
+
+{ Block Id: 261, Name: FuelTankMSSmall
+  Material: Device
+  UnlockCost: 4, display: true
+  UnlockLevel: 3, display: true
+  TechTreeNames: "Base,Capital Vessel"
+}
+
+{ Block Id: 999, Name: TurretMSPlasma
+  Material: Device
+  TechTreeNames: Hidden
+}
+
+{ Block Id: 998, Name: SomeAlienBlock
+  Material: Terrain
+}
+
+{ +Block Id: 700, Name: PatchedBlockWithTechTree
+  Material: Device
+  UnlockCost: 8, display: true
+  UnlockLevel: 5, display: true
+  TechTreeNames: Tools
+}

@@ -218,6 +218,7 @@ class ScenarioCompareDialog(QDialog):
         if not path_str:
             return
         report = self.result.render_report(include_unchanged=self.checkbox_show_unchanged.isChecked())
-        Path(path_str).write_text(report, encoding='utf-8')
+        from core.fsutil import atomic_write_text
+        atomic_write_text(Path(path_str), report)
         QMessageBox.information(self, t("compare.export_done_title"),
                                  t("compare.export_done_msg", path=path_str))

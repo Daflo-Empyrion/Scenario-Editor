@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
+r"""
 Diagnostic : verifie si mon parser retrouve un bloc precis (par Id) dans un fichier
 .ecf, apres une edition manuelle (ex: decommenter un bloc en conflit d'Id).
 

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
+r"""
 Detecte les blocs ECF qui contiennent anormalement d'autres blocs "Block"/"+Block"
 imbriques a l'interieur -- signe caracteristique du bug ou une ligne de fermeture '}'
 est restee commentee ('#}') apres une edition manuelle, ce qui fait que tout le reste

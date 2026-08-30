@@ -61,8 +61,12 @@ def _write_settings(data: dict) -> None:
 def _write_settings_locked(data: dict) -> None:
     """Version sans verrou de _write_settings() -- meme raison que
     _read_settings_locked()."""
+    from .fsutil import atomic_write_text
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+    # Ecriture ATOMIQUE : settings.json contient la langue, l'etat des options,
+    # la liste des annotations... sa corruption par un crash pendant l'ecriture
+    # reinitialiserait d'un coup toute la configuration de l'utilisateur.
+    atomic_write_text(SETTINGS_FILE, json.dumps(data, ensure_ascii=False))
 
 
 def _get(key: str, default):

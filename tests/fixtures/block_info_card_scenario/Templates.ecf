@@ -1,0 +1,15 @@
+# Extrait REEL de Templates.ecf pour les tests pytest -- Template
+# FuelTankMSLarge exact (session du 29/08/2026), quantites verifiees
+# correspondre exactement a une vraie capture d'ecran F3.
+
+{ +Template Name: FuelTankMSLarge
+  CraftTime: 3
+  Target: "SmallC,LargeC,AdvC"
+  { Child Inputs
+    Electronics: 8
+    CobaltAlloy: 16
+    Nanotubes: 16
+    TitanPlates: 16
+    PlasticMaterial: 32
+  }
+}

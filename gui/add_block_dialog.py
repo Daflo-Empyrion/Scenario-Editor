@@ -26,6 +26,7 @@ creation -> proposition de creer le Template associe (si le fichier courant
 n'est pas deja Templates.ecf) -> meme tableau, avec Name pre-rempli et une
 section Ingredients en plus.
 """
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from PyQt6.QtCore import Qt
@@ -36,7 +37,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
-from core.ecf.block_creation import scan_kind_frequency, scan_properties_for_kind
+from core.ecf.block_creation import scan_kind_frequency, scan_properties_for_kind, find_file_by_name
 from core.ecf.validation import MAX_BLOCK_ID
 
 
@@ -94,7 +95,9 @@ class PropertyTableDialog(QDialog):
                  name_prefill: str = "", name_readonly: bool = False,
                  enable_ingredients: bool = False, craftable_names: Optional[List[str]] = None,
                  craftable_names_players_only: Optional[List[str]] = None,
-                 window_title_key: str = "addblock.table_title", parent=None):
+                 window_title_key: str = "addblock.table_title", parent=None,
+                 tech_tree_source: Optional[str] = None, working_root: Optional[Path] = None,
+                 sibling_ecf_files: Optional[List[Path]] = None):
         super().__init__(parent)
         self.doc = doc
         self.id_mode = id_mode
@@ -103,6 +106,17 @@ class PropertyTableDialog(QDialog):
         self.craftable_names_players_only = craftable_names_players_only or []
         self._properties_by_key = {}
         self._all_rows: List[Tuple[QCheckBox, str, QTableWidgetItem]] = []
+        # Previsualisation dans l'arbre technologique (voir
+        # gui/tech_tree_preview_dialog.py) -- tech_tree_source ('block' ou
+        # 'item') n'est fourni QUE lors de la creation d'un vrai bloc/item
+        # (jamais pour un Template, qui n'a pas ce concept) ; le bouton
+        # reste cache si les fichiers BlocksConfig.ecf/ItemsConfig.ecf sont
+        # introuvables parmi sibling_ecf_files.
+        self._tech_tree_source = tech_tree_source
+        self._working_root = working_root
+        self._tech_blocks_path = find_file_by_name(sibling_ecf_files or [], "BlocksConfig.ecf")
+        self._tech_items_path = find_file_by_name(sibling_ecf_files or [], "ItemsConfig.ecf")
+        self._tech_tree_pending_values: Optional[Tuple[int, int, List[str], Optional[str]]] = None
 
         self.result_kind: Optional[str] = None
         self.result_id: Optional[str] = None
@@ -194,6 +208,10 @@ class PropertyTableDialog(QDialog):
 
         # --- Boutons ---
         buttons = QHBoxLayout()
+        if self._tech_tree_source is not None and (self._tech_blocks_path or self._tech_items_path):
+            btn_preview_tech_tree = QPushButton(t("techtree.preview_button"))
+            btn_preview_tech_tree.clicked.connect(self._open_tech_tree_preview)
+            buttons.addWidget(btn_preview_tech_tree)
         buttons.addStretch()
         btn_cancel = QPushButton(t("btn.cancel"))
         btn_cancel.setObjectName("secondaryButton")
@@ -251,6 +269,72 @@ class PropertyTableDialog(QDialog):
         text_lower = text.strip().lower()
         for row, (_, key, _) in enumerate(self._all_rows):
             self.table.setRowHidden(row, text_lower not in key.lower())
+
+    def _find_row(self, key: str):
+        for checkbox, k, value_combo in self._all_rows:
+            if k == key:
+                return checkbox, value_combo
+        return None, None
+
+    def _apply_row_value(self, key: str, value: str) -> None:
+        """Coche la ligne `key` du tableau et lui affecte `value` -- utilise
+        par _open_tech_tree_preview() pour reporter le choix fait dans la
+        previsualisation. Ne fait rien silencieusement si la propriete
+        n'apparait pas parmi celles scannees pour ce genre (cas marginal :
+        UnlockLevel/UnlockCost/TechTreeNames sont quasi-universelles sur de
+        vrais Blocks/Items reels, mais un genre tres rare pourrait ne pas en
+        avoir d'exemple dans le fichier de travail)."""
+        checkbox, value_combo = self._find_row(key)
+        if checkbox is None:
+            return
+        checkbox.setChecked(True)
+        value_combo.setCurrentText(value)
+
+    def _open_tech_tree_preview(self) -> None:
+        """Ouvre la previsualisation de position dans l'arbre technologique
+        (voir gui/tech_tree_preview_dialog.py) a partir des valeurs
+        ACTUELLEMENT saisies (si cochees) pour UnlockLevel/UnlockCost/
+        TechTreeNames/TechTreeParent, et reporte le resultat dans le tableau
+        si l'utilisateur valide."""
+        from core.tech_tree import _parse_list_value
+
+        def _int_or(key: str, default: int) -> int:
+            checkbox, combo = self._find_row(key)
+            if checkbox is not None and checkbox.isChecked():
+                try:
+                    return int(combo.currentText().strip())
+                except ValueError:
+                    pass
+            return default
+
+        categories: List[str] = []
+        checkbox, combo = self._find_row('TechTreeNames')
+        if checkbox is not None and checkbox.isChecked():
+            categories = _parse_list_value(combo.currentText().strip())
+
+        parent_name: Optional[str] = None
+        checkbox, combo = self._find_row('TechTreeParent')
+        if checkbox is not None and checkbox.isChecked():
+            parent_name = combo.currentText().strip().strip('"') or None
+
+        from gui.tech_tree_preview_dialog import TechTreePreviewDialog
+        dlg = TechTreePreviewDialog(
+            self._tech_blocks_path, self._tech_items_path, self._working_root,
+            source=self._tech_tree_source, initial_level=_int_or('UnlockLevel', 1),
+            initial_cost=_int_or('UnlockCost', 0), initial_categories=categories,
+            initial_parent=parent_name, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        level, cost, chosen_categories, chosen_parent = dlg.result_values()
+        self._apply_row_value('UnlockLevel', str(level))
+        self._apply_row_value('UnlockCost', str(cost))
+        if chosen_categories:
+            names_value = chosen_categories[0] if len(chosen_categories) == 1 \
+                else '"' + ','.join(chosen_categories) + '"'
+            self._apply_row_value('TechTreeNames', names_value)
+        if chosen_parent:
+            self._apply_row_value('TechTreeParent', chosen_parent)
 
     def _add_ingredient_row(self):
         row = self.ingredients_table.rowCount()

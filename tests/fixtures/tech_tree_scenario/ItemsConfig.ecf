@@ -1,0 +1,20 @@
+# Extrait reel de ItemsConfig.ecf pour les tests pytest -- cas HeavyPistol
+# confirme TechTreeNames=Hidden ET UnlockLevel present simultanement.
+
+{ Item Id: 100, Name: CombatKnife
+  UnlockLevel: 1
+  TechTreeNames: Weapons
+}
+
+{ Item Id: 101, Name: PlasmaSword
+  UnlockCost: 15
+  UnlockLevel: 15
+  TechTreeParent: CombatKnife
+  TechTreeNames: Weapons
+  CustomIcon: PlasmaSwordIcon
+}
+
+{ Item Id: 102, Name: HeavyPistol
+  UnlockLevel: 1
+  TechTreeNames: Hidden
+}

@@ -2323,6 +2323,38 @@
   "fr": "Impossible d'enregistrer '{name}' :\n{error}\n\nSi c'est une erreur de permission, essaie Fichier > 'Reparer les permissions de la copie de travail'.",
   "en": "Could not save '{name}':\n{error}\n\nIf this is a permission error, try File > 'Repair working copy permissions'."
  },
+ "quit.modified_title": {
+  "fr": "Modifications non enregistrees",
+  "en": "Unsaved changes"
+ },
+ "quit.modified_msg": {
+  "fr": "{count} fichier(s) ouvert(s) ont des modifications non enregistrees :\n\n{files}\n\nEnregistrer avant de quitter ?",
+  "en": "{count} open file(s) have unsaved changes:\n\n{files}\n\nSave before quitting?"
+ },
+ "quit.save_failed": {
+  "fr": "Fermeture annulee : '{name}' n'a pas pu etre enregistre. Copie ton travail ailleurs si necessaire.",
+  "en": "Closing cancelled: '{name}' could not be saved. Copy your work elsewhere if needed."
+ },
+ "crash.title": {
+  "fr": "Erreur inattendue",
+  "en": "Unexpected error"
+ },
+ "crash.msg": {
+  "fr": "Une erreur interne s'est produite :\n\n{error}\n\nL'application continue de fonctionner et ton travail reste enregistrable. Si le probleme se repete, utilise 'Signaler le probleme' -- rien n'est envoye sans ta validation.",
+  "en": "An internal error occurred:\n\n{error}\n\nThe application keeps running and your work can still be saved. If the problem persists, use 'Report problem' -- nothing is sent without your confirmation."
+ },
+ "crash.btn_report": {
+  "fr": "Signaler le probleme",
+  "en": "Report problem"
+ },
+ "crash.report_title": {
+  "fr": "Erreur interne : {error}",
+  "en": "Internal error: {error}"
+ },
+ "crash.report_intro": {
+  "fr": "Une erreur interne s'est produite pendant l'utilisation de l'editeur. Pile d'erreur technique pre-remplie ci-dessous (tu peux la reduire ou la modifier) :",
+  "en": "An internal error occurred while using the editor. Technical error trace pre-filled below (feel free to trim or edit it):"
+ },
  "ecf.header_toggle_show": {
   "fr": "Voir l'explication des proprietes de ce fichier",
   "en": "Show property explanations for this file"
@@ -2863,6 +2895,10 @@
   "fr": "{failed} echecs consecutifs detectes (sur {done} cellules traitees, {remaining} restantes non tentees) -- le service de traduction semble bloque ou indisponible. Arret automatique pour ne pas t'en tenir rigueur inutilement. Les traductions deja reussies restent disponibles pour revue ci-apres.",
   "en": "{failed} consecutive failures detected (out of {done} cells processed, {remaining} remaining untried) -- the translation service seems blocked or unavailable. Stopped automatically. Translations already completed remain available for review below."
  },
+ "trans.batch_already_running": {
+  "fr": "Une traduction en lot est deja en cours. Attends sa fin (ou annule-la) avant d'en relancer une.",
+  "en": "A batch translation is already running. Wait for it to finish (or cancel it) before starting another one."
+ },
  "btn.fill_missing_translations": {
   "fr": "Combler les langues manquantes...",
   "en": "Fill missing translations..."
@@ -3002,5 +3038,181 @@
  "status.readonly": {
   "fr": "lecture seule",
   "en": "read-only"
+ },
+ "techtree.edit_cost_action": {
+  "fr": "Modifier le cout de deblocage...",
+  "en": "Edit unlock cost..."
+ },
+ "techtree.edit_cost_label": {
+  "fr": "Nouveau cout pour {name} :",
+  "en": "New cost for {name}:"
+ },
+ "techtree.edit_cost_title": {
+  "fr": "Cout de deblocage",
+  "en": "Unlock cost"
+ },
+ "techtree.level_header": {
+  "fr": "Niveau {level}",
+  "en": "Level {level}"
+ },
+ "techtree.move_to_category": {
+  "fr": "Deplacer vers...",
+  "en": "Move to..."
+ },
+ "techtree.node_tooltip": {
+  "fr": "{name}\n\nNiveau requis : {level}\nCout : {cost}",
+  "en": "{name}\n\nRequired level: {level}\nCost: {cost}"
+ },
+ "techtree.dialog_title": {
+  "fr": "Arbre technologique",
+  "en": "Tech tree"
+ },
+ "techtree.player_level_label": {
+  "fr": "Niveau du joueur (simule) :",
+  "en": "Player level (simulated):"
+ },
+ "techtree.no_selection": {
+  "fr": "Aucune selection",
+  "en": "No selection"
+ },
+ "techtree.selected_info": {
+  "fr": "{name} -- Niveau requis : {level}, Cout : {cost}",
+  "en": "{name} -- Required level: {level}, Cost: {cost}"
+ },
+ "techtree.file_locked_title": {
+  "fr": "Fichier modifie dans un onglet",
+  "en": "File modified in a tab"
+ },
+ "techtree.file_locked_msg": {
+  "fr": "{name} est actuellement ouvert avec des modifications non enregistrees dans un onglet. Enregistre ou ferme cet onglet avant de modifier l'arbre technologique.",
+  "en": "{name} is currently open with unsaved changes in a tab. Save or close that tab before editing the tech tree."
+ },
+ "techtree.write_error": {
+  "fr": "Impossible d'ecrire la modification pour {name}.",
+  "en": "Could not write the change for {name}."
+ },
+ "wsundo.techtree_level": {
+  "fr": "Arbre technologique : niveau de {name}",
+  "en": "Tech tree: level of {name}"
+ },
+ "wsundo.techtree_cost": {
+  "fr": "Arbre technologique : cout de {name}",
+  "en": "Tech tree: cost of {name}"
+ },
+ "wsundo.techtree_category": {
+  "fr": "Arbre technologique : {name} deplace vers {category}",
+  "en": "Tech tree: {name} moved to {category}"
+ },
+ "menu.tools.tech_tree": {
+  "fr": "&Arbre technologique...",
+  "en": "&Tech tree..."
+ },
+ "techtree.not_found": {
+  "fr": "BlocksConfig.ecf et ItemsConfig.ecf sont introuvables dans ce scenario.",
+  "en": "BlocksConfig.ecf and ItemsConfig.ecf could not be found in this scenario."
+ },
+ "btn.ok": {
+  "fr": "OK",
+  "en": "OK"
+ },
+ "techtree.preview_title": {
+  "fr": "Previsualisation dans l'arbre technologique",
+  "en": "Tech tree preview"
+ },
+ "techtree.preview_instructions": {
+  "fr": "Deplace l'icone entouree (le nouveau bloc/item, pas encore cree) pour choisir son niveau de deblocage et sa categorie. Les autres icones sont les blocs/items reels deja presents, a titre de repere.",
+  "en": "Drag the outlined icon (the new block/item, not yet created) to choose its unlock level and category. The other icons are existing real blocks/items shown for reference."
+ },
+ "techtree.preview_button": {
+  "fr": "Previsualiser dans l'arbre technologique...",
+  "en": "Preview in tech tree..."
+ },
+ "techtree.no_parent_button": {
+  "fr": "Aucun parent (racine)",
+  "en": "No parent (root)"
+ },
+ "techtree.parent_pick_instructions": {
+  "fr": "Cliquez sur le noeud qui deviendra le nouveau parent de {name}, ou choisissez 'Aucun parent', ou Echap/Annuler pour annuler.",
+  "en": "Click the node that will become {name}'s new parent, choose 'No parent', or press Escape/Cancel."
+ },
+ "wsundo.techtree_parent_set": {
+  "fr": "Arbre technologique : {name} rattache a {parent}",
+  "en": "Tech tree: {name} attached to {parent}"
+ },
+ "wsundo.techtree_parent_removed": {
+  "fr": "Arbre technologique : {name} devient racine",
+  "en": "Tech tree: {name} becomes root"
+ },
+ "dup.preview_col_property": {
+  "fr": "Propriete",
+  "en": "Property"
+ },
+ "dup.preview_col_value": {
+  "fr": "Valeur",
+  "en": "Value"
+ },
+ "dup.adjust_properties_toggle": {
+  "fr": "Ajuster d'autres proprietes du duplicata",
+  "en": "Adjust other properties of the duplicate"
+ },
+ "dup.adjust_properties_hint": {
+  "fr": "Modifie directement les valeurs a appliquer -- seules celles reellement changees seront ecrites.",
+  "en": "Edit values directly -- only actually changed ones will be written."
+ },
+ "dup.adjust_properties_hint_multi": {
+  "fr": "Ces changements s'appliqueront a TOUTES les variantes creees (en plus de la variation en pourcentage).",
+  "en": "These changes apply to ALL created variants (in addition to the percentage variation)."
+ },
+ "dup.adjust_template_toggle": {
+  "fr": "Ajuster le(s) Template(s) cree(s)",
+  "en": "Adjust the created Template(s)"
+ },
+ "dup.adjust_template_hint": {
+  "fr": "Proprietes du Template (temps de fabrication, quantites d'ingredients...) appliquees a chaque Template cree.",
+  "en": "Template properties (craft time, ingredient quantities...) applied to each created Template."
+ },
+ "dup.adjust_localization_title": {
+  "fr": "Nom affiche (Localization.csv)",
+  "en": "Display name (Localization.csv)"
+ },
+ "dup.adjust_localization_hint": {
+  "fr": "Le nom technique d'un duplicata n'a jamais de traduction -- sans elle, le bloc s'affichera en jeu avec sa cle brute. Pre-rempli avec la traduction du bloc source, a ajuster.",
+  "en": "A duplicate's technical name never has a translation -- without one, the block displays its raw key in-game. Pre-filled with the source block's translation, adjust as needed."
+ },
+ "dup.loc_col_french": {
+  "fr": "Titre (Français)",
+  "en": "Title (French)"
+ },
+ "dup.loc_col_english": {
+  "fr": "Titre (Anglais)",
+  "en": "Title (English)"
+ },
+ "dup.variant_names_label": {
+  "fr": "Noms des variantes (double-clic pour modifier)",
+  "en": "Variant names (double-click to edit)"
+ },
+ "dup.variant_name_invalid": {
+  "fr": "Nom de variante invalide",
+  "en": "Invalid variant name"
+ },
+ "dup.variant_name_empty_msg": {
+  "fr": "Aucun nom de variante ne peut etre vide.",
+  "en": "No variant name can be empty."
+ },
+ "dup.variant_name_duplicate_msg": {
+  "fr": "Les noms de variantes doivent etre uniques.",
+  "en": "Variant names must be unique."
+ },
+ "dup.template_scalar_fields_label": {
+  "fr": "Proprietes",
+  "en": "Properties"
+ },
+ "dup.template_ingredients_label": {
+  "fr": "Ingredients (Child Inputs)",
+  "en": "Ingredients (Child Inputs)"
+ },
+ "dup.add_ingredient_btn": {
+  "fr": "Ajouter",
+  "en": "Add"
  }
 }

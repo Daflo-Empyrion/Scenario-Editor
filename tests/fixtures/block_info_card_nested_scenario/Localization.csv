@@ -1,0 +1,22 @@
+KEY,English,Deutsch,Français,Italiano,Spanish,Portuguese (Euro),Portuguese (Brazil),Polish,Russian,Japanese,Chinese (simplified),Chinese (traditional),Korean,Turkish,Greek,Dutch,Vietnamese
+AssaultRifle,Assault Rifle,Sturmgewehr,Fusil d'assaut v1,Fucile d'Assalto,Rifle de asalto,Espingarda de Assalto,Rifle de Assalto,Karabin,Штурмовая винтовка,アサルトライフル,突击步枪,突擊步槍,어썰트 라이플,,Assault Rifle,Aanvalsgeweer,Súng trường tấn công
+Mass,Mass,Masse,Poids,Massa,Masa,Massa,Massa,Waga,Масса,質量,质量,質量,질량,,Μάζα,Massa,Khối lượng
+ROF,Rate of fire,Feuerrate,Cadence de tir,Rateo di Fuoco,Cedencia de disparo,Índice de Fogo,Taxa de Fogo,Szybkostrzelność,Скорострельность,発射速度,射速,射速,발사 속도,,Ταχυβολία,Vuursnelheid,Tốc độ bắn
+Automatic,Automatic,Automatisch,Automatique,Automatico,Automático,Automático,Automático,Automatyczny,Автоматизация,自動処理,枪械全自动,全自動,,,Αυτόματα,Automatisch,Tự động
+BulletSpread,Weapon Spread,Streuung,Propagation,Dispersione,Dispersión del arma,Espalha a arma,Propagação da Bala,Promień rozrzutu,Разброс выстрелов,散布界,杀伤范围,殺傷範圍,,,Εξάπλωση Όπλων,Wapenspreiding,Truyền dẫn vũ khí
+Recoil,Recoil,Rückstoß,Recul,Rinculo,Retroceso,Recuo,Recuo,Odrzut,Отдача,反動,后坐力,後坐力,,,Ανάκρουση,,Lò Xo
+Damage,[c][ffffff][b]Damage[/b][-][/c],Schaden,Dégâts,Danno,Daño,Estragos,Dano,Obrażenia,Урон,攻撃力,伤害,傷害,피해,,Ζημιά,Schade,Thiệt hại
+AmmoCapacity,Magazine capacity,Magazingröße,Capacité du chargeur,Capacità Caricatore,Capacidad del cargador,Capacidade do paiol,Capacidade de Munição,Pojemność magazynku,Емкость магазина,マガジン容量,弹夹容量,彈匣容量,매거진 용량,,,Magazijncapaciteit,Dung lượng băng đạn
+AmmoType,[b]Ammo[/b],Munition,Munition,Munizioni,Munición,Munição,Munição,Amunicja,Патроны,弾薬,弹药,彈藥,탄약,,Πυρομαχικά,Munitie,Đạn
+ReloadDelay,Reload Time,Nachladezeit,Temps rechargement,Tempo di Ricarica,Tiempo de recarga,Tempo de recarga,Tempo de Recarga,Przeładowanie,Время перезарядки,リロード時間,装填时间,裝填時間（秒）,,,Χρόνος Γεμίσματος,Herlaad tijd,Thời gian tải lại
+UnlockCost,Unlock cost,Freischaltkosten,Coût déblocage,Costo di Sblocco,Coste de desbloqueo,Desbloquear Custo,Custo para Destravar,Koszt odkrycia,Цена открытия,アンロックコスト,解锁花费,解鎖花費,언락 비용,,Κόστος Ξεκλειδώματος,Ontgrendel kosten,Chi phí mở khóa
+UnlockLevel,Unlock level,Freischaltlevel,Niveau déblocage,Livello Necessario,Desbloquear nivel,Desbloquear Nível,Nível para Destravar,Wymagany poziom,Уровень открытия,アンロックレベル,解锁等级,解鎖等級,언록 레벨,,Επίπεδο Ξεκλειδώματος,Ontgrendel niveau,Cấp độ mở khóa
+MarketPrice,Marketprice (average),Durchschnittspreis,Prix moyen du marché,Prezzo di Mercato (Media),Precio de mercado (promedio),Preço de mercado (médio),Preço de mercado (médio),Cywil,Рыночная цена (средняя),市場価格 (平均),市场价格 (均价),市場價格 (均價),,,Αγορά (μέση),,Giá thị trường (trung bình)
+HitPoints,Hit points,Lebenspunkte,Points dommages,Punti Salute,Puntos de golpe,Pontos de vida,Pontos de vida,Punkty strukturalne,Прочность,耐久値,耐久度,生命值,히트 포인트,,Πόντοι,Trefpunten,Điểm bền
+biwHeaderCrafting,CRAFTING,CRAFTING,FABRICATION,COSTRUZIONE,CONSTRUYENDO,ARMAMENTO,CONSTRUINDO,PRODUKCJA,СОЗДАНИЕ,クラフト,制作中,製作中,,,ΚΑΤΑΣΚΕΥΑΖΕΤΑΙ,BOUWEN,CHẾ TẠO
+biwInputItems,Input Items:,Benötigt:,Composants requis,Richiesto:,Objetos de entrada:,Objetos de Entrada:,Itens de Entrada:,Komponenty:,Материалы:,作成に必要なアイテム,需要物品:,放入物品：,입력 아이템:,,Στοιχεία Εισόδου:,Invoer items:,Vật phẩm đầu vào:
+MechanicalComponents,Mechanical Components,Mechanische Komponenten,Composants mécaniques,Componenti Meccanici,Componentes mecánicos,Componentes mecânicos,Componentes Mecânicos,Elementy mechaniczne,Механические компоненты,マシンパーツ,机械零件,機械零件,,,Μηχανικά Εξαρτήματα,Mechanische componenten,Các thành phần cơ khí
+PlasticMaterial,Carbon Substrate,Kohlenstoffsubstrat,Substrat de carbone,Substrato di Carbonio,Sustrato de carbono,Substrato de carbono,Substrato de Carbono,Substrat węglowy,Углеродный субстрат,カーボン基質,碳复合材料,碳基化合物,,,Υπόστρωμα Άνθρακα,,Chất nền carbon
+SteelPlate,Steel plate,Stahlplatte,Plaque acier,Piastra d'Acciaio,Placa de acero,Chapa de aço,Placa de Aço,Stalowa blacha,Стальная пластина,スチールプレート,钢板,鋼板,강판,,,Stalen plaat,Tấm thép
+Electronics,Electronics,Elektronik,Composants électroniques,Parti Elettroniche,Electrónica,Eletrónica,Eletrônicos,Elektronika,Электроника,電子基板,电子元件,電子元件,전자기기,,,Elektronica,Linh kiện điện tử
+Nanotubes,Nanotubes,Nanoröhren,Nanotubes,Nanotubi,Nanotubos,Nanotubos,Nanotubos,Nanorurki,Нанотрубки,ナノチューブ,纳米管,納米管,,,Νανοσωλήνες,Nanobuizen,Ống nano

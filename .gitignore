@@ -13,6 +13,11 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Icones extraites des assets du jeu par l'utilisateur (voir
+# core/tech_tree_icons.py) -- gros volume (~70+ Mo), fichiers du jeu Empyrion
+# eux-memes (pas du code du projet), jamais a versionner ni redistribuer.
+itemicons/
+
 # Reglages locaux de l'application (jamais a versionner -- propres a chaque
 # utilisateur, contiennent projets recents, langue choisie, etc.)
 .empyrion_editor/

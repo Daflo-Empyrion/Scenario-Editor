@@ -10,6 +10,14 @@
   }
 }
 
+{ Template Name: IronResource
+  CraftTime: 3
+  Target: "SurvC,SmallC"
+  { Child Inputs
+    RockDust: 10
+  }
+}
+
 { +Template Name: IronOre
   BaseItem: true   # even though flag is set, it is not used for R2T repairing (NoRepairInputItem: true)
   CraftTime: 10

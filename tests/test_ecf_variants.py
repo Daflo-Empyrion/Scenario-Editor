@@ -22,6 +22,7 @@ from core.ecf.variants import (
     is_numeric_value, compute_variant_values,
     detect_numeric_fields_block, generate_block_variants,
     detect_numeric_fields_row, generate_row_variants,
+    list_editable_fields_block,
 )
 
 
@@ -326,3 +327,158 @@ def test_generate_row_variants_does_not_mutate_source_row():
 def test_generate_row_variants_empty_pairs_returns_empty_list():
     empty_row = EcfProperty(raw="", indent="", pairs=[], comment=None, eol="\n")
     assert generate_row_variants(empty_row, 3, [], 20.0, True) == []
+
+
+# ---------------------------------------------------------------------
+# list_editable_fields_block -- apercu editable pendant la duplication
+# (demande explicite de l'utilisateur, session du 29/08/2026)
+# ---------------------------------------------------------------------
+
+def test_list_editable_fields_block_excludes_id_and_name():
+    block = _make_block()
+    fields = list_editable_fields_block(block)
+    keys = [k for k, v in fields]
+    assert "Id" not in keys
+    assert "Name" not in keys
+
+
+def test_list_editable_fields_block_includes_text_and_numeric():
+    block = _make_block()
+    fields = dict(list_editable_fields_block(block))
+    assert "Material" in fields  # texte
+    assert "XpFactor" in fields  # numerique
+
+
+def test_list_editable_fields_block_excludes_metadata_attributes():
+    """'display'/'type'/'formatter' sont des attributs d'UNE AUTRE propriete
+    sur la meme ligne (ex: 'HitPoints: 80, type: int, display: true'),
+    jamais des champs autonomes -- ne doivent jamais apparaitre comme
+    lignes editables independantes."""
+    text = (
+        "{ Block Id: 1, Name: Test\n"
+        "  HitPoints: 80, type: int, display: true\n"
+        "}\n"
+    )
+    doc = parse_ecf_text(text)
+    block = next(doc.iter_blocks())
+    fields = dict(list_editable_fields_block(block))
+    assert "HitPoints" in fields
+    assert "type" not in fields
+    assert "display" not in fields
+
+
+def test_list_editable_fields_block_reaches_nested_sub_blocks():
+    block = _make_block_with_nested_child()
+    fields = dict(list_editable_fields_block(block))
+    assert "Prob" in fields
+    assert fields["Prob"] == "0.5"
+    assert "Item" in fields
+    assert fields["Item"] == "SathiumOre"
+
+
+def test_list_editable_fields_block_preserves_file_order():
+    block = _make_block()
+    fields = list_editable_fields_block(block)
+    keys = [k for k, v in fields]
+    assert keys.index("Material") < keys.index("XpFactor")
+
+
+# ---------------------------------------------------------------------
+# list_template_scalar_fields / list_template_ingredients /
+# set_template_ingredient (demande explicite de l'utilisateur, session du
+# 29/08/2026) -- edition individuelle des Templates + ajout d'ingredients
+# ---------------------------------------------------------------------
+
+def _make_template():
+    text = (
+        "{ Template Name: TestTemplate\n"
+        "  CraftTime: 5\n"
+        "  Target: \"SurvC\"\n"
+        "  { Child Inputs\n"
+        "    RockDust: 25\n"
+        "  }\n"
+        "}\n"
+    )
+    doc = parse_ecf_text(text)
+    return next(doc.iter_blocks())
+
+
+def test_list_template_scalar_fields_excludes_ingredients():
+    from core.ecf.variants import list_template_scalar_fields
+    fields = dict(list_template_scalar_fields(_make_template()))
+    assert fields == {"CraftTime": "5", "Target": '"SurvC"'}
+    assert "RockDust" not in fields
+
+
+def test_list_template_ingredients_excludes_scalar_fields():
+    from core.ecf.variants import list_template_ingredients
+    ingredients = dict(list_template_ingredients(_make_template()))
+    assert ingredients == {"RockDust": "25"}
+    assert "CraftTime" not in ingredients
+
+
+def test_list_template_ingredients_empty_when_no_child_inputs():
+    from core.ecf.variants import list_template_ingredients
+    text = "{ Template Name: Empty\n  CraftTime: 5\n}\n"
+    doc = parse_ecf_text(text)
+    tpl = next(doc.iter_blocks())
+    assert list_template_ingredients(tpl) == []
+
+
+def test_set_template_ingredient_updates_existing():
+    from core.ecf.variants import set_template_ingredient, list_template_ingredients
+    tpl = _make_template()
+    set_template_ingredient(tpl, "RockDust", "99")
+    assert dict(list_template_ingredients(tpl))["RockDust"] == "99"
+
+
+def test_set_template_ingredient_adds_new_to_existing_child_inputs():
+    from core.ecf.variants import set_template_ingredient, list_template_ingredients
+    tpl = _make_template()
+    set_template_ingredient(tpl, "Electronics", "4")
+    ingredients = dict(list_template_ingredients(tpl))
+    assert ingredients == {"RockDust": "25", "Electronics": "4"}
+
+
+def test_set_template_ingredient_creates_child_inputs_when_absent():
+    from core.ecf.variants import set_template_ingredient, list_template_ingredients
+    text = "{ Template Name: Empty\n  CraftTime: 5\n}\n"
+    doc = parse_ecf_text(text)
+    tpl = next(doc.iter_blocks())
+    set_template_ingredient(tpl, "Electronics", "4")
+    assert dict(list_template_ingredients(tpl)) == {"Electronics": "4"}
+
+
+def test_set_template_ingredient_round_trip_indentation_when_creating(): # bug reel corrige
+    from core.ecf.variants import set_template_ingredient
+    text = "{ Template Name: Empty\n  CraftTime: 5\n}\n"
+    doc = parse_ecf_text(text)
+    tpl = next(doc.iter_blocks())
+    set_template_ingredient(tpl, "Electronics", "4")
+    rendered = doc.render()
+    assert "  { Child Inputs\n" in rendered
+    assert "    Electronics: 4\n" in rendered
+    assert "  }\n" in rendered
+
+
+def test_set_template_ingredient_round_trip_when_existing_preserved():
+    from core.ecf.variants import set_template_ingredient
+    tpl = _make_template()
+    set_template_ingredient(tpl, "RockDust", "99")
+    set_template_ingredient(tpl, "Electronics", "4")
+    doc = tpl  # deja le bloc, verifions juste que le rendu du DOCUMENT complet fonctionne
+    from core.ecf.parser import parse_ecf_text as _p
+    # reconstruit un doc autour pour tester le rendu complet
+    wrapper_doc = _p("")
+    wrapper_doc.nodes = [tpl]
+    rendered = wrapper_doc.render()
+    assert rendered == (
+        "{ Template Name: TestTemplate\n"
+        "  CraftTime: 5\n"
+        "  Target: \"SurvC\"\n"
+        "  { Child Inputs\n"
+        "    RockDust: 99\n"
+        "    Electronics: 4\n"
+        "  }\n"
+        "}\n"
+    )

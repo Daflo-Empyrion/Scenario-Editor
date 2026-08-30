@@ -158,10 +158,8 @@ class YamlEditWidget(QWidget):
         # visible a l'ecran, pas seulement ce qui a deja ete explicitement applique.
         self._apply_value()
         try:
-            from core.fsutil import clear_readonly
-            clear_readonly(self.path)
-            with open(self.path, 'w', encoding='utf-8', newline='') as f:
-                f.write(self.doc.render())
+            from core.fsutil import atomic_write_text
+            atomic_write_text(self.path, self.doc.render())
         except OSError as e:
             QMessageBox.critical(self, t("save.error_title"),
                                   t("save.error_msg", name=self.path.name, error=str(e)))

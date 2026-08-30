@@ -31,6 +31,7 @@ dans le resultat -- meme principe que le "segment-splitting" deja utilise dans l
 de traduction CSV.
 """
 import re
+import threading
 from typing import List, Tuple
 
 try:
@@ -156,18 +157,33 @@ def get_import_error() -> str:
     return _IMPORT_ERROR or ""
 
 
-def translate_text(text: str, target: str = "fr", source: str = "auto") -> str:
+# Duree maximale d'attente d'une reponse de Google Translate. deep-translator
+# 1.11 ne passe AUCUN timeout a requests : sans cette garde, une connexion
+# pendante (reseau tombe, pare-feu silencieux, VPN capricieux...) figerait
+# l'appelant indefiniment -- sur l'interface, tout l'editeur serait gele.
+DEFAULT_TRANSLATION_TIMEOUT_S = 15.0
+
+
+def translate_text(text: str, target: str = "fr", source: str = "auto",
+                   timeout_seconds: float = DEFAULT_TRANSLATION_TIMEOUT_S) -> str:
     """Traduit `text` vers la langue `target` (code ISO, ex: 'fr', 'en'), en preservant
     le BBCode et les placeholders. Leve une exception explicite si la bibliotheque
     n'est pas installee ou si la requete echoue (ex: pas de connexion internet) -- a
-    capturer et afficher clairement cote GUI.
+    capturer et afficher clairement cote GUI. Leve TimeoutError si Google ne repond
+    pas dans `timeout_seconds` (voir DEFAULT_TRANSLATION_TIMEOUT_S).
 
     Consulte d'abord la memoire de traduction (core/translation_memory.py) : si ce
     texte exact a deja ete traduit vers cette langue, renvoie directement le resultat
     memorise (aucun appel reseau) -- plus rapide et garantit une traduction coherente
     du meme texte partout dans le fichier. La memoire est indexee par langue SOURCE
     reelle, jamais 'auto' (sinon deux appels 'auto' pourraient a tort partager un cache
-    alors que le texte source n'etait pas dans la meme langue)."""
+    alors que le texte source n'etait pas dans la meme langue).
+
+    IMPLEMENTATION DU TIMEOUT : l'appel reseau tourne dans un thread daemon sur
+    lequel on joint avec un delai -- deep-translator n'exposant pas de timeout dans
+    sa version courante. En cas de depot, TimeoutError est levee cote appelant
+    pendant que la requete orpheline finit par echouer toute seule dans son thread
+    (daemon : ne bloque jamais la sortie de l'application)."""
     if not _AVAILABLE:
         raise RuntimeError(f"deep-translator indisponible ({_IMPORT_ERROR}). "
                             f"Si tu utilises la version installee (executable), "
@@ -196,7 +212,29 @@ def translate_text(text: str, target: str = "fr", source: str = "auto") -> str:
         )
 
     protected, segments = protect_segments(text)
-    translated = GoogleTranslator(source=source, target=target).translate(protected)
+
+    result: dict = {}
+
+    def _call():
+        try:
+            result['value'] = GoogleTranslator(source=source, target=target).translate(protected)
+        except BaseException as e:
+            # Volontairement large : l'exception doit traverser le join pour etre
+            # relevee dans le thread appelant (jamais silencieuse).
+            result['error'] = e
+
+    worker = threading.Thread(target=_call, daemon=True, name="empyrion-translate")
+    worker.start()
+    worker.join(timeout_seconds)
+    if worker.is_alive():
+        raise TimeoutError(
+            f"Google Translate n'a pas repondu en {timeout_seconds:.0f} s "
+            f"(reseau indisponible ou pare-feu ?). Reessaie plus tard, ou "
+            f"desactive la traduction en ligne dans les options (voir PRIVACY.md).")
+    if 'error' in result:
+        raise result['error']
+
+    translated = result['value']
     if segments:
         translated = restore_segments(translated, segments)
 

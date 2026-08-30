@@ -106,10 +106,8 @@ class TxtEditWidget(QWidget):
         content = self.text_edit.toPlainText()
         if self._newline == '\r\n':
             content = content.replace('\r\n', '\n').replace('\n', '\r\n')
-        with open(self.path, 'w', encoding='utf-8', newline='') as f:
-            if self._had_bom:
-                f.write('\ufeff')
-            f.write(content)
+        from core.fsutil import atomic_write_text
+        atomic_write_text(self.path, ('\ufeff' if self._had_bom else '') + content)
         self._set_modified(False)
         self.saved.emit()
 

@@ -435,6 +435,13 @@ def find_first_inline_comment_for_key(doc: "EcfDocument", key: str) -> Optional[
     return _scan(doc.nodes)
 
 
+# Motif 1bis de scan_section_groups_and_labels (voir sa docstring) : titre de
+# section combine sur une seule ligne de commentaire, ex: '====Pistols HHW01==='
+# -- le titre (groupe 2) doit commencer par un caractere non-separateur, pour
+# ne jamais confondre une ligne de separateurs PURE avec un titre combine.
+_COMBINED_SECTION_RE = re.compile(r'^([=\-*]{2,})\s*([^=\-*].*?)\s*([=\-*]{2,})$')
+
+
 @dataclass
 class EcfDocument:
     nodes: List[EcfNode]
@@ -490,15 +497,22 @@ class EcfDocument:
         return "\n".join(result).strip('\n')
 
     def scan_section_groups_and_labels(self):
-        """Detecte deux motifs de documentation courants dans les vrais fichiers ECF :
+        """Detecte TROIS motifs de documentation courants dans les vrais fichiers ECF :
 
-        1. Groupe de section : trois commentaires consecutifs a un seul '#' formant
-           'separateur / titre / separateur' (ex: lignes de '='), qui introduisent une
-           categorie visuelle regroupant tous les blocs suivants jusqu'au prochain
-           groupe (ou la fin du fichier). Exemple reel (Containers.ecf) :
+        1. Groupe de section (3 lignes) : trois commentaires consecutifs a un seul '#'
+           formant 'separateur / titre / separateur' (ex: lignes de '='), qui
+           introduisent une categorie visuelle regroupant tous les blocs suivants
+           jusqu'au prochain groupe (ou la fin du fichier). Exemple reel
+           (Containers.ecf) :
                # ==================================================================
                # Gigas
                # ==================================================================
+
+        1bis. Groupe de section (1 ligne combinee) : separateur, titre et separateur
+           sur UNE SEULE ligne de commentaire (ex: ItemsConfig.ecf reel, signale par
+           l'utilisateur -- regression du 29/08/2026 : ce motif n'etait PAS du tout
+           reconnu, contrairement au motif 3-lignes). Exemple reel :
+               #====Pistols HHW01===
 
         2. Etiquette de bloc : un commentaire a DOUBLE '#' ('##') place juste avant un
            bloc (lignes vides tolerees entre les deux), qui lui donne un nom lisible
@@ -517,6 +531,15 @@ class EcfDocument:
             s = text.strip()
             return len(s) >= 5 and len(set(s)) == 1 and s[0] in '=-*'
 
+        def _combined_section_title(text: str) -> Optional[str]:
+            """Motif 1bis (voir docstring) : 'sepTITREsep' sur une seule ligne, ex:
+            '====Pistols HHW01==='. Le titre doit commencer par un caractere qui
+            N'EST PAS lui-meme un caractere de separateur, pour ne jamais confondre
+            une ligne de separateurs PURE (ex: '====================') avec un
+            titre combine -- celle-ci reste geree par le motif 3-lignes existant."""
+            m = _COMBINED_SECTION_RE.match(text.strip())
+            return m.group(2).strip() if m else None
+
         nodes = self.nodes
         group_before = {}
         label_by_block_id = {}
@@ -534,6 +557,12 @@ class EcfDocument:
                 group_before[i] = _clean(nodes[i + 1].raw)
                 i += 3
                 continue
+            if is_plain_comment:
+                combined_title = _combined_section_title(_clean(node.raw))
+                if combined_title:
+                    group_before[i] = combined_title
+                    i += 1
+                    continue
             if (isinstance(node, EcfComment) and node.raw.lstrip().startswith('##')
                     and not _is_separator(_clean(node.raw))):
                 j = i + 1

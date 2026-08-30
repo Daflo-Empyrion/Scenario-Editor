@@ -129,6 +129,119 @@ def compute_single_variant_value(original_value: str, percent: float) -> str:
     return _format_variant_value(value, decimals, was_quoted)
 
 
+def set_template_ingredient(template: EcfBlock, ingredient_name: str, quantity: str) -> None:
+    """Ajoute ou met a jour un ingredient dans le sous-bloc
+    '{ Child Inputs }' d'un Template -- le CREE s'il n'existe pas encore
+    (Template sans aucun ingredient au depart). Demande explicite de
+    l'utilisateur (session du 29/08/2026) : pouvoir AJOUTER un nouvel
+    ingredient a la recette (via une liste deroulante de blocs/items
+    valides, voir gui/template_recipe_editor.py), pas seulement ajuster la
+    quantite d'un ingredient existant."""
+    from .model import create_block, add_property_line, EcfProperty as _EcfProperty
+
+    child_inputs = None
+    for child in template.children:
+        if getattr(child, 'kind', None) == "Child Inputs":
+            child_inputs = child
+            break
+    if child_inputs is None:
+        # Indentation coherente avec de vrais fichiers (confirme sur
+        # FuelTankMSLarge/Templates.ecf) : le sous-bloc s'aligne avec les
+        # proprietes du parent, ses PROPRES enfants un niveau plus profond,
+        # sa ligne de fermeture alignee avec sa propre ouverture -- le
+        # parser capture cette info pour un bloc existant, mais un bloc
+        # cree de toutes pieces (create_block) doit la reconstruire a la
+        # main.
+        eol = template.eol or "\r\n"
+        parent_indent = "  "
+        for pc in template.children:
+            if isinstance(pc, _EcfProperty):
+                parent_indent = pc.indent
+                break
+        child_inputs = create_block("Child Inputs", [], eol=eol)
+        child_inputs.indent = parent_indent
+        child_inputs.close_raw = f"{parent_indent}}}{eol}"
+        template.children.append(child_inputs)
+        # Premiere propriete : construite directement (pas via
+        # add_property_line, dont l'indentation par defaut ne connait pas
+        # la profondeur d'imbrication d'un bloc tout juste cree).
+        child_inputs.children.append(_EcfProperty(
+            raw="", indent=parent_indent + "  ", pairs=[(ingredient_name, quantity)],
+            comment=None, eol=eol, dirty=True))
+        return
+
+    for prop in child_inputs.children:
+        if isinstance(prop, EcfProperty) and prop.set(ingredient_name, quantity):
+            return
+    add_property_line(child_inputs, [(ingredient_name, quantity)])
+
+
+def list_template_ingredients(template: EcfBlock) -> List["tuple[str, str]"]:
+    """Liste les ingredients (cle=nom du bloc/item, valeur=quantite) du
+    sous-bloc '{ Child Inputs ... }' d'un Template -- SEPARE des champs
+    scalaires (voir list_template_scalar_fields) pour permettre une edition
+    dediee par ingredient (ajout/quantite) plutot qu'un simple tableau
+    cle/valeur generique -- demande explicite de l'utilisateur (session du
+    29/08/2026)."""
+    for child in template.children:
+        if getattr(child, 'kind', None) == "Child Inputs":
+            return [(k, v) for prop in child.children for k, v in getattr(prop, 'pairs', []) if k]
+    return []
+
+
+def list_template_scalar_fields(template: EcfBlock) -> List["tuple[str, str]"]:
+    """Liste les champs SCALAIRES d'un Template (CraftTime, Target,
+    OutputCount...) -- EXCLUT deliberement le contenu de '{ Child Inputs }'
+    (voir list_template_ingredients, edite separement) ainsi qu'Id/Name
+    (geres a part)."""
+    fields: List["tuple[str, str]"] = []
+    seen: set = set()
+    for k, v in template.pairs:
+        if k and k not in ('Id', 'Name') and k not in seen:
+            seen.add(k)
+            fields.append((k, v))
+    for child in template.children:
+        if isinstance(child, EcfProperty) and child.pairs:
+            main_key, main_value = child.pairs[0]
+            if main_key and main_key not in ('Id', 'Name', 'display', 'type', 'formatter') and main_key not in seen:
+                seen.add(main_key)
+                fields.append((main_key, main_value))
+    return fields
+
+
+def list_editable_fields_block(block: EcfBlock) -> List["tuple[str, str]"]:
+    """Liste TOUS les champs (cle, valeur) d'un bloc -- ligne d'ouverture,
+    proprietes enfants directes, ET sous-blocs imbriques recursivement
+    (meme parcours que get_block_field/set_block_field) -- utilisee pour
+    l'aperetu editable propose pendant la duplication (voir
+    gui/duplicate_variants_dialog.py, demande explicite de l'utilisateur du
+    29/08/2026 : pouvoir ajuster les proprietes du duplicata EN MEME TEMPS
+    que la duplication, sans repasser dessus apres coup). 'Id'/'Name' sont
+    exclus : geres par des champs dedies du dialogue. Pas de filtre
+    numerique ici (contrairement a detect_numeric_fields_block) -- tout
+    champ simple est editable, y compris du texte."""
+    fields: List["tuple[str, str]"] = []
+    seen: set = set()
+
+    def scan(b: EcfBlock):
+        for k, v in b.pairs:
+            if k and k not in ('Id', 'Name') and k not in seen:
+                seen.add(k)
+                fields.append((k, v))
+        for child in b.children:
+            if isinstance(child, EcfProperty):
+                for k, v in child.pairs:
+                    if k and k not in ('Id', 'Name', 'display', 'type', 'formatter') and k not in seen:
+                        seen.add(k)
+                        fields.append((k, v))
+        for child in b.children:
+            if isinstance(child, EcfBlock):
+                scan(child)
+
+    scan(block)
+    return fields
+
+
 def get_block_field(block: EcfBlock, key: str) -> Optional[str]:
     """Cherche une cle sur la ligne d'ouverture du bloc (Id, Name,
     Class...), sur ses proprietes enfants directes (Material, XpFactor...
@@ -202,16 +315,19 @@ def detect_numeric_fields_block(block: EcfBlock) -> List[str]:
 
 def generate_block_variants(block: EcfBlock, name_base: str, num_variants: int,
                              varying_fields: List[str], total_percent: float,
-                             first_is_original: bool) -> List[EcfBlock]:
+                             first_is_original: bool, variant_names: Optional[List[str]] = None) -> List[EcfBlock]:
     """Genere N blocs variantes independants a partir d'un bloc source.
-    Chaque variante : Name = '{name_base}T{i+1}', Id retire (identifie
-    par Name seul), champs de `varying_fields` interpoles lineairement,
-    tous les autres champs identiques au bloc source (copie profonde via
-    core.ecf.model.duplicate_block, meme mecanique que la duplication
-    simple existante)."""
+    Chaque variante : Name = '{name_base}T{i+1}' PAR DEFAUT, ou le nom
+    fourni dans `variant_names[i]` si precise (demande explicite de
+    l'utilisateur, session du 29/08/2026 : pouvoir personnaliser le nom de
+    chaque variante plutot que de subir le suffixe TN automatique). Id
+    retire (identifie par Name seul), champs de `varying_fields` interpoles
+    lineairement, tous les autres champs identiques au bloc source (copie
+    profonde via core.ecf.model.duplicate_block, meme mecanique que la
+    duplication simple existante)."""
     variants: List[EcfBlock] = []
     for i in range(num_variants):
-        new_name = f"{name_base}T{i + 1}"
+        new_name = variant_names[i] if variant_names and i < len(variant_names) else f"{name_base}T{i + 1}"
         new_block = duplicate_block(block, overrides={'Name': new_name}, remove_keys=['Id'])
         for field_key in varying_fields:
             original_value = get_block_field(block, field_key)

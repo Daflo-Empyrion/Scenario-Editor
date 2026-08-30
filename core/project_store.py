@@ -58,9 +58,10 @@ def load_recent_projects() -> List[ProjectRecord]:
 
 
 def save_recent_projects(projects: List[ProjectRecord]) -> None:
+    from .fsutil import atomic_write_text
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     data = {'projects': [asdict(p) for p in projects]}
-    CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
+    atomic_write_text(CONFIG_FILE, json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def add_recent_project(record: ProjectRecord, max_entries: int = 10) -> List[ProjectRecord]:

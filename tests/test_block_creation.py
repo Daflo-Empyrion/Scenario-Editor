@@ -31,7 +31,7 @@ def blocks_doc():
 def test_scan_kind_frequency_on_real_templates(templates_doc):
     counts = scan_kind_frequency(templates_doc)
     assert counts["+Template"] == 3
-    assert counts["Template"] == 1
+    assert counts["Template"] == 2  # Graphite + IronResource (ajoute pour les tests de duplication)
 
 
 def test_scan_properties_for_kind_on_real_blocks(blocks_doc):

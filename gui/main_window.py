@@ -29,6 +29,7 @@ importer un fichier (mesh, icone, ECF, YAML...).
 """
 import sys
 import shutil
+import traceback
 from pathlib import Path
 from typing import List, Optional
 
@@ -157,6 +158,8 @@ class MainWindow(QMainWindow):
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
         self.action_galaxy_viewer = self.menu_file.addAction(t("menu.tools.galaxy_viewer"))
         self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
+        self.action_tech_tree = self.menu_file.addAction(t("menu.tools.tech_tree"))
+        self.action_tech_tree.triggered.connect(self._open_tech_tree_dialog)
         self.action_search_scenario = self.menu_file.addAction(t("menu.file.search_scenario"))
         self.action_search_scenario.triggered.connect(self._open_search_dialog)
         self.action_pda_mission = self.menu_file.addAction(t("menu.tools.pda_mission"))
@@ -718,7 +721,8 @@ class MainWindow(QMainWindow):
             dest = dest.with_suffix('.csv')
 
         try:
-            dest.write_bytes(csv_text.encode('utf-8'))
+            from core.fsutil import atomic_write_bytes
+            atomic_write_bytes(dest, csv_text.encode('utf-8'))
         except OSError as e:
             QMessageBox.critical(self, t("save.error_title"),
                                   t("save.error_msg", name=dest.name, error=str(e)))
@@ -753,6 +757,58 @@ class MainWindow(QMainWindow):
         from gui.galaxy_viewer_dialog import GalaxyViewerDialog
         self._galaxy_viewer_dialog = GalaxyViewerDialog(doc, parent=self)
         self._galaxy_viewer_dialog.show()
+
+    def _is_path_modified(self, path: Path) -> bool:
+        """True si ce fichier est actuellement ouvert dans un onglet AVEC des
+        modifications non enregistrees -- seul ce cas doit bloquer l'ecriture
+        directe de l'arbre technologique (voir gui/tech_tree_dialog.py) :
+        si l'onglet est ouvert mais SANS modification, l'ecriture est
+        autorisee et l'onglet est automatiquement RECHARGE ensuite (voir
+        _reload_tab_if_open_and_unmodified) pour que l'utilisateur voie la
+        valeur changer EN DIRECT -- demande explicite du 29/08/2026."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(path):
+                widget = self.tabs.widget(i)
+                if hasattr(widget, 'is_modified'):
+                    return widget.is_modified()
+        return False
+
+    def _reload_tab_if_open_and_unmodified(self, path: Path) -> None:
+        """Recharge le contenu d'un onglet DEPUIS LE DISQUE pour qu'il
+        reflete immediatement un changement externe (ici : une ecriture
+        directe de l'arbre technologique) -- ne fait RIEN si le fichier
+        n'est pas ouvert, et ne fait RIEN NON PLUS s'il a des modifications
+        non enregistrees (double garde-fou : ce cas ne devrait de toute
+        facon jamais se produire ici, puisque _is_path_modified aurait deja
+        bloque l'ecriture en amont -- voir gui/tech_tree_dialog.py)."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(path):
+                widget = self.tabs.widget(i)
+                if hasattr(widget, 'is_modified') and widget.is_modified():
+                    return
+                if hasattr(widget, 'reload_from_disk'):
+                    widget.reload_from_disk()
+                return
+
+    def _open_tech_tree_dialog(self):
+        """Arbre technologique (F3 en jeu) -- voir core/tech_tree.py pour les
+        donnees et gui/tech_tree_dialog.py pour la fenetre. Fenetre NON
+        MODALE (meme raisonnement que le viewer de galaxie)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        from core.ecf.block_creation import find_file_by_name
+        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
+        blocks_path = find_file_by_name(ecf_files, "BlocksConfig.ecf")
+        items_path = find_file_by_name(ecf_files, "ItemsConfig.ecf")
+        if blocks_path is None and items_path is None:
+            QMessageBox.information(self, t("techtree.dialog_title"), t("techtree.not_found"))
+            return
+        from gui.tech_tree_dialog import TechTreeDialog
+        self._tech_tree_dialog = TechTreeDialog(
+            self.workspace, parent=self, push_undo=self._push_workspace_undo,
+            is_path_modified=self._is_path_modified, reload_path=self._reload_tab_if_open_and_unmodified)
+        self._tech_tree_dialog.show()
 
     def _open_search_dialog(self):
         """Recherche a travers tous les fichiers de la copie de travail --
@@ -875,8 +931,8 @@ class MainWindow(QMainWindow):
                 return
 
             prior = capture_file(target_path)
-            with open(target_path, 'w', encoding='utf-8', newline='') as f:
-                f.write(doc.render())
+            from core.fsutil import atomic_write_text
+            atomic_write_text(target_path, doc.render())
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('pending.activation_error')} :\n{e}")
             return
@@ -1488,7 +1544,8 @@ class MainWindow(QMainWindow):
             m = dialog.result_multi
             new_blocks = generate_block_variants(
                 block, current_name or "Bloc", m['num_variants'],
-                m['varying_fields'], m['total_percent'], m['first_is_original'])
+                m['varying_fields'], m['total_percent'], m['first_is_original'],
+                variant_names=m.get('variant_names'))
             created_names = []
             prior = capture_file(dest_path)
             for variant_block in new_blocks:
@@ -2001,7 +2058,8 @@ class MainWindow(QMainWindow):
                                     copy_block_callback=_copy_block_cb if settings.get_merge_enabled() else None,
                                     duplicate_block_callback=_duplicate_block_cb,
                                     sibling_ecf_files=[f.path for f in self.workspace.working.configuration
-                                                        if f.extension == '.ecf'])
+                                                        if f.extension == '.ecf'],
+                                    working_root=self.workspace.working_root)
         except Exception as e:
             QMessageBox.critical(self, t("err.read_title"), f"{t('open.error', file=path.name)} :\n{e}")
             return
@@ -2143,6 +2201,60 @@ class MainWindow(QMainWindow):
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
         return widget
+
+    def _modified_tab_widgets(self) -> list:
+        """Widgets d'onglets actuellement modifies, dans l'ordre des onglets.
+        Meme duck-typing que _is_path_modified : tous les widgets d'edition
+        exposes is_modified() (EcfEditWidget, CompareWidget, CsvEditWidget,
+        YamlEditWidget, TxtEditWidget, PlayfieldEditWidget, DialogueEditWidget),
+        les onglets lecture seule n'exposent pas cette methode."""
+        modified = []
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if widget is not None and hasattr(widget, 'is_modified') and widget.is_modified():
+                modified.append(widget)
+        return modified
+
+    def closeEvent(self, event):
+        """Garde-fou a la fermeture de l'application : si des onglets ouverts ont
+        des modifications non enregistrees, propose d'enregistrer (ou d'abandonner)
+        AVANT que la fenetre ne disparaisse -- sans cela, quitter perdait
+        silencieusement tout le travail en cours dans les onglets. Un echec
+        d'enregistrement (erreur disque/permission, deja signalee par le save()
+        de l'onglet concerne) laisse le widget en etat modifie et annule la
+        fermeture -- on ne perd jamais des donnees en croyant avoir sauvegarde."""
+        modified = self._modified_tab_widgets()
+        if not modified:
+            event.accept()
+            return
+
+        file_names = "\n".join(
+            "  - " + self.tabs.tabText(self.tabs.indexOf(w)).lstrip("✎🔒* ").strip()
+            for w in modified)
+        answer = QMessageBox.question(
+            self, t("quit.modified_title"),
+            t("quit.modified_msg", count=len(modified), files=file_names),
+            (QMessageBox.StandardButton.Save
+             | QMessageBox.StandardButton.Discard
+             | QMessageBox.StandardButton.Cancel),
+            QMessageBox.StandardButton.Save)
+        if answer == QMessageBox.StandardButton.Cancel:
+            event.ignore()
+            return
+        if answer == QMessageBox.StandardButton.Save:
+            for widget in modified:
+                widget.save()
+            still_modified = self._modified_tab_widgets()
+            if still_modified:
+                # Au moins un save() a echoue (son dialogue d'erreur est deja
+                # affiche) -- ne pas fermer, l'utilisateur doit pouvoir copier
+                # son travail ailleurs.
+                event.ignore()
+                self.statusBar().showMessage(
+                    t("quit.save_failed", name=self.tabs.tabText(
+                        self.tabs.indexOf(still_modified[0])).strip()))
+                return
+        event.accept()
 
 
 class EcfViewWidget(QWidget):
@@ -2458,10 +2570,101 @@ def _show_first_launch_language_picker():
     settings.set_language_chosen(True)
 
 
+# ---------------------------------------------------------------------------
+# Gestion globale des exceptions non interceptees
+# ---------------------------------------------------------------------------
+# En PyQt6, une exception levee dans un slot (ou une reimplemention de methode
+# C++) et non attrapee par le code du slot est passee a sys.excepthook ; si ce
+# dernier est encore le hook par defaut de Python, PyQt6 appelle ensuite
+# qFatal() et l'application MEURT instantanement. Installer un hook personnalise
+# est donc ce qui evite le crash brutal : l'application continue de tourner et
+# la personne peut sauvegarder son travail (l'ecriture des fichiers de scenario
+# passe par des try/except locaux, une exception qui arrive ICI n'a en principe
+# pas corrompu quoi que ce soit sur disque).
+
+_crash_dialog_open = False  # garde anti-reentrance : pas de pile de dialogues si plusieurs slots plantent a la suite
+
+
+def _show_crash_message_box(error_text: str, exc_value: BaseException) -> bool:
+    """Boite de dialogue d'erreur inattendue (pile dans 'Details'). Retourne True
+    si la personne a demande le rapport de bug, False sinon (ou si aucune
+    QApplication n'existe -- exception hors interface, aucun dialogue possible)."""
+    from PyQt6.QtWidgets import QApplication, QMessageBox
+
+    if QApplication.instance() is None:
+        return False
+
+    box = QMessageBox(QMessageBox.Icon.Critical, t("crash.title"),
+                      t("crash.msg", error=str(exc_value)))
+    box.setDetailedText(error_text)
+    btn_report = box.addButton(t("crash.btn_report"), QMessageBox.ButtonRole.AcceptRole)
+    box.addButton(t("btn.close"), QMessageBox.ButtonRole.RejectRole)
+    box.exec()
+    return box.clickedButton() is btn_report
+
+
+def _handle_uncaught_exception(exc_type, exc_value, exc_tb):
+    """Excepthook global : journalise la pile sur stderr (trace exploitable meme
+    en executable), puis propose le rapport de bug pre-rempli. Ne releve JAMAIS
+    l'exception -- c'est justement ce qui empeche qFatal()."""
+    global _crash_dialog_open
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+        return
+
+    error_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    sys.stderr.write(error_text)
+
+    if _crash_dialog_open:
+        return
+    _crash_dialog_open = True
+    try:
+        if _show_crash_message_box(error_text, exc_value):
+            _open_crash_report_dialog(error_text, exc_value)
+    except Exception:
+        # Le dialogue (ou le rapport) a lui-meme plante : ne JAMAIS laisser une
+        # exception sortir du hook, sinon PyQt6 retombe sur qFatal().
+        sys.stderr.write(error_text)
+    finally:
+        _crash_dialog_open = False
+
+
+def _open_crash_report_dialog(error_text: str, exc_value: BaseException):
+    """Ouvre le formulaire GitHub "Signaler" avec la pile d'erreur pre-remplie
+    dans le champ description (lisible, editable, rien d'envoye automatiquement
+    -- voir gui/report_issue_dialog.py). Reutilise la capture d'ecran et les
+    actions recentes du bouton Signaler classique ; si la fenetre principale
+    n'est pas retrouvable (crash au demarrage...), le formulaire s'ouvre quand
+    meme, simplement sans capture ni historique."""
+    from PyQt6.QtWidgets import QApplication
+
+    main_win = None
+    for widget in QApplication.topLevelWidgets():
+        if isinstance(widget, MainWindow):
+            main_win = widget
+            break
+
+    screenshot = main_win.grab() if main_win is not None else QPixmap()
+    recent_actions = (main_win.workspace_undo.all_labels()
+                      if main_win is not None and main_win.workspace else [])
+
+    from gui.report_issue_dialog import ReportIssueDialog
+    dialog = ReportIssueDialog(screenshot, recent_actions)
+    dialog.title_input.setText(t("crash.report_title", error=str(exc_value))[:200])
+    dialog.description_input.setPlainText(
+        t("crash.report_intro") + "\n\n```\n" + error_text + "\n```")
+    dialog.exec()
+
+
 def main():
     app = QApplication(sys.argv)
     from gui.theme import apply_theme
     apply_theme(app)
+
+    # AVANT toute construction de fenetre : une exception dans un slot PyQt6
+    # avec le hook Python par defaut terminerait l'application par qFatal()
+    # (voir la note au-dessus de _handle_uncaught_exception).
+    sys.excepthook = _handle_uncaught_exception
 
     _show_first_launch_language_picker()
 

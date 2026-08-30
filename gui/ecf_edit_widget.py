@@ -35,9 +35,9 @@ from PyQt6.QtWidgets import (
     QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
     QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
-from PyQt6.QtGui import QColor, QBrush
+from PyQt6.QtGui import QColor, QBrush, QPixmap
 
 from core.ecf.parser import parse_ecf_file, parse_ecf_text
 from core.ecf.transform import TransformRule, preview_transform, format_block_label
@@ -890,7 +890,8 @@ class EcfEditWidget(QWidget):
     modified_changed = pyqtSignal(bool)
     saved = pyqtSignal()
 
-    def __init__(self, path: Path, sibling_ecf_files: Optional[List[Path]] = None):
+    def __init__(self, path: Path, sibling_ecf_files: Optional[List[Path]] = None,
+                 working_root: Optional[Path] = None):
         super().__init__()
         self.path = path
         self.doc: EcfDocument = parse_ecf_file(path)
@@ -905,6 +906,21 @@ class EcfEditWidget(QWidget):
         # complet (ex: fichier isole) -- le dialogue gere ce cas en desactivant
         # simplement la proposition de Template.
         self.sibling_ecf_files = sibling_ecf_files
+        # Racine de la copie de travail -- utilise UNIQUEMENT pour resoudre les
+        # icones reelles lors de la previsualisation dans l'arbre technologique
+        # (voir gui/tech_tree_preview_dialog.py). None si absent (memes cas que
+        # sibling_ecf_files ci-dessus) -- la previsualisation retombe alors sur
+        # l'icone generique pour tous les noeuds.
+        self.working_root = working_root
+        # Fiche d'information flottante (voir gui/block_info_card_widget.py,
+        # core/block_info_card.py) -- caches lazy pour la localisation/les
+        # icones (statiques le temps d'une session) ; Templates.ecf N'EST
+        # JAMAIS mis en cache ici (voir _get_info_card_templates_doc -- doit
+        # toujours refleter l'etat le plus a jour, y compris un Template
+        # tout juste cree par duplication et encore non enregistre).
+        self._info_card = None
+        self._info_card_localization_index = None
+        self._info_card_icon_index = None
         self._undo_stack: list = []  # textes serialises (fidelite deja prouvee par le parser)
         self._undo_max = 20
 
@@ -983,6 +999,7 @@ class EcfEditWidget(QWidget):
         self.tree.setHeaderLabels(["Bloc"])
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_block_selected)
+        self.tree.itemClicked.connect(self._on_tree_item_clicked_for_info_card)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
         splitter.addWidget(self.tree)
@@ -1017,10 +1034,8 @@ class EcfEditWidget(QWidget):
 
     def save(self):
         try:
-            from core.fsutil import clear_readonly
-            clear_readonly(self.path)
-            with open(self.path, 'w', encoding='utf-8', newline='') as f:
-                f.write(self.doc.render())
+            from core.fsutil import atomic_write_text
+            atomic_write_text(self.path, self.doc.render())
         except OSError as e:
             QMessageBox.critical(self, t("save.error_title"),
                                   t("save.error_msg", name=self.path.name, error=str(e)))
@@ -1174,6 +1189,36 @@ class EcfEditWidget(QWidget):
             self._select_property_row(prop_key, prop_value)
         return True
 
+    def reload_from_disk(self) -> None:
+        """Recharge le contenu DEPUIS LE DISQUE (ex: apres une ecriture
+        externe faite par l'arbre technologique) -- demande explicite de
+        l'utilisateur (session du 29/08/2026) : pouvoir observer EN DIRECT,
+        dans cet onglet deja ouvert, les valeurs changer pendant qu'il glisse
+        une icone dans l'arbre technologique.
+
+        NE DOIT JAMAIS etre appele si is_modified() est vrai -- voir
+        l'appelant, MainWindow._reload_tab_if_open_and_unmodified, qui
+        garantit cette condition : ecraserait sinon un travail en cours sans
+        aucun avertissement.
+
+        Re-selectionne automatiquement le meme bloc qu'avant (par identite
+        Id/Name, voir select_block_by_identity) s'il existe toujours, pour
+        que le panneau de proprietes affiche la nouvelle valeur
+        immediatement, sans action de l'utilisateur."""
+        previous_identity = block_identity(self._current_block) if self._current_block else None
+
+        self.doc = parse_ecf_file(self.path)
+        self._current_block = None
+        self._edited_prop_nodes = set()
+        self._undo_stack = []
+        self._populate_tree()
+
+        if previous_identity is not None:
+            self.select_block_by_identity(previous_identity)
+        else:
+            self._refresh_props_table()
+        self._set_modified(False)
+
     def _find_tree_item_with_property(self, item: QTreeWidgetItem, key: str, value: str):
         """Cherche, dans le sous-arbre de `item` (lui-meme inclus), le premier noeud
         dont le bloc associe contient DIRECTEMENT (sans redescendre plus loin) une
@@ -1218,6 +1263,135 @@ class EcfEditWidget(QWidget):
             return
         self._current_block = block
         self._refresh_props_table()
+
+    def _on_tree_item_clicked_for_info_card(self, item: QTreeWidgetItem, column: int) -> None:
+        """Distinct de _on_block_selected : celui-ci n'est branche QUE sur un
+        vrai clic utilisateur (QTreeWidget.itemClicked), jamais sur une
+        reselection PROGRAMMATIQUE (recherche, select_block_by_identity,
+        reload_from_disk) -- demande explicite de l'utilisateur, la fiche ne
+        doit s'ouvrir que sur un clic reel, jamais se rouvrir toute seule
+        apres un rechargement externe."""
+        block = item.data(0, Qt.ItemDataRole.UserRole)
+        if isinstance(block, EcfBlock):
+            self._show_info_card_for(block)
+
+    def _get_info_card_localization_index(self):
+        if self._info_card_localization_index is None:
+            from core.localization_lookup import build_localization_index
+            self._info_card_localization_index = build_localization_index(self.working_root)
+        return self._info_card_localization_index
+
+    def _get_info_card_templates_doc(self):
+        """Cherche TOUJOURS l'etat le PLUS A JOUR de Templates.ecf -- bug
+        reel signale par l'utilisateur (29/08/2026) : un Template juste cree
+        par duplication n'apparaissait jamais dans la fiche d'information,
+        car l'ancienne version METTAIT EN CACHE une lecture disque UNIQUE au
+        premier clic, jamais rafraichie ensuite -- et un Template cree par
+        duplication vit d'abord en MEMOIRE dans l'onglet Templates.ecf tant
+        qu'il n'est pas enregistre, invisible a une relecture disque.
+        Cherche donc D'ABORD un onglet Templates.ecf DEJA OUVERT (forcement
+        a jour), et ne relit le disque qu'en dernier recours (aucun onglet
+        ouvert pour ce fichier)."""
+        if not self.sibling_ecf_files:
+            return None
+        from core.ecf.block_creation import find_file_by_name
+        templates_path = find_file_by_name(self.sibling_ecf_files, 'Templates.ecf')
+        if templates_path is None:
+            return None
+        main_window = self.window()
+        if hasattr(main_window, 'tabs'):
+            for i in range(main_window.tabs.count()):
+                if main_window.tabs.tabToolTip(i) == str(templates_path):
+                    tab_widget = main_window.tabs.widget(i)
+                    edit_widget = getattr(tab_widget, 'edit_widget', tab_widget)
+                    if hasattr(edit_widget, 'doc'):
+                        return edit_widget.doc
+        try:
+            return parse_ecf_file(templates_path)
+        except Exception:
+            return None
+
+    def _get_info_card_icon_index(self):
+        if self._info_card_icon_index is None:
+            if self.working_root is not None:
+                from core.tech_tree_icons import build_icon_index
+                self._info_card_icon_index = build_icon_index(self.working_root)
+            else:
+                self._info_card_icon_index = {}
+        return self._info_card_icon_index
+
+    def _show_info_card_for(self, block: EcfBlock) -> None:
+        """Construit et affiche la fiche d'information du bloc selectionne --
+        voir gui/block_info_card_widget.py. S'ouvre UNIQUEMENT depuis un clic
+        (seul appelant : _on_block_selected, lui-meme branche sur
+        QTreeWidget.itemClicked), jamais au survol ni automatiquement."""
+        name = block.get('Name') or block.get_property('Name')
+        if not name:
+            return
+        from core.i18n import get_language
+        from core.block_info_card import build_block_info_card
+        loc = self._get_info_card_localization_index()
+        templates_doc = self._get_info_card_templates_doc()
+        card_data = build_block_info_card(block, loc, get_language(), templates_doc)
+
+        pixmap = None
+        if card_data.icon_key:
+            from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
+            icon_index = self._get_info_card_icon_index()
+            ref = resolve_icon_path(icon_index, card_data.icon_key)
+            if ref is not None:
+                data = load_icon_bytes(ref)
+                if data:
+                    candidate = QPixmap()
+                    if candidate.loadFromData(data) and not candidate.isNull():
+                        pixmap = candidate
+
+        if self._info_card is None:
+            from gui.block_info_card_widget import BlockInfoCardWidget
+            self._info_card = BlockInfoCardWidget(self)
+            self._info_card.field_clicked.connect(self._on_info_card_field_clicked)
+        # Ne repositionne QUE lors d'une VRAIE ouverture (fiche fermee, ou
+        # affichant deja un AUTRE bloc) -- un simple rafraichissement (meme
+        # bloc, ex: apres edition d'une propriete) ne doit jamais annuler un
+        # deplacement manuel de l'utilisateur (fiche deplacable a la souris,
+        # demande explicite du 29/08/2026).
+        was_showing_this_block = self._info_card.is_showing(name)
+        self._info_card.show_card(name, card_data, pixmap)
+        if not was_showing_this_block:
+            self._position_info_card()
+
+    def _position_info_card(self) -> None:
+        """Position INITIALE seulement (voir _show_info_card_for, jamais
+        appelee lors d'un simple rafraichissement) -- la fiche etant
+        desormais une fenetre independante (voir BlockInfoCardWidget), sa
+        position se fixe en coordonnees ECRAN (mapToGlobal), pas relatives a
+        ce widget."""
+        if self._info_card is None:
+            return
+        local_x = max(0, self.width() - self._info_card.width() - 14)
+        global_pos = self.mapToGlobal(QPoint(local_x, 30))
+        self._info_card.move(global_pos)
+
+    def _on_info_card_field_clicked(self, root_identity: str, prop_key: str, prop_value: str) -> None:
+        """Clic sur une valeur de la fiche d'information -- navigue
+        directement vers la ligne correspondante dans le tableau de
+        proprietes pour modification rapide (demande explicite de
+        l'utilisateur, session du 29/08/2026). Reutilise select_block_by_
+        identity(), deja capable de retrouver le sous-bloc EXACT (ex:
+        '{ Child 0 ... }' d'une arme) contenant cette paire cle/valeur, pas
+        seulement le bloc racine."""
+        self.select_block_by_identity(root_identity, prop_key=prop_key, prop_value=prop_value)
+
+    def _refresh_info_card_if_showing(self, block: EcfBlock) -> None:
+        """Rafraichissement EN DIRECT (demande explicite de l'utilisateur,
+        session du 29/08/2026) -- appele apres toute modification de
+        propriete (voir _on_cell_changed) ; ne fait rien si la fiche n'est
+        pas ouverte ou affiche un AUTRE bloc que celui modifie."""
+        if self._info_card is None:
+            return
+        name = block.get('Name') or block.get_property('Name')
+        if name and self._info_card.is_showing(name):
+            self._show_info_card_for(block)
 
     def _detect_repeating_items(self, block: EcfBlock):
         """Delegue a core.ecf.model.detect_repeating_items -- extrait pour
@@ -1430,6 +1604,8 @@ class EcfEditWidget(QWidget):
         self.props_table.blockSignals(True)
         item.setBackground(COLOR_MODIFIED_ROW)
         self.props_table.blockSignals(False)
+        if self._current_block is not None:
+            self._refresh_info_card_if_showing(self._current_block)
 
     def _show_table_context_menu(self, pos):
         item = self.props_table.itemAt(pos)
@@ -1732,7 +1908,7 @@ class EcfEditWidget(QWidget):
         numeric_fields = detect_numeric_fields_block(block)
 
         dialog = DuplicateVariantsDialog(current_id, current_name, suggestions, numeric_fields,
-                                          parent=self, show_id_field=True)
+                                          parent=self, show_id_field=True, source_block=block)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -1746,7 +1922,7 @@ class EcfEditWidget(QWidget):
             m = dialog.result_multi
             new_blocks = generate_block_variants(
                 block, current_name or "Bloc", m['num_variants'], m['varying_fields'],
-                m['total_percent'], m['first_is_original'])
+                m['total_percent'], m['first_is_original'], variant_names=m.get('variant_names'))
             colliding = [b for b in new_blocks if block_identity(b) in existing_identities]
             if colliding:
                 QMessageBox.warning(self, t("dup.already_used_title"),
@@ -1755,16 +1931,30 @@ class EcfEditWidget(QWidget):
             self._snapshot_undo()
             for offset, new_block in enumerate(new_blocks):
                 new_block.indent = block.indent
+                # Proprietes ajustees dans l'apercu du dialogue -- appliquees
+                # a TOUTES les variantes, en plus de la variation en
+                # pourcentage deja calculee par generate_block_variants (voir
+                # docstring de DuplicateVariantsDialog, demande explicite de
+                # l'utilisateur du 29/08/2026).
+                for field_key, field_value in dialog.result_field_overrides.items():
+                    set_block_field(new_block, field_key, field_value)
                 container.insert(idx + 1 + offset, new_block)
             self._set_modified(True)
             self._populate_tree()
             names = ', '.join(b.get_property('Name') for b in new_blocks)
             QMessageBox.information(self, t("dup.title"),
                                      t("dup.variants_created", count=len(new_blocks), names=names))
-            # NOUVEAU : propose la création des Templates associés à chaque variante
-            self._maybe_propose_templates_for_variants(
-                current_name,
-                [b.get_property('Name') for b in new_blocks if b.get_property('Name')])
+            new_names = [b.get_property('Name') for b in new_blocks if b.get_property('Name')]
+            # Nom affiche (Localization.csv) -- demande explicite de
+            # l'utilisateur (29/08/2026) : un duplicata n'a par definition
+            # jamais de traduction, sans quoi il s'affiche en jeu avec sa
+            # cle technique brute.
+            self._offer_localization_adjustment(current_name, new_names)
+            # Propose la creation des Templates associes a chaque variante --
+            # retour utilisateur clarifie (29/08/2026) : la demande initiale
+            # concernait bien CE flux (duplication au sein de la copie de
+            # travail), pas seulement Scenario A/B -> copie de travail.
+            self._maybe_propose_templates_for_variants(current_name, new_names)
         else:
             overrides = {}
             if dialog.result_new_id:
@@ -1780,6 +1970,13 @@ class EcfEditWidget(QWidget):
                         continue
                     new_value = compute_single_variant_value(original_value, dialog.result_simple_percent)
                     set_block_field(new_block, field_key, new_value)
+            # Proprietes ajustees dans l'apercu du dialogue -- demande
+            # explicite de l'utilisateur (29/08/2026), voir docstring de
+            # DuplicateVariantsDialog. Applique APRES la variation en
+            # pourcentage eventuelle, pour que l'ajustement manuel ait
+            # toujours le dernier mot si les deux touchent le meme champ.
+            for field_key, field_value in dialog.result_field_overrides.items():
+                set_block_field(new_block, field_key, field_value)
             if block_identity(new_block) in existing_identities:
                 QMessageBox.warning(self, t("dup.already_used_title"),
                                      t("dup.already_used_msg", file=self.path.name))
@@ -1789,7 +1986,37 @@ class EcfEditWidget(QWidget):
             container.insert(idx + 1, new_block)
             self._set_modified(True)
             self._populate_tree()
+            # Nom affiche (Localization.csv) puis proposition de Template --
+            # meme logique que le mode multi-variantes ci-dessus, pour cette
+            # copie unique.
+            new_name = new_block.get_property('Name')
+            if new_name:
+                self._offer_localization_adjustment(current_name, [new_name])
+                self._maybe_propose_templates_for_variants(current_name, [new_name])
 
+
+    def _offer_localization_adjustment(self, source_name: Optional[str], new_names: List[str]) -> None:
+        """Propose d'ajouter/ajuster le nom AFFICHE (Extras/Localization.csv
+        du scenario) pour chaque bloc/item nouvellement duplique -- demande
+        explicite de l'utilisateur (session du 29/08/2026). Voir docstring
+        de gui/localization_adjust_dialog.py. Sans nom de bloc source ou de
+        contexte de scenario (working_root), la proposition est
+        silencieusement sautee -- rien a pre-remplir/ecrire de sense."""
+        if not source_name or not new_names or self.working_root is None:
+            return
+        from core.localization_lookup import build_localization_index, write_scenario_localization_entries
+        from gui.localization_adjust_dialog import LocalizationAdjustDialog
+
+        loc = build_localization_index(self.working_root)
+        source_fr = loc.get(source_name, 'fr') or source_name
+        source_en = loc.get(source_name, 'en') or source_name
+
+        dialog = LocalizationAdjustDialog(new_names, (source_fr, source_en), parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        entries = dialog.get_entries()
+        if entries:
+            write_scenario_localization_entries(self.working_root, entries)
 
     def _maybe_propose_templates_for_variants(self, source_name: Optional[str],
                                                variant_names: List[str]):
@@ -1830,6 +2057,7 @@ class EcfEditWidget(QWidget):
         seul le Name est remplacé. Ouvre (ou active) Templates.ecf comme un VRAI
         onglet de la copie de travail."""
         from core.ecf.parser import parse_ecf_file
+        from core.ecf.block_creation import find_file_by_name
         import copy as _copy
         main_window = self.window()
         if not hasattr(main_window, "open_working_file_tab"):
@@ -1852,6 +2080,33 @@ class EcfEditWidget(QWidget):
                 self, t("addblock.templates_not_found_title"),
                 t("dup.variants_no_source_template", name=source_template_name))
             return
+
+        # Apercu editable AVANT creation -- demande explicite de
+        # l'utilisateur (session du 29/08/2026, PRECISEE ensuite) : pouvoir
+        # ajuster CHAQUE Template INDIVIDUELLEMENT (pas une valeur uniforme
+        # pour tous), et pouvoir AJOUTER un ingredient via une liste
+        # deroulante de blocs/items valides.
+        from core.ecf.variants import (
+            list_template_scalar_fields, list_template_ingredients, set_block_field, set_template_ingredient,
+        )
+        from core.ecf.block_creation import list_craftable_names
+        from gui.template_adjust_dialog import TemplateAdjustDialog
+
+        items_path = find_file_by_name(self.sibling_ecf_files, 'ItemsConfig.ecf') if self.sibling_ecf_files else None
+        blocks_path = find_file_by_name(self.sibling_ecf_files, 'BlocksConfig.ecf') if self.sibling_ecf_files else None
+        craftable_names = list_craftable_names(items_path, blocks_path)
+
+        entries: dict = {}
+        adjust_dialog = TemplateAdjustDialog(
+            variant_names, list_template_scalar_fields(source_template),
+            list_template_ingredients(source_template), craftable_names, parent=self)
+        if adjust_dialog.exec() == QDialog.DialogCode.Accepted:
+            entries = adjust_dialog.get_entries()
+        # Annuler ce dialogue d'ajustement ne bloque PAS la creation des
+        # Templates (deja confirmee via le QMessageBox.question precedent)
+        # -- signifie juste 'sans ajustement supplementaire', pas 'annuler
+        # toute l'operation'.
+
         if hasattr(templates_edit, "_snapshot_undo"):
             templates_edit._snapshot_undo()
         created = 0
@@ -1866,6 +2121,11 @@ class EcfEditWidget(QWidget):
                 new_template.set_property('Name', variant_name)
             # Retire l'Id s'il y en a un
             new_template.remove('Id')
+            variant_entries = entries.get(variant_name, {})
+            for field_key, field_value in variant_entries.get('scalar', {}).items():
+                set_block_field(new_template, field_key, field_value)
+            for ingredient_name, quantity in variant_entries.get('ingredients', {}).items():
+                set_template_ingredient(new_template, ingredient_name, quantity)
             if settings.get_annotations_enabled():
                 author = settings.get_author()
                 new_template.comment = f"# Ajouté par {author} (variante de {source_template_name})"
@@ -1911,6 +2171,19 @@ class EcfEditWidget(QWidget):
                 continue
             item.setHidden(not all(k in _block_own_keys(block) for k in keys))
 
+    def _tech_tree_source_for_current_file(self) -> Optional[str]:
+        """'block' si ce widget edite BlocksConfig.ecf, 'item' si
+        ItemsConfig.ecf, None sinon (ex: LootGroups.ecf, Templates.ecf --
+        pas de concept d'arbre technologique) -- determine si le bouton de
+        previsualisation de l'arbre technologique doit apparaitre dans
+        PropertyTableDialog (voir gui/tech_tree_preview_dialog.py)."""
+        name_lower = self.path.name.lower()
+        if name_lower == "blocksconfig.ecf":
+            return "block"
+        if name_lower == "itemsconfig.ecf":
+            return "item"
+        return None
+
     def _add_block_dialog(self):
         """Creation guidee d'un nouveau bloc/item -- tableau de proprietes issu
         du fichier de travail, puis proposition de creer le Template associe
@@ -1930,7 +2203,10 @@ class EcfEditWidget(QWidget):
 
         table_dialog = PropertyTableDialog(
             self.doc, id_mode, existing_ids, default_kind=default_kind,
-            window_title_key="addblock.table_title", parent=self)
+            window_title_key="addblock.table_title", parent=self,
+            tech_tree_source=self._tech_tree_source_for_current_file(),
+            working_root=self.working_root,
+            sibling_ecf_files=self.sibling_ecf_files)
         if table_dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -2036,7 +2312,7 @@ class CompareWidget(QWidget):
 
     def __init__(self, working_path: Path, compare_sources: Dict[str, tuple], view_widget_factory,
                  copy_block_callback=None, duplicate_block_callback=None,
-                 sibling_ecf_files: Optional[List[Path]] = None):
+                 sibling_ecf_files: Optional[List[Path]] = None, working_root: Optional[Path] = None):
         """
         compare_sources : {label: (chemin_source, racine_source)}
         view_widget_factory(path, on_copy_block=None, on_duplicate_block=None) doit
@@ -2049,6 +2325,8 @@ class CompareWidget(QWidget):
         source_label) : appele quand l'utilisateur choisit "dupliquer avec un nouvel
         Id" depuis un panneau source.
         sibling_ecf_files : voir EcfEditWidget, transmis tel quel.
+        working_root : voir EcfEditWidget, transmis tel quel (previsualisation
+        arbre technologique).
         """
         super().__init__()
         layout = QVBoxLayout(self)
@@ -2056,7 +2334,8 @@ class CompareWidget(QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        self.edit_widget = EcfEditWidget(working_path, sibling_ecf_files=sibling_ecf_files)
+        self.edit_widget = EcfEditWidget(working_path, sibling_ecf_files=sibling_ecf_files,
+                                          working_root=working_root)
         splitter.addWidget(self.edit_widget)
 
         if compare_sources:
@@ -2086,6 +2365,9 @@ class CompareWidget(QWidget):
 
     def is_modified(self) -> bool:
         return self.edit_widget.is_modified()
+
+    def reload_from_disk(self) -> None:
+        self.edit_widget.reload_from_disk()
 
     def save(self):
         self.edit_widget.save()

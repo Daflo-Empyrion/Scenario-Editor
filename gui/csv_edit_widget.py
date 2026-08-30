@@ -71,6 +71,7 @@ class CsvEditWidget(QWidget):
         self._search_matches = []
         self._search_index = -1
         self._search_last_scope_key = None
+        self._batch_worker = None  # traduction en lot en cours (ref forte : sinon le GC tue le QThread en vol)
 
         handler = CsvHandler()
         raw = handler.load(path)
@@ -273,10 +274,8 @@ class CsvEditWidget(QWidget):
         self._sync_doc_from_table()
         rendered = render_csv(self.doc)
         try:
-            from core.fsutil import clear_readonly
-            clear_readonly(self.path)
-            with open(self.path, 'w', encoding='utf-8', newline='') as f:
-                f.write(rendered)
+            from core.fsutil import atomic_write_text
+            atomic_write_text(self.path, rendered)
         except OSError as e:
             QMessageBox.critical(self, t("save.error_title"),
                                   t("save.error_msg", name=self.path.name, error=str(e)))
@@ -555,68 +554,127 @@ class CsvEditWidget(QWidget):
             QMessageBox.information(self, t("err.missing_field"), t("trans.no_cells_selected"))
             return
 
-        from PyQt6.QtWidgets import QProgressDialog
-        progress = QProgressDialog(t("trans.translating_progress", done=0, total=len(candidates)),
-                                    t("btn.cancel"), 0, len(candidates), self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(300)
-
-        items_for_review = []
-        source_items = []
-        dest_items = []
-        MAX_CONSECUTIVE_FAILURES = 5
-        consecutive_failures = 0
-        stopped_early = False
-        for i, it in enumerate(candidates):
-            progress.setValue(i)
-            progress.setLabelText(t("trans.translating_progress", done=i, total=len(candidates)))
-            QApplication.processEvents()
-            if progress.wasCanceled():
-                break
+        # ---- Phase 1 (thread interface, rapide) : planification ----
+        # Toute lecture/ecriture de la table a lieu ICI, AVANT le demarrage du
+        # worker -- le thread de traduction ne touche jamais a aucun widget. La
+        # barre de progression etant modale, la table ne peut pas changer pendant
+        # le lot. Comme pour la traduction cellule par cellule : si une colonne
+        # correspond deja a la langue cible, le resultat y va (meme ligne) plutot
+        # que d'ecraser la cellule source qui a servi de texte d'origine.
+        target_col = self._find_language_column(target_code, target_label)
+        plan = []
+        for it in candidates:
             header = self.table.horizontalHeaderItem(it.column())
             header_text = header.text() if header else str(it.column())
             key_item = self.table.item(it.row(), 0)
             row_key = key_item.text() if key_item else str(it.row() + 1)
-            failed = False
-            try:
-                translated = translation.translate_text(it.text(), target=target_code)
-                consecutive_failures = 0
-            except Exception as e:
-                translated = f"[{t('trans.error_title')}: {e}]"
-                failed = True
-                consecutive_failures += 1
-            items_for_review.append({
-                'label': f"{row_key} / {header_text}",
-                'original': it.text(),
-                'translated': translated,
-                'failed': failed,
-            })
-            source_items.append(it)
-            # Comme pour la traduction cellule par cellule : si une colonne correspond
-            # deja a la langue cible, le resultat y va (meme ligne) plutot que
-            # d'ecraser la cellule source qui a servi de texte d'origine.
-            target_col = self._find_language_column(target_code, target_label)
             if target_col is not None and target_col != it.column():
                 dest_item = self.table.item(it.row(), target_col)
                 if dest_item is None:
                     dest_item = QTableWidgetItem("")
                     self.table.setItem(it.row(), target_col, dest_item)
-                dest_items.append(dest_item)
             else:
-                dest_items.append(it)
-            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                stopped_early = True
-                break
-        progress.setValue(len(candidates))
+                dest_item = it
+            plan.append({'label': f"{row_key} / {header_text}",
+                         'original': it.text(), 'dest_item': dest_item})
 
-        if stopped_early:
+        self._run_batch_translation(
+            [p['original'] for p in plan], target_code,
+            lambda i, n: t("trans.translating_progress", done=i, total=n),
+            lambda results, stopped_by_failures, consecutive_failures, processed:
+                self._finish_batch_review(
+                    plan, results, stopped_by_failures, consecutive_failures, processed))
+
+    def _run_batch_translation(self, texts: list, target_code: str, progress_text,
+                               on_finished):
+        """Traduit `texts` via le worker d'arriere-plan (gui/translation_worker.py)
+        avec une barre de progression modale -- l'interface reste entierement
+        fluide, plus aucun processEvents ni gel pendant chaque requete Google.
+
+        A la fin (liste terminee OU arret demande), appelle
+        on_finished(results, stopped_by_failures, consecutive_failures, processed)
+        sur le thread interface : results[i] decrit le sort du i-eme texte (None
+        si jamais traite -- les None ne peuvent etre qu'en QUEUE, le worker
+        traitant dans l'ordre) ; processed = nombre de resultats en prefixe."""
+        from PyQt6.QtWidgets import QProgressDialog
+        from gui.translation_worker import BatchTranslationWorker
+
+        if self._batch_worker is not None and self._batch_worker.isRunning():
+            QMessageBox.information(self, t("err.title"), t("trans.batch_already_running"))
+            return
+
+        progress = QProgressDialog(progress_text(0, len(texts)),
+                                   t("btn.cancel"), 0, len(texts), self)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(300)
+
+        results = [None] * len(texts)
+        state = {'consecutive_failures': 0, 'stopped_by_failures': False}
+        MAX_CONSECUTIVE_FAILURES = 5
+        worker = BatchTranslationWorker(texts, target_code, parent=self)
+        self._batch_worker = worker
+
+        def _on_progress(index, total):
+            progress.setValue(index)
+            progress.setLabelText(progress_text(index, total))
+
+        def _on_item_done(index, translated, error):
+            failed = bool(error)
+            results[index] = {
+                'translated': translated if not failed else f"[{t('trans.error_title')}: {error}]",
+                'failed': failed,
+            }
+            if failed:
+                state['consecutive_failures'] += 1
+                # Arret automatique si le service semble en panne -- sans ca, un
+                # gros lot martelerait un service indisponible pendant des heures
+                # (comportement identique a l'ancienne boucle synchrone).
+                if state['consecutive_failures'] >= MAX_CONSECUTIVE_FAILURES:
+                    state['stopped_by_failures'] = True
+                    worker.stop()
+            else:
+                state['consecutive_failures'] = 0
+
+        def _on_finished():
+            progress.cancel()
+            worker.deleteLater()
+            if self._batch_worker is worker:
+                self._batch_worker = None
+            processed = 0
+            for r in results:  # les None ne peuvent etre qu'en queue (traitement ordonne)
+                if r is None:
+                    break
+                processed += 1
+            on_finished(results, state['stopped_by_failures'],
+                        state['consecutive_failures'], processed)
+
+        worker.progress.connect(_on_progress)
+        worker.item_done.connect(_on_item_done)
+        worker.finished_all.connect(_on_finished)
+        progress.canceled.connect(worker.stop)
+        worker.start()
+
+    def _finish_batch_review(self, plan: list, results: list, stopped_by_failures: bool,
+                             consecutive_failures: int, processed: int):
+        """Suite commune des lots de traduction : avertissement d'arret anticipe,
+        fenetre de revue, puis application des resultats acceptes. `plan` est
+        parallele a `results` ; les resultats non traites (queue de la liste)
+        sont simplement ignores."""
+        if stopped_by_failures and processed:
             QMessageBox.warning(
                 self, t("trans.batch_stopped_early_title"),
                 t("trans.batch_stopped_early_msg", failed=consecutive_failures,
-                  done=len(items_for_review), remaining=len(candidates) - len(items_for_review)))
+                  done=processed, remaining=len(plan) - processed))
 
-        if not items_for_review:
+        if not processed:
             return
+
+        items_for_review = [{
+            'label': plan[i]['label'],
+            'original': plan[i]['original'],
+            'translated': results[i]['translated'],
+            'failed': results[i]['failed'],
+        } for i in range(processed)]
 
         dialog = BatchTranslationReviewDialog(items_for_review, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -627,7 +685,7 @@ class CsvEditWidget(QWidget):
 
         self._snapshot_undo()
         for idx, final_text in accepted:
-            dest_items[idx].setText(final_text)
+            plan[idx]['dest_item'].setText(final_text)
 
     def _open_fill_missing_dialog(self):
         """Combler les traductions manquantes : choisit une colonne source (deja
@@ -673,74 +731,25 @@ class CsvEditWidget(QWidget):
             QMessageBox.information(self, t("trans.fill_missing_title"), t("trans.fill_none_found"))
             return
 
-        from PyQt6.QtWidgets import QProgressDialog
-        progress = QProgressDialog(t("trans.fill_found_count", count=len(missing_rows)),
-                                    t("btn.cancel"), 0, len(missing_rows), self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(300)
-
-        # Arret automatique si le service de traduction semble bloque/indisponible --
-        # sans ca, un gros lot (des milliers de cellules) continuerait a marteler un
-        # service en panne pendant potentiellement des heures, pour ne produire au
-        # bout du compte que des milliers de lignes d'erreur a trier a la main.
-        MAX_CONSECUTIVE_FAILURES = 5
-        consecutive_failures = 0
-        stopped_early = False
-
-        items_for_review = []
-        dest_items = []
-        for i, row in enumerate(missing_rows):
-            progress.setValue(i)
-            QApplication.processEvents()
-            if progress.wasCanceled():
-                break
+        # Planification cote interface (meme principe que la traduction de
+        # selection) : lecture de la table AVANT le demarrage du worker.
+        plan = []
+        for row in missing_rows:
             key_item = self.table.item(row, 0)
             row_key = key_item.text() if key_item else str(row + 1)
             source_text = self.table.item(row, source_col).text()
-            failed = False
-            try:
-                translated = translation.translate_text(source_text, target=target_code)
-                consecutive_failures = 0
-            except Exception as e:
-                translated = f"[{t('trans.error_title')}: {e}]"
-                failed = True
-                consecutive_failures += 1
-            items_for_review.append({
-                'label': row_key,
-                'original': source_text,
-                'translated': translated,
-                'failed': failed,
-            })
             dest_item = self.table.item(row, target_col)
             if dest_item is None:
                 dest_item = QTableWidgetItem("")
                 self.table.setItem(row, target_col, dest_item)
-            dest_items.append(dest_item)
+            plan.append({'label': row_key, 'original': source_text, 'dest_item': dest_item})
 
-            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                stopped_early = True
-                break
-        progress.setValue(len(missing_rows))
-
-        if stopped_early:
-            QMessageBox.warning(
-                self, t("trans.batch_stopped_early_title"),
-                t("trans.batch_stopped_early_msg", failed=consecutive_failures,
-                  done=len(items_for_review), remaining=len(missing_rows) - len(items_for_review)))
-
-        if not items_for_review:
-            return
-
-        review = BatchTranslationReviewDialog(items_for_review, self)
-        if review.exec() != QDialog.DialogCode.Accepted:
-            return
-        accepted = review.get_accepted_results()
-        if not accepted:
-            return
-
-        self._snapshot_undo()
-        for idx, final_text in accepted:
-            dest_items[idx].setText(final_text)
+        self._run_batch_translation(
+            [p['original'] for p in plan], target_code,
+            lambda i, n: t("trans.fill_found_count", count=n),
+            lambda results, stopped_by_failures, consecutive_failures, processed:
+                self._finish_batch_review(
+                    plan, results, stopped_by_failures, consecutive_failures, processed))
 
     def _open_find_replace_dialog(self):
         """Recherche/remplacement avec revue individuelle -- utile par exemple pour

@@ -41,7 +41,8 @@ def export_text_to_file(parent: QWidget, default_filename: str, content: str,
         return None
     path = Path(path_str)
     try:
-        path.write_text(content, encoding='utf-8')
+        from core.fsutil import atomic_write_text
+        atomic_write_text(path, content)
     except OSError as e:
         QMessageBox.critical(parent, t("err.title"), f"{t('results_export.error')} :\n{e}")
         return None

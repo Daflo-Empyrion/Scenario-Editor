@@ -104,7 +104,9 @@ def create_backup(source: Path, backup_root: Path, label: Optional[str], kind: s
         'created_at': record.created_at,
         'kind': record.kind,
     }
-    (backup_path / INFO_FILENAME).write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding='utf-8')
+    from .fsutil import atomic_write_text
+    atomic_write_text(backup_path / INFO_FILENAME,
+                      json.dumps(info, ensure_ascii=False, indent=2))
 
     return record
 

@@ -1,0 +1,26 @@
+# Extrait REEL de BlocksConfig.ecf pour les tests pytest de la fiche
+# d'information (session du 29/08/2026) -- bloc FuelTankMSLarge exact,
+# verifie contre une vraie capture d'ecran F3 fournie par l'utilisateur.
+
+{ +Block Id: 260, Name: FuelTankMSLarge, Ref: FuelTankMSSmall
+  Model: @models/Blocks/Mothership/FuelTankMSLargePrefab
+  MarketPrice: 3845, display: false
+  HitPoints: 80, type: int, display: true
+  FuelCapacity: 2700, type: int, display: true
+  AllowPlacingAt: "Base,MS", display: true
+  SizeInBlocks: "1,2,1", display: true
+  Mass: 2513, type: float, display: true, formatter: Kilogram
+  Volume: 180, type: float, display: true, formatter: Liter
+  Info: bkiFuelTank, display: true
+  CPUIn: 675, type: int, display: true
+  Radiation: 1.4, display: RadiationLevel
+  UnlockCost: 12, display: true
+  UnlockLevel: 10, display: true
+  TechTreeParent: FuelTankMSSmall
+  TechTreeNames: "Base,Capital Vessel"
+}
+
+{ Block Id: 261, Name: BlockWithoutInfoOrTemplate
+  Material: Terrain
+  HitPoints: 50, type: int, display: true
+}

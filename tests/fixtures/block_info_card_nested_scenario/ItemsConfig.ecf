@@ -1,0 +1,43 @@
+# Extrait REEL de ItemsConfig.ecf pour les tests pytest de la fiche
+# d'information -- bloc AssaultRifle exact (session du 29/08/2026),
+# confirme avoir ses statistiques dans des sous-blocs '{ Child N ... }'.
+
+{ +Item Id: 15, Name: AssaultRifle
+  Meshfile: Entities/Items/Weapons/Rifles/AssaultRifle1Prefab
+  PickupToToolbar: true
+  MarketPrice: 2538, display: true
+  Material: metalweapon
+  Category: Weapons/Items
+  Mass: 4, type: float, display: true, formatter: Kilogram
+  Volume: 5, type: float, display: true, formatter: Liter
+  Durability: 500, display: false
+  { Child 0
+    Class: Ranged
+    AllowRemote: false
+    ROF: 0.15, type: float, display: true, formatter: ROF
+    Range: 180, display: false
+    Automatic: true, display: true
+    BulletSpread: 0.07, display: true
+    Recoil: 0.7, display: true
+    Damage: 70, display: true
+    AmmoCapacity: 20, display: true
+    AmmoType: 5.8mmBullet, display: true
+    ReloadDelay: 2.2, display: true
+    DamageMultiplier_1: 3.5, param1: head, display: DmgMultiplierHead
+    DamageMultiplier_2: 0, param1: dirt|stone|rock|wood|hullarmored|hullcombat
+  }
+  { Child 1
+    Class: Zoom
+    ZoomOut: 40
+    ZoomIn: 40
+  }
+  UnlockCost: 6, display: true
+  UnlockLevel: 3, display: true
+  TechTreeParent: Pistol
+  TechTreeNames: Weapons
+}
+
+{ +Item Id: 16, Name: ItemWithoutChildren
+  MarketPrice: 100, display: true
+  HitPoints: 50, type: int, display: true
+}

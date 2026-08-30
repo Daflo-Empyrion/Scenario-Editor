@@ -25,7 +25,9 @@ c'est l'utilisateur courant).
 """
 import os
 import stat
+import tempfile
 from pathlib import Path
+from typing import Optional
 
 
 def clear_readonly(path: Path) -> None:
@@ -53,3 +55,51 @@ def clear_readonly(path: Path) -> None:
                 _unlock_one(Path(root) / f)
     else:
         _unlock_one(path)
+
+
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Ecrit `data` dans `path` de maniere ATOMIQUE : le contenu est d'abord ecrit
+    entierement dans un fichier temporaire DANS LE MEME DOSSIER (meme volume --
+    os.replace ne sait pas traverser les volumes), synchronise sur le disque, puis
+    renomme sur la destination via os.replace, qui est atomique sur Windows comme
+    sur POSIX.
+
+    Interet : avec un truncate-then-write classique, un crash ou une coupure
+    d'alimentation PENDANT l'ecriture laisse le fichier coupe en deux (donnee de
+    scenario ou de configuration irrecuperable). Avec ce helper, au pire l'ancienne
+    version intacte est conservee, au mieux la nouvelle est complete -- jamais
+    d'etat intermediaire. Le fichier temporaire est supprime en cas d'echec.
+
+    Gere aussi l'attribut lecture seule de la destination (meme probleme que pour
+    une ecriture directe -- cf. clear_readonly, que les appelants n'ont donc plus
+    besoin d'appeler eux-memes avant d'ecrire).
+
+    Leve OSError en cas d'echec (disque plein, destination verrouillee par un
+    autre processus...) -- l'appelant affiche l'erreur comme avant."""
+    path = Path(path)
+    clear_readonly(path)
+
+    tmp = tempfile.NamedTemporaryFile(
+        dir=path.parent, prefix=path.name + '.', suffix='.tmp', delete=False)
+    tmp_path = Path(tmp.name)
+    try:
+        with tmp:
+            tmp.write(data)
+            tmp.flush()
+            os.fsync(tmp.fileno())  # garantit que le contenu est bien sur le disque AVANT le renommage
+        os.replace(tmp_path, path)
+    except OSError:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass  # le nettoyage du temporaire ne doit pas masquer l'erreur d'origine
+        raise
+
+
+def atomic_write_text(path: Path, text: str, encoding: str = 'utf-8') -> None:
+    """Variante texte de atomic_write_bytes -- meme semantique qu'un
+    `open(path, 'w', encoding=..., newline='')` : le texte est encode SANS
+    traduction des fins de ligne, donc le contenu au disque est exactement la
+    chaine passee (comportement requis pour le round-trip fidele des fichiers
+    de scenario, voir core/ecf/model.py)."""
+    atomic_write_bytes(path, text.encode(encoding))

@@ -1,0 +1,14 @@
+# Extrait REEL de Templates.ecf pour les tests pytest -- Template
+# AssaultRifle exact (session du 29/08/2026).
+
+{ +Template Name: AssaultRifle
+  CraftTime: 20
+  Target: "SurvC,SmallC,HoverC,BaseC,LargeC,AdvC"
+  { Child Inputs
+    MechanicalComponents: 8
+    PlasticMaterial: 8
+    SteelPlate: 2
+    Electronics: 1
+    Nanotubes: 3
+  }
+}
