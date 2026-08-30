@@ -206,6 +206,22 @@ class PropertyTableDialog(QDialog):
                 self.ingredients_players_only_check.setToolTip(t("ecf.tooltip_players_only"))
                 layout.addWidget(self.ingredients_players_only_check)
 
+        # --- Controle avant validation (les 4 obligations de creation, lues
+        # dans les vrais fichiers du scenario -- voir core/ecf/creation_check.py).
+        # Rafraichi a chaque frappe (contexte de reference mis en cache) ; les
+        # erreurs rouges BLOQUENT la validation dans _on_validate().
+        from gui.creation_check_panel import CreationCheckPanel
+        self.check_panel = CreationCheckPanel(
+            doc, sibling_ecf_files, working_root,
+            get_values=self._current_check_values,
+            check_template_collision=not enable_ingredients,  # cible = Templates.ecf : le controle Name suffit
+            check_techtree_hint=tech_tree_source is not None,
+            parent=self)
+        layout.addWidget(self.check_panel)
+        self.edit_id.textChanged.connect(lambda _: self.check_panel.refresh())
+        self.edit_name.textChanged.connect(lambda _: self.check_panel.refresh())
+        self.combo_kind.currentTextChanged.connect(lambda _: self.check_panel.refresh())
+
         # --- Boutons ---
         buttons = QHBoxLayout()
         if self._tech_tree_source is not None and (self._tech_blocks_path or self._tech_items_path):
@@ -228,6 +244,23 @@ class PropertyTableDialog(QDialog):
     def _on_kind_changed(self, kind: str):
         self._properties_by_key = scan_properties_for_kind(self.doc, kind)
         self._populate_table()
+        self._refresh_check_panel()
+
+    def _current_check_values(self):
+        """Valeurs ACTUELLEMENT saisies, pour le panneau de controle
+        (voir gui/creation_check_panel.py)."""
+        kind = self.combo_kind.currentText().strip()
+        id_text = self.edit_id.text().strip()
+        name_text = self.edit_name.text().strip()
+        properties = []
+        for checkbox, key, value_combo in self._all_rows:
+            if checkbox.isChecked():
+                properties.append((key, value_combo.currentText()))
+        return kind, id_text, name_text, properties
+
+    def _refresh_check_panel(self):
+        if getattr(self, 'check_panel', None) is not None:
+            self.check_panel.refresh()
 
     def _populate_table(self):
         self.table.setRowCount(0)
@@ -261,6 +294,10 @@ class PropertyTableDialog(QDialog):
             if distinct_values:
                 value_combo.setCurrentText(distinct_values[0])
             self.table.setCellWidget(row, 2, value_combo)
+            # Le panneau de controle re-verifie en direct (ex: Material saisi,
+            # UnlockLevel coche changent ses avertissements).
+            checkbox.toggled.connect(lambda _checked: self._refresh_check_panel())
+            value_combo.currentTextChanged.connect(lambda _text: self._refresh_check_panel())
 
             self._all_rows.append((checkbox, key, value_combo))
         self.table.resizeColumnsToContents()
@@ -335,6 +372,7 @@ class PropertyTableDialog(QDialog):
             self._apply_row_value('TechTreeNames', names_value)
         if chosen_parent:
             self._apply_row_value('TechTreeParent', chosen_parent)
+        self._refresh_check_panel()
 
     def _add_ingredient_row(self):
         row = self.ingredients_table.rowCount()
@@ -397,6 +435,18 @@ class PropertyTableDialog(QDialog):
 
         if not name_text:
             QMessageBox.warning(self, t("addblock.table_title"), t("addblock.err_name_required"))
+            return
+
+        # Controle final AVANT validation : re-rafraichi (pour capter les
+        # dernieres saisies) puis refuse si au moins une erreur bloquante --
+        # les 4 obligations de creation sont verifiees dans les vrais fichiers
+        # (voir core/ecf/creation_check.py).
+        self.check_panel.refresh()
+        if self.check_panel.has_blocking_errors():
+            from core.ecf.creation_check import format_blocking
+            blocking = format_blocking(self.check_panel.issues)
+            QMessageBox.warning(self, t("createcheck.blocked_title"),
+                                t("createcheck.blocked_msg", issues=blocking))
             return
 
         properties = []

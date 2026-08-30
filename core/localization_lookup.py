@@ -39,7 +39,7 @@ import io
 import sys
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 LOCALIZATION_PACK_FILENAME = "localization_vanilla.pak"
 LOCALIZATION_PACK_NOTICE_MEMBER = "NOTICE.txt"
@@ -189,6 +189,17 @@ class LocalizationIndex:
 
     def __init__(self, entries: Dict[str, Dict[str, str]]):
         self._entries = entries
+
+    def has(self, key: Optional[str]) -> bool:
+        """True si la CLE existe dans l'index (scenario ou vanilla), meme si sa
+        traduction est vide -- distinct de get(), qui retourne None quand la
+        traduction est absente : ici on ne veut savoir que si l'entree existe
+        (controle de creation : une cle sans traduction est deja declaree)."""
+        return bool(key) and key in self._entries
+
+    def all_keys(self) -> Set[str]:
+        """Toutes les cles connues de l'index (scenario + vanilla)."""
+        return set(self._entries.keys())
 
     def get(self, key: Optional[str], language: str) -> Optional[str]:
         """Traduction de `key` dans `language` ('fr'/'en'). Retombe sur la

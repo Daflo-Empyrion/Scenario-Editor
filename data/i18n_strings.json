@@ -2319,6 +2319,86 @@
   "fr": "Erreur d'enregistrement",
   "en": "Save error"
  },
+ "createcheck.title": {
+  "fr": "Contrôle avant validation",
+  "en": "Pre-validation check"
+ },
+ "createcheck.all_ok": {
+  "fr": "✔ Toutes les obligations de création sont satisfaites.",
+  "en": "✔ All creation requirements are satisfied."
+ },
+ "createcheck.blocked_title": {
+  "fr": "Création bloquée",
+  "en": "Creation blocked"
+ },
+ "createcheck.blocked_msg": {
+  "fr": "Corrige ces erreurs avant de valider :\n\n{issues}",
+  "en": "Fix these errors before validating:\n\n{issues}"
+ },
+ "createcheck.obl_registry": {
+  "fr": "Enregistrement",
+  "en": "Registration"
+ },
+ "createcheck.obl_recipe": {
+  "fr": "Recette (Templates)",
+  "en": "Recipe (Templates)"
+ },
+ "createcheck.obl_localization": {
+  "fr": "Localisation",
+  "en": "Localisation"
+ },
+ "createcheck.obl_techtree": {
+  "fr": "Arbre technologique",
+  "en": "Technology tree"
+ },
+ "createcheck.err_name_missing": {
+  "fr": "Name obligatoire : sans lui, ni recette ni localisation possibles.",
+  "en": "Name is required: without it, neither recipe nor localisation is possible."
+ },
+ "createcheck.err_id_not_numeric": {
+  "fr": "Id '{id}' n'est pas un nombre.",
+  "en": "Id '{id}' is not a number."
+ },
+ "createcheck.err_id_too_high": {
+  "fr": "Id {id} ≥ limite du jeu ({max}) : le jeu refusera de charger ce bloc.",
+  "en": "Id {id} ≥ game limit ({max}): the game will refuse to load this block."
+ },
+ "createcheck.err_id_used": {
+  "fr": "Id {id} déjà utilisé dans ce fichier.",
+  "en": "Id {id} is already used in this file."
+ },
+ "createcheck.err_name_used": {
+  "fr": "Name '{name}' déjà utilisé dans ce fichier.",
+  "en": "Name '{name}' is already used in this file."
+ },
+ "createcheck.err_name_case": {
+  "fr": "Name '{name}' ne diffère de l'existant que par la CASSE ({others}) : le jeu est sensible à la casse, choisis un nom réellement distinct.",
+  "en": "Name '{name}' differs from an existing entry only by CASE ({others}): the game is case-sensitive, choose a genuinely distinct name."
+ },
+ "createcheck.err_template_used": {
+  "fr": "Un Template porte déjà le nom '{name}' dans Templates.ecf.",
+  "en": "A Template named '{name}' already exists in Templates.ecf."
+ },
+ "createcheck.err_template_case": {
+  "fr": "Un Template porte ce nom à la CASSE près ({others}) : la recette doit reprendre EXACTEMENT le Name du bloc, caractère par caractère.",
+  "en": "A Template carries this name up to CASE ({others}): the recipe must match the block's Name EXACTLY, character by character."
+ },
+ "createcheck.warn_templates_missing": {
+  "fr": "Templates.ecf introuvable dans le scénario : aucune recette de craft ne pourra être créée, le bloc sera impossible à fabriquer.",
+  "en": "Templates.ecf not found in the scenario: no crafting recipe can be created, the block will be impossible to craft."
+ },
+ "createcheck.warn_material_unknown": {
+  "fr": "Material '{material}' inconnu de MaterialConfig.ecf : bruitages/physique incorrects ou erreur au chargement.",
+  "en": "Material '{material}' unknown to MaterialConfig.ecf: wrong sounds/physics or a load error."
+ },
+ "createcheck.warn_localization_missing": {
+  "fr": "Aucune entrée de localisation à la clé '{name}' : le jeu affichera la clé technique brute (ou 'Key not found'). L'application peut l'ajouter automatiquement (nom affiché FR/EN).",
+  "en": "No localisation entry for key '{name}': the game will show the raw technical name (or 'Key not found'). The application can add it automatically (FR/EN display name)."
+ },
+ "createcheck.info_techtree_missing": {
+  "fr": "Ni UnlockLevel ni UnlockCost : l'entrée ne sera pas déblocable en Survie. Bouton 'Prévisualiser dans l'arbre technologique...' pour choisir son emplacement.",
+  "en": "Neither UnlockLevel nor UnlockCost: the entry won't be unlockable in Survival. Use the 'Preview in the technology tree...' button to choose its placement."
+ },
  "save.error_msg": {
   "fr": "Impossible d'enregistrer '{name}' :\n{error}\n\nSi c'est une erreur de permission, essaie Fichier > 'Reparer les permissions de la copie de travail'.",
   "en": "Could not save '{name}':\n{error}\n\nIf this is a permission error, try File > 'Repair working copy permissions'."

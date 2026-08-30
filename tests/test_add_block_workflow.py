@@ -12,6 +12,16 @@ from PyQt6.QtWidgets import QDialog, QMessageBox
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "block_creation_scenario"
 
 
+@pytest.fixture(autouse=True)
+def _stub_localization_offer(monkeypatch):
+    """Le flux de creation propose desormais aussi le nom affiche
+    (Localization.csv -- obligation no 3, voir core/ecf/creation_check.py) :
+    dialogue modal hors perimetre de ces tests, stubbe en refus silencieux."""
+    from gui.localization_adjust_dialog import LocalizationAdjustDialog
+    monkeypatch.setattr(LocalizationAdjustDialog, "exec",
+                        lambda self: QDialog.DialogCode.Rejected)
+
+
 @pytest.fixture
 def window_with_scenario(qapp, tmp_path):
     from gui.theme import apply_theme

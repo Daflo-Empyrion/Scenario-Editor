@@ -1928,6 +1928,10 @@ class EcfEditWidget(QWidget):
                 QMessageBox.warning(self, t("dup.already_used_title"),
                                      t("dup.already_used_msg", file=self.path.name))
                 return
+            # Controle avant insertion (Id/Name uniques, casse...) -- voir
+            # _check_before_insert : refuse la duplication si erreur bloquante.
+            if not self._check_before_insert(new_blocks):
+                return
             self._snapshot_undo()
             for offset, new_block in enumerate(new_blocks):
                 new_block.indent = block.indent
@@ -1981,6 +1985,10 @@ class EcfEditWidget(QWidget):
                 QMessageBox.warning(self, t("dup.already_used_title"),
                                      t("dup.already_used_msg", file=self.path.name))
                 return
+            # Controle avant insertion (Id/Name uniques, casse...) -- voir
+            # _check_before_insert : refuse la duplication si erreur bloquante.
+            if not self._check_before_insert([new_block]):
+                return
             new_block.indent = block.indent
             self._snapshot_undo()
             container.insert(idx + 1, new_block)
@@ -1997,21 +2005,34 @@ class EcfEditWidget(QWidget):
 
     def _offer_localization_adjustment(self, source_name: Optional[str], new_names: List[str]) -> None:
         """Propose d'ajouter/ajuster le nom AFFICHE (Extras/Localization.csv
-        du scenario) pour chaque bloc/item nouvellement duplique -- demande
-        explicite de l'utilisateur (session du 29/08/2026). Voir docstring
-        de gui/localization_adjust_dialog.py. Sans nom de bloc source ou de
-        contexte de scenario (working_root), la proposition est
-        silencieusement sautee -- rien a pre-remplir/ecrire de sense."""
-        if not source_name or not new_names or self.working_root is None:
+        du scenario) pour chaque bloc/item nouvellement cree ou duplique --
+        demande explicite de l'utilisateur (session du 29/08/2026), etendu a la
+        CREATION le 30/08/2026 (obligation no 3 : sans entree a sa cle, l'entree
+        s'affiche en jeu avec son nom technique brut). `source_name` peut etre
+        None (creation) : le pre-remplissage retombe sur le nom technique lui-
+        meme. Les noms DEJA localises (scenario ou vanilla) sont filtres -- on
+        ne propose que ce qui en a reellement besoin. Voir
+        gui/localization_adjust_dialog.py. Sans contexte de scenario
+        (working_root), la proposition est silencieusement sautee."""
+        if not new_names or self.working_root is None:
             return
         from core.localization_lookup import build_localization_index, write_scenario_localization_entries
+        from core.ecf.creation_check import names_needing_localization
         from gui.localization_adjust_dialog import LocalizationAdjustDialog
 
-        loc = build_localization_index(self.working_root)
-        source_fr = loc.get(source_name, 'fr') or source_name
-        source_en = loc.get(source_name, 'en') or source_name
+        names_to_fill = names_needing_localization(self.working_root, new_names)
+        if not names_to_fill:
+            return
 
-        dialog = LocalizationAdjustDialog(new_names, (source_fr, source_en), parent=self)
+        loc = build_localization_index(self.working_root)
+        if source_name:
+            source_fr = loc.get(source_name, 'fr') or source_name
+            source_en = loc.get(source_name, 'en') or source_name
+        else:
+            source_fr = names_to_fill[0]
+            source_en = names_to_fill[0]
+
+        dialog = LocalizationAdjustDialog(names_to_fill, (source_fr, source_en), parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         entries = dialog.get_entries()
@@ -2221,6 +2242,33 @@ class EcfEditWidget(QWidget):
 
         created_name = table_dialog.result_name or table_dialog.result_id or "?"
         self._maybe_propose_template(created_name)
+        # Obligation no 3 (localisation) : un bloc/item cree sans entree a sa
+        # cle s'affiche en jeu avec son nom technique brut -- propose l'ajout
+        # FR/EN tout de suite, comme la duplication le fait deja.
+        self._offer_localization_adjustment(None, [table_dialog.result_name]
+                                            if table_dialog.result_name else [])
+
+    def _check_before_insert(self, new_blocks: list) -> bool:
+        """Controle pre-insertion des duplications (meme moteur que la creation
+        guidee, voir core/ecf/creation_check.py) : Id/Name uniques, piege de
+        casse, collision Templates. Retourne False (et affiche les erreurs) si
+        au moins une erreur bloquante -- l'insertion ne doit PAS se faire."""
+        from core.ecf.creation_check import (
+            CreationContext, check_creation, has_blocking, format_blocking)
+        context = CreationContext(self.sibling_ecf_files, self.working_root)
+        all_issues = []
+        for new_block in new_blocks:
+            all_issues.extend(check_creation(
+                self.doc, context, new_block.kind,
+                new_block.get('Id'), new_block.get_property('Name'),
+                check_template_collision=False,  # les Templates sont proposes APRES, pas encore crees
+                check_techtree_hint=False))
+        if has_blocking(all_issues):
+            QMessageBox.warning(self, t("createcheck.blocked_title"),
+                                t("createcheck.blocked_msg",
+                                  issues=format_blocking(all_issues)))
+            return False
+        return True
 
     def _maybe_propose_template(self, created_name: str):
         """Propose de creer le Template (recette de craft) associe au bloc/item
