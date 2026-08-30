@@ -67,6 +67,8 @@ from core.constants import AUTOSAVE_INTERVAL_MS
 from core import i18n
 from core.i18n import t
 from core.project_store import ProjectRecord
+from core import win_backdrop
+from core.themes import get_palette
 
 from gui.tutorial_dialog import TutorialDialog
 from gui.new_project_dialog import NewProjectDialog
@@ -80,7 +82,9 @@ from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
 from gui.theme import icon, icon_size
 from gui import theme as _theme
-from gui.msgboxes import ask_yes_no
+from gui.neon_delegate import NeonItemDelegate
+from gui.busy import busy_guard
+from gui.msgboxes import ask_save_discard_cancel, ask_yes_no
 from core.workspace_undo import WorkspaceUndoStack, FileStateUndo, MultiFileStateUndo, FolderStateUndo, capture_file, capture_folder
 
 COLOR_NEW_BLOCK = QBrush(QColor(200, 255, 200))       # vert clair : bloc entierement nouveau
@@ -105,6 +109,34 @@ class MainWindow(QMainWindow):
         self._build_layout()
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage(t("status.no_project"))
+        # P6 (audit 30/08/2026) : resume PERSISTANT a droite de la barre
+        # d'etat (projet + nombre d'onglets modifies), jamais ecrase par les
+        # messages ephemeres (showMessage).
+        self.status_project_label = QLabel("")
+        self.statusBar().addPermanentWidget(self.status_project_label)
+        self._refresh_panel_and_status_labels()
+        # Flou acrylique Windows 11 (theme "h" Verriere) -- DEGRADE GRACIEUX :
+        # sans support (Win10, macOS, Linux, RDP...), enable_acrylic() retourne
+        # False et la fenetre reste 100% peinte par la feuille de style, sans
+        # aucune difference de mise en page (voir core/win_backdrop.py).
+        if get_palette(_theme.CURRENT_THEME_ID).get("acrylic")                 and win_backdrop.acrylic_supported():
+            # L'attribut de translucence DOIT etre pose AVANT la creation du
+            # HWND natif (winId(), fait par enable_acrylic) -- pose APRES il
+            # est silencieusement ignore : c'est pourquoi l'acrylic semblait
+            # sans effet au premier test (retour utilisateur du 30/08/2026).
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            if win_backdrop.enable_acrylic(self):
+                # Translucence limitee au conteneur racine et aux widgets
+                # simples : les vues (arbres, tableaux) gardent leur fond
+                # lisible (le theme h les peint en verre translucent
+                # au-dessus du fond de fenetre).
+                self.setStyleSheet(
+                    "QMainWindow { background-color: rgba(4, 8, 16, 186); }"
+                    " .QWidget { background-color: rgba(4, 8, 16, 186); }")
+            else:
+                # Le systeme a refuse malgre le support (ex: bureau a
+                # distant) -- INVARIANT : jamais translucide sans flou.
+                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
 
         # Sauvegarde automatique periodique (voir core/autosave.py) -- dossier
         # de recuperation SEPARE de la vraie copie de travail, jamais ecrit
@@ -123,11 +155,14 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self):
         """Construit la barre de menu complete -- decoupe en une methode privee par
-        menu (Fichier/Verification/Options/Aide) pour rester lisible, voir
-        _build_menu_file/_build_menu_verification/_build_menu_options/_build_menu_help
-        ci-dessous."""
+        menu (Fichier/Verification/Outils/Options/Aide) pour rester lisible, voir
+        _build_menu_file/_build_menu_verification/_build_menu_tools/_build_menu_options/_build_menu_help
+        ci-dessous. P1 (audit du 30/08/2026) : le menu Fichier comptait 15
+        entrees melangeant sauvegardes, scenario B et les outils -- les outils
+        sont sortis dans un menu "Outils" dedie."""
         self._build_menu_file()
         self._build_menu_verification()
+        self._build_menu_tools()
         self._build_menu_options()
         self._build_menu_help()
 
@@ -141,33 +176,47 @@ class MainWindow(QMainWindow):
         self.action_save = self.menu_file.addAction(t("menu.file.save"))
         self.action_save.setShortcut("Ctrl+S")
         self.action_save.triggered.connect(self._save_current_tab)
-        self.menu_file.addSeparator()
-        self.action_compare = self.menu_file.addAction(t("menu.file.compare"))
-        self.action_compare.triggered.connect(self._open_compare_dialog)
+        # Gestion du scenario B et de la comparaison regroupees (P1)
         self.action_manage_scenario_b = self.menu_file.addAction(t("menu.file.open_scenario_b"))
         self.action_manage_scenario_b.triggered.connect(self._open_or_change_scenario_b)
         self.action_remove_scenario_b = self.menu_file.addAction(t("menu.file.remove_scenario_b"))
         self.action_remove_scenario_b.triggered.connect(self._remove_scenario_b)
         self.action_remove_scenario_b.setEnabled(False)
+        self.action_compare = self.menu_file.addAction(t("menu.file.compare"))
+        self.action_compare.triggered.connect(self._open_compare_dialog)
+        self.menu_file.addSeparator()
+        # Sauvegardes et recuperation regroupees (P1)
         self.action_backup_scenario = self.menu_file.addAction(t("menu.file.backup_scenario"))
         self.action_backup_scenario.triggered.connect(lambda: self._open_backup_dialog('scenario'))
         self.action_manage_saves = self.menu_file.addAction(t("menu.file.manage_saves"))
         self.action_manage_saves.triggered.connect(lambda: self._open_backup_dialog('savegame'))
         self.action_repair_permissions = self.menu_file.addAction(t("menu.file.repair_permissions"))
         self.action_repair_permissions.triggered.connect(self._repair_working_copy_permissions)
-        self.action_extract_properties = self.menu_file.addAction(t("menu.file.extract_properties"))
-        self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
-        self.action_galaxy_viewer = self.menu_file.addAction(t("menu.tools.galaxy_viewer"))
-        self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
-        self.action_tech_tree = self.menu_file.addAction(t("menu.tools.tech_tree"))
-        self.action_tech_tree.triggered.connect(self._open_tech_tree_dialog)
-        self.action_search_scenario = self.menu_file.addAction(t("menu.file.search_scenario"))
-        self.action_search_scenario.triggered.connect(self._open_search_dialog)
-        self.action_pda_mission = self.menu_file.addAction(t("menu.tools.pda_mission"))
-        self.action_pda_mission.triggered.connect(self._open_pda_mission_dialog)
         self.menu_file.addSeparator()
         self.action_quit = self.menu_file.addAction(t("menu.file.quit"))
         self.action_quit.triggered.connect(self.close)
+
+    def _build_menu_tools(self):
+        """Menu Outils (P1, audit du 30/08/2026) : les outils d'exploration du
+        scenario quittaient le menu Fichier, ou ils etait noyes parmi les
+        sauvegardes et la gestion de projet -- leurs cles i18n disaient deja
+        "menu.tools.*". Raccourcis affiches dans le menu (P3)."""
+        self.menu_tools = self.menuBar().addMenu(t("menu.tools"))
+        self.action_search_scenario = self.menu_tools.addAction(t("menu.file.search_scenario"))
+        self.action_search_scenario.setShortcut("Ctrl+Shift+F")
+        self.action_search_scenario.triggered.connect(self._open_search_dialog)
+        self.action_tech_tree = self.menu_tools.addAction(t("menu.tools.tech_tree"))
+        self.action_tech_tree.setShortcut("Ctrl+T")
+        self.action_tech_tree.triggered.connect(self._open_tech_tree_dialog)
+        self.action_galaxy_viewer = self.menu_tools.addAction(t("menu.tools.galaxy_viewer"))
+        self.action_galaxy_viewer.setShortcut("Ctrl+G")
+        self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
+        self.action_pda_mission = self.menu_tools.addAction(t("menu.tools.pda_mission"))
+        self.action_pda_mission.setShortcut("Ctrl+M")
+        self.action_pda_mission.triggered.connect(self._open_pda_mission_dialog)
+        self.menu_tools.addSeparator()
+        self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
+        self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
 
     def _build_menu_verification(self):
         self.menu_check = self.menuBar().addMenu(t("menu.verification"))
@@ -183,7 +232,11 @@ class MainWindow(QMainWindow):
         self.action_orphans = self.menu_check.addAction(t("menu.verification.orphans"))
         self.action_orphans.triggered.connect(self._open_orphan_dialog)
         self.menu_check.addSeparator()
-        self.action_health_check = self.menu_check.addAction(t("menu.verification.health_check"))
+        # P4 (audit 30/08/2026) : le bilan de sante devient le Centre de
+        # verification -- une seule entree, un seul clic (F5) relance toutes
+        # les familles de verification avec compteurs.
+        self.action_health_check = self.menu_check.addAction(t("menu.verification.center"))
+        self.action_health_check.setShortcut("F5")
         self.action_health_check.triggered.connect(self._open_health_check_dialog)
 
     def _build_menu_options(self):
@@ -225,6 +278,12 @@ class MainWindow(QMainWindow):
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
         self.action_tutorials = self.menu_help.addAction(t("menu.help.tutorials"))
         self.action_tutorials.triggered.connect(self._open_tutorials_dialog)
+        # Protocole de test manuel consultable dans l'application (demande
+        # utilisateur : tutoriel + aide au debogage) -- voir
+        # gui/test_protocol_dialog.py. Indisponible (message propre) dans une
+        # installation sans les outils de developpement.
+        self.action_test_protocol = self.menu_help.addAction(t("menu.help.test_protocol"))
+        self.action_test_protocol.triggered.connect(self._open_test_protocol_dialog)
         self.action_wiki_app = self.menu_help.addAction(t("menu.help.wiki_app"))
         self.action_wiki_app.triggered.connect(
             lambda: open_wiki(self, t("menu.help.wiki_app").rstrip("."), "wiki_app"))
@@ -431,6 +490,7 @@ class MainWindow(QMainWindow):
         """Reassigne le texte de tous les elements de menu traduits, sans reconstruire
         la structure (garde les connexions de signaux intactes)."""
         self.menu_file.setTitle(t("menu.file"))
+        self.menu_tools.setTitle(t("menu.tools"))
         self.action_new.setText(t("menu.file.new_project"))
         self.action_recent.setText(t("menu.file.recent_projects"))
         self.action_save.setText(t("menu.file.save"))
@@ -441,6 +501,7 @@ class MainWindow(QMainWindow):
         self.action_repair_permissions.setText(t("menu.file.repair_permissions"))
         self.action_extract_properties.setText(t("menu.file.extract_properties"))
         self.action_galaxy_viewer.setText(t("menu.tools.galaxy_viewer"))
+        self.action_tech_tree.setText(t("menu.tools.tech_tree"))
         self.action_search_scenario.setText(t("menu.file.search_scenario"))
         self.action_pda_mission.setText(t("menu.tools.pda_mission"))
         self.action_quit.setText(t("menu.file.quit"))
@@ -450,7 +511,7 @@ class MainWindow(QMainWindow):
         self.action_cross_refs.setText(t("menu.verification.cross_refs"))
         self.action_validate.setText(t("validation.menu_action"))
         self.action_orphans.setText(t("menu.verification.orphans"))
-        self.action_health_check.setText(t("menu.verification.health_check"))
+        self.action_health_check.setText(t("menu.verification.center"))
         self.action_pending.setText(t("menu.verification.pending"))
 
         self.menu_options.setTitle(t("menu.options"))
@@ -466,20 +527,58 @@ class MainWindow(QMainWindow):
         self.action_wiki_empyrion.setText(t("menu.help.wiki_empyrion"))
         self.action_privacy.setText(t("menu.help.privacy"))
         self.action_tutorials.setText(t("menu.help.tutorials"))
+        self.action_test_protocol.setText(t("menu.help.test_protocol"))
         self.action_check_updates.setText(t("menu.help.check_updates"))
         self.action_report_issue.setText(t("menu.help.report_issue"))
         self.btn_report_issue.setText(t("toolbar.report_issue"))
         self.btn_report_issue.setToolTip(t("menu.help.report_issue"))
         self.action_about.setText(t("menu.help.about"))
 
+        self._refresh_panel_and_status_labels()
+        for btn in (self.btn_toolbar_save, self.btn_toolbar_search,
+                    self.btn_toolbar_tech_tree, self.btn_toolbar_galaxy,
+                    self.btn_toolbar_pda, self.btn_toolbar_center):
+            btn.setText(t(btn.property("text_key")))
         self.btn_language.setText(i18n.get_language().upper())
         self.btn_language.setToolTip(t("menu.options.language"))
         self.btn_workspace_undo.setText(t("wsundo.button"))
         self._refresh_workspace_undo_button()
 
     def _build_toolbar(self):
-        toolbar = self.addToolBar("Langue / Language")
+        """Barre d'outils PRINCIPALE (P2 -- audit du 30/08/2026) : les actions
+        frequentes (enregistrer, recherche, outils, centre de verification)
+        accessibles d'un seul clic, devant les boutons deja presents
+        (annulation d'espace de travail, langue, signalement, licence).
+        Les actions frequentes sont des BOUTONS (fond accent peint par la
+        feuille de style, icones blanches) : le fond du QToolBar lui-meme se
+        rend differemment selon les themes/versions (blanc en classic, retour
+        utilisateur du 30/08/2026) -- des icones nues transparentes y etaient
+        illisibles, un bouton auto-peint reste lisible partout."""
+        toolbar = self.addToolBar("Principal")
         toolbar.setMovable(False)
+
+        def _add_tool_button(icon_name, text_key, slot):
+            btn = QPushButton(icon(icon_name, "#ffffff"), t(text_key))
+            btn.setIconSize(icon_size())
+            btn.setToolTip(t(text_key))
+            btn.setProperty("text_key", text_key)  # re-texte au changement de langue
+            btn.clicked.connect(slot)
+            toolbar.addWidget(btn)
+            return btn
+
+        self.btn_toolbar_save = _add_tool_button(
+            "fa5s.save", "menu.file.save", self._save_current_tab)
+        self.btn_toolbar_search = _add_tool_button(
+            "fa5s.search", "menu.file.search_scenario", self._open_search_dialog)
+        self.btn_toolbar_tech_tree = _add_tool_button(
+            "fa5s.sitemap", "menu.tools.tech_tree", self._open_tech_tree_dialog)
+        self.btn_toolbar_galaxy = _add_tool_button(
+            "fa5s.globe-europe", "menu.tools.galaxy_viewer", self._open_galaxy_viewer)
+        self.btn_toolbar_pda = _add_tool_button(
+            "fa5s.tasks", "menu.tools.pda_mission", self._open_pda_mission_dialog)
+        self.btn_toolbar_center = _add_tool_button(
+            "fa5s.clipboard-check", "menu.verification.center", self._open_health_check_dialog)
+        toolbar.addSeparator()
         self.btn_workspace_undo = QPushButton(icon("fa5s.undo", "#ffffff"), t("wsundo.button"))
         self.btn_workspace_undo.setIconSize(icon_size())
         self.btn_workspace_undo.setToolTip(t("wsundo.tooltip_empty"))
@@ -646,6 +745,12 @@ class MainWindow(QMainWindow):
         dialog = TutorialDialog(self)
         dialog.exec()
 
+    def _open_test_protocol_dialog(self):
+        """Consultation du protocole de test manuel (tutoriel + debogage) --
+        voir gui/test_protocol_dialog.py. Fenetre NON MODALE, instance unique."""
+        from gui.test_protocol_dialog import open_protocol_dialog
+        open_protocol_dialog(self)
+
     def _extract_properties_dialog(self):
         """Extrait toutes les proprietes utilisees dans les fichiers .ecf d'une source
         du projet (copie de travail, Scenario A, ou B) vers un fichier CSV modifiable
@@ -751,12 +856,14 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, t("galaxy.title"), t("galaxy.not_found"))
             return
         try:
-            doc = parse_yaml_file(sectors_files[0])
+            with busy_guard(self):
+                doc = parse_yaml_file(sectors_files[0])
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
             return
         from gui.galaxy_viewer_dialog import GalaxyViewerDialog
-        self._galaxy_viewer_dialog = GalaxyViewerDialog(doc, parent=self)
+        with busy_guard(self):
+            self._galaxy_viewer_dialog = GalaxyViewerDialog(doc, parent=self)
         self._galaxy_viewer_dialog.show()
 
     def _is_path_modified(self, path: Path) -> bool:
@@ -806,9 +913,10 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, t("techtree.dialog_title"), t("techtree.not_found"))
             return
         from gui.tech_tree_dialog import TechTreeDialog
-        self._tech_tree_dialog = TechTreeDialog(
-            self.workspace, parent=self, push_undo=self._push_workspace_undo,
-            is_path_modified=self._is_path_modified, reload_path=self._reload_tab_if_open_and_unmodified)
+        with busy_guard(self):
+            self._tech_tree_dialog = TechTreeDialog(
+                self.workspace, parent=self, push_undo=self._push_workspace_undo,
+                is_path_modified=self._is_path_modified, reload_path=self._reload_tab_if_open_and_unmodified)
         self._tech_tree_dialog.show()
 
     def _open_search_dialog(self):
@@ -839,8 +947,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, t("pda_mission.title"), t("pda_mission.err_files_not_found"))
             return
 
-        yaml_widget = self.open_working_file_tab(yaml_path)
-        csv_widget = self.open_working_file_tab(csv_path)
+        with busy_guard(self):
+            yaml_widget = self.open_working_file_tab(yaml_path)
+            csv_widget = self.open_working_file_tab(csv_path)
         if yaml_widget is None or csv_widget is None:
             return
 
@@ -871,6 +980,7 @@ class MainWindow(QMainWindow):
         settings.set_theme(theme_id)
         for tid, action in self._theme_actions.items():
             action.setChecked(tid == theme_id)
+        self._refresh_panel_and_status_labels()
 
     def _set_author_dialog(self):
         current = settings.get_author()
@@ -1041,6 +1151,7 @@ class MainWindow(QMainWindow):
         self.label_a.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.tree_a = QTreeWidget()
         self.tree_a.setHeaderLabels(["Scenario A"])
+        self.tree_a.setItemDelegate(NeonItemDelegate(self.tree_a))
         self.tree_a.itemDoubleClicked.connect(lambda item, col: self._on_source_double_clicked(item, self._root_a))
         self.tree_a.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_a.customContextMenuRequested.connect(
@@ -1056,6 +1167,7 @@ class MainWindow(QMainWindow):
         self.label_working.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY_DARK};")
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
+        self.tree_working.setItemDelegate(NeonItemDelegate(self.tree_working))
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
         self.tree_working.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_working.customContextMenuRequested.connect(self._show_working_context_menu)
@@ -1070,6 +1182,7 @@ class MainWindow(QMainWindow):
         self.label_b.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.tree_b = QTreeWidget()
         self.tree_b.setHeaderLabels(["Scenario B"])
+        self.tree_b.setItemDelegate(NeonItemDelegate(self.tree_b))
         self.tree_b.itemDoubleClicked.connect(lambda item, col: self._on_source_double_clicked(item, self._root_b))
         self.tree_b.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_b.customContextMenuRequested.connect(
@@ -2040,7 +2153,8 @@ class MainWindow(QMainWindow):
             index = self.tabs.addTab(widget, "✎ " + path.name)
             self.tabs.setTabToolTip(index, str(path))
             self.tabs.setCurrentIndex(index)
-            widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
+            widget.modified_changed.connect(
+                lambda modified, w=widget: self._on_tab_modified_changed(w, modified))
             widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
             widget.saved.connect(lambda w=widget: self._clear_autosave_for_widget(w))
             return widget
@@ -2060,7 +2174,8 @@ class MainWindow(QMainWindow):
             index = self.tabs.addTab(widget, "✎ " + path.name)
             self.tabs.setTabToolTip(index, str(path))
             self.tabs.setCurrentIndex(index)
-            widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
+            widget.modified_changed.connect(
+                lambda modified, w=widget: self._on_tab_modified_changed(w, modified))
             widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.path)))
             widget.saved.connect(lambda w=widget: self._clear_autosave_for_widget(w))
             return widget
@@ -2113,7 +2228,8 @@ class MainWindow(QMainWindow):
         self.tabs.setTabToolTip(index, str(path))
         self.tabs.setCurrentIndex(index)
 
-        widget.modified_changed.connect(lambda modified, w=widget: self._update_tab_title(w, modified))
+        widget.modified_changed.connect(
+                lambda modified, w=widget: self._on_tab_modified_changed(w, modified))
         widget.saved.connect(lambda w=widget: self.statusBar().showMessage(t("status.saved", path=w.edit_widget.path)))
         widget.saved.connect(lambda w=widget: self._clear_autosave_for_widget(w))
         return widget
@@ -2239,6 +2355,38 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(index)
         return widget
 
+    def _on_tab_modified_changed(self, widget, modified: bool) -> None:
+        """Changement d'etat modifie d'un onglet : titre (+/- ✎) ET libelles
+        bandeau/statut (P5/P6)."""
+        self._update_tab_title(widget, modified)
+        self._refresh_panel_and_status_labels()
+
+    def _refresh_panel_and_status_labels(self) -> None:
+        """P5/P6 (audit du 30/08/2026) : le libelle du bandeau copie de travail
+        affiche le nombre d'onglets modifies, et la barre d'etat porte un
+        resume PERSISTANT (projet + modifications), au lieu de messages
+        ephemeres seuls. Appele a chaque changement d'etat modifie ET a chaque
+        changement de theme : les couleurs des libelles etaient figees au
+        demarrage (theme de depart), rendant le texte quasi illisible apres
+        une bascule vers un theme sombre (retour utilisateur du 30/08/2026)."""
+        # Styles aux couleurs du theme COURANT (accent vif pour la copie de
+        # travail, texte principal pour les sources lecture seule).
+        self.label_a.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
+        self.label_b.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
+        self.label_working.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY};")
+        count = len(self._modified_tab_widgets())
+        if count:
+            self.label_working.setText(
+                t("panel.working_copy_modified", count=count))
+        else:
+            self.label_working.setText(t("panel.working_copy"))
+        project = self.workspace.working_root.name if self.workspace else ""
+        if project:
+            self.status_project_label.setText(
+                t("status.persistent_project", project=project, count=count))
+        else:
+            self.status_project_label.setText(t("status.no_project"))
+
     def _modified_tab_widgets(self) -> list:
         """Widgets d'onglets actuellement modifies, dans l'ordre des onglets.
         Meme duck-typing que _is_path_modified : tous les widgets d'edition
@@ -2268,17 +2416,16 @@ class MainWindow(QMainWindow):
         file_names = "\n".join(
             "  - " + self.tabs.tabText(self.tabs.indexOf(w)).lstrip("✎🔒* ").strip()
             for w in modified)
-        answer = QMessageBox.question(
+        # Dialogue a boutons APPLICATION (gui/msgboxes.py) : l'ancien
+        # QMessageBox.question dessinait Save/Discard/Cancel via qtbase_<lang>.qm,
+        # hors de portee de i18n -- demande explicite de l'utilisateur.
+        answer = ask_save_discard_cancel(
             self, t("quit.modified_title"),
-            t("quit.modified_msg", count=len(modified), files=file_names),
-            (QMessageBox.StandardButton.Save
-             | QMessageBox.StandardButton.Discard
-             | QMessageBox.StandardButton.Cancel),
-            QMessageBox.StandardButton.Save)
-        if answer == QMessageBox.StandardButton.Cancel:
+            t("quit.modified_msg", count=len(modified), files=file_names))
+        if answer == "cancel":
             event.ignore()
             return
-        if answer == QMessageBox.StandardButton.Save:
+        if answer == "save":
             for widget in modified:
                 widget.save()
             still_modified = self._modified_tab_widgets()

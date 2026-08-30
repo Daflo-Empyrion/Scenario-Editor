@@ -18,7 +18,7 @@
 Compare deux fichiers .ecf et affiche les differences (blocs ajoutes/supprimes/modifies).
 
 UTILISATION :
-    python diff_ecf.py fichierA.ecf fichierB.ecf
+    python cli/diff_ecf.py fichierA.ecf fichierB.ecf
 
 Exemple concret : comparer la meme config entre deux versions d'un scenario, ou entre
 deux scenarios differents (ex: Config_RE.ecf de Atlantis Next vs RE2).
@@ -38,7 +38,7 @@ from core.ecf.diff import diff_documents, format_diff, summarize_diff
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python diff_ecf.py fichierA.ecf fichierB.ecf")
+        print("Usage: python cli/diff_ecf.py fichierA.ecf fichierB.ecf")
         sys.exit(1)
 
     path_a = Path(sys.argv[1])

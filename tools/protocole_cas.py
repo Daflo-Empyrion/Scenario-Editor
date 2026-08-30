@@ -64,6 +64,7 @@ CATEGORIES = [
     ("CLI", "15. CLI"),
     ("ROBU", "16. Robustesse"),
     ("BUILD", "17. Installateur / build"),
+    ("GUI", "18. Interface, barre d'outils & theme"),
 ]
 
 CASES = [
@@ -640,9 +641,9 @@ CASES = [
         "attendu": "Total de drones par faction coherent ; l'export ecrit un fichier texte complet.",
     },
     {
-        "id": "MAP-007", "cat": "MAP",
+        "id": "MAP-007", "cat": "MAP", "rev": 2,
         "titre": "Carte de la galaxie : localisation auto + affichage",
-        "etapes": ["Fichier > Carte de la galaxie (Sectors.yaml)..."],
+        "etapes": ["Outils > Carte de la galaxie (Sectors.yaml)..."],
         "attendu": "Systemes affiches ; violet pour roles speciaux, orange pour classes spectrales.",
     },
     {
@@ -1044,10 +1045,10 @@ CASES = [
         "attendu": "Le bloc est active (decommente) avec le nouvel Id ; l'onglet ouvert est recharge.",
     },
     {
-        "id": "VERIF-015", "cat": "VERIF",
-        "titre": "Bilan de sante du scenario",
-        "etapes": ["Lance le bilan de sante (menu Verification)."],
-        "attendu": "Vue d'ensemble coherente du scenario, sans faux positif bloquant.",
+        "id": "VERIF-015", "cat": "VERIF", "rev": 2,
+        "titre": "Centre de verification : tout verifier d'un coup",
+        "etapes": ["Verification > Centre de verification (ou F5).", "Clique Tout verifier."],
+        "attendu": "Les 5 familles sont relancees avec compteurs ; chaque bouton de detail ouvre la fenetre de verification correspondante ; le resume compte les vrais problemes (orphelins informatifs exclus).",
     },
 
     # ---------------------------------------------------------------- SAUV
@@ -1155,9 +1156,9 @@ CASES = [
         "attendu": "Fichier texte complet ecrit (atomique), lisible.",
     },
     {
-        "id": "COMP-005", "cat": "COMP",
+        "id": "COMP-005", "cat": "COMP", "rev": 2,
         "titre": "Recherche dans tout le scenario",
-        "etapes": ["Fichier > Rechercher dans le scenario..., cherche un texte connu."],
+        "etapes": ["Outils > Rechercher dans le scenario... (ou Ctrl+Shift+F ou la barre d'outils), cherche un texte connu."],
         "attendu": "Resultats parcours A/copie/B avec fichiers et localisation.",
     },
     {
@@ -1167,9 +1168,9 @@ CASES = [
         "attendu": "Le fichier s'ouvre a l'endroit trouve.",
     },
     {
-        "id": "COMP-007", "cat": "COMP",
+        "id": "COMP-007", "cat": "COMP", "rev": 2,
         "titre": "Mission PDA : creation guidee",
-        "etapes": ["Fichier > Nouvelle mission PDA..., suis l'assistant jusqu'a la creation."],
+        "etapes": ["Outils > Nouvelle mission PDA... (ou Ctrl+M), suis l'assistant jusqu'a la creation."],
         "attendu": "Les fichiers PDA sont crees dans le scenario, structure valide.",
     },
     {
@@ -1179,17 +1180,17 @@ CASES = [
         "attendu": "Modification ecrite fidelement, mission chargeable en jeu.",
     },
     {
-        "id": "COMP-009", "cat": "COMP",
+        "id": "COMP-009", "cat": "COMP", "rev": 2,
         "titre": "Extraction des proprietes du scenario",
-        "etapes": ["Fichier > Extraire les proprietes du scenario..."],
+        "etapes": ["Outils > Extraire les proprietes du scenario..."],
         "attendu": "CSV genere : proprietes, occurrences, exemples ; cles numerotees regroupees (Name_N).",
     },
 
     # ---------------------------------------------------------------- TECH
     {
-        "id": "TECH-001", "cat": "TECH",
+        "id": "TECH-001", "cat": "TECH", "rev": 2,
         "titre": "Arbre technologique : affichage fidele au F3",
-        "etapes": ["Fichier > Arbre technologique...", "Compare avec l'ecran F3 du jeu."],
+        "etapes": ["Outils > Arbre technologique... (ou Ctrl+T ou la barre d'outils).", "Compare avec l'ecran F3 du jeu."],
         "attendu": "Colonnes par niveau, categories dans l'ordre du jeu (Base, CV, SV, HV, Misc, Tools, Weapons), Hidden jamais affiche.",
     },
     {
@@ -1420,10 +1421,10 @@ CASES = [
         "attendu": "Fermeture immediate, aucun dialogue.",
     },
     {
-        "id": "ROBU-002", "cat": "ROBU",
+        "id": "ROBU-002", "cat": "ROBU", "rev": 2,
         "titre": "Fermeture avec onglets modifies : dialogue",
         "etapes": ["Modifie deux fichiers sans enregistrer, ferme l'application."],
-        "attendu": "Dialogue listant les fichiers : Enregistrer / Abandonner / Annuler (defaut Enregistrer).",
+        "attendu": "Dialogue a boutons APPLICATION listant les fichiers : Enregistrer tout / Abandonner / Annuler (defaut Enregistrer tout).",
     },
     {
         "id": "ROBU-003", "cat": "ROBU",
@@ -1492,6 +1493,87 @@ CASES = [
         "etapes": ["Avec une version ANTERIEURE installée, lance l'application."],
         "attendu": "La mise a jour <version> est proposee au demarrage (et non proposee si deja a jour).",
     },
+    # ---------------------------------------------------------------- GUI (18)
+    {
+        "id": "GUI-001", "cat": "GUI",
+        "titre": "Theme H - Verriere neon : bascule et rendu",
+        "etapes": ["Options > Theme > H - Verriere neon.", "Observe couleurs (noir ocean + cyan), panneaux verre, gloss des boutons actifs.", "Rebascule vers le theme precedent puis revient."],
+        "attendu": "Bascule immediate sans redemarrage ; selections en NEON (halo + liseré + texte clair) dans l'arbre et le tableau ; les autres themes sont inchanges.",
+    },
+    {
+        "id": "GUI-002", "cat": "GUI",
+        "titre": "Theme Verriere : flou acrylique Windows 11",
+        "pre": "Windows 11 22H2 minimum (build 22621). Redemarre l'application avec le theme H actif.",
+        "etapes": ["Place une fenetre (navigateur, jeu...) derriere l'editeur.", "Deplace l'editeur et observe les bords/marges et le fond."],
+        "attendu": "Le contenu DERRIERE la fenetre apparait floute (acrylique) a travers le verre. Sans support (Win10, bureau distant) : fond peint du theme, aucune difference de mise en page, rien n'est illisible.",
+    },
+    {
+        "id": "GUI-003", "cat": "GUI",
+        "titre": "Barre d'outils : lisibles dans TOUS les themes",
+        "etapes": ["Passe successivement en themes Classic (clair), B, H.", "Observe les 6 boutons de la barre du haut (Enregistrer, Recherche, Arbre, Galaxie, PDA, Centre de verification)."],
+        "attendu": "Boutons auto-peints (fond bleu accent, icones blanches + libelles) lisibles sur tout fond ; au changement de theme, les libelles suivent la langue et le theme.",
+    },
+    {
+        "id": "GUI-004", "cat": "GUI",
+        "titre": "Barre d'outils : les 6 boutons declenchent les bonnes fenetres",
+        "etapes": ["Clique successivement Enregistrer, Recherche, Arbre technologique, Carte de la galaxie, Missions PDA, Centre de verification (avec un projet ouvert)."],
+        "attendu": "Chaque bouton ouvre exactement la meme fenetre que son entree de menu.",
+    },
+    {
+        "id": "GUI-005", "cat": "GUI",
+        "titre": "Raccourcis clavier affiches et fonctionnels",
+        "etapes": ["Ouvre les menus Outils et Verification et lis les raccourcis affiches.", "Teste Ctrl+Shift+F (recherche), Ctrl+T (arbre), Ctrl+G (galaxie), Ctrl+M (PDA), F5 (centre de verification)."],
+        "attendu": "Les raccourcis sont affiches a droite des libelles et declenchent les memes fenetres que les menus.",
+    },
+    {
+        "id": "GUI-006", "cat": "GUI",
+        "titre": "Compteur de modifications dans le bandeau",
+        "etapes": ["Modifie 2 fichiers ouverts sans enregistrer.", "Observe le libelle du panneau Copie de travail.", "Enregistre tout puis re-observe."],
+        "attendu": "Libelle : 'Copie de travail -- N fichier(s) modifie(s)' avec le bon compte ; retour a 'Copie de travail (modifiable)' apres enregistrement.",
+    },
+    {
+        "id": "GUI-007", "cat": "GUI",
+        "titre": "Barre d'etat : resume persistant du projet",
+        "etapes": ["Ouvre un projet, modifie un fichier.", "Declenche un message ephemere (ex: une action qui affiche un message en bas)."],
+        "attendu": "Le resume 'projet - N modifie(s)' reste affiche a DROITE de la barre d'etat, jamais ecrase par les messages temporaires ; il affiche 'Aucun projet ouvert' sans projet.",
+    },
+    {
+        "id": "GUI-008", "cat": "GUI",
+        "titre": "Boite de chargement sur les operations longues",
+        "etapes": ["Reprends un projet recent (Projets recents).", "Lance F5 (Centre de verification) et une recherche globale.", "Observe le bas de la fenetre pendant chaque operation."],
+        "attendu": "Boite 'Traitement en cours...' immediate + curseur sablier ; impossible de cliquer ailleurs pendant l'operation ; disparition propre a la fin (meme en cas d'erreur).",
+    },
+    {
+        "id": "PROJ-015", "cat": "PROJ",
+        "titre": "Nouveau projet : destination non inscriptible refusee AVANT la copie",
+        "pre": "Un dossier de destination dont l'ecriture echouera (ex: un chemin dont un parent est un fichier, ou un dossier verrouille).",
+        "etapes": ["Fichier > Nouveau projet...", "Choisis cette destination impossible.", "Valide."],
+        "attendu": "Message d'erreur immediat 'Dossier de destination inaccessible en ecriture' ; AUCUNE copie demarree, aucun dossier partiel laisse.",
+    },
+    {
+        "id": "COMP-010", "cat": "COMP", "rev": 1,
+        "titre": "Recherche : mode expression reguliere",
+        "etapes": ["Outils > Rechercher dans le scenario...", "Coche Expression reguliere, cherche un motif (ex: Robo.*Dog).", "Saisis ensuite un motif INVALIDE (ex: Robo([unclosed) et relance."],
+        "attendu": "Les motifs regex fonctionnent sur ECF/YAML/CSV ; un motif invalide affiche un message d'erreur et CONSERVE les resultats de la recherche precedente (liste jamais videe).",
+    },
+    {
+        "id": "TECH-013", "cat": "TECH",
+        "titre": "Fiche info : export Markdown",
+        "etapes": ["Ouvre la fiche d'info d'un bloc (double-clic).", "Clique le bouton export (a cote de la croix), choisis un fichier .md."],
+        "attendu": "Fichier Markdown ecrit, miroir de la fiche (description, stats, deblocage, fabrication, prix) sans balises HTML ; confirmation d'export.",
+    },
+    {
+        "id": "TECH-014", "cat": "TECH",
+        "titre": "Arbre technologique : cout de deblocage visible sur chaque icone",
+        "etapes": ["Outils > Arbre technologique...", "Observe le badge dore en bas a droite de CHAQUE icone.", "Survole une icone : l'infobulle doit confirmer le meme cout."],
+        "attendu": "Chaque icone porte son UnlockCost (badge dore sur pastille sombre, lisible sur toutes les icones et tous les themes) ; le chiffre correspond a l'infobulle.",
+    },
+    {
+        "id": "ROBU-009", "cat": "ROBU",
+        "titre": "Protocole de test accessible dans l'application",
+        "etapes": ["Aide > Protocole de test (tutoriel / debogage)...", "Clique ▶ Commencer une session de tests... : choisis vierge ou reprise, teste cas par cas (pas-a-pas, verdicts OK/KO/A retester).", "Parcours les categories, filtre par mot-cle, exporte le bilan en Markdown/CSV."],
+        "attendu": "Le pas-a-pas complet est disponible DANS l'application (meme moteur que tools/protocole_test.py) ; les verdicts sont sauvegardes entre deux lancements ; l'export ecrit un bilan complet.",
+    },
 ]
 
 
@@ -1501,6 +1583,35 @@ def cases_by_category():
     for case in CASES:
         grouped[case["cat"]].append(case)
     return grouped
+
+
+def protocol_to_markdown() -> str:
+    """Rend le protocole complet en Markdown (utilise par le dialogue
+    Aide > Protocole de test de l'application et pour l'export). Structure :
+    une section par categorie, un sous-titre par cas (id, titre, revision),
+    prerequis / etapes numerotees / resultat attendu en liste."""
+    grouped = cases_by_category()
+    lines = ["# Protocole de test manuel - Empyrion Scenario Editor", ""]
+    total = sum(len(cases) for cases in grouped.values())
+    lines.append(f"**{total} cas** - genere automatiquement depuis tools/protocole_cas.py")
+    lines.append("")
+    for code, label in CATEGORIES:
+        cases = grouped[code]
+        if not cases:
+            continue
+        lines.append(f"## {label}")
+        lines.append("")
+        for case in cases:
+            rev = f" (rev {case['rev']})" if case.get("rev") else ""
+            lines.append(f"### {case['id']} - {case['titre']}{rev}")
+            lines.append("")
+            if case.get("pre"):
+                lines.append(f"- Prerequis : {case['pre']}")
+            for i, step in enumerate(case.get("etapes", []), 1):
+                lines.append(f"- Etape {i} : {step}")
+            lines.append(f"- **Resultat attendu** : {case['attendu']}")
+            lines.append("")
+    return chr(10).join(lines) + chr(10)
 
 
 if __name__ == "__main__":

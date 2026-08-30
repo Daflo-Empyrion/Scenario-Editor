@@ -19,7 +19,7 @@ Diagnostic : verifie si mon parser retrouve un bloc precis (par Id) dans un fich
 .ecf, apres une edition manuelle (ex: decommenter un bloc en conflit d'Id).
 
 UTILISATION :
-    python diagnostic_bloc.py "chemin\vers\BlocksConfig.ecf" 999999
+    python cli/diagnostic_bloc.py "chemin\vers\BlocksConfig.ecf" 999999
     (999999 = l'Id que tu as donne au bloc)
 """
 import sys
@@ -37,7 +37,7 @@ from core.ecf.model import EcfBlock, EcfComment, block_identity
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python diagnostic_bloc.py <fichier.ecf> <Id>")
+        print("Usage: python cli/diagnostic_bloc.py <fichier.ecf> <Id>")
         sys.exit(1)
 
     path = Path(sys.argv[1])

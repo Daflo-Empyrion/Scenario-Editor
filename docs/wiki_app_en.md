@@ -634,7 +634,7 @@ Can be disabled via **Options > Autosave**.
 
 ## 16bis. Visual theme
 
-**Options > Theme** — 8 selectable themes, switches immediately without
+**Options > Theme** — 9 selectable themes, switches immediately without
 restarting:
 - **Classic** — original theme (blue/navy admin dashboard), stays the
   default until another one is explicitly chosen
@@ -646,12 +646,17 @@ restarting:
 - **F — Dusk** — mid-tone slate, designed for comfortable multi-hour use
   (moderate contrast, off-white rather than pure white)
 - **G — Mother-of-pearl** — light, iridescent multicolor gradient menu bar
+- **H — Neon glass roof** — deep ocean-black, translucent glass panels,
+  gloss and 3D bevels, electric cyan accent; NEON selections (glow halo +
+  bright outline, added on top of highlighting); Windows 11 acrylic blur
+  automatically enabled when the OS supports it (graceful fallback: without
+  support, the theme's painted background is used, no layout difference)
 
-<span style="color:#7c859c"><i>Assumed limitation: these themes are a
-faithful color/gradient approximation of the original mockups, but without
-the real frosted-glass background blur -- PyQt6 Widgets doesn't support it
-natively (would require Windows 11's Acrylic/Mica API, or a rewrite in Qt
-Quick/QML).</i></span>
+<span style="color:#7c859c"><i>Assumed limitation: the acrylic blur requires
+Windows 11 22H2 (build 22621) through the DWM API; everywhere else the
+theme remains fully usable with its painted background. Per-panel blur
+(CSS backdrop-filter style) is still impossible in PyQt6 Widgets without a
+Qt Quick/QML rewrite.</i></span>
 
 ---
 
@@ -708,15 +713,15 @@ the project folder:
 
 | Command (`EmpyrionEditorCLI.exe`) | Equivalent script (sources) | Usage |
 |---|---|---|
-| `verifier-ecf <file_or_folder>` | `python verifier_parser_ecf.py ...` | Checks round-trip (perfect fidelity) of one or more ECF files |
-| `verifier-yaml <file_or_folder>` | `python verifier_parser_yaml.py ...` | Same for YAML |
-| `verifier-csv <file_or_folder>` | `python verifier_parser_csv.py ...` | Same for CSV |
-| `diagnostic-bloc <file.ecf> <Id>` | `python diagnostic_bloc.py ...` | Finds a specific block by Id, including within comments |
-| `detecter-imbrication <file.ecf>` | `python detecter_imbrication_anormale.py ...` | Detects blocks that mistakenly "swallowed" the rest of the file |
-| `diff <fileA.ecf> <fileB.ecf>` | `python diff_ecf.py ...` | Compares two ECF files, shows added/removed/modified blocks |
-| `edit <file.ecf>` | `python edit_ecf.py ...` | Interactive command-line ECF editor |
-| `merge <output.ecf> <source1> <source2>...` | `python merge_ecf.py ...` | Merges several ECF files by priority order |
-| `transform` | `python transform_ecf.py` | Applies a bulk numeric transformation (multiply/add/set/cap) on a property, for a given block kind |
+| `verifier-ecf <file_or_folder>` | `python cli/verifier_parser_ecf.py ...` | Checks round-trip (perfect fidelity) of one or more ECF files |
+| `verifier-yaml <file_or_folder>` | `python cli/verifier_parser_yaml.py ...` | Same for YAML |
+| `verifier-csv <file_or_folder>` | `python cli/verifier_parser_csv.py ...` | Same for CSV |
+| `diagnostic-bloc <file.ecf> <Id>` | `python cli/diagnostic_bloc.py ...` | Finds a specific block by Id, including within comments |
+| `detecter-imbrication <file.ecf>` | `python cli/detecter_imbrication_anormale.py ...` | Detects blocks that mistakenly "swallowed" the rest of the file |
+| `diff <fileA.ecf> <fileB.ecf>` | `python cli/diff_ecf.py ...` | Compares two ECF files, shows added/removed/modified blocks |
+| `edit <file.ecf>` | `python cli/edit_ecf.py ...` | Interactive command-line ECF editor |
+| `merge <output.ecf> <source1> <source2>...` | `python cli/merge_ecf.py ...` | Merges several ECF files by priority order |
+| `transform` | `python cli/transform_ecf.py` | Applies a bulk numeric transformation (multiply/add/set/cap) on a property, for a given block kind |
 
 ---
 

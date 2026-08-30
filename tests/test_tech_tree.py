@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 from core.tech_tree import (
-    load_tech_tree, set_unlock_level, set_unlock_cost, move_to_category, set_tech_tree_parent, _parse_list_value,
+    load_tech_tree, set_unlock_level, set_unlock_cost, move_to_category, set_tech_tree_parent, parse_quoted_list,
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "tech_tree_scenario"
@@ -40,12 +40,12 @@ def working_files(tmp_path):
     return blocks, items
 
 
-def test_parse_list_value():
-    assert _parse_list_value('"Base,Capital Vessel"') == ["Base", "Capital Vessel"]
-    assert _parse_list_value("Weapons") == ["Weapons"]
-    assert _parse_list_value(None) == []
-    assert _parse_list_value("") == []
-    assert _parse_list_value('""') == []
+def test_parse_quoted_list():
+    assert parse_quoted_list('"Base,Capital Vessel"') == ["Base", "Capital Vessel"]
+    assert parse_quoted_list("Weapons") == ["Weapons"]
+    assert parse_quoted_list(None) == []
+    assert parse_quoted_list("") == []
+    assert parse_quoted_list('""') == []
 
 
 def test_load_tech_tree_includes_valid_nodes(working_files):

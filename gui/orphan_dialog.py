@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton,
 )
 
+from gui.busy import busy_guard
 from core.i18n import t
 from core.ecf.orphan_check import find_unused_tokens
 from gui.theme import icon, icon_size
@@ -79,7 +80,8 @@ class OrphanDialog(QDialog):
         self.refresh()
 
     def refresh(self):
-        self.unused = find_unused_tokens(self.ecf_files)
+        with busy_guard(self):
+            self.unused = find_unused_tokens(self.ecf_files)
         self.results_list.clear()
         for orphan in self.unused:
             self.results_list.addItem(QListWidgetItem(orphan.display()))

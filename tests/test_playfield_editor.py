@@ -12,6 +12,7 @@ from core.playfield_editor import (
     find_top_level_key, list_items, find_poi_items, find_creature_items,
     get_item_params, set_item_param, list_resource_block_names,
     add_resource_item, remove_resource_item,
+    _section_index_range,
 )
 from core.yamllite.parser import parse_yaml_file, parse_yaml_text
 
@@ -563,3 +564,60 @@ def test_double_random_marker_does_not_cause_misattribution(doc):
     # tot) -- la coherence stricte avec ce total confirme qu'aucun item n'est
     # perdu entre les deux occurrences de Random.
     assert len(find_random_poi_items(doc)) == len(find_poi_items(doc))
+
+
+# ---------------------------------------------------------------------------
+# Filet de securite _section_index_range (recherche par plage d'indices)
+# ---------------------------------------------------------------------------
+
+def test_section_index_range_safety_net_catches_broken_tree():
+    """Filet de securite : meme si le parseur produisait de nouveau un arbre
+    casse (items 'fuis' au niveau racine -- l'ancien piege des commentaires a
+    indentation zero, corrige a la racine dans core/yamllite/parser.py),
+    list_items() doit continuer de tout trouver grace a la recherche par
+    plage d'indices, la ou une simple descente dans section.children en
+    perdre. L'arbre casse est construit a la main : on detache un item de la
+    section et on le reaccroche au niveau racine, la ou l'ancien bug le
+    laissait."""
+    text = (
+        "RandomResources:\n"
+        "  - Name: IronOre\n"
+        "    CountMinMax: [ 2, 4 ]\n"
+        "  - Name: CobaltOre\n"
+        "    CountMinMax: [ 1, 2 ]\n"
+        "# commentaire a indentation zero\n"
+        "Terrain:\n"
+        "  Temp: 24\n"
+    )
+    doc = parse_yaml_text(text)
+    section = find_top_level_key(doc, "RandomResources")
+    assert section is not None
+
+    # Sanity : arbre sain avant mutation, la section porte bien 2 items.
+    assert len([c for c in section.children if c.is_sequence_item]) == 2
+
+    # Simulation de l'ancien bug : le deuxieme item 'fuit' au niveau racine,
+    # juste apres la section (doc.nodes preserve l'ordre du texte).
+    fled = [c for c in section.children if c.is_sequence_item][1]
+    section.children.remove(fled)
+    doc.nodes.insert(doc.nodes.index(section) + 1, fled)
+
+    # La section ne porte plus qu'un item dans l'arbre : il est bien casse
+    # (condition d'existence du filet -- une descente naive en perdre un).
+    assert len([c for c in section.children if c.is_sequence_item]) == 1
+
+    # La plage d'indices demarre sur le noeud de section lui-meme et s'arrete
+    # au prochain noeud de niveau racine (Terrain) : l'item fuit est DANS la
+    # plage, donc retrouve malgre l'arbre casse.
+    terrain = find_top_level_key(doc, "Terrain")
+    rng = _section_index_range(doc, "RandomResources")
+    assert rng[0] == doc.nodes.index(section)
+    assert rng[1] == doc.nodes.index(terrain)
+
+    names = [i.value for i in list_items(doc, "RandomResources", "Name")]
+    assert names == ["IronOre", "CobaltOre"]
+
+
+def test_section_index_range_returns_none_for_absent_section():
+    doc = parse_yaml_text("Terrain:\n  Temp: 24\n")
+    assert _section_index_range(doc, "RandomResources") is None

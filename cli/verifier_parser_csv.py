@@ -22,8 +22,8 @@ Meme demarche que verifier_parser_ecf.py et verifier_parser_yaml.py -- on ne fai
 confiance a un format qu'apres l'avoir valide sur de vrais fichiers.
 
 UTILISATION :
-    python verifier_parser_csv.py "C:\\chemin\\vers\\Extras"
-    python verifier_parser_csv.py fichier.csv
+    python cli/verifier_parser_csv.py "C:\\chemin\\vers\\Extras"
+    python cli/verifier_parser_csv.py fichier.csv
 """
 import sys
 from pathlib import Path
@@ -78,7 +78,7 @@ def check_file(path: Path, handler: CsvHandler) -> bool:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python verifier_parser_csv.py <dossier_ou_fichier.csv>")
+        print("Usage: python cli/verifier_parser_csv.py <dossier_ou_fichier.csv>")
         sys.exit(1)
 
     target = Path(sys.argv[1])

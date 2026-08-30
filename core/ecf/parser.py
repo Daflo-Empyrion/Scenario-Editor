@@ -177,6 +177,11 @@ def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[Ecf
         raw = lines[i]
         content, eol, indent = _split_line(raw)
         stripped = content.strip()
+        # Un BOM en tout debut de fichier (de vrais fichiers du jeu en ont un)
+        # ne doit jamais empecher la reconnaissance de la premiere ligne comme
+        # bloc, commentaire ou propriete. Il reste conserve dans `raw`, donc
+        # le round-trip reste byte-pour-byte (voir la note de parse_ecf_file).
+        stripped = stripped.lstrip('\ufeff')
 
         if in_block_comment:
             # Toute ligne a l'interieur d'un /* ... */ est un commentaire, quel que soit

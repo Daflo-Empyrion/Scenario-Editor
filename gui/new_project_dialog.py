@@ -107,6 +107,35 @@ class NewProjectDialog(QDialog):
         self.edit_b.setEnabled(checked)
         self.btn_b.setEnabled(checked)
 
+    def _destination_write_error(self, dest: Path):
+        """Verifie AVANT la copie que la destination est reellement creable et
+        inscriptible (permissions Windows, parent inexistant, parent qui est
+        un fichier...) : cree le dossier (et ses parents manquants), y ecrit
+        une sonde, puis nettoie la sonde ET le dossier feuille pour laisser
+        create_working_copy() le recreer. Sans cette sonde, l'echec ne serait
+        decouvert qu'apres plusieurs minutes de copie d'un gros scenario et
+        laisserait une copie partielle sur disque. Retourne le message
+        d'erreur traduit, ou None si la destination est utilisable."""
+        if dest.exists():
+            # Deja rejete par la validation d'existence juste avant ; si une
+            # course la recree entre-temps, on ne sonde pas un dossier
+            # existant (create_working_copy refusera de toute facon).
+            return None
+        try:
+            dest.mkdir(parents=True)
+        except OSError as e:
+            # Un parent intermediaire qui est un fichier remonte aussi ici
+            # (FileExistsError/NotADirectoryError selon la plate-forme).
+            return t("err.dest_not_writable", error=str(e))
+        probe = dest / ".write_probe"
+        try:
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+            dest.rmdir()
+        except OSError as e:
+            return t("err.dest_not_writable", error=str(e))
+        return None
+
     def _on_accept(self):
         if not self.edit_a.text().strip():
             QMessageBox.warning(self, t("err.missing_field"), t("newproj.scenario_a_placeholder"))
@@ -123,6 +152,10 @@ class NewProjectDialog(QDialog):
             return
         if dest.exists():
             QMessageBox.warning(self, t("err.dest_exists"), f"{dest}")
+            return
+        write_error = self._destination_write_error(dest)
+        if write_error is not None:
+            QMessageBox.warning(self, t("err.create_project"), write_error)
             return
 
         source_b = None

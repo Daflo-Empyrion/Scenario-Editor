@@ -36,6 +36,13 @@ Cles obligatoires de chaque palette (voir gui/theme.py:build_stylesheet) :
   nav_gradient (fragment QSS qlineargradient/qradialgradient/qconicalgradient
                 pour QMenuBar/QToolBar), nav_text,
   success, warning, danger, danger_dark, font_family, label (nom affiche)
+
+Cles OPTIONNELLES (utilisees uniquement par le theme "h" -- Verrière néon,
+ignorées par build_stylesheet pour les autres palettes) :
+  extra_qss        QSS ajouté APRÈS la feuille générale (verre/gloss/biseaux)
+  neon_selection   True : selections peintes en néon par gui/neon_delegate.py
+  acrylic          True : tenter le flou acrylique Windows 11
+                   (core/win_backdrop.py, dégradé gracieux sans effet ailleurs)
 """
 from typing import Dict
 
@@ -145,9 +152,106 @@ THEMES: Dict[str, dict] = {
         "success": "#0D8A5E", "warning": "#B5720A", "danger": "#B23A32", "danger_dark": "#8E2D26",
         "font_family": "Segoe UI",
     },
+    "h": {
+        "label": "H — Verrière néon",
+        "bg": "#04060D", "surface": "#0E161F", "surface_alt": "#142030",
+        "border": "#1D2E3E", "border_strong": "#2C4658",
+        "text_primary": "#E4F2FA", "text_muted": "#7E96A8", "text_on_primary": "#02141C",
+        "accent": "#00E5FF", "accent_hover": "#4FEFFF", "accent_pressed": "#00B8D9",
+        "accent_bg_tint": "#0B3A47",
+        "nav_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                         "stop:0 #030509, stop:0.55 #071019, stop:1 #0B2430)",
+        "nav_text": "#E4F2FA",
+        "success": "#00FFA3", "warning": "#FFC24D", "danger": "#FF5C7A", "danger_dark": "#D93A5C",
+        "font_family": "Segoe UI",
+        # --- cles OPTIONNELLES (ignorees par les autres themes) ---
+        # QSS additionnel : verre + gloss + biseaux. Ajoute APRES la feuille
+        # generale (meme specificite -> ces regles gagnent).
+        "extra_qss": """
+/* --- Theme Verriere : verre, gloss, biseaux --- */
+QPushButton {{
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(20, 70, 110, 150), stop:0.48 rgba(10, 45, 80, 140),
+        stop:0.52 rgba(6, 26, 52, 150), stop:1 rgba(10, 36, 66, 170));
+    color: {TEXT_ON_PRIMARY2};
+    border: 1px solid rgba(0, 229, 255, 80);
+    border-top-color: rgba(125, 246, 255, 130);
+    border-bottom-color: rgba(0, 10, 24, 180);
+}}
+QPushButton:hover {{
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(0, 195, 235, 200), stop:0.48 rgba(0, 160, 205, 190),
+        stop:0.52 rgba(0, 130, 175, 200), stop:1 rgba(20, 160, 205, 215));
+    color: #02141C;
+}}
+QPushButton:pressed {{
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(4, 14, 28, 215), stop:1 rgba(10, 32, 58, 205));
+    border-top-color: rgba(0, 10, 24, 190);
+    border-bottom-color: rgba(125, 246, 255, 110);
+}}
+QPushButton#secondaryButton {{
+    background-color: rgba(14, 26, 40, 160);
+    color: {TEXT_PRIMARY2};
+    border: 1px solid rgba(0, 229, 255, 60);
+    border-top-color: rgba(125, 246, 255, 95);
+}}
+QPushButton#secondaryButton:hover {{
+    background-color: rgba(0, 90, 120, 120);
+    color: {ACCENT_HOVER2};
+}}
+QMenuBar {{
+    border-bottom: 1px solid rgba(0, 229, 255, 70);
+}}
+QToolBar {{
+    border-bottom: 1px solid rgba(0, 229, 255, 55);
+}}
+QStatusBar {{
+    background-color: rgba(8, 15, 25, 190);
+    border-top: 1px solid rgba(0, 229, 255, 60);
+}}
+QTableWidget, QTreeWidget, QListWidget {{
+    background-color: rgba(14, 22, 31, 216);
+    border: 1px solid rgba(0, 229, 255, 45);
+    border-top-color: rgba(125, 246, 255, 75);
+    selection-background-color: rgba(0, 229, 255, 40);
+    selection-color: {ACCENT_HOVER2};
+}}
+QTabWidget::pane {{
+    background-color: rgba(14, 22, 31, 216);
+}}
+QHeaderView::section {{
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(0, 120, 160, 110), stop:0.5 rgba(0, 70, 110, 100),
+        stop:0.51 rgba(0, 45, 80, 115), stop:1 rgba(0, 60, 100, 130));
+    color: #9FF0FF;
+    border-bottom: 1px solid rgba(0, 229, 255, 110);
+}}
+QTabBar::tab {{
+    border: 1px solid rgba(0, 229, 255, 45);
+    border-bottom: none;
+}}
+QTabBar::tab:selected {{
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(0, 120, 160, 160), stop:1 rgba(0, 60, 100, 170));
+    color: {ACCENT_HOVER2};
+}}
+QToolTip {{
+    background: rgba(5, 12, 22, 235);
+    color: #9FF0FF;
+    border: 1px solid rgba(0, 229, 255, 90);
+}}
+""".format(TEXT_ON_PRIMARY2="#E6FAFF", TEXT_PRIMARY2="#D8F2FA",
+           ACCENT_HOVER2="#4FEFFF"),
+        # Selection neon (halo + liseré) peinte par gui/neon_delegate.py
+        "neon_selection": True,
+        # Flou acrylique Windows 11 (degrade gracieux : sans effet si
+        # indisponible -- voir core/win_backdrop.py)
+        "acrylic": True,
+    },
 }
 
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g"]
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h"]
 DEFAULT_THEME_ID = "classic"
 
 

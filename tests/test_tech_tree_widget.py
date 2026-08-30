@@ -269,3 +269,28 @@ def test_node_item_uses_bounding_rect_shape_for_reliable_hit_testing(tree_and_vi
     view = make_view("Base")
     item = view._items_by_name["OxygenTankSmallMS"]
     assert item.shapeMode() == QGraphicsPixmapItem.ShapeMode.BoundingRectShape
+
+
+def test_context_menu_accepts_integer_screen_pos(tree_and_view_factory, monkeypatch):
+    """Regression (retour utilisateur du 30/08/2026) : clique droit sur une
+    icone plantait avec 'QPoint' object has no attribute 'toPoint' -- dans
+    PyQt6, QGraphicsSceneContextMenuEvent.screenPos() renvoie DEJA un QPoint
+    entier, et l'ancien menu.exec(screen_pos.toPoint()) echouait. Le menu doit
+    s'ouvrir avec un QPoint, qu'on lui passe un QPoint ou un QPointF."""
+    from PyQt6.QtCore import QPoint, QPointF
+    from PyQt6.QtWidgets import QMenu
+
+    tree, make_view = tree_and_view_factory
+    view = make_view("Base")
+    node_name = next(iter(view._items_by_name.keys()))
+
+    received = []
+    monkeypatch.setattr(QMenu, "exec",
+                        lambda self, pos, *a, **k: received.append(pos))
+
+    view.show_node_context_menu(node_name, QPoint(100, 100))
+    assert received and isinstance(received[-1], QPoint)
+
+    view.show_node_context_menu(node_name, QPointF(100.0, 100.0))
+    assert received and isinstance(received[-1], QPoint)
+    assert received[-1] == QPoint(100, 100)

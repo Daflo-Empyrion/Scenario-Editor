@@ -30,13 +30,14 @@ from core.i18n import t
 def export_text_to_file(parent: QWidget, default_filename: str, content: str,
                          title_key: str = "results_export.title",
                          done_title_key: str = "results_export.done_title",
-                         done_msg_key: str = "results_export.done_msg") -> Optional[Path]:
+                         done_msg_key: str = "results_export.done_msg",
+                         file_filter: str = "Texte (*.txt)") -> Optional[Path]:
     """Ouvre un selecteur "Enregistrer sous", ecrit `content` dedans en UTF-8, et
     confirme par un message. Retourne le chemin choisi, ou None si annule ou en
     cas d'erreur d'ecriture. Reutilise par toutes les fenetres de resultats
-    (verifications, comparaison de scenario) pour un comportement identique
-    partout plutot que duplique dans chaque dialogue."""
-    path_str, _ = QFileDialog.getSaveFileName(parent, t(title_key), default_filename, "Texte (*.txt)")
+    (verifications, comparaison de scenario, fiche d'information) pour un
+    comportement identique partout plutot que duplique dans chaque dialogue."""
+    path_str, _ = QFileDialog.getSaveFileName(parent, t(title_key), default_filename, file_filter)
     if not path_str:
         return None
     path = Path(path_str)

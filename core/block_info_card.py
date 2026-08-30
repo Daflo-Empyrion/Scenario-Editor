@@ -290,6 +290,57 @@ def _find_template(templates_doc: Optional[EcfDocument], name: str):
     return None
 
 
+def _strip_html(html: str) -> str:
+    """Retire les balises HTML produites par _bbcode_to_html pour un rendu
+    texte brut (les <br> deviennent de vrais retours a la ligne)."""
+    text = re.sub(r"<br\s*/?>", "\n", html)
+    text = re.sub(r"<[^>]+>", "", text)
+    return text.strip()
+
+
+def card_to_markdown(card: BlockInfoCard) -> str:
+    """Rend la fiche en Markdown, MIROIR de ce que show_card() affiche (meme
+    ordre : description, statistiques, deblocage, fabrication, prix du
+    marche). Les libelles/valeurs sont deja traduits et formates dans la
+    fiche au moment de sa construction -- aucune nouvelle traduction ni
+    mise en forme ici, on deplace seulement le rendu vers un fichier."""
+    lines: List[str] = []
+    title = _strip_html(card.title) if card.title else card.root_identity
+    lines.append(f"# {title}")
+    lines.append("")
+    if card.description_html:
+        lines.append(_strip_html(card.description_html))
+        lines.append("")
+    for f in card.stat_fields:
+        lines.append(f"- **{_strip_html(f.label)}** : {_strip_html(f.value)}")
+    if card.stat_fields:
+        lines.append("")
+    for f in card.unlock_fields:
+        lines.append(f"- **{_strip_html(f.label)}** : {_strip_html(f.value)}")
+    if card.unlock_fields:
+        lines.append("")
+    if card.crafting_header:
+        lines.append(f"## {_strip_html(card.crafting_header)}")
+        lines.append("")
+        if card.input_items_label and card.ingredients:
+            lines.append(f"**{_strip_html(card.input_items_label)}**")
+            lines.append("")
+            for ing in card.ingredients:
+                lines.append(f"- {ing.name} : {ing.quantity}")
+            lines.append("")
+        if card.output_count_value is not None:
+            lines.append(f"- **{_strip_html(card.output_count_label or '')}** : "
+                         f"{_strip_html(card.output_count_value)}")
+            lines.append("")
+    if card.market_price:
+        lines.append(f"- **{_strip_html(card.market_price.label)}** : "
+                     f"{_strip_html(card.market_price.value)}")
+        lines.append("")
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines) + "\n"
+
+
 def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str,
                            templates_doc: Optional[EcfDocument] = None) -> BlockInfoCard:
     """Construit la fiche d'information complete pour `block` -- voir

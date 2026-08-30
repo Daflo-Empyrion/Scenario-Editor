@@ -28,6 +28,15 @@ if str(PROJECT_ROOT) not in sys.path:
 # Force un affichage virtuel (offscreen) pour les tests touchant a PyQt6 -- evite
 # tout echec dans un environnement sans vrai serveur graphique (CI, sandbox...).
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Sur la plateforme offscreen, Qt ne charge AUCUNE police systeme par defaut
+# (QFontDatabase vide) : le layout de texte d'un texte en gras sur une police
+# non resolue peut alors ne jamais terminer (observe avec le delegue de
+# selection neon). Pointer Qt sur les vraies polices Windows resout le
+# probleme et rend les captures de tests fideles ; sur une autre
+# plate-forme, le dossier absent est simplement ignore par Qt.
+os.environ.setdefault(
+    "QT_QPA_FONTDIR",
+    str(Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"))
 
 
 @pytest.fixture(scope="session")

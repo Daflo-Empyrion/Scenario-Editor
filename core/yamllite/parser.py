@@ -62,6 +62,11 @@ def _split_line(raw_line: str) -> Tuple[str, str, str]:
         content, eol = raw_line, ''
     stripped = content.lstrip(' ')
     indent = content[:len(content) - len(stripped)]
+    if stripped.startswith('\ufeff'):
+        # BOM en tout debut de fichier (de vrais fichiers du jeu en ont un) :
+        # conserve dans `raw` (round-trip byte-pour-byte), jamais dans la cle
+        # de la premiere entree.
+        stripped = stripped.lstrip('\ufeff')
     return stripped, eol, indent
 
 

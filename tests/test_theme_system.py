@@ -25,7 +25,7 @@ import pytest
 def test_theme_registry_has_all_expected_ids():
     from core.themes import THEMES, THEME_ORDER
     assert set(THEME_ORDER) == set(THEMES.keys())
-    assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e", "f", "g"]
+    assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e", "f", "g", "h"]
 
 
 REQUIRED_PALETTE_KEYS = {

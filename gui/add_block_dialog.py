@@ -363,7 +363,7 @@ class PropertyTableDialog(QDialog):
         ACTUELLEMENT saisies (si cochees) pour UnlockLevel/UnlockCost/
         TechTreeNames/TechTreeParent, et reporte le resultat dans le tableau
         si l'utilisateur valide."""
-        from core.tech_tree import _parse_list_value
+        from core.parsers_utils import parse_quoted_list
 
         def _int_or(key: str, default: int) -> int:
             checkbox, combo = self._find_row(key)
@@ -377,7 +377,7 @@ class PropertyTableDialog(QDialog):
         categories: List[str] = []
         checkbox, combo = self._find_row('TechTreeNames')
         if checkbox is not None and checkbox.isChecked():
-            categories = _parse_list_value(combo.currentText().strip())
+            categories = parse_quoted_list(combo.currentText().strip())
 
         parent_name: Optional[str] = None
         checkbox, combo = self._find_row('TechTreeParent')

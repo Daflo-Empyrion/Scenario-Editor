@@ -20,7 +20,7 @@ fichiers .ecf reels. A lancer sur TES fichiers pour valider le parser au-dela
 de l'exemple deja teste (Containers.ecf).
 
 UTILISATION :
-    python verifier_parser_ecf.py "C:\chemin\vers\Content\Configuration"
+    python cli/verifier_parser_ecf.py "C:\chemin\vers\Content\Configuration"
 
     (ou un chemin vers un seul fichier .ecf)
 
@@ -74,7 +74,7 @@ def check_file(path: Path) -> bool:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python verifier_parser_ecf.py <dossier_ou_fichier.ecf>")
+        print("Usage: python cli/verifier_parser_ecf.py <dossier_ou_fichier.ecf>")
         sys.exit(1)
 
     target = Path(sys.argv[1])

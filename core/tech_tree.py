@@ -55,6 +55,7 @@ from typing import Dict, List, Optional
 from .ecf.model import EcfBlock, EcfProperty, add_property_line, remove_property_line
 from .ecf.parser import parse_ecf_file
 from .fsutil import atomic_write_text
+from .parsers_utils import parse_quoted_list
 
 # Ordre confirme par la capture d'ecran F3 fournie (onglets de gauche a
 # droite). Sert uniquement a trier les categories connues en premier ; toute
@@ -69,20 +70,6 @@ KNOWN_CATEGORY_ORDER = [
 # le docstring du module (cas reel confirme : HeavyPistol a la fois
 # TechTreeNames=Hidden ET UnlockLevel=1).
 _EXCLUDED_CATEGORY_VALUES = {"Hidden", ""}
-
-
-def _parse_list_value(raw: Optional[str]) -> List[str]:
-    """Deguillemette et scinde une valeur de propriete ECF potentiellement
-    listee (ex: '"Base,Capital Vessel"' -> ['Base', 'Capital Vessel']).
-    Chaque element est nettoye des espaces/commentaires de fin de ligne
-    residuels. Retourne [] si raw est None ou vide apres nettoyage."""
-    if raw is None:
-        return []
-    value = raw.strip()
-    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
-        value = value[1:-1]
-    parts = [p.strip() for p in value.split(',')]
-    return [p for p in parts if p]
 
 
 @dataclass
@@ -155,7 +142,7 @@ def _extract_nodes(path: Path, source: str) -> List[TechTreeNode]:
         name = b.get('Name') or b.get_property('Name')
         if not name:
             continue
-        categories = _parse_list_value(b.get_property('TechTreeNames'))
+        categories = parse_quoted_list(b.get_property('TechTreeNames'))
         if not categories or all(c in _EXCLUDED_CATEGORY_VALUES for c in categories):
             continue
         level_raw = b.get_property('UnlockLevel')

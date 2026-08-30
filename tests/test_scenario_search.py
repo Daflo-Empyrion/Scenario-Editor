@@ -3,7 +3,10 @@ Tests du module de recherche a travers tout le scenario
 (core/scenario_search.py) -- bases sur des fixtures compactes representatives
 des 3 formats geres (ECF, YAML, CSV).
 """
+import re
 from pathlib import Path
+
+import pytest
 
 from core.scenario_search import (
     search_ecf_files, search_yaml_files, search_csv_files, search_scenario,
@@ -100,3 +103,42 @@ def test_search_handles_unparseable_file_gracefully(tmp_path):
     bad_yaml.write_bytes(b"\x00\x01\x02invalid")
     # Ne doit pas lever d'exception, resultat vide ou ignore selon le parseur
     search_yaml_files([bad_yaml], "anything")
+
+
+# ---------------------------------------------------------------------------
+# Mode expression reguliere (ajoute apres l'audit du 30/08/2026)
+# ---------------------------------------------------------------------------
+
+def test_search_ecf_regex_finds_pattern(tmp_path):
+    ecf = tmp_path / "Blocks.ecf"
+    ecf.write_text(
+        "{ Block Id: 1, Name: RoboDogZirax\n  Material: metal\n}\n"
+        "{ Block Id: 2, Name: Spiders01\n  Material: organic\n}\n",
+        encoding="utf-8")
+    results = search_ecf_files([ecf], r"Robo.*Dog", use_regex=True)
+    assert len(results) == 1
+    assert "RoboDogZirax" in results[0].match_context
+
+
+def test_search_regex_invalid_pattern_raises():
+    with pytest.raises(re.error):
+        search_scenario([], [], [], "Robo([unclosed", use_regex=True)
+
+
+def test_search_regex_case_insensitive_by_default(tmp_path):
+    ecf = tmp_path / "Blocks.ecf"
+    ecf.write_text("{ Block Id: 1, Name: IRONORE\n}\n", encoding="utf-8")
+    assert len(search_ecf_files([ecf], r"ironore", use_regex=True)) == 1
+    assert len(search_ecf_files([ecf], r"ironore", case_sensitive=True,
+                                use_regex=True)) == 0
+
+
+def test_search_regex_applies_to_yaml_and_csv(tmp_path):
+    yaml_f = tmp_path / "playfield.yaml"
+    yaml_f.write_text("Temperature: -15\nDescription: cold planet\n", encoding="utf-8")
+    csv_f = tmp_path / "loc.csv"
+    csv_f.write_text('Key,en,fr\nIDZ_PV_DOG,Robot dog,"Chien robot"\n', encoding="utf-8")
+    results = search_scenario([], [yaml_f], [csv_f], r"Chien\s+robot", use_regex=True)
+    assert len(results) == 1
+    assert results[0].file_kind == "csv"
+    assert len(search_scenario([], [yaml_f], [csv_f], r"cold\s+planet", use_regex=True)) == 1

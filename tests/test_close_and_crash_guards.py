@@ -28,7 +28,7 @@ construite SANS passer par __init__ (object.__new__) pour ne construire que
 l'etat requis, et stubs duck-typed a la place des widgets d'edition.
 """
 from PyQt6.QtGui import QCloseEvent
-from PyQt6.QtWidgets import QApplication, QMessageBox, QTabWidget, QWidget
+from PyQt6.QtWidgets import QApplication, QTabWidget, QWidget
 
 import gui.main_window as mw
 from gui.main_window import MainWindow, _handle_uncaught_exception
@@ -77,8 +77,7 @@ def _answer(answer):
 
 def test_close_accepted_when_no_modified_tabs(qapp, monkeypatch):
     win = _make_window(_StubEditor(modified=False))
-    monkeypatch.setattr(QMessageBox, "question",
-                        _answer(QMessageBox.StandardButton.Save))
+    monkeypatch.setattr(mw, "ask_save_discard_cancel", _answer("save"))
     event = QCloseEvent()
     event.ignore()
     win.closeEvent(event)
@@ -88,8 +87,7 @@ def test_close_accepted_when_no_modified_tabs(qapp, monkeypatch):
 def test_close_cancelled_keeps_window_open(qapp, monkeypatch):
     stub = _StubEditor(modified=True)
     win = _make_window(stub)
-    monkeypatch.setattr(QMessageBox, "question",
-                        _answer(QMessageBox.StandardButton.Cancel))
+    monkeypatch.setattr(mw, "ask_save_discard_cancel", _answer("cancel"))
     event = QCloseEvent()
     win.closeEvent(event)
     assert not event.isAccepted()
@@ -99,8 +97,7 @@ def test_close_cancelled_keeps_window_open(qapp, monkeypatch):
 def test_close_discards_without_saving(qapp, monkeypatch):
     stub = _StubEditor(modified=True)
     win = _make_window(stub)
-    monkeypatch.setattr(QMessageBox, "question",
-                        _answer(QMessageBox.StandardButton.Discard))
+    monkeypatch.setattr(mw, "ask_save_discard_cancel", _answer("discard"))
     event = QCloseEvent()
     win.closeEvent(event)
     assert event.isAccepted()
@@ -112,8 +109,7 @@ def test_close_saves_modified_tabs_and_closes(qapp, monkeypatch):
     stub2 = _StubEditor(modified=True)
     unmodified = _StubEditor(modified=False)
     win = _make_window(stub1, unmodified, stub2)
-    monkeypatch.setattr(QMessageBox, "question",
-                        _answer(QMessageBox.StandardButton.Save))
+    monkeypatch.setattr(mw, "ask_save_discard_cancel", _answer("save"))
     event = QCloseEvent()
     win.closeEvent(event)
     assert event.isAccepted()
@@ -130,8 +126,7 @@ def test_close_refused_when_save_fails(qapp, monkeypatch):
     broken = _StubEditor(modified=True, fail_save=True)
     healthy = _StubEditor(modified=True)
     win = _make_window(broken, healthy)
-    monkeypatch.setattr(QMessageBox, "question",
-                        _answer(QMessageBox.StandardButton.Save))
+    monkeypatch.setattr(mw, "ask_save_discard_cancel", _answer("save"))
     event = QCloseEvent()
     win.closeEvent(event)
     assert not event.isAccepted()

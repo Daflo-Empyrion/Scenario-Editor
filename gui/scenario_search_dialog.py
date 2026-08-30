@@ -24,13 +24,16 @@ explicite (ou touche Entree), pour eviter de re-parcourir tout le scenario a
 chaque frappe sur un gros projet.
 
 Fenetre NON MODALE (meme motif que les autres fenetres de resultats)."""
+import re
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QPushButton,
-    QListWidget, QListWidgetItem,
+    QListWidget, QListWidgetItem, QMessageBox,
 )
 
 from core.i18n import t
+from gui.busy import busy_guard
 from core.scenario_search import search_scenario, SearchResult
 
 
@@ -51,6 +54,9 @@ class ScenarioSearchDialog(QDialog):
         search_row.addWidget(self.query_edit, 1)
         self.case_sensitive_check = QCheckBox(t("search.case_sensitive"))
         search_row.addWidget(self.case_sensitive_check)
+        self.regex_check = QCheckBox(t("search.use_regex"))
+        self.regex_check.setToolTip(t("search.use_regex_tooltip"))
+        search_row.addWidget(self.regex_check)
         btn_search = QPushButton(t("search.btn_search"))
         btn_search.setObjectName("primaryButton")
         btn_search.clicked.connect(self._run_search)
@@ -97,8 +103,18 @@ class ScenarioSearchDialog(QDialog):
             self.summary_label.setText("")
             return
         ecf_files, yaml_files, csv_files = self._gather_files()
-        results = search_scenario(ecf_files, yaml_files, csv_files, query,
-                                   case_sensitive=self.case_sensitive_check.isChecked())
+        try:
+            with busy_guard(self):
+                results = search_scenario(
+                    ecf_files, yaml_files, csv_files, query,
+                    case_sensitive=self.case_sensitive_check.isChecked(),
+                    use_regex=self.regex_check.isChecked())
+        except re.error as e:
+            # Motif regex invalide : signale AVANT toute recherche, la liste
+            # precedente reste affichee (pas de resultats vides trompeurs).
+            QMessageBox.warning(self, t("search.title"),
+                                t("search.invalid_regex", error=str(e)))
+            return
         self.results_list.clear()
         for r in results:
             item = QListWidgetItem(f"[{r.file_kind.upper()}] {r.file_path.name} -- {r.match_context}")

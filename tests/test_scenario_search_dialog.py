@@ -122,3 +122,41 @@ def test_case_sensitive_checkbox_affects_results(window_with_scenario):
     dialog._run_search()
     assert dialog.results_list.count() == 0
     dialog.close()
+
+
+# ---------------------------------------------------------------------------
+# Mode expression reguliere (ajoute apres l'audit du 30/08/2026)
+# ---------------------------------------------------------------------------
+
+def test_search_with_regex_checkbox_finds_pattern(window_with_scenario):
+    from gui.scenario_search_dialog import ScenarioSearchDialog
+    dialog = ScenarioSearchDialog(window_with_scenario)
+    dialog.regex_check.setChecked(True)
+    dialog.query_edit.setText(r"Iron.*Ore")
+    dialog._run_search()
+    assert dialog.results_list.count() >= 1
+    dialog.close()
+
+
+def test_search_with_invalid_regex_shows_warning_and_keeps_results(
+        window_with_scenario, monkeypatch):
+    """Motif regex invalide : avertissement affiche, AUCUN vidage de la liste
+    (les resultats d'une recherche precedente restent visibles), pas d'exception."""
+    from gui.scenario_search_dialog import ScenarioSearchDialog
+    dialog = ScenarioSearchDialog(window_with_scenario)
+    # Une recherche normale d'abord pour peupler la liste
+    dialog.query_edit.setText("IronOre")
+    dialog._run_search()
+    assert dialog.results_list.count() >= 1
+
+    warnings = []
+    monkeypatch.setattr(
+        QMessageBox, "warning",
+        lambda *a, **k: warnings.append(k.get("text") or a[-1]))
+    dialog.regex_check.setChecked(True)
+    dialog.query_edit.setText("Iron([unclosed")
+    dialog._run_search()
+
+    assert len(warnings) == 1
+    assert dialog.results_list.count() >= 1  # resultats precedents conserves
+    dialog.close()

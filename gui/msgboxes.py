@@ -28,6 +28,9 @@ qtbase_<lang>.qm de Qt -- d'ou des boutons restes en anglais.
 Remplacer TOUTE utilisation de QMessageBox.question dans l'application par
 ask_yes_no() : meme rendu (icone question, titre, texte), boutons crees
 par l'application avec t("btn.yes")/t("btn.no").
+Exception structuree : le garde-fou de fermeture a TROIS choix
+(Save/Discard/Cancel) n'est pas un Oui/Non -- voir ask_save_discard_cancel(),
+meme principe (boutons application t(...)).
 
 Le traducteur Qt (core/qt_translator.py) reste actif UNIQUEMENT pour les
 boites internes NON personnalisables : QInputDialog (OK/Cancel) et
@@ -53,3 +56,34 @@ def ask_yes_no(parent, title: str, text: str) -> bool:
     box.setDefaultButton(btn_no)
     box.exec()
     return box.clickedButton() is btn_yes
+
+
+def ask_save_discard_cancel(parent, title: str, text: str) -> str:
+    """Dialogue a trois choix pour quitter avec des modifications non
+    enregistrees : retourne "save" (enregistrer tout), "discard" (abandonner
+    les modifications) ou "cancel" (rester dans l'application). Boutons
+    APPLICATION t("btn.save_files")/t("btn.discard")/t("btn.cancel") -- meme
+    chaine de traduction que ask_yes_no(), jamais les boutons standards de Qt
+    (l'ancien QMessageBox.question dessinait Save/Discard/Cancel via les
+    fichiers qtbase_<lang>.qm, hors de portee de i18n). Bouton par defaut =
+    Enregistrer tout (quitter en croyant avoir sauvegarde ne doit jamais
+    perdre de donnees ; cohérent avec l'ancien comportement Qt dont le
+    bouton de repli etait Save)."""
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setWindowTitle(title)
+    box.setText(text)
+    btn_save = box.addButton(t("btn.save_files"),
+                             QMessageBox.ButtonRole.AcceptRole)
+    btn_discard = box.addButton(t("btn.discard"),
+                                QMessageBox.ButtonRole.DestructiveRole)
+    btn_cancel = box.addButton(t("btn.cancel"),
+                               QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(btn_save)
+    box.exec()
+    clicked = box.clickedButton()
+    if clicked is btn_discard:
+        return "discard"
+    if clicked is btn_cancel:
+        return "cancel"
+    return "save"

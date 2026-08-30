@@ -24,6 +24,7 @@ mecanisme de selection de ligne n'existe actuellement dans l'application --
 un resultat CSV ouvre simplement le fichier, sans naviguer jusqu'a la ligne
 exacte (limitation connue, documentee plutot que masquee).
 """
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -51,12 +52,21 @@ class SearchResult:
     entry_value: Optional[str] = None
 
 
-def _matches(haystack: str, query: str, case_sensitive: bool) -> bool:
-    if not haystack:
-        return False
+def _make_matcher(query: str, case_sensitive: bool = False, use_regex: bool = False):
+    """Retourne une fonction de test (haystack -> bool) compilee UNE fois par
+    recherche (pas une compilation ni une mise en minuscules par ligne testee).
+    En mode regex, leve re.error si le motif est invalide -- l'appelant GUI
+    intercepte pour afficher l'erreur a l'utilisateur ; les chercheurs directs
+    (outils CLI, tests) peuvent laisser filer."""
+    if use_regex:
+        flags = 0 if case_sensitive else re.IGNORECASE
+        pattern = re.compile(query, flags)
+        return lambda haystack: bool(haystack) and pattern.search(haystack) is not None
     if case_sensitive:
-        return query in haystack
-    return query.lower() in haystack.lower()
+        needle = query
+        return lambda haystack: bool(haystack) and needle in haystack
+    needle = query.lower()
+    return lambda haystack: bool(haystack) and needle in haystack.lower()
 
 
 def _truncate_context(text: str, max_len: int = 100) -> str:
@@ -70,7 +80,8 @@ def _truncate_context(text: str, max_len: int = 100) -> str:
     return flat
 
 
-def search_ecf_files(ecf_files: List[Path], query: str, case_sensitive: bool = False) -> List[SearchResult]:
+def search_ecf_files(ecf_files: List[Path], query: str, case_sensitive: bool = False,
+                     use_regex: bool = False) -> List[SearchResult]:
     """Cherche dans le genre, l'Id/Name et toutes les proprietes (y compris
     imbriquees, ex: Child Items) de chaque bloc -- _all_property_pairs()
     couvre deja les paires d'en-tete du bloc lui-meme (Id, Name, Kind), pas
@@ -80,6 +91,7 @@ def search_ecf_files(ecf_files: List[Path], query: str, case_sensitive: bool = F
     premiere correspondance trouvee) -- eviter d'inonder la liste si un meme
     terme apparait plusieurs fois dans un gros bloc."""
     results: List[SearchResult] = []
+    match = _make_matcher(query, case_sensitive, use_regex)
     for path in ecf_files:
         try:
             doc = parse_ecf_file(path)
@@ -91,7 +103,7 @@ def search_ecf_files(ecf_files: List[Path], query: str, case_sensitive: bool = F
             if block_id_python in seen_blocks:
                 continue
             haystack = f"{key or ''} {value or ''}"
-            if _matches(haystack, query, case_sensitive):
+            if match(haystack):
                 identity = block_identity(top_block)
                 results.append(SearchResult(
                     file_path=path, file_kind="ecf",
@@ -102,8 +114,10 @@ def search_ecf_files(ecf_files: List[Path], query: str, case_sensitive: bool = F
     return results
 
 
-def search_yaml_files(yaml_files: List[Path], query: str, case_sensitive: bool = False) -> List[SearchResult]:
+def search_yaml_files(yaml_files: List[Path], query: str, case_sensitive: bool = False,
+                      use_regex: bool = False) -> List[SearchResult]:
     results: List[SearchResult] = []
+    match = _make_matcher(query, case_sensitive, use_regex)
     for path in yaml_files:
         try:
             doc = parse_yaml_file(path)
@@ -111,7 +125,7 @@ def search_yaml_files(yaml_files: List[Path], query: str, case_sensitive: bool =
             continue
         for entry in doc.iter_entries():
             haystack = f"{entry.key or ''} {entry.value or ''}"
-            if _matches(haystack, query, case_sensitive):
+            if match(haystack):
                 results.append(SearchResult(
                     file_path=path, file_kind="yaml",
                     match_context=_truncate_context(f"{entry.key}: {entry.value}"),
@@ -120,10 +134,12 @@ def search_yaml_files(yaml_files: List[Path], query: str, case_sensitive: bool =
     return results
 
 
-def search_csv_files(csv_files: List[Path], query: str, case_sensitive: bool = False) -> List[SearchResult]:
+def search_csv_files(csv_files: List[Path], query: str, case_sensitive: bool = False,
+                     use_regex: bool = False) -> List[SearchResult]:
     """Aucune navigation precise vers la ligne exacte -- voir docstring de
     tete de module. Un resultat par ligne correspondante."""
     results: List[SearchResult] = []
+    match = _make_matcher(query, case_sensitive, use_regex)
     for path in csv_files:
         try:
             raw = path.read_text(encoding="utf-8")
@@ -132,7 +148,7 @@ def search_csv_files(csv_files: List[Path], query: str, case_sensitive: bool = F
             continue
         for row in doc.rows:
             row_text = " ".join(row)
-            if _matches(row_text, query, case_sensitive):
+            if match(row_text):
                 snippet = row[0] if row else ""
                 results.append(SearchResult(
                     file_path=path, file_kind="csv",
@@ -142,12 +158,15 @@ def search_csv_files(csv_files: List[Path], query: str, case_sensitive: bool = F
 
 
 def search_scenario(ecf_files: List[Path], yaml_files: List[Path], csv_files: List[Path],
-                     query: str, case_sensitive: bool = False) -> List[SearchResult]:
-    """Point d'entree unique -- combine les 3 recherches par type de fichier."""
+                     query: str, case_sensitive: bool = False,
+                     use_regex: bool = False) -> List[SearchResult]:
+    """Point d'entree unique -- combine les 3 recherches par type de fichier.
+    use_regex=True interprete la requete comme une expression reguliere
+    Python (leve re.error si invalide)."""
     if not query.strip():
         return []
     results = []
-    results.extend(search_ecf_files(ecf_files, query, case_sensitive))
-    results.extend(search_yaml_files(yaml_files, query, case_sensitive))
-    results.extend(search_csv_files(csv_files, query, case_sensitive))
+    results.extend(search_ecf_files(ecf_files, query, case_sensitive, use_regex))
+    results.extend(search_yaml_files(yaml_files, query, case_sensitive, use_regex))
+    results.extend(search_csv_files(csv_files, query, case_sensitive, use_regex))
     return results

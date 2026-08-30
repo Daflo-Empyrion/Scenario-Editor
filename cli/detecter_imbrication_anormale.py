@@ -24,7 +24,7 @@ Normalement, dans BlocksConfig.ecf, un bloc 'Block'/'+Block' ne contient PAS d'a
 blocs 'Block'/'+Block' imbriques -- si on en trouve, c'est le signe du probleme.
 
 UTILISATION :
-    python detecter_imbrication_anormale.py "chemin\vers\BlocksConfig.ecf"
+    python cli/detecter_imbrication_anormale.py "chemin\vers\BlocksConfig.ecf"
 """
 import sys
 from pathlib import Path
@@ -41,7 +41,7 @@ from core.ecf.model import EcfBlock, normalized_kind, block_identity
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python detecter_imbrication_anormale.py <fichier.ecf>")
+        print("Usage: python cli/detecter_imbrication_anormale.py <fichier.ecf>")
         sys.exit(1)
 
     path = Path(sys.argv[1])

@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from gui.busy import busy_guard
 from core.i18n import t
 from core.ecf.cross_reference_check import (
     CROSS_REFERENCE_CHECKS, CrossRefContext, CrossRefIssue, run_checks,
@@ -117,8 +118,12 @@ class CrossReferenceDialog(QDialog):
         )
 
         self.results_list.clear()
+        # Retour utilisateur 30/08/2026 : l'analyse peut etre longue sur un
+        # gros scenario -- curseur d'attente + boite "en cours" modale a la
+        # fenetre (voir gui/busy.py), sinon l'application semblait bloquee.
         try:
-            issues = run_checks(ctx, selected_ids)
+            with busy_guard(self):
+                issues = run_checks(ctx, selected_ids)
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
             return

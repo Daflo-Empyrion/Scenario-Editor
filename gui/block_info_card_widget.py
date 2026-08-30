@@ -45,7 +45,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
 )
 
-from core.block_info_card import BlockInfoCard
+from core.block_info_card import BlockInfoCard, card_to_markdown
 from core.i18n import t
 from gui.theme import icon
 
@@ -181,6 +181,7 @@ class BlockInfoCardWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_block_name: Optional[str] = None
+        self._current_card: Optional[BlockInfoCard] = None
         self.root_identity: str = ""
         self._base_point_size = QApplication.font().pointSizeF() or 9.0
         # Fenetre-outil INDEPENDANTE plutot qu'un simple widget enfant --
@@ -253,6 +254,23 @@ class BlockInfoCardWidget(QWidget):
         )
         self.btn_close.clicked.connect(self.close_card)
         header_row.addWidget(self.btn_close, 0, Qt.AlignmentFlag.AlignTop)
+        # Export Markdown de la fiche (ajout suite a l'audit du 30/08/2026) :
+        # meme rendu que la fiche affichee, deplace vers un fichier .md.
+        self.btn_export = QPushButton()
+        self.btn_export.setFixedSize(22, 22)
+        self.btn_export.setIcon(icon("fa5s.file-export", color=_CARD_TEXT))
+        self.btn_export.setIconSize(QSize(13, 13))
+        self.btn_export.setText("")
+        self.btn_export.setCursor(Qt.CursorShape.ArrowCursor)
+        self.btn_export.setToolTip(t("block_info.export_title"))
+        self.btn_export.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none; "
+            f"border-radius: 4px; }}"
+            f"QPushButton:hover {{ background: #3a3a3a; }}"
+            f"QPushButton:pressed {{ background: #4a4a4a; }}"
+        )
+        self.btn_export.clicked.connect(self._export_card)
+        header_row.addWidget(self.btn_export, 0, Qt.AlignmentFlag.AlignTop)
         outer.addWidget(header)
 
         scroll = QScrollArea()
@@ -301,7 +319,22 @@ class BlockInfoCardWidget(QWidget):
 
     def close_card(self) -> None:
         self._current_block_name = None
+        self._current_card = None
         self.hide()
+
+    def _export_card(self) -> None:
+        """Exporte la fiche ACTUELLEMENT AFFICHEE en Markdown (voir
+        core.block_info_card.card_to_markdown) via l'utilitaire d'export
+        partage des fenetres de resultats -- meme comportement de selection
+        de fichier, d'ecriture atomique et de confirmation que partout."""
+        if self._current_card is None:
+            return
+        from gui.results_window_helpers import export_text_to_file
+        export_text_to_file(
+            self, f"{self.root_identity or 'block'}.md",
+            card_to_markdown(self._current_card),
+            title_key="block_info.export_title",
+            file_filter="Markdown (*.md)")
 
     def is_showing(self, block_name: str) -> bool:
         """Utilise isHidden() (etat propre de CE widget) plutot que
@@ -313,6 +346,7 @@ class BlockInfoCardWidget(QWidget):
 
     def show_card(self, block_name: str, card: BlockInfoCard, icon_pixmap: Optional[QPixmap]) -> None:
         self._current_block_name = block_name
+        self._current_card = card
         self.root_identity = card.root_identity
 
         if icon_pixmap is not None and not icon_pixmap.isNull():

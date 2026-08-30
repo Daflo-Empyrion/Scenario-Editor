@@ -20,10 +20,10 @@ fixer, ou plafonner toutes les valeurs d'une cle de propriete donnee, sur un gen
 bloc (et eventuellement une liste d'identites precises).
 
 UTILISATION :
-    python transform_ecf.py fichier.ecf --key param1 --op multiply --amount 1.2
-    python transform_ecf.py fichier.ecf --kind +Container --key Count --op set --amount 5
-    python transform_ecf.py fichier.ecf --kind +Container --ids 5,6,7 --key param1 --op add --amount 0.1
-    python transform_ecf.py fichier.ecf --key Health --op clamp --min 10 --max 500 --no-recursive
+    python cli/transform_ecf.py fichier.ecf --key param1 --op multiply --amount 1.2
+    python cli/transform_ecf.py fichier.ecf --kind +Container --key Count --op set --amount 5
+    python cli/transform_ecf.py fichier.ecf --kind +Container --ids 5,6,7 --key param1 --op add --amount 0.1
+    python cli/transform_ecf.py fichier.ecf --key Health --op clamp --min 10 --max 500 --no-recursive
 
 OPTIONS :
     --kind          Genre de bloc a cibler (ex: +Container). Par defaut : tous les genres.

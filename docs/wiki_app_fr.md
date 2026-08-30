@@ -673,7 +673,7 @@ Desactivable dans **Options > Sauvegarde automatique**.
 
 ## 16bis. Theme visuel
 
-**Options > Theme** — 8 themes selectionnables, bascule immediate sans
+**Options > Theme** — 9 themes selectionnables, bascule immediate sans
 redemarrer :
 - **Classique** — theme d'origine (tableau de bord bleu/marine), reste le
   theme par defaut tant qu'aucun autre n'est choisi explicitement
@@ -686,12 +686,18 @@ redemarrer :
 - **F — Crepuscule** — ardoise moyen, pense pour un usage confortable sur
   plusieurs heures (contraste modere, blanc casse plutot que blanc pur)
 - **G — Nacre** — clair, degrade irise multicolore en bandeau de menu
+- **H — Verriere neon** — noir ocean profond, panneaux verre translucides,
+  gloss et biseaux 3D, accent cyan electrique ; selections en NEON (halo
+  lumineux + liseré, ajoutee a la surbrillance) ; flou acrylique Windows 11
+  active automatiquement quand le systeme le supporte (degrade gracieux :
+  sans support, le fond du theme est peint par la feuille de style, aucune
+  difference de mise en page)
 
-<span style="color:#7c859c"><i>Limite assumee : ces themes sont une
-approximation fidele en couleurs/degrades des maquettes originales, mais
-sans le vrai flou d'arriere-plan (verre depoli) -- PyQt6 Widgets ne le
-supporte pas nativement (necessiterait l'API Acrylic/Mica propre a Windows
-11, ou une reecriture en Qt Quick/QML).</i></span>
+<span style="color:#7c859c"><i>Limite assumee : le flou acrylique n'est
+disponible qu'a partir de Windows 11 22H2 (build 22621) via l'API DWM ;
+partout ailleurs, le theme reste entierement utilisable avec son fond
+peint. Le flou par panneau individuel (a la CSS backdrop-filter) demeure
+impossible en PyQt6 Widgets sans reecriture Qt Quick/QML.</i></span>
 
 ---
 
@@ -750,15 +756,15 @@ terminal dans le dossier du projet :
 
 | Commande (`EmpyrionEditorCLI.exe`) | Script equivalent (sources) | Usage |
 |---|---|---|
-| `verifier-ecf <fichier_ou_dossier>` | `python verifier_parser_ecf.py ...` | Verifie le round-trip (fidelite parfaite) d'un ou plusieurs fichiers ECF |
-| `verifier-yaml <fichier_ou_dossier>` | `python verifier_parser_yaml.py ...` | Meme chose pour le YAML |
-| `verifier-csv <fichier_ou_dossier>` | `python verifier_parser_csv.py ...` | Meme chose pour le CSV |
-| `diagnostic-bloc <fichier.ecf> <Id>` | `python diagnostic_bloc.py ...` | Cherche un bloc precis par Id, y compris dans les commentaires |
-| `detecter-imbrication <fichier.ecf>` | `python detecter_imbrication_anormale.py ...` | Detecte les blocs qui ont "avale" le reste du fichier par erreur |
-| `diff <fichierA.ecf> <fichierB.ecf>` | `python diff_ecf.py ...` | Compare deux fichiers ECF, affiche les blocs ajoutes/supprimes/modifies |
-| `edit <fichier.ecf>` | `python edit_ecf.py ...` | Editeur ECF interactif en ligne de commande |
-| `merge <sortie.ecf> <source1> <source2>...` | `python merge_ecf.py ...` | Fusionne plusieurs fichiers ECF par ordre de priorite |
-| `transform` | `python transform_ecf.py` | Applique une transformation numerique en masse (multiplier/ajouter/fixer/plafonner) sur une propriete, pour un genre de bloc donne |
+| `verifier-ecf <fichier_ou_dossier>` | `python cli/verifier_parser_ecf.py ...` | Verifie le round-trip (fidelite parfaite) d'un ou plusieurs fichiers ECF |
+| `verifier-yaml <fichier_ou_dossier>` | `python cli/verifier_parser_yaml.py ...` | Meme chose pour le YAML |
+| `verifier-csv <fichier_ou_dossier>` | `python cli/verifier_parser_csv.py ...` | Meme chose pour le CSV |
+| `diagnostic-bloc <fichier.ecf> <Id>` | `python cli/diagnostic_bloc.py ...` | Cherche un bloc precis par Id, y compris dans les commentaires |
+| `detecter-imbrication <fichier.ecf>` | `python cli/detecter_imbrication_anormale.py ...` | Detecte les blocs qui ont "avale" le reste du fichier par erreur |
+| `diff <fichierA.ecf> <fichierB.ecf>` | `python cli/diff_ecf.py ...` | Compare deux fichiers ECF, affiche les blocs ajoutes/supprimes/modifies |
+| `edit <fichier.ecf>` | `python cli/edit_ecf.py ...` | Editeur ECF interactif en ligne de commande |
+| `merge <sortie.ecf> <source1> <source2>...` | `python cli/merge_ecf.py ...` | Fusionne plusieurs fichiers ECF par ordre de priorite |
+| `transform` | `python cli/transform_ecf.py` | Applique une transformation numerique en masse (multiplier/ajouter/fixer/plafonner) sur une propriete, pour un genre de bloc donne |
 
 ---
 

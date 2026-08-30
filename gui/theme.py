@@ -132,7 +132,7 @@ def build_stylesheet(palette: dict) -> str:
     NAV_TEXT = palette["nav_text"]
     FONT_FAMILY = palette["font_family"]
 
-    return f"""
+    base = f"""
 * {{
     font-family: "{FONT_FAMILY}", "Segoe UI", sans-serif;
 }}
@@ -327,6 +327,27 @@ QCheckBox::indicator:checked {{
     border-color: {PRIMARY};
 }}
 
+/* --- Boutons radio (meme traitement : sans regle dediee, l'indicateur
+       natif est quasi invisible sur les themes sombres -- retour utilisateur
+       du 30/08/2026 sur le dialogue de session du protocole) --- */
+QRadioButton {{
+    spacing: 8px;
+}}
+QRadioButton::indicator {{
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    border: 1.5px solid {BORDER_STRONG};
+    background-color: {CARD_BG};
+}}
+QRadioButton::indicator:checked {{
+    background-color: {PRIMARY};
+    border-color: {PRIMARY};
+}}
+QRadioButton:checked {{
+    color: {PRIMARY};
+}}
+
 /* --- Barres de defilement --- */
 QScrollBar:vertical {{
     background: transparent;
@@ -416,6 +437,11 @@ QLabel#mutedLabel {{
     font-size: 11px;
 }}
 """
+    # Themes a identite renforcee (ex: "h" -- Verriere) ajoutent leur QSS
+    # specifique (verre/gloss/biseaux) EN FIN de feuille : a specificite
+    # egale, ces regles gagnent sur la generale, sans affecter les autres
+    # themes (cle optionnelle absente -> chaine vide).
+    return base + palette.get("extra_qss", "")
 
 
 def apply_theme(app, theme_id: str = None):

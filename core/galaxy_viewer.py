@@ -51,6 +51,7 @@ une fois verifiees contre un vrai Sectors.yaml (82 systemes, 817 playfields) :
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+from .parsers_utils import parse_pos_3d
 from .yamllite.model import YamlEntry
 from .playfield_editor import _section_index_range, _find_items_in_range
 
@@ -88,19 +89,6 @@ class SolarSystem:
     star_class: str
     sector_count: int = 0
     source_item: Optional[YamlEntry] = None
-
-
-def _parse_coordinates(value: Optional[str]) -> Optional[Tuple[float, float, float]]:
-    if not value:
-        return None
-    cleaned = value.strip().strip('[]')
-    parts = [p.strip() for p in cleaned.split(',')]
-    if len(parts) < 3:
-        return None
-    try:
-        return (float(parts[0]), float(parts[1]), float(parts[2]))
-    except ValueError:
-        return None
 
 
 def _count_local_sectors_per_system(doc, start: int, end: int, system_names: List[str]) -> dict:
@@ -145,7 +133,7 @@ def extract_solar_systems(doc) -> List[SolarSystem]:
         star_class_prop = next((c for c in item.children if isinstance(c, YamlEntry) and c.key == "StarClass"), None)
         systems.append(SolarSystem(
             name=item.value,
-            coordinates=_parse_coordinates(coords_prop.value if coords_prop else None),
+            coordinates=parse_pos_3d(coords_prop.value if coords_prop else None, min_parts=3),
             star_class=star_class_prop.value if star_class_prop else "",
             sector_count=sector_counts.get(item.value, 0),
             source_item=item,

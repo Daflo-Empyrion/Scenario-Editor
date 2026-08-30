@@ -22,8 +22,8 @@ C'est l'equivalent, pour YAML, de verifier_parser_ecf.py -- meme principe : on n
 confiance a un format qu'apres l'avoir valide sur de vrais fichiers.
 
 UTILISATION :
-    python verifier_parser_yaml.py "C:\\chemin\\vers\\Playfields"
-    python verifier_parser_yaml.py fichier.yaml
+    python cli/verifier_parser_yaml.py "C:\\chemin\\vers\\Playfields"
+    python cli/verifier_parser_yaml.py fichier.yaml
 """
 import sys
 from pathlib import Path
@@ -79,7 +79,7 @@ def check_file(path: Path, handler: YamlHandler) -> bool:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python verifier_parser_yaml.py <dossier_ou_fichier.yaml>")
+        print("Usage: python cli/verifier_parser_yaml.py <dossier_ou_fichier.yaml>")
         sys.exit(1)
 
     target = Path(sys.argv[1])

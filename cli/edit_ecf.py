@@ -18,7 +18,7 @@
 Editeur ECF simple, en ligne de commande interactive.
 
 UTILISATION :
-    python edit_ecf.py fichier.ecf
+    python cli/edit_ecf.py fichier.ecf
 
 Une fois lance, tape 'help' pour voir les commandes disponibles.
 
@@ -88,7 +88,7 @@ def print_block_detail(block):
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python edit_ecf.py fichier.ecf")
+        print("Usage: python cli/edit_ecf.py fichier.ecf")
         sys.exit(1)
 
     path = Path(sys.argv[1])

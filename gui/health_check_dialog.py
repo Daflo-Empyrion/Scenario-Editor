@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGroupBox, QWidget,
 )
 
+from gui.busy import busy_guard
 from core.i18n import t
 from gui.theme import icon, icon_size
 
@@ -75,7 +76,7 @@ class HealthCheckDialog(QDialog):
         super().__init__(parent)
         self.main_window = main_window
         self.workspace = main_window.workspace
-        self.setWindowTitle(t("health.title"))
+        self.setWindowTitle(t("verification.center_title"))
         self.setMinimumSize(620, 340)
 
         layout = QVBoxLayout(self)
@@ -103,7 +104,10 @@ class HealthCheckDialog(QDialog):
         bottom_row.addWidget(self.summary_label)
         bottom_row.addStretch()
 
-        btn_refresh = QPushButton(icon("fa5s.sync-alt", "#4a7dfc"), t("results_window.btn_refresh"))
+        # "Tout verifier" : le refresh() de CE dialogue relance bien les
+        # 5 familles de verification (P4 -- audit du 30/08/2026), le libelle
+        # doit le dire plutot que "Actualiser".
+        btn_refresh = QPushButton(icon("fa5s.sync-alt", "#4a7dfc"), t("health.check_all"))
         btn_refresh.setIconSize(icon_size())
         btn_refresh.setObjectName("secondaryButton")
         btn_refresh.clicked.connect(self.refresh)
@@ -121,6 +125,12 @@ class HealthCheckDialog(QDialog):
         return [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
 
     def refresh(self):
+        # Retour utilisateur 30/08/2026 : "Tout verifier" peut prendre du
+        # temps -- curseur + boite "en cours" modale a la fenetre.
+        with busy_guard(self):
+            self._refresh_all_checks()
+
+    def _refresh_all_checks(self):
         total_problems = 0
 
         # --- References (les 4 verifications de cross_reference_check.py,

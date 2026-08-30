@@ -55,6 +55,7 @@ from core.i18n import t
 from gui.theme import icon, icon_size
 from gui.msgboxes import ask_yes_no
 from gui import theme as _theme
+from gui.neon_delegate import NeonItemDelegate
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
@@ -991,14 +992,17 @@ class EcfEditWidget(QWidget):
         toolbar.setSpacing(4)
         btn_add_block = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_block"))
         btn_add_block.setIconSize(icon_size())
+        btn_add_block.setToolTip(t("ecf.tooltip_add_block"))
         btn_add_block.clicked.connect(self._add_block_dialog)
         toolbar.addWidget(btn_add_block)
         self.btn_add_prop = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_property"))
         self.btn_add_prop.setIconSize(icon_size())
+        self.btn_add_prop.setToolTip(t("ecf.tooltip_add_property"))
         self.btn_add_prop.clicked.connect(self._add_property_dialog)
         toolbar.addWidget(self.btn_add_prop)
         self.btn_add_row = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_row_table"))
         self.btn_add_row.setIconSize(icon_size())
+        self.btn_add_row.setToolTip(t("ecf.tooltip_add_row"))
         self.btn_add_row.clicked.connect(self._add_table_row_dialog)
         self.btn_add_row.setVisible(False)
         toolbar.addWidget(self.btn_add_row)
@@ -1037,6 +1041,9 @@ class EcfEditWidget(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Bloc"])
+        # Selection neon du theme Verriere (sans effet sur les autres themes,
+        # voir gui/neon_delegate.py) -- installe une fois pour toutes.
+        self.tree.setItemDelegate(NeonItemDelegate(self.tree))
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_block_selected)
         # Fiche d'information : DOUBLE-clic uniquement (demande explicite de
@@ -1056,6 +1063,7 @@ class EcfEditWidget(QWidget):
 
         self.props_table = QTableWidget(0, 2)
         self.props_table.setHorizontalHeaderLabels(["Propriete", "Valeur"])
+        self.props_table.setItemDelegate(NeonItemDelegate(self.props_table))
         self.props_table.horizontalHeader().setStretchLastSection(True)
         self.props_table.itemChanged.connect(self._on_cell_changed)
         self.props_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

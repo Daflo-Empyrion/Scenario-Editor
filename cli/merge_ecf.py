@@ -19,8 +19,8 @@ Fusionne plusieurs fichiers .ecf selon un ordre de priorite (la premiere source 
 gagne en cas de conflit), et ecrit le resultat dans un nouveau fichier.
 
 UTILISATION :
-    python merge_ecf.py sortie.ecf source1.ecf source2.ecf source3.ecf ...
-    python merge_ecf.py sortie.ecf source1.ecf source2.ecf --mode properties
+    python cli/merge_ecf.py sortie.ecf source1.ecf source2.ecf source3.ecf ...
+    python cli/merge_ecf.py sortie.ecf source1.ecf source2.ecf --mode properties
 
     source1.ecf = la plus prioritaire (gagne les conflits)
     source2.ecf, source3.ecf, ... = par ordre de priorite decroissante

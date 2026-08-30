@@ -40,6 +40,7 @@ propose (voir l'historique du projet), toutes corrigees ici :
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from .parsers_utils import parse_bracketed_list, parse_float_or, parse_pos_3d
 from .yamllite.model import YamlEntry
 from .playfield_editor import (
     find_fixed_poi_items, find_random_poi_items, find_fixed_player_start_items,
@@ -83,40 +84,6 @@ class CanvasEntity:
     pos_property_key: Optional[str] = None
 
 
-def _parse_pos(value: Optional[str]) -> Optional[Tuple[float, float, float]]:
-    """Parse 'Pos: [ x, y, z ]' -- confirme sur de vrais playfields (Fixed
-    POI, FixedPlayerStart)."""
-    if not value:
-        return None
-    cleaned = value.strip().strip('[]')
-    parts = [p.strip() for p in cleaned.split(',')]
-    if len(parts) < 2:
-        return None
-    try:
-        coords = [float(p) for p in parts[:3]]
-        while len(coords) < 3:
-            coords.append(0.0)
-        return (coords[0], coords[1], coords[2])
-    except ValueError:
-        return None
-
-
-def _parse_list_value(value: Optional[str]) -> List[str]:
-    if not value:
-        return []
-    cleaned = value.strip().strip('[]')
-    return [p.strip() for p in cleaned.split(',') if p.strip()]
-
-
-def _parse_float_or_none(value: Optional[str]) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-
 def extract_canvas_entities(doc) -> List[CanvasEntity]:
     """Extrait toutes les entites affichables d'un playfield, en reutilisant
     exclusivement les fonctions de core/playfield_editor.py deja verifiees
@@ -126,7 +93,7 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
     fixed_positions: Dict[str, Tuple[float, float, float]] = {}
     for item in find_fixed_poi_items(doc):
         params = dict(get_item_params(item))
-        pos = _parse_pos(params.get("Pos"))
+        pos = parse_pos_3d(params.get("Pos"))
         name = params.get("Name") or item.value or "?"
         faction = params.get("Faction", "None")
         if pos:
@@ -149,16 +116,16 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
         radius = None
         spawn_near = params.get("SpawnPOINear")
         if spawn_near:
-            for ref in _parse_list_value(spawn_near):
+            for ref in parse_bracketed_list(spawn_near):
                 if ref in fixed_positions:
                     center = fixed_positions[ref]
                     break
         spawn_range = params.get("SpawnPOINearRange")
         if spawn_range and center:
-            rng = _parse_list_value(spawn_range)
+            rng = parse_bracketed_list(spawn_range)
             if len(rng) >= 2:
-                lo = _parse_float_or_none(rng[0])
-                hi = _parse_float_or_none(rng[1])
+                lo = parse_float_or(rng[0], None)
+                hi = parse_float_or(rng[1], None)
                 if lo is not None and hi is not None:
                     radius = (lo + hi) / 2.0
         entities.append(CanvasEntity(
@@ -168,7 +135,7 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
 
     for item in find_fixed_player_start_items(doc):
         params = dict(get_item_params(item))
-        pos = _parse_pos(params.get("Pos"))
+        pos = parse_pos_3d(params.get("Pos"))
         entities.append(CanvasEntity(
             kind="player_start", name=f"Start ({item.value})", position=pos,
             faction="Admin", extra=params, source_item=item, pos_property_key="Pos",
@@ -185,7 +152,7 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
 
     for item in find_spawn_zones_items(doc):
         params = dict(get_item_params(item))
-        radius = _parse_float_or_none(params.get("Radius"))
+        radius = parse_float_or(params.get("Radius"), None)
         spawn_at = params.get("SpawnAt") or "?"
         entities.append(CanvasEntity(
             kind="spawn_zone", name=f"Zone @ {spawn_at}", position=None,
@@ -194,7 +161,7 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
 
     for item in find_spawn_rate_zones_items(doc):
         params = dict(get_item_params(item))
-        radius = _parse_float_or_none(params.get("Radius"))
+        radius = parse_float_or(params.get("Radius"), None)
         spawn_at = params.get("SpawnAt") or "?"
         entities.append(CanvasEntity(
             kind="spawn_rate_zone", name=f"Rate @ {spawn_at}", position=None,
@@ -203,8 +170,8 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
 
     for item in find_drone_spawning_items(doc):
         params = dict(get_item_params(item))
-        cx = _parse_float_or_none(params.get("CenterX"))
-        cz = _parse_float_or_none(params.get("CenterZ"))
+        cx = parse_float_or(params.get("CenterX"), None)
+        cz = parse_float_or(params.get("CenterZ"), None)
         center = (cx, 0.0, cz) if cx is not None and cz is not None else None
         entities.append(CanvasEntity(
             kind="drone_spawning", name=f"Drones @ {params.get('DronesMinMax', '?')}",

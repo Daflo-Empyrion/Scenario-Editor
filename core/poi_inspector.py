@@ -28,6 +28,7 @@ fraction 0.0-1.0 (jamais un pourcentage 0-100).
 from dataclasses import dataclass, field
 from typing import Dict, List
 
+from .parsers_utils import parse_float_or, parse_min_max
 from .playfield_editor import find_random_poi_items, get_item_params, get_properties_value
 
 
@@ -62,45 +63,19 @@ class FactionAggregation:
     poi_names: List[str] = field(default_factory=list)
 
 
-def _parse_int_or(value, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default
-
-
-def _parse_float_or(value, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return default
-
-
-def _parse_min_max(value) -> tuple:
-    """Parse '[ min, max ]' -- confirme sur de vrais playfields pour
-    CountMinMax/DronesMinMax."""
-    if not value:
-        return (0, 0)
-    cleaned = value.strip().strip('[]')
-    parts = [p.strip() for p in cleaned.split(',')]
-    if len(parts) < 2:
-        return (0, 0)
-    return (_parse_int_or(parts[0]), _parse_int_or(parts[1]))
-
-
 def compute_poi_stats(doc) -> List[PoiStats]:
     """Calcule les statistiques de chaque POI Random d'un playfield."""
     stats: List[PoiStats] = []
     for item in find_random_poi_items(doc):
         params = dict(get_item_params(item))
         name = params.get("GroupName") or item.value or "?"
-        count_min, count_max = _parse_min_max(params.get("CountMinMax"))
-        drones_min, drones_max = _parse_min_max(params.get("DronesMinMax"))
+        count_min, count_max = parse_min_max(params.get("CountMinMax"))
+        drones_min, drones_max = parse_min_max(params.get("DronesMinMax"))
         stats.append(PoiStats(
             name=name,
             faction=params.get("Faction", "None"),
             count_min=count_min, count_max=count_max,
-            drone_prob=_parse_float_or(params.get("DroneProb")),
+            drone_prob=parse_float_or(params.get("DroneProb")),
             drones_min=drones_min, drones_max=drones_max,
             regen_after=get_properties_value(item, "RegenAfter") or "",
             spawn_near=params.get("SpawnPOINear", ""),

@@ -50,7 +50,7 @@ demande de l'utilisateur.
 """
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRect
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QFont, QPainterPath
 from PyQt6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
@@ -80,6 +80,11 @@ _background_pixmap_cache: Optional[QPixmap] = None
 # directement sur une vraie capture F3 fournie par l'utilisateur (bloc
 # 'Noyau'/'Petit reservoir O2').
 _COLOR_FREE = QColor(18, 69, 15)
+# Badge de cout (voir _TechNodeItem._paint_cost_badge) : chiffre dore sur
+# pastille sombre -- lisible sur le fond vert des icones comme sur les
+# themes sombres de l'application.
+_BADGE_TEXT_COLOR = "#FFD34D"
+_BADGE_FONT_FAMILY = "Segoe UI"
 
 
 def _load_background_pixmap() -> Optional[QPixmap]:
@@ -167,12 +172,44 @@ class _TechNodeItem(QGraphicsPixmapItem):
         painter.fillRect(self.pixmap().rect(), _COLOR_FREE)
         painter.restore()
         super().paint(painter, option, widget)
+        self._paint_cost_badge(painter)
         if self._highlighted:
             painter.save()
             pen = QPen(QColor(PRIMARY_HIGHLIGHT), 3)
             painter.setPen(pen)
             painter.drawRect(self.pixmap().rect().adjusted(1, 1, -1, -1))
             painter.restore()
+
+    def _paint_cost_badge(self, painter: QPainter) -> None:
+        """Badge du cout de deblocage (UnlockCost) sur CHAQUE icone -- demande
+        utilisateur du 30/08/2026 : le cout n'etait lisible qu'au survol
+        (infobulle), il doit etre visible en permanence. Pastille sombre
+        semi-transparente + chiffre dore en gras : lisible sur n'importe
+        quelle icone et sur les deux familles de themes."""
+        rect = self.pixmap().rect()
+        if rect.width() < 24:
+            return  # icones minuscules (vignettes) : le badge serait illisible
+        cost_text = str(self.node.unlock_cost)
+        font = QFont(_BADGE_FONT_FAMILY)
+        font.setPointSizeF(8)
+        font.setBold(True)
+        painter.save()
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        text_width = metrics.horizontalAdvance(cost_text)
+        pad = 3
+        badge_w = text_width + pad * 2
+        badge_h = metrics.height() - 1
+        badge = QRect(rect.right() - badge_w - 1, rect.bottom() - badge_h - 1,
+                      badge_w, badge_h)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 165))
+        painter.drawRoundedRect(badge, 3, 3)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setPen(QColor(_BADGE_TEXT_COLOR))
+        painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, cost_text)
+        painter.restore()
 
     def mousePressEvent(self, event) -> None:
         self._view.node_selected.emit(self.node.name)
@@ -562,4 +599,9 @@ class TechTreeCategoryView(QGraphicsView):
             action.triggered.connect(lambda checked=False, c=cat: self.category_changed.emit(node_name, c))
         edit_cost_action = menu.addAction(t("techtree.edit_cost_action"))
         edit_cost_action.triggered.connect(lambda: self.edit_unlock_cost(node_name))
-        menu.exec(screen_pos.toPoint())
+        # PyQt6 : QGraphicsSceneContextMenuEvent.screenPos() retourne deja un
+        # QPoint ENTIER (pas un QPointF) -- normaliser pour accepter les deux,
+        # selon que l'appelant passe la position d'un evenement scene ou widget.
+        if hasattr(screen_pos, "toPoint"):
+            screen_pos = screen_pos.toPoint()
+        menu.exec(screen_pos)

@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QPushButton, QHeaderView,
 )
 
+from gui.busy import busy_guard
 from core.i18n import t
 from core.ecf.validation import ValidationIssue, validate_scenario
 from gui.theme import icon, icon_size
@@ -112,9 +113,12 @@ class ValidationDialog(QDialog):
         layout.addLayout(bottom_row)
 
     def _run_validation(self):
-        self.issues_by_file = validate_scenario(self.scenario_root)
-        self._populate_tree()
-        self._update_summary()
+        # Retour utilisateur 30/08/2026 : la validation peut prendre du temps
+        # sur un gros scenario -- curseur + boite "en cours" imm�diates.
+        with busy_guard(self):
+            self.issues_by_file = validate_scenario(self.scenario_root)
+            self._populate_tree()
+            self._update_summary()
 
     def _populate_tree(self):
         self.tree.clear()

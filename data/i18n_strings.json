@@ -3,6 +3,10 @@
   "fr": "&Fichier",
   "en": "&File"
  },
+ "menu.tools": {
+  "fr": "&Outils",
+  "en": "&Tools"
+ },
  "menu.file.new_project": {
   "fr": "&Nouveau projet...",
   "en": "&New project..."
@@ -22,6 +26,10 @@
  "menu.verification": {
   "fr": "&Verification",
   "en": "&Verification"
+ },
+ "menu.verification.center": {
+  "fr": "&Centre de vérification",
+  "en": "&Verification center"
  },
  "menu.verification.check_refs": {
   "fr": "Verifier les references (Ref) de la copie de travail...",
@@ -250,6 +258,18 @@
  "search.case_sensitive": {
   "fr": "Respecter la casse",
   "en": "Case sensitive"
+ },
+ "search.use_regex": {
+  "fr": "Expression régulière",
+  "en": "Regular expression"
+ },
+ "search.use_regex_tooltip": {
+  "fr": "Interprète la requête comme une expression régulière Python (ex : « Robo.*Dog »)",
+  "en": "Interprets the query as a Python regular expression (e.g. \"Robo.*Dog\")"
+ },
+ "search.invalid_regex": {
+  "fr": "Expression régulière invalide :\n{error}",
+  "en": "Invalid regular expression:\n{error}"
  },
  "search.btn_search": {
   "fr": "Rechercher",
@@ -543,6 +563,10 @@
   "fr": "Exporter les resultats",
   "en": "Export results"
  },
+ "block_info.export_title": {
+  "fr": "Exporter la fiche en Markdown",
+  "en": "Export card as Markdown"
+ },
  "results_export.done_title": {
   "fr": "Export termine",
   "en": "Export complete"
@@ -638,6 +662,14 @@
  "btn.save": {
   "fr": "Enregistrer (Ctrl+S)",
   "en": "Save (Ctrl+S)"
+ },
+ "btn.save_files": {
+  "fr": "Enregistrer tout",
+  "en": "Save all"
+ },
+ "btn.discard": {
+  "fr": "Abandonner",
+  "en": "Discard"
  },
  "btn.undo": {
   "fr": "Annuler (Ctrl+Z)",
@@ -1063,6 +1095,10 @@
   "fr": "Destination existante",
   "en": "Destination already exists"
  },
+ "err.dest_not_writable": {
+  "fr": "Dossier de destination inaccessible en écriture :\n{error}",
+  "en": "Destination folder is not writable:\n{error}"
+ },
  "startup.title": {
   "fr": "Projets recents",
   "en": "Recent projects"
@@ -1414,6 +1450,14 @@
  "err.title": {
   "fr": "Erreur",
   "en": "Error"
+ },
+ "busy.title": {
+  "fr": "Traitement en cours…",
+  "en": "Working…"
+ },
+ "busy.please_wait": {
+  "fr": "Opération en cours, veuillez patienter…",
+  "en": "Operation in progress, please wait…"
  },
  "err.read_title": {
   "fr": "Erreur de lecture",
@@ -2155,6 +2199,10 @@
   "fr": "Tutoriels...",
   "en": "Tutorials..."
  },
+ "menu.help.test_protocol": {
+  "fr": "&Protocole de test (tutoriel / débogage)...",
+  "en": "&Test protocol (tutorial / debugging)..."
+ },
  "tutorials.dialog_title": {
   "fr": "Tutoriels",
   "en": "Tutorials"
@@ -2515,6 +2563,18 @@
   "fr": "Coche : n'affiche que les blocs ayant une 'AllowPlacingAt' non vide (posables par un joueur via le constructeur). Decoche : affiche aussi les blocs sans cette propriete, reserves aux POI/blueprints places par le scenario. Les items d'ItemsConfig.ecf restent toujours affiches, ce concept ne s'applique qu'aux blocs.",
   "en": "Checked: only shows blocks with a non-empty 'AllowPlacingAt' (placeable by a player via the constructor). Unchecked: also shows blocks without that property, reserved for POIs/blueprints placed by the scenario. Items from ItemsConfig.ecf are always shown, this concept only applies to blocks."
  },
+ "ecf.tooltip_add_block": {
+  "fr": "Ajouter un nouveau bloc au fichier ouvert",
+  "en": "Add a new block to the open file"
+ },
+ "ecf.tooltip_add_property": {
+  "fr": "Ajouter une propriété au bloc sélectionné",
+  "en": "Add a property to the selected block"
+ },
+ "ecf.tooltip_add_row": {
+  "fr": "Ajouter une ligne à la structure répétitive du bloc (Name_N/Group_N, numérotation automatique)",
+  "en": "Add a row to the block's repetitive structure (Name_N/Group_N, automatic numbering)"
+ },
  "ecf.add_row_value_required": {
   "fr": "Indique une valeur.",
   "en": "Enter a value."
@@ -2730,6 +2790,10 @@
  "panel.working_copy": {
   "fr": "Copie de travail (modifiable)",
   "en": "Working copy (editable)"
+ },
+ "panel.working_copy_modified": {
+  "fr": "Copie de travail — {count} fichier(s) modifié(s)",
+  "en": "Working copy — {count} modified file(s)"
  },
  "panel.scenario_b": {
   "fr": "Scenario B (lecture seule)",
@@ -3658,5 +3722,65 @@
  "ecfprop.Furn": {
   "fr": "Fournaise",
   "en": "Furnace"
+ },
+ "verification.center_title": {
+  "fr": "Centre de vérification",
+  "en": "Verification center"
+ },
+ "health.check_all": {
+  "fr": "Tout vérifier",
+  "en": "Check everything"
+ },
+ "status.persistent_project": {
+  "fr": "{project} · {count} fichier(s) modifié(s)",
+  "en": "{project} · {count} modified file(s)"
+ },
+ "protocol.window_title": {
+  "fr": "Protocole de test manuel",
+  "en": "Manual test protocol"
+ },
+ "protocol.not_available": {
+  "fr": "Protocole indisponible dans cette installation (outils de développement absents).",
+  "en": "Protocol not available in this installation (development tools missing)."
+ },
+ "protocol.search": {
+  "fr": "Filtrer par id, titre, étape ou résultat attendu...",
+  "en": "Filter by id, title, step or expected result..."
+ },
+ "protocol.n_cases": {
+  "fr": "{n} cas affichés",
+  "en": "{n} cases shown"
+ },
+ "protocol.col_case": {
+  "fr": "Cas",
+  "en": "Case"
+ },
+ "protocol.col_title": {
+  "fr": "Titre",
+  "en": "Title"
+ },
+ "protocol.pre": {
+  "fr": "Prérequis",
+  "en": "Prerequisites"
+ },
+ "protocol.expected": {
+  "fr": "Résultat attendu",
+  "en": "Expected result"
+ },
+ "protocol.select_case": {
+  "fr": "Sélectionne un cas pour afficher le détail.",
+  "en": "Select a case to see the details."
+ },
+ "protocol.export_title": {
+  "fr": "Exporter le protocole en Markdown",
+  "en": "Export protocol as Markdown"
+ },
+ "protocol.start_session": {
+  "fr": "▶ Commencer une session de tests…",
+  "en": "▶ Start a test session…"
+ },
+ "protocol.runner_unavailable": {
+  "fr": "Le module de session de tests est indisponible dans cette installation (outils de développement absents).",
+  "en": "The test session module is not available in this installation (development tools missing)."
  }
 }
