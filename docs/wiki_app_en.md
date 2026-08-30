@@ -134,6 +134,17 @@ planets...), **.csv** (translations, tables), **.txt** (plain text).
   DamageMultiplierConfig.ecf, DefReputation.ecf, EGroupsConfig.ecf, Factions.ecf,
   FactionWarfare.ecf); for others, a button auto-translates the original text
 
+### The in-game info card
+A simple **click on a block in the tree** (working copy tab) opens a **floating
+card reproducing the card the game itself shows** (F3 key in-game): same
+properties, same localized names, same icon. The list of displayed properties is
+not guessed: it reproduces what the file itself declares displayable through the
+`display` attribute, with one special case confirmed against the vanilla file
+(`MarketPrice` stays visible despite being marked `display: false`). Values
+containing BBCode (the game's color codes) are rendered visually as in-game. The
+card can be dragged around and closes when you click elsewhere — handy for
+comparing two blocks side by side.
+
 ### Automatic annotations
 Every value change is annotated (if enabled in Options):
 `# original: <old_value> -- Mod par <you>`.
@@ -352,6 +363,19 @@ Id/name, free-Id suggestions provided), never overwriting anything. Also works o
 blocks without an Id (identified only by `Name`), lets you drop the duplicate's
 Id to identify it by Name only, and keeps a nested sub-block within the same
 parent block.
+
+**After duplicating a block/item**, two optional follow-up adjustments are
+offered:
+- **Display name (Localization.csv)** — a duplicate's technical name never has a
+  translation; the window offers to set the new item's display name (EN/FR),
+  pre-filled from the source's display name if it had one. Base-game names act as
+  a fallback (localization pack bundled with the application) to pre-fill the
+  fields of a duplicated vanilla block.
+- **Adjust the created Template(s)** — if the duplication creates associated
+  crafting recipes, a dedicated editor lets you adjust, before anything is
+  written, the crafting time and ingredient quantities of each Template;
+  ingredients are picked from a dropdown among items genuinely defined in the
+  scenario.
 
 ### Undoing a merge/duplication
 Global **"Undo last action"** button (top of the window, distinct from the
@@ -732,6 +756,49 @@ proximity), impossible to reliably reconstruct.
 each system according to its real Y, useful when several systems close in
 X/Z (e.g. along a beacon chain) overlap on screen despite very different
 heights.
+
+---
+
+## 19bis. Technology tree
+
+**File > Technology tree...** — reproduces the game's unlock tree (F3 key
+in-game) from BlocksConfig.ecf and ItemsConfig.ecf: one column per player level,
+nodes with their icon, unlock-point cost (`UnlockCost`), category
+(`TechTreeNames`) and parent (`TechTreeParent`). Categories are shown in the
+game's real UI order (Base, Capital Vessel, Small Vessel, Hover Vessel, Misc,
+Tools, Weapons); an item marked `TechTreeNames: Hidden` never appears, exactly
+as in-game.
+
+### Browsing
+- **"Simulated player level" slider** — visualizes what is available at the
+  chosen level, like the game's F3 screen
+- **Node tooltip** — localized name, required level, cost
+- Icons come from the scenario (SharedData/Content/Bundles/ItemIcons folder if
+  present) or from the pack bundled with the application; as a last resort a
+  generic icon is shown — never an empty box or a crash
+
+### Editing
+- **Double-click a node** — changes the **required level** (`UnlockLevel`) or the
+  **cost** (`UnlockCost`), written directly to BlocksConfig.ecf or
+  ItemsConfig.ecf
+- **Right-click > Move to...** — changes the category (`TechTreeNames`, fully
+  replaced — an item may have several categories separated by commas, quoted in
+  the file)
+- **Right-click > Change parent** — re-attaches the node to another one
+  ("click the new parent" mode), or makes it a root node; a genuine root node has
+  no `TechTreeParent` at all (never an empty value)
+- Every change can be undone via the global **"Undo last action"** button
+- **Guard rail**: if BlocksConfig.ecf or ItemsConfig.ecf is open in a tab with
+  unsaved changes, writing is refused; without unsaved changes, the tab reloads
+  automatically so you see the value change live
+
+### Previewing a new block/item
+From guided block creation (**+ Block**) or variants duplication, the
+**"Preview in the technology tree..."** button shows the future item (surrounded
+icon, not yet created) among the real nodes: drag it to choose its placement —
+level, cost, category, parent — and the creation form picks up those choices to
+write them into the new block's properties upon actual creation. The preview
+window itself writes nothing.
 
 ---
 

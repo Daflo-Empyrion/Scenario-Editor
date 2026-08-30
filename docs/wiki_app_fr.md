@@ -142,6 +142,17 @@ planetes...), **.csv** (traductions, tables), **.txt** (texte brut).
   FactionWarfare.ecf) ; pour les autres, un bouton traduit automatiquement le
   texte original
 
+### La fiche d'information en jeu
+Un simple **clic sur un bloc dans l'arbre** (onglet de la copie de travail) fait
+apparaitre une **fiche flottante reproduisant la fiche affichee par le jeu**
+(touche F3 en jeu) : memes proprietes, memes noms localises, meme icone. La liste
+des proprietes affichees n'est pas devinee : elle reproduit ce que le fichier
+lui-meme declare affichable via l'attribut `display`, avec un cas particulier
+confirme sur le fichier vanilla (`MarketPrice` reste affiche bien que marque
+`display: false`). Les valeurs contenant du BBCode (codes couleur du jeu) sont
+rendues visuellement comme en jeu. La fiche se deplace a la souris et se referme
+d'un clic ailleurs — pratique pour comparer deux blocs cote a cote.
+
 ### Annotations automatiques
 Toute modification de valeur est annotee (si active dans Options) :
 `# original: <ancienne_valeur> -- Mod par <toi>`.
@@ -375,6 +386,19 @@ nouvelle cle..."** — **toujours disponible**, cree systematiquement une copie
 jamais ecraser quoi que ce soit. Fonctionne aussi sur des blocs sans Id (identifies
 seulement par `Name`), permet d'abandonner l'Id du duplicata pour ne l'identifier
 que par Name, et garde un sous-bloc imbrique dans le meme bloc parent.
+
+**Apres une duplication de bloc/item**, deux ajustements supplementaires sont
+proposes, chacun facultatif :
+- **Nom affiche (Localization.csv)** — le nom technique d'un duplicata n'a jamais
+  de traduction associee ; la fenetre propose de renseigner le nom affiche (FR/EN)
+  du nouvel item, pre-rempli avec celui de la source s'il en avait un. Les noms du
+  jeu de base servent de repli (pack de localisation integre a l'application) pour
+  pre-remplir les champs d'un bloc vanilla duplique.
+- **Ajuster le(s) Template(s) cree(s)** — si la duplication cree des recettes de
+  craft associees, un editeur dedie permet d'ajuster avant l'ecriture le temps de
+  fabrication et les quantites d'ingredients de chaque Template, les ingredients
+  etant choisis par liste deroulante parmi les items reellement definis dans le
+  scenario.
 
 ### Annuler une fusion/duplication
 Bouton global **"Annuler la derniere action"** (en haut de la fenetre, distinct du
@@ -777,6 +801,52 @@ que X/Z (vue du dessus, hauteur galactique ignoree) -- augmenter
 l'inclinaison decale visuellement chaque systeme selon son Y reel,
 utile quand plusieurs systemes proches en X/Z (ex: le long d'une chaine de
 balises) se chevauchent a l'ecran malgre une hauteur tres differente.
+
+---
+
+## 19bis. Arbre technologique
+
+**Fichier > Arbre technologique...** — reproduit l'arbre de deblocage du jeu
+(touche F3 en jeu) a partir de BlocksConfig.ecf et ItemsConfig.ecf : une colonne
+par niveau joueur, les noeuds avec leur icone, leur cout en points de deblocage
+(`UnlockCost`), leur categorie (`TechTreeNames`) et leur parent (`TechTreeParent`).
+Les categories sont affichees dans l'ordre reel de l'interface du jeu (Base,
+Capital Vessel, Small Vessel, Hover Vessel, Misc, Tools, Weapons) ; un item marque
+`TechTreeNames: Hidden` n'apparait jamais, exactement comme en jeu.
+
+### Consulter
+- **Curseur "Niveau du joueur (simule)"** — visualise ce qui est disponible au
+  niveau choisi, comme l'ecran F3 du jeu
+- **Infobulle d'un noeud** — nom localise, niveau requis, cout
+- Les icones viennent du scenario (dossier SharedData/Content/Bundles/ItemIcons
+  s'il existe) ou du pack integre a l'application ; a defaut, une icone generique
+  est affichee — jamais de case vide ni de plantage
+
+### Modifier
+- **Double-clic sur un noeud** — change le **niveau requis** (`UnlockLevel`) ou le
+  **cout** (`UnlockCost`), ecriture directe dans BlocksConfig.ecf ou
+  ItemsConfig.ecf
+- **Clic droit > Deplacer vers...** — change la categorie (`TechTreeNames`,
+  remplacee integralement — un item peut avoir plusieurs categories separees par
+  des virgules, entre guillemets dans le fichier)
+- **Clic droit > Changer le parent** — rattache le noeud a un autre (mode
+  "clique le nouveau parent"), ou le rend racine ; un noeud racine reel n'a pas de
+  `TechTreeParent` du tout (jamais de valeur vide)
+- Chaque modification est annulable via le bouton global **"Annuler la derniere
+  action"**
+- **Garde-fou** : si BlocksConfig.ecf ou ItemsConfig.ecf est ouvert dans un onglet
+  avec des modifications non enregistrees, l'ecriture est refusee ; sans
+  modification, l'onglet est recharge automatiquement pour montrer la valeur
+  changer en direct
+
+### Previsualiser un nouveau bloc/item
+Depuis la creation guidee de bloc (**+ Bloc**) ou la duplication de variantes, le
+bouton **"Previsualiser dans l'arbre technologique..."** affiche le futur item
+(icone entouree, pas encore cree) au milieu des noeuds reels : deplace-le pour
+choisir son emplacement — niveau, cout, categorie, parent — et le formulaire de
+creation recupere ces choix pour les ecrire dans les proprietes du nouveau bloc
+lors de sa creation reelle. Rien n'est ecrit par la fenetre de previsualisation
+elle-meme.
 
 ---
 
