@@ -1228,6 +1228,7 @@ class MainWindow(QMainWindow):
 
         try:
             self.workspace = open_workspace(dialog.source_a_path, dialog.dest_path, dialog.source_b_path)
+            self._refresh_panel_and_status_labels()
         except Exception as e:
             progress.close()
             QMessageBox.critical(self, t("err.title"), f"{t('err.create_project')} :\n{e}")
@@ -1286,6 +1287,7 @@ class MainWindow(QMainWindow):
 
         try:
             self.workspace = load_existing_workspace(source_a, working, source_b)
+            self._refresh_panel_and_status_labels()
         except Exception as e:
             QMessageBox.critical(self, t("err.title"),
                                   f"{t('recent.resume_error')} :\n{e}\n\n{t('recent.resume_error_hint')}")

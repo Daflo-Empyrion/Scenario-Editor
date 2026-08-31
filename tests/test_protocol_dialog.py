@@ -104,8 +104,7 @@ def test_start_session_button_opens_runner(qapp, monkeypatch):
     (tools/protocole_test.py) dans le meme processus ; le dialogue de choix
     de session est simule (sinon il bloquerait le test)."""
     from gui import test_protocol_dialog as tp
-    runner_module = tp._load_runner_module()
-    assert runner_module is not None
+    from gui import test_protocol_runner as runner_module
     monkeypatch.setattr(runner_module.MainWindow, "_nouvelle_session",
                         lambda self: None)
     dlg = tp.TestProtocolDialog()
@@ -119,24 +118,17 @@ def test_start_session_button_opens_runner(qapp, monkeypatch):
     dlg.close()
 
 
-def test_start_session_graceful_without_tools(qapp, monkeypatch):
-    from gui import test_protocol_dialog as tp
-    monkeypatch.setattr(tp, "_load_runner_module", lambda: None)
-    infos = []
-    from PyQt6.QtWidgets import QMessageBox
-    monkeypatch.setattr(QMessageBox, "information",
-                        staticmethod(lambda *a, **k: infos.append(True)))
-    dlg = tp.TestProtocolDialog()
-    assert dlg._start_session() is None
-    assert infos == [True]
-    dlg.close()
-
-
-def test_protocol_dialog_graceful_without_tools_folder(qapp, monkeypatch):
-    """Installation sans tools/protocole_cas.py : message propre, pas de
-    plantage (l'installeur ne embarque pas les outils de developpement)."""
-    import gui.test_protocol_dialog as tp
-    monkeypatch.setattr(tp, "_load_protocol_module", lambda: None)
-    dlg = tp.TestProtocolDialog()
-    assert dlg.windowTitle() != ""
-    dlg.close()
+def test_protocol_data_is_embedded_in_core():
+    """Les donnees vivent dans core/test_protocol.py (embarquees par
+    PyInstaller dans la version installee) et le shim tools/ re-exporte a
+    l'identique pour les outils de developpement."""
+    import importlib.util
+    from core import test_protocol as embedded
+    spec = importlib.util.spec_from_file_location(
+        "protocole_shim_check",
+        Path(__file__).resolve().parent.parent / "tools" / "protocole_cas.py")
+    shim = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(shim)
+    assert shim.CASES == embedded.CASES
+    assert shim.CATEGORIES == embedded.CATEGORIES
+    assert shim.protocol_to_markdown() == embedded.protocol_to_markdown()

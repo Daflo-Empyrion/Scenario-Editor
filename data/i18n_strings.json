@@ -3775,6 +3775,122 @@
   "fr": "Exporter le protocole en Markdown",
   "en": "Export protocol as Markdown"
  },
+ "runner.step_title": {
+  "fr": "Protocole de test — mode pas-à-pas",
+  "en": "Test protocol — step-by-step mode"
+ },
+ "runner.annotation_label": {
+  "fr": "<b>Annotation / observations</b> (horodatée dans le rapport) :",
+  "en": "<b>Notes / observations</b> (timestamped in the report):"
+ },
+ "runner.notes_placeholder": {
+  "fr": "Ce qui a été observé, conditions particulières, pistes... (obligatoire en pratique pour PAS BON / BLOQUE)",
+  "en": "What was observed, specific conditions, leads... (required in practice for FAILED / BLOCKED)"
+ },
+ "runner.prev": {
+  "fr": "◀ Précédent",
+  "en": "◀ Previous"
+ },
+ "runner.skip": {
+  "fr": "Passer pour l'instant",
+  "en": "Skip for now"
+ },
+ "runner.next": {
+  "fr": "Suivant ▶",
+  "en": "Next ▶"
+ },
+ "runner.fail_annotation_hint": {
+  "fr": "<b>Une annotation est fortement conseillée pour un échec</b> (qu'a-t-on observé ? dans quelles conditions ?) — puis re-clique le verdict.",
+  "en": "<b>A note is strongly recommended for a failure</b> (what did you observe? under which conditions?) — then click the verdict again."
+ },
+ "runner.bilan_title": {
+  "fr": "Protocole de test — bilan de session",
+  "en": "Test protocol — session summary"
+ },
+ "runner.export_md_bilan": {
+  "fr": "Exporter le bilan (Markdown)",
+  "en": "Export summary (Markdown)"
+ },
+ "runner.export_csv": {
+  "fr": "Exporter (CSV)",
+  "en": "Export (CSV)"
+ },
+ "runner.open_ticket": {
+  "fr": "Ouvrir un ticket GitHub pour les échecs",
+  "en": "Open a GitHub ticket for failures"
+ },
+ "runner.export_title": {
+  "fr": "Export",
+  "en": "Export"
+ },
+ "runner.export_md_written": {
+  "fr": "Bilan Markdown écrit :\n{path}",
+  "en": "Markdown summary written:\n{path}"
+ },
+ "runner.export_csv_written": {
+  "fr": "Bilan CSV écrit :\n{path}",
+  "en": "CSV summary written:\n{path}"
+ },
+ "runner.no_session": {
+  "fr": "<b>Aucune session</b>",
+  "en": "<b>No session</b>"
+ },
+ "runner.new_session": {
+  "fr": "Nouvelle session…",
+  "en": "New session…"
+ },
+ "runner.export_markdown": {
+  "fr": "Exporter (Markdown)",
+  "en": "Export (Markdown)"
+ },
+ "runner.bilan": {
+  "fr": "Bilan…",
+  "en": "Summary…"
+ },
+ "runner.filter_placeholder": {
+  "fr": "Filtrer (id, titre, statut)…",
+  "en": "Filter (id, title, status)…"
+ },
+ "runner.step_mode": {
+  "fr": "Mode pas-à-pas  ▶",
+  "en": "Step-by-step mode  ▶"
+ },
+ "runner.session_dialog_title": {
+  "fr": "Nouvelle session de test",
+  "en": "New test session"
+ },
+ "runner.session_vierge": {
+  "fr": "Session VIERGE (tout retester)",
+  "en": "BLANK session (test everything)"
+ },
+ "runner.session_reprise": {
+  "fr": "Reprendre les statuts d'une session antérieure (cas modifiés remis à zéro) — recommandé",
+  "en": "Resume statuses from a previous session (changed cases reset) — recommended"
+ },
+ "runner.session_total": {
+  "fr": "Reprendre une session en réinitialisant TOUT",
+  "en": "Resume a session resetting EVERYTHING"
+ },
+ "runner.bilan_failures_header": {
+  "fr": "<b>Échecs à traiter</b> (PAS BON + BLOQUÉS) :",
+  "en": "<b>Failures to address</b> (FAILED + BLOCKED):"
+ },
+ "runner.base_question": {
+  "fr": "<b>Sur quelle base partir ?</b><br>En reprise, un cas modifié depuis (révision supérieure) ou marque \"à retester\" est automatiquement remis à non testé — un test vert pris sur l'ancien code ne masque jamais une régression.",
+  "en": "<b>Which baseline?</b><br>When resuming, a case modified since (higher revision) or marked \"to retest\" is automatically reset to untested — a green test taken on old code never masks a regression."
+ },
+ "runner.base_session": {
+  "fr": "Session de base :",
+  "en": "Baseline session:"
+ },
+ "runner.new_session_btn": {
+  "fr": "Nouvelle session",
+  "en": "New session"
+ },
+ "runner.no_previous_session": {
+  "fr": "Aucune session antérieure disponible.",
+  "en": "No previous session available."
+ },
  "protocol.start_session": {
   "fr": "▶ Commencer une session de tests…",
   "en": "▶ Start a test session…"

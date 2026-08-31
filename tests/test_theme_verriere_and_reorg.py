@@ -336,3 +336,35 @@ def test_p6_status_bar_has_persistent_project_label(qapp, monkeypatch):
     assert "reforged" in win.status_project_label.text()
     # PAS de win.close() : monkeypatch _modified_tab_widgets encore actif
     # (meme raison que test_p5).
+
+
+def test_p6_status_label_refreshed_after_project_resume(qapp, monkeypatch, tmp_path):
+    """Retour utilisateur du 30/08/2026 (build installe) : apres une REPRISE
+    de projet, le resume persistant affichait encore 'Aucun projet ouvert' --
+    le libelle n'etait pas rafraichi apres l'assignation du workspace."""
+    import shutil
+    from pathlib import Path as _Path
+    from gui.main_window import MainWindow
+    from core.project_store import ProjectRecord
+    from core.scanner import scan_scenario
+    from core.workspace import Workspace
+
+    fixture_dir = _Path(__file__).parent / "fixtures" / "tech_tree_scenario"
+    config_dir = tmp_path / "Content" / "Configuration"
+    config_dir.mkdir(parents=True)
+    for f in fixture_dir.glob("*.ecf"):
+        shutil.copy(f, config_dir / f.name)
+    scenario = scan_scenario(tmp_path)
+
+    win = _make_window(qapp, monkeypatch, tmp_path)
+    assert "Aucun projet ouvert" in win.status_project_label.text()
+
+    record = ProjectRecord(source_a=str(tmp_path), working=str(tmp_path))
+    monkeypatch.setattr(win, "_remember_current_project", lambda: None)
+    win.open_existing_project(record)
+
+    assert win.workspace is not None
+    assert tmp_path.name in win.status_project_label.text()
+    assert "Aucun projet ouvert" not in win.status_project_label.text()
+    # et le libelle du bandeau copie de travail est aussi rafraichi
+    assert win.label_working.text() == "Copie de travail (modifiable)" or "Copie de travail" in win.label_working.text()

@@ -15,21 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Consultation du PROTOCOLE DE TEST MANUEL (tools/protocole_cas.py) depuis
-l'application -- demande explicite de l'utilisateur : sert a la fois de
-TUTORIEL (parcourir ce que l'application sait faire, etape par etape) et
-d'AIDE AU DEBOGAGE (reproduire un comportement signale en suivant le cas
-correspondant, puis l'exporter en Markdown pour un rapport de bug).
+Consultation du PROTOCOLE DE TEST MANUEL depuis l'application -- demande
+explicite de l'utilisateur : sert a la fois de TUTORIEL (parcourir ce que
+l'application sait faire, etape par etape) et d'AIDE AU DEBOGAGE (reproduire
+un comportement signale en suivant le cas correspondant, puis l'exporter en
+Markdown pour un rapport de bug).
 
-Chargement du protocole : tools/protocole_cas.py vit avec les SOURCES. Dans
-une installation (installeur), ce dossier n'existe pas -- le dialogue
-l'affiche proprement ("indisponible") au lieu de planter. Fenetre NON MODALE
-(meme motif que les autres fenetres de resultats).
+Les donnees sont EMBARQUEES (core/test_protocol.py) : le protocole ET le
+lancement de sessions (bouton "Commencer une session de tests...", vers
+gui/test_protocol_runner.py) fonctionnent aussi dans la version INSTALLEE.
+Fenetre NON MODALE (meme motif que les autres fenetres de resultats).
 """
-import importlib.util
-import sys
-from pathlib import Path
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -37,38 +33,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
-
-
-def _load_protocol_module():
-    """Charge tools/protocole_cas.py (sources uniquement). Retourne le module
-    ou None si indisponible (installation sans outils de developpement)."""
-    return _load_tools_module("protocole_cas.py", "empyrion_test_protocol")
-
-
-def _load_runner_module():
-    """Charge tools/protocole_test.py : le RUNNER pas-a-pas (fenetre dediee,
-    sessions versionnees, verdicts sauvegardes atomiquement, bilan
-    Markdown/CSV). None si indisponible (installation sans sources)."""
-    return _load_tools_module("protocole_test.py", "empyrion_test_protocol_runner")
-
-
-_TOOLS_MODULE_CACHE = {}
-
-
-def _load_tools_module(filename: str, module_name: str):
-    root = Path(__file__).resolve().parent.parent
-    path = root / "tools" / filename
-    if not path.exists():
-        return None
-    if filename in _TOOLS_MODULE_CACHE:
-        return _TOOLS_MODULE_CACHE[filename]
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    module = importlib.util.module_from_spec(spec)
-    # Le protocole s'insere lui-meme la racine du projet dans sys.path (voir
-    # sa tete de fichier) -- sans effet de bord notable pour l'application.
-    spec.loader.exec_module(module)
-    _TOOLS_MODULE_CACHE[filename] = module
-    return module
+from core.test_protocol import CATEGORIES, cases_by_category, protocol_to_markdown
 
 
 # References fortes : une fenetre runner sans reference Python serait
@@ -79,18 +44,13 @@ _RUNNER_REFS = []
 def open_runner_window():
     """Ouvre (ou ramene au premier plan) le RUNNER de test pas-a-pas. Retourne
     la fenetre, ou None si les outils de developpement sont absents."""
-    module = _load_runner_module()
-    if module is None:
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(None, t("protocol.window_title"),
-                                t("protocol.runner_unavailable"))
-        return None
+    from gui import test_protocol_runner as runner_module
     for runner in _RUNNER_REFS:
         if runner.isVisible():
             runner.raise_()
             runner.activateWindow()
             return runner
-    runner = module.MainWindow()
+    runner = runner_module.MainWindow()
     _RUNNER_REFS.append(runner)
     runner.show()
     return runner
@@ -103,18 +63,9 @@ class TestProtocolDialog(QDialog):
         self.setMinimumSize(860, 600)
         self.setModal(False)
 
-        self._module = _load_protocol_module()
         self._cases_by_id = {}
 
         layout = QVBoxLayout(self)
-
-        if self._module is None:
-            layout.addWidget(QLabel(t("protocol.not_available")))
-            btn_close = QPushButton(t("validation.close"))
-            btn_close.setObjectName("secondaryButton")
-            btn_close.clicked.connect(self.close)
-            layout.addWidget(btn_close)
-            return
 
         start_row = QHBoxLayout()
         self.btn_start_session = QPushButton(t("protocol.start_session"))
@@ -173,9 +124,9 @@ class TestProtocolDialog(QDialog):
         query = self.search_edit.text().strip().lower()
         self.tree.clear()
         self._cases_by_id = {}
-        grouped = self._module.cases_by_category()
+        grouped = cases_by_category()
         shown = 0
-        for code, label in self._module.CATEGORIES:
+        for code, label in CATEGORIES:
             cases = grouped[code]
             if not cases:
                 continue
@@ -220,7 +171,7 @@ class TestProtocolDialog(QDialog):
     def _export_markdown(self) -> None:
         from gui.results_window_helpers import export_text_to_file
         export_text_to_file(
-            self, "protocole_de_test.md", self._module.protocol_to_markdown(),
+            self, "protocole_de_test.md", protocol_to_markdown(),
             title_key="protocol.export_title", file_filter="Markdown (*.md)")
 
 
