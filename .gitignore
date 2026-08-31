@@ -21,3 +21,4 @@ itemicons/
 # Reglages locaux de l'application (jamais a versionner -- propres a chaque
 # utilisateur, contiennent projets recents, langue choisie, etc.)
 .empyrion_editor/
+CONTEXTE_REPRISE.md
