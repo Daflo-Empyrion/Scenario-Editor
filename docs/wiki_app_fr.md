@@ -142,16 +142,22 @@ planetes...), **.csv** (traductions, tables), **.txt** (texte brut).
   FactionWarfare.ecf) ; pour les autres, un bouton traduit automatiquement le
   texte original
 
-### La fiche d'information en jeu
-Un simple **clic sur un bloc dans l'arbre** (onglet de la copie de travail) fait
-apparaitre une **fiche flottante reproduisant la fiche affichee par le jeu**
-(touche F3 en jeu) : memes proprietes, memes noms localises, meme icone. La liste
-des proprietes affichees n'est pas devinee : elle reproduit ce que le fichier
-lui-meme declare affichable via l'attribut `display`, avec un cas particulier
-confirme sur le fichier vanilla (`MarketPrice` reste affiche bien que marque
-`display: false`). Les valeurs contenant du BBCode (codes couleur du jeu) sont
-rendues visuellement comme en jeu. La fiche se deplace a la souris et se referme
-d'un clic ailleurs — pratique pour comparer deux blocs cote a cote.
+### La fiche d'information, complete et editable
+Un **double-clic sur un bloc** dans l'editeur ECF, ou un **clic simple (ou
+double-clic) sur une icone dans l'arbre technologique**, ouvre une **fiche
+flottante editable** : par defaut elle affiche TOUTES les proprietes du fichier,
+y compris celles marquees `display: false` — la case **"Vue jeu (fidele F3)"**
+retablit a la demande l'affichage exact du jeu (`MarketPrice` reste toujours
+visible dans les deux modes). Chaque valeur se modifie directement sur la fiche,
+sans ouvrir le fichier : liste deroulante editable proposee pour les valeurs les
+plus courantes du fichier (tri par frequence, saisie libre toujours possible) —
+proprietes, cout et niveau de deblocage, prix du marche, quantites d'ingredients
+du Template, plus l'**ajout et la suppression** de proprietes et d'ingredients.
+Les ecritures passent par les mecanismes existants (annotations, annulation,
+garde-fou des onglets modifies, rechargement en direct des onglets ouverts). Les
+valeurs en BBCode (codes couleur du jeu) sont rendues comme en jeu ; l'export
+Markdown reflete la vue affichee. La fiche se deplace a la souris, se
+redimensionne et se referme via sa croix (ou un double-clic sur le meme bloc).
 
 ### Annotations automatiques
 Toute modification de valeur est annotee (si active dans Options) :
@@ -818,7 +824,11 @@ par niveau joueur, les noeuds avec leur icone, leur cout en points de deblocage
 (`UnlockCost`), leur categorie (`TechTreeNames`) et leur parent (`TechTreeParent`).
 Les categories sont affichees dans l'ordre reel de l'interface du jeu (Base,
 Capital Vessel, Small Vessel, Hover Vessel, Misc, Tools, Weapons) ; un item marque
-`TechTreeNames: Hidden` n'apparait jamais, exactement comme en jeu.
+`TechTreeNames: Hidden` n'apparait jamais, exactement comme en jeu. La mise en
+page est **adaptative** : les neuf niveaux (1 a 25) restent visibles sans
+defilement horizontal a toute resolution d'ecran, icone, tuile et badge du cout
+a l'echelle. Chaque icone pose sur une **tuile verte** (effet "bouton", cadre en
+degrade et reflet brillant) et porte son cout en **badge dore en haut a gauche**.
 
 ### Consulter
 - **Curseur "Niveau du joueur (simule)"** — visualise ce qui est disponible au
@@ -829,9 +839,13 @@ Capital Vessel, Small Vessel, Hover Vessel, Misc, Tools, Weapons) ; un item marq
   est affichee — jamais de case vide ni de plantage
 
 ### Modifier
-- **Double-clic sur un noeud** — change le **niveau requis** (`UnlockLevel`) ou le
-  **cout** (`UnlockCost`), ecriture directe dans BlocksConfig.ecf ou
-  ItemsConfig.ecf
+- **Clic simple (sans glisser) ou double-clic sur une icone** — ouvre la **fiche
+  d'information editable** du noeud (voir plus haut) : toutes les proprietes
+  visibles et modifiables directement, ecriture avec annulation globale et
+  rechargement en direct des onglets ouverts
+- **Glisser horizontal** — change le **niveau requis** (`UnlockLevel`, colonne
+  reelle la plus proche)
+- **Clic droit > Modifier le cout** — boite de saisie rapide (`UnlockCost`)
 - **Clic droit > Deplacer vers...** — change la categorie (`TechTreeNames`,
   remplacee integralement — un item peut avoir plusieurs categories separees par
   des virgules, entre guillemets dans le fichier)

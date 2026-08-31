@@ -134,16 +134,21 @@ planets...), **.csv** (translations, tables), **.txt** (plain text).
   DamageMultiplierConfig.ecf, DefReputation.ecf, EGroupsConfig.ecf, Factions.ecf,
   FactionWarfare.ecf); for others, a button auto-translates the original text
 
-### The in-game info card
-A simple **click on a block in the tree** (working copy tab) opens a **floating
-card reproducing the card the game itself shows** (F3 key in-game): same
-properties, same localized names, same icon. The list of displayed properties is
-not guessed: it reproduces what the file itself declares displayable through the
-`display` attribute, with one special case confirmed against the vanilla file
-(`MarketPrice` stays visible despite being marked `display: false`). Values
-containing BBCode (the game's color codes) are rendered visually as in-game. The
-card can be dragged around and closes when you click elsewhere — handy for
-comparing two blocks side by side.
+### The info card: complete and editable
+A **double-click on a block** in the ECF editor, or a **single click (or
+double-click) on an icon in the technology tree**, opens an **editable floating
+card**: by default it shows ALL the file's properties, including those marked
+`display: false` — the **"Game view (F3 faithful)"** checkbox restores the
+game's exact display on demand (`MarketPrice` stays visible in both modes).
+Every value can be edited right on the card, without opening the file: an
+editable drop-down offers the file's most common values (frequency-sorted, free
+typing always allowed) — properties, unlock cost and level, market price,
+Template ingredient quantities, plus **adding and removing** properties and
+ingredients. Writes go through the existing mechanisms (annotations, undo,
+guard rail on modified tabs, live reload of open tabs). BBCode values (the
+game's color codes) are rendered as in-game; the Markdown export mirrors the
+displayed view. The card can be dragged, resized, and closed with its cross (or
+by double-clicking the same block again).
 
 ### Automatic annotations
 Every value change is annotated (if enabled in Options):
@@ -772,7 +777,11 @@ nodes with their icon, unlock-point cost (`UnlockCost`), category
 (`TechTreeNames`) and parent (`TechTreeParent`). Categories are shown in the
 game's real UI order (Base, Capital Vessel, Small Vessel, Hover Vessel, Misc,
 Tools, Weapons); an item marked `TechTreeNames: Hidden` never appears, exactly
-as in-game.
+as in-game. The layout is **adaptive**: all nine levels (1 to 25) stay visible
+without horizontal scrolling at any screen resolution, with icon, tile and cost
+badge scaling accordingly. Every icon sits on a **green tile** ("button" look,
+gradient frame and glossy highlight) and carries its cost as a **gold badge in
+the top-left corner**.
 
 ### Browsing
 - **"Simulated player level" slider** — visualizes what is available at the
@@ -783,9 +792,12 @@ as in-game.
   generic icon is shown — never an empty box or a crash
 
 ### Editing
-- **Double-click a node** — changes the **required level** (`UnlockLevel`) or the
-  **cost** (`UnlockCost`), written directly to BlocksConfig.ecf or
-  ItemsConfig.ecf
+- **Single click (without dragging) or double-click an icon** — opens the node's
+  **editable info card** (see above): all properties visible and editable right
+  there, written with global undo and live reload of open tabs
+- **Horizontal drag** — changes the **required level** (`UnlockLevel`, nearest
+  real column)
+- **Right-click > edit cost** — quick input box (`UnlockCost`)
 - **Right-click > Move to...** — changes the category (`TechTreeNames`, fully
   replaced — an item may have several categories separated by commas, quoted in
   the file)

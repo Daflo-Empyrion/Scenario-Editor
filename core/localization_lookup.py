@@ -254,7 +254,22 @@ def build_localization_index(working_root: Optional[Path]) -> LocalizationIndex:
       - une cle presente dans les DEUX : chaque cellule scenario NON VIDE
         remplace la cellule vanilla ; une cellule scenario VIDE herite de la
         vanilla. Le scenario reste prioritaire pour le modding, mais ne peut
-        plus masquer par omission une traduction qu'il ne fournit pas."""
+        plus masquer par omission une traduction qu'il ne fournit pas.
+
+    CACHE MODULE (31/08/2026, retour utilisateur : latence globale) -- cette
+    fonction etait appelee une fois par onglet/dialogue, en dezippant le pak
+    vanilla et relisant le CSV scenario A CHAQUE FOIS. Resultat partage par
+    racine de scenario, invalide par (mtime_ns, taille) des deux sources :
+    une modification du CSV du scenario est donc vue immediatement.
+    LocalizationIndex est en lecture seule (voir sa classe), le partage est
+    sur."""
+    csv_path = (working_root / "Extras" / "Localization.csv") if working_root else None
+    stamps = (_source_stamp(csv_path), _source_stamp(localization_pack_path()))
+    cache_key = str(working_root or "")
+    cached = _index_cache.get(cache_key)
+    if cached is not None and cached[0] == stamps:
+        return cached[1]
+
     merged: Dict[str, Dict[str, str]] = {}
     merged.update(_load_vanilla_pack())
     for key, scenario_row in _load_scenario_csv(working_root).items():
@@ -267,4 +282,19 @@ def build_localization_index(working_root: Optional[Path]) -> LocalizationIndex:
             if value and value.strip():  # cellule reellement fournie
                 filled[column] = value
         merged[key] = filled
-    return LocalizationIndex(merged)
+    index = LocalizationIndex(merged)
+    _index_cache[cache_key] = (stamps, index)
+    return index
+
+
+def _source_stamp(path: Optional[Path]) -> Optional[tuple]:
+    """(mtime_ns, taille) d'une source de localisation, None si absente --
+    cle d'invalidation du cache module (voir build_localization_index)."""
+    if path is None or not path.is_file():
+        return None
+    st = path.stat()
+    return (st.st_mtime_ns, st.st_size)
+
+
+# str(racine ou "") -> (stamps, index partage)
+_index_cache: Dict[str, tuple] = {}

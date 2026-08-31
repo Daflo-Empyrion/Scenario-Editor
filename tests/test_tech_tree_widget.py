@@ -108,8 +108,9 @@ def test_on_node_dropped_reassigns_row_without_emitting_level_signal_if_same_lev
     received = []
     view.level_changed.connect(lambda name, level: received.append((name, level)))
 
-    from gui.tech_tree_widget import ROW_HEIGHT
-    item.setPos(item.pos().x(), item.pos().y() + ROW_HEIGHT * 3)
+    # Metriques ADAPTATIVES (31/08/2026) : les constantes module ont ete
+    # remplacees par les metriques par vue, recalculees selon la largeur.
+    item.setPos(item.pos().x(), item.pos().y() + view._row_h * 3)
     view.on_node_dropped(item)
 
     assert received == []
@@ -126,8 +127,7 @@ def test_on_node_dropped_emits_level_changed_when_moved(tree_and_view_factory, q
 
     # Simule un glisser vers la colonne du niveau 3 (index 1 pour ce fixture,
     # levels = [1,3,10]).
-    from gui.tech_tree_widget import COLUMN_WIDTH
-    item.setPos(1 * COLUMN_WIDTH + 10, item.pos().y())
+    item.setPos(1 * view._col_w + 10, item.pos().y())
     view.on_node_dropped(item)
 
     assert received == [("OxygenTankSmallMS", 3)]
@@ -161,8 +161,7 @@ def test_row_change_starts_parent_pick(tree_and_view_factory):
     started = []
     view.parent_pick_started.connect(lambda name: started.append(name))
 
-    from gui.tech_tree_widget import ROW_HEIGHT
-    item.setPos(item.pos().x(), item.pos().y() + ROW_HEIGHT * 2)
+    item.setPos(item.pos().x(), item.pos().y() + view._row_h * 2)
     view.on_node_dropped(item)
 
     assert started == ["OxygenTankSmallMS"]
@@ -294,3 +293,111 @@ def test_context_menu_accepts_integer_screen_pos(tree_and_view_factory, monkeypa
     view.show_node_context_menu(node_name, QPointF(100.0, 100.0))
     assert received and isinstance(received[-1], QPoint)
     assert received[-1] == QPoint(100, 100)
+
+
+# ---------------------------------------------------------------------------
+# Clic simple / double-clic -> FICHE D'INFORMATION editable (demande du
+# 31/08/2026 : equilibrage rapide directement dans l'arbre technologique).
+# ---------------------------------------------------------------------------
+
+def _click_item(view, item, event_type):
+    """Envoie un evenement souris a la VUE au centre de l'item -- la vue
+    traduit en evenement de scene et le route vers l'item (les
+    QGraphicsSceneMouseEvent ne sont pas constructibles en PyQt6)."""
+    from PyQt6.QtCore import Qt, QPointF, QEvent
+    from PyQt6.QtGui import QMouseEvent
+    center = view.mapFromScene(item.mapToScene(item.boundingRect().center()))
+    button = Qt.MouseButton.LeftButton
+    buttons = button if event_type != QEvent.Type.MouseButtonRelease else Qt.MouseButton.NoButton
+    ev = QMouseEvent(event_type, QPointF(center), QPointF(center), button, buttons,
+                     Qt.KeyboardModifier.NoModifier)
+    if event_type == QEvent.Type.MouseButtonPress:
+        view.mousePressEvent(ev)
+    elif event_type == QEvent.Type.MouseButtonRelease:
+        view.mouseReleaseEvent(ev)
+    else:
+        view.mouseDoubleClickEvent(ev)
+
+
+def test_click_without_move_emits_node_activated(tree_and_view_factory):
+    tree, make_view = tree_and_view_factory
+    view = make_view("Base")
+    item = view._items_by_name["OxygenTankSmallMS"]
+
+    activated = []
+    view.node_activated.connect(lambda name: activated.append(name))
+
+    from PyQt6.QtCore import QEvent
+    _click_item(view, item, QEvent.Type.MouseButtonPress)
+    _click_item(view, item, QEvent.Type.MouseButtonRelease)
+
+    assert activated == ["OxygenTankSmallMS"]
+
+
+def test_drag_does_not_emit_node_activated(tree_and_view_factory):
+    """Un glisser (deplacement > 4 px) ne doit PAS ouvrir la fiche."""
+    tree, make_view = tree_and_view_factory
+    view = make_view("Base")
+    item = view._items_by_name["OxygenTankSmallMS"]
+
+    activated = []
+    view.node_activated.connect(lambda name: activated.append(name))
+
+    from PyQt6.QtCore import QEvent, QPointF
+    _click_item(view, item, QEvent.Type.MouseButtonPress)
+    item.setPos(item.pos() + QPointF(50, 0))  # glisser horizontal
+    _click_item(view, item, QEvent.Type.MouseButtonRelease)
+
+    assert activated == []
+
+
+def test_double_click_emits_node_activated(tree_and_view_factory):
+    """Depuis le 31/08/2026, le double-clic ouvre LUI AUSSI la fiche (le
+    cout y est editable) ; l'ancienne boite de saisie reste au menu
+    contextuel."""
+    tree, make_view = tree_and_view_factory
+    view = make_view("Base")
+    item = view._items_by_name["OxygenTankSmallMS"]
+
+    activated = []
+    view.node_activated.connect(lambda name: activated.append(name))
+
+    from PyQt6.QtCore import QEvent
+    _click_item(view, item, QEvent.Type.MouseButtonDblClick)
+
+    assert activated == ["OxygenTankSmallMS"]
+
+
+# ---------------------------------------------------------------------------
+# Mise en page ADAPTATIVE (demande du 31/08/2026 : les 9 jalons 1..25
+# restent visibles a toute resolution, icones/badge a l'echelle).
+# ---------------------------------------------------------------------------
+
+def test_compute_metrics_all_columns_fit_any_width():
+    """La largeur de colonne x 9 jalons ne depasse JAMAIS la largeur utile
+    (des que la fenetre est au moins 9 x COL_MIN) : tout est visible sans
+    scroll horizontal, du petit portable au 4K."""
+    from gui.tech_tree_widget import _compute_metrics, COL_MIN, COL_MAX, MILESTONE_LEVELS
+    for width in (900, 1200, 1366, 1920, 2560, 3840, 5000):
+        col_w, row_h, header_h, icon_size = _compute_metrics(float(width))
+        assert col_w * len(MILESTONE_LEVELS) <= max(width, COL_MIN * len(MILESTONE_LEVELS)) + 0.01
+        assert col_w >= COL_MIN and col_w <= COL_MAX
+        assert row_h > icon_size  # la ligne loge son icone
+        assert header_h >= 32
+
+
+def test_compute_metrics_icon_stays_within_bounds():
+    from gui.tech_tree_widget import _compute_metrics, ICON_MIN, ICON_MAX
+    for width in (400, 1000, 2560, 7680):
+        *_, icon_size = _compute_metrics(float(width))
+        assert ICON_MIN <= icon_size <= ICON_MAX
+
+
+def test_compute_metrics_scales_up_with_width():
+    """Plus l'ecran est large, plus l'icone est grande (ou egale) -- le
+    badge de cout reste lisible sur grand ecran."""
+    from gui.tech_tree_widget import _compute_metrics
+    small = _compute_metrics(1000.0)
+    big = _compute_metrics(3000.0)
+    assert big[3] >= small[3]
+    assert big[1] >= small[1]

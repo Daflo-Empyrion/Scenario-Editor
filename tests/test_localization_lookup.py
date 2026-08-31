@@ -255,3 +255,28 @@ def test_build_localization_index_merges_cell_wise(tmp_path):
     # Francais absent du scenario mais PRESENT dans le pack vanilla :
     # 'Réservoir de carburant v2' doit resurface.
     assert index.get("FuelTankMSLarge", "fr") == "Réservoir de carburant v2"
+
+
+# --------------------------------------- cache module (31/08/2026, retour
+# utilisateur : latence globale -- le pak vanilla etait dezippé et le CSV du
+# scenario relu a CHAQUE appel, une fois par onglet/dialogue)
+
+def test_build_index_is_cached_and_sees_csv_changes(tmp_path):
+    from core.localization_lookup import build_localization_index, _index_cache
+    working_root = tmp_path
+    extras = working_root / "Extras"
+    extras.mkdir(parents=True)
+    csv_path = extras / "Localization.csv"
+    csv_path.write_text("KEY,English,Français\nTestKey,Hello,Salut\n", encoding='utf-8')
+
+    idx1 = build_localization_index(working_root)
+    idx2 = build_localization_index(working_root)
+    assert idx1 is idx2  # partage tant que les sources ne changent pas
+
+    # Le scenario modifie son CSV : invalide par (mtime, taille), la lecture
+    # suivante reflete le changement.
+    csv_path.write_text("KEY,English,Français\nTestKey,Hello,Bonjour\n", encoding='utf-8')
+    idx3 = build_localization_index(working_root)
+    assert idx3 is not idx1
+    assert idx3.get("TestKey", "fr") == "Bonjour"
+    _index_cache.pop(str(working_root), None)  # proprete inter-tests

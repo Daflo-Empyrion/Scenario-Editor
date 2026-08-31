@@ -46,8 +46,7 @@ def _sample_card() -> BlockInfoCard:
         crafting_header="Fabrication",
         input_items_label="Ingrédients",
         ingredients=[InfoCardIngredient(name="Plaque en acier", quantity="5")],
-        output_count_label="Quantité produite",
-        output_count_value="1",
+        output_count=InfoCardField(label="Quantité produite", value="1"),
         market_price=InfoCardField(label="Prix du marché", value="1 234"),
     )
 

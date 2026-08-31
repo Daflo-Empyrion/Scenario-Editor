@@ -16,6 +16,8 @@
 
 import pytest
 
+from PyQt6.QtWidgets import QPushButton
+
 from core.block_info_card import BlockInfoCard, InfoCardField, InfoCardIngredient
 from gui.block_info_card_widget import BlockInfoCardWidget
 
@@ -30,8 +32,8 @@ def sample_card():
         unlock_fields=[InfoCardField("Coût déblocage", "12"), InfoCardField("Niveau déblocage", "10")],
         crafting_header="FABRICATION",
         input_items_label="Composants requis",
-        ingredients=[InfoCardIngredient("Composants électroniques", "8")],
-        output_count_label="Volume de production", output_count_value="1",
+        ingredients=[InfoCardIngredient("Composants électroniques", "8", "Composants électroniques", "8")],
+        output_count=InfoCardField("Volume de production", "1", "OutputCount", "1"),
         market_price=InfoCardField("Prix moyen du marché", "3845"),
     )
 
@@ -284,9 +286,11 @@ def test_font_scale_clamped_within_bounds(qapp, sample_card):
     assert w._current_scale() >= 0.7
 
 
-def test_clicking_stat_label_with_source_emits_field_clicked(qapp):
-    """Clic pour naviguer/modifier directement dans le fichier -- demande
-    explicite de l'utilisateur (29/08/2026)."""
+def test_clicking_row_with_source_starts_inline_edit_and_emits_on_enter(qapp):
+    """Demande du 31/08/2026 (fiche editable) : un clic sur une valeur avec
+    source ouvre une edition INLINE pre-remplie avec la valeur BRUTE du
+    fichier ; la validation emet value_edit_requested (l'ancien clic ->
+    navigation field_clicked est remplace par le menu contextuel)."""
     from core.block_info_card import InfoCardField
     w = BlockInfoCardWidget()
     card = BlockInfoCard(
@@ -294,22 +298,27 @@ def test_clicking_stat_label_with_source_emits_field_clicked(qapp):
         stat_fields=[InfoCardField("Dégâts", "70", source_key="Damage", source_raw_value="70")])
     w.show_card("Test", card, None)
 
-    received = []
-    w.field_clicked.connect(lambda root, key, val: received.append((root, key, val)))
-
-    label = w._content_layout.itemAt(0).widget()
+    row = w._content_layout.itemAt(0).widget()
     from PyQt6.QtCore import Qt, QPointF, QEvent
     from PyQt6.QtGui import QMouseEvent
     press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(5, 5), Qt.MouseButton.LeftButton,
                          Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    label.mousePressEvent(press)
+    row.mousePressEvent(press)
 
-    assert received == [("42", "Damage", "70")]
+    assert row._editor is not None
+    assert row._editor.text() == "70"  # valeur BRUTE, pas le libelle traduit
+
+    received = []
+    w.value_edit_requested.connect(lambda key, old, new, tpl: received.append((key, old, new, tpl)))
+    row._editor.setText("55")
+    row._commit()
+    assert received == [("Damage", "70", "55", False)]
+    assert row._editor is None  # edition refermee
 
 
-def test_clicking_stat_label_without_source_emits_nothing(qapp):
-    """Champ sans source (ex: ingredient de Templates.ecf, fichier different)
-    -- pas de navigation, voir docstring de _ClickableStatLabel."""
+def test_row_without_source_is_not_editable(qapp):
+    """Champ sans source (ex: ingredient sans paire brute) -- jamais
+    editable, un clic ne fait rien."""
     from core.block_info_card import InfoCardIngredient
     w = BlockInfoCardWidget()
     card = BlockInfoCard(
@@ -319,17 +328,70 @@ def test_clicking_stat_label_without_source_emits_nothing(qapp):
     w.show_card("Test", card, None)
 
     received = []
-    w.field_clicked.connect(lambda root, key, val: received.append((root, key, val)))
+    w.value_edit_requested.connect(lambda key, old, new, tpl: received.append((key, old, new, tpl)))
 
-    # Le label ingredient est apres le header 'FABRICATION' et 'Composants requis'
-    label = w._content_layout.itemAt(2).widget()
+    # Le row ingredient est apres le header 'FABRICATION' et 'Composants requis'
+    row = w._content_layout.itemAt(2).widget()
     from PyQt6.QtCore import Qt, QPointF, QEvent
     from PyQt6.QtGui import QMouseEvent
     press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(5, 5), Qt.MouseButton.LeftButton,
                          Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    label.mousePressEvent(press)
+    row.mousePressEvent(press)
 
+    assert row._editor is None
     assert received == []
+
+
+def test_navigation_callback_invoked_from_row(qapp):
+    """La navigation 'Aller a la ligne' (ancien comportement du clic gauche,
+    29/08/2026) est preservee via set_navigation_callback + menu contextuel."""
+    from core.block_info_card import InfoCardField
+    w = BlockInfoCardWidget()
+    card = BlockInfoCard(
+        title="Test", icon_key="Test", root_identity="42",
+        stat_fields=[InfoCardField("Dégâts", "70", source_key="Damage", source_raw_value="70")])
+    w.show_card("Test", card, None)
+
+    received = []
+    w.set_navigation_callback(lambda root, key, val: received.append((root, key, val)))
+    row = w._content_layout.itemAt(0).widget()
+    row._request_goto()
+    assert received == [("42", "Damage", "70")]
+
+
+def test_game_view_toggle_calls_provider_and_hides_display_false_fields(qapp):
+    """Bascule 'vue jeu (F3)' : cochee -> la fiche est reconstruite via le
+    provider avec show_all=False ; decochee -> vue complete (defaut)."""
+    from core.block_info_card import InfoCardField
+
+    def provider(show_all: bool):
+        fields = [InfoCardField("Points dommages", "80", "HitPoints", "80")]
+        if show_all:
+            fields.append(InfoCardField("Secret", "42", "SecretStat", "42"))
+        return BlockInfoCard(title="Test", icon_key="Test", root_identity="42",
+                             stat_fields=fields), None
+
+    w = BlockInfoCardWidget()
+    card, _pix = provider(True)
+    w.show_card("Test", card, None, provider=provider)
+
+    labels_complete = {w._content_layout.itemAt(i).widget()._label_html
+                       for i in range(w._content_layout.count())
+                       if isinstance(w._content_layout.itemAt(i).widget(), type(w._content_layout.itemAt(0).widget()))}
+    assert any("Secret" in lbl for lbl in labels_complete)
+
+    w.chk_game_view.setChecked(True)  # declenche refresh() -> show_all=False
+    texts = [w._content_layout.itemAt(i).widget()._lbl.text()
+             for i in range(w._content_layout.count())
+             if hasattr(w._content_layout.itemAt(i).widget(), "_lbl")]
+    assert not any("Secret" in txt for txt in texts)
+    assert any("Points dommages" in txt for txt in texts)
+
+    w.chk_game_view.setChecked(False)  # retour vue complete
+    texts = [w._content_layout.itemAt(i).widget()._lbl.text()
+             for i in range(w._content_layout.count())
+             if hasattr(w._content_layout.itemAt(i).widget(), "_lbl")]
+    assert any("Secret" in txt for txt in texts)
 
 
 # --------------------------------------- retours utilisateur 30/08/2026
@@ -346,14 +408,14 @@ def test_stat_label_strips_trailing_colon(qapp):
     chaine du jeu) : la ligne composée ne doit pas afficher un double
     deux-points ('Volume de production: : 1')."""
     widget = BlockInfoCardWidget()
-    lbl = widget._make_stat_label("Volume de production:", "1")
-    assert lbl.text() == "Volume de production : <b>1</b>"
+    row = widget._make_row("Volume de production:", "1", None, "", from_template=False)
+    assert row._lbl.text() == "Volume de production : <b>1</b>"
 
 
 def test_stat_label_keeps_normal_labels_untouched(qapp):
     widget = BlockInfoCardWidget()
-    lbl = widget._make_stat_label("Points dommages", "80")
-    assert lbl.text() == "Points dommages : <b>80</b>"
+    row = widget._make_row("Points dommages", "80", None, "", from_template=False)
+    assert row._lbl.text() == "Points dommages : <b>80</b>"
 
 
 def test_close_button_has_visible_icon(qapp):
@@ -365,3 +427,183 @@ def test_close_button_has_visible_icon(qapp):
     assert not widget.btn_close.icon().isNull()
     assert widget.btn_close.text() == ""
     assert isinstance(widget.btn_close.icon(), QIcon)
+
+
+# --------------------------------------- retour utilisateur 31/08/2026 (2)
+# Bug reel : cliquer '+ Ajouter une propriete' levait AttributeError (le
+# signal clicked(bool) ecrasait le parametre du callback) + demande des
+# listes deroulantes editables sur les champs de la fiche (meme regle que
+# le tableau de proprietes : valeurs observees, tri frequence, saisie libre).
+
+def test_add_button_shows_inline_form(qapp):
+    """Regression du bug 'bool' has no attribute 'setVisible' : cliquer le
+    bouton '+' doit AFFICHER le formulaire inline, jamais planter."""
+    from core.block_info_card import InfoCardField
+    from gui.block_info_card_widget import _AddRow
+    w = BlockInfoCardWidget()
+    card = BlockInfoCard(title="Test", icon_key="Test", root_identity="42",
+                         stat_fields=[InfoCardField("Dégâts", "70", "Damage", "70")])
+    w.show_card("Test", card, None)
+
+    add_rows = [w._content_layout.itemAt(i).widget()
+                for i in range(w._content_layout.count())
+                if isinstance(w._content_layout.itemAt(i).widget(), _AddRow)]
+    assert len(add_rows) == 1
+    assert not add_rows[0].isVisible()
+
+    buttons = [w._content_layout.itemAt(i).widget()
+               for i in range(w._content_layout.count())
+               if isinstance(w._content_layout.itemAt(i).widget(), QPushButton)]
+    add_btn = next(b for b in buttons if "Ajouter" in b.text())
+    add_btn.click()  # plantait avant le fix
+
+    assert add_rows[0].isVisible()
+    add_btn.click()
+    assert not add_rows[0].isVisible()
+
+
+def _values_provider_case_helper(qapp, with_history=True):
+    """(widget, row) avec values_provider {"HitPoints": [...]} -- reutilisee
+    par plusieurs tests d'edition inline."""
+    return _values_provider_case(qapp, with_history)
+
+
+def _values_provider_case(qapp, with_history=True):
+    from core.block_info_card import InfoCardField
+    w = BlockInfoCardWidget()
+
+    def values_provider():
+        return {"HitPoints": ["80", "120", "999"]} if with_history else {}
+
+    card = BlockInfoCard(title="Test", icon_key="Test", root_identity="42",
+                         stat_fields=[InfoCardField("Points dommages", "80", "HitPoints", "80")])
+    w.show_card("Test", card, None, values_provider=values_provider)
+    row = w._content_layout.itemAt(0).widget()
+    return w, row
+
+
+def test_row_edit_uses_observed_values_combo(qapp):
+    """Champ avec historique dans le fichier -> liste deroulante EDITABLE
+    pre-remplie avec les valeurs observees (tri frequence), valeur brute
+    courante preselectionnee."""
+    from PyQt6.QtWidgets import QComboBox
+    w, row = _values_provider_case(qapp)
+    row.start_edit()
+    assert isinstance(row._editor, QComboBox)
+    assert [row._editor.itemText(i) for i in range(row._editor.count())] == ["80", "120", "999"]
+    assert row._editor.currentText() == "80"  # valeur brute courante
+
+    received = []
+    w.value_edit_requested.connect(lambda k, o, n, t: received.append((k, o, n, t)))
+    row._editor.setCurrentText("999")  # choix dans la liste
+    row._commit()
+    assert received == [("HitPoints", "80", "999", False)]
+
+
+def test_row_edit_allows_free_typing_in_combo(qapp):
+    """La saisie libre reste toujours possible dans la combo (regle projet)."""
+    w, row = _values_provider_case(qapp)
+    row.start_edit()
+    received = []
+    w.value_edit_requested.connect(lambda k, o, n, t: received.append((k, o, n, t)))
+    row._editor.setCurrentText("12345")  # pas dans la liste
+    row._commit()
+    assert received == [("HitPoints", "80", "12345", False)]
+
+
+def test_row_edit_falls_back_to_line_edit_without_history(qapp):
+    """Sans historique pour cette cle (ou sans provider) : saisie libre
+    simple (QLineEdit), jamais de plantage."""
+    from PyQt6.QtWidgets import QLineEdit
+    w, row = _values_provider_case(qapp, with_history=False)
+    row.start_edit()
+    assert isinstance(row._editor, QLineEdit)
+    assert row._editor.text() == "80"
+
+
+def test_add_row_key_and_value_combos_follow_observed_values(qapp):
+    """Formulaire d'ajout : la combo de cles propose les cles observees, et
+    celle des valeurs suit la cle tapee (saisie libre conservee)."""
+    from PyQt6.QtWidgets import QComboBox
+    from core.block_info_card import InfoCardField
+    from gui.block_info_card_widget import _AddRow
+    w = BlockInfoCardWidget()
+
+    def values_provider():
+        return {"HitPoints": ["80", "120"], "Mass": ["2513"]}
+
+    card = BlockInfoCard(title="Test", icon_key="Test", root_identity="42",
+                         stat_fields=[InfoCardField("Points dommages", "80", "HitPoints", "80")])
+    w.show_card("Test", card, None, values_provider=values_provider)
+
+    add_row = next(w._content_layout.itemAt(i).widget()
+                   for i in range(w._content_layout.count())
+                   if isinstance(w._content_layout.itemAt(i).widget(), _AddRow))
+    assert isinstance(add_row.ed_key, QComboBox)
+    assert set(add_row.ed_key.itemText(i) for i in range(add_row.ed_key.count())) == {"HitPoints", "Mass"}
+
+    add_row.ed_key.setCurrentText("Mass")
+    assert [add_row.ed_value.itemText(i) for i in range(add_row.ed_value.count())] == ["2513"]
+    add_row.ed_key.setCurrentText("Inconnu")
+    assert add_row.ed_value.count() == 0  # saisie libre, liste vide
+
+    received = []
+    w.property_add_requested.connect(lambda k, v: received.append((k, v)))
+    add_row.ed_key.setCurrentText("HitPoints")
+    add_row.ed_value.setCurrentText("42")
+    add_row._commit()
+    assert received == [("HitPoints", "42")]
+
+
+def test_add_ingredient_row_lists_item_names_not_properties(qapp):
+    """Retour utilisateur du 31/08/2026 : l'ajout d'INGREDIENT doit proposer
+    les noms d'items/blocs (meme pool que la creation de Template), pas des
+    cles de proprietes. Saisie libre conservee."""
+    from core.block_info_card import InfoCardIngredient
+    from gui.block_info_card_widget import _AddRow
+    w = BlockInfoCardWidget()
+
+    def values_provider():
+        return {"HitPoints": ["80", "120"]}
+
+    def ingredients_provider():
+        return ["OxygenTankSmall", "FuelTankMSLarge", "SteelPlate"]
+
+    card = BlockInfoCard(title="Test", icon_key="Test", root_identity="42",
+                         crafting_header="FABRICATION", input_items_label="Composants requis",
+                         ingredients=[InfoCardIngredient("Electronics", "8", "Electronics", "8")])
+    w.show_card("Test", card, None, values_provider=values_provider,
+                ingredients_provider=ingredients_provider)
+
+    add_rows = [w._content_layout.itemAt(i).widget()
+                for i in range(w._content_layout.count())
+                if isinstance(w._content_layout.itemAt(i).widget(), _AddRow)]
+    # La carte de test n'a pas de stat_fields : seule la section fabrication
+    # porte son formulaire d'ajout, dedie AUX INGREDIENTS.
+    assert len(add_rows) == 1
+    ing = add_rows[0]
+    assert ing._from_template is True
+
+    assert set(ing.ed_key.itemText(i) for i in range(ing.ed_key.count())) == \
+        {"OxygenTankSmall", "FuelTankMSLarge", "SteelPlate"}
+    # La combo de valeur d'un ingredient ne suit PAS les valeurs de
+    # proprietes (une quantite se tape librement).
+    assert ing.ed_value.count() == 0
+
+    received = []
+    w.ingredient_add_requested.connect(lambda k, v: received.append((k, v)))
+    ing.ed_key.setCurrentText("CustomItem")  # saisie libre
+    ing.ed_value.setCurrentText("3")
+    ing._commit()
+    assert received == [("CustomItem", "3")]
+
+
+def test_combo_editors_have_visible_popup_action(qapp):
+    """La fleche native du style Windows est invisible sur le fond noir de
+    la fiche : une action 'caret-down' dessinee par l'application doit etre
+    posee au bord du champ et ouvrir la liste."""
+    from PyQt6.QtWidgets import QComboBox
+    w, row = _values_provider_case(qapp)
+    row.start_edit()
+    assert isinstance(row._editor, QComboBox)
+    assert len(row._editor.lineEdit().actions()) == 1  # l'action fleche

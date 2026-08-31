@@ -271,3 +271,113 @@ def test_vanilla_real_file_all_seven_known_categories_present():
     cats = set(tree.categories())
     for expected in ["Base", "Capital Vessel", "Small Vessel", "Hover Vessel", "Misc", "Tools", "Weapons"]:
         assert expected in cats
+
+
+# ---------------------------------------------------------------------------
+# Edition GENERIQUE depuis la fiche d'information de l'arbre (demande du
+# 31/08/2026 : equilibrage rapide directement dans l'arbre technologique).
+# ---------------------------------------------------------------------------
+
+def test_find_block_by_name_returns_block_or_none(working_files):
+    from core.tech_tree import find_block_by_name
+    blocks, items = working_files
+    b = find_block_by_name(blocks, "OxygenTankSmallMS")
+    assert b is not None and b.kind in ("Block", "+Block")
+    assert find_block_by_name(blocks, "InconnuIntrouvable") is None
+
+
+def test_set_block_property_edits_scalar_and_persists(working_files):
+    from core.tech_tree import set_block_property, find_block_by_name
+    blocks, items = working_files
+    assert set_block_property(blocks, "OxygenTankSmallMS", "UnlockCost", "55") is True
+    assert find_block_by_name(blocks, "OxygenTankSmallMS").get_property("UnlockCost") == "55"
+    # round-trip : le reste du fichier est intact (le niveau n'a pas bouge)
+    assert find_block_by_name(blocks, "OxygenTankSmallMS").get_property("UnlockLevel") is not None
+
+
+def test_set_block_property_returns_false_for_unknown_property(working_files):
+    from core.tech_tree import set_block_property
+    blocks, _ = working_files
+    assert set_block_property(blocks, "OxygenTankSmallMS", "ProprieteInexistante", "1") is False
+
+
+def test_add_and_remove_block_property_roundtrip(working_files):
+    from core.tech_tree import add_block_property, remove_block_property, find_block_by_name
+    blocks, _ = working_files
+    assert add_block_property(blocks, "OxygenTankSmallMS", "TestStat", "42") is True
+    assert find_block_by_name(blocks, "OxygenTankSmallMS").get_property("TestStat") == "42"
+    assert remove_block_property(blocks, "OxygenTankSmallMS", "TestStat", "42") is True
+    assert find_block_by_name(blocks, "OxygenTankSmallMS").get_property("TestStat") is None
+
+
+def test_remove_block_property_never_touches_opening_line_pairs(working_files):
+    """Id/Name vivent sur la ligne d'ouverture : structurels, jamais
+    supprimables depuis la fiche (le scanner ne cible que les lignes
+    enfants)."""
+    from core.tech_tree import remove_block_property, find_block_by_name
+    blocks, _ = working_files
+    assert remove_block_property(blocks, "OxygenTankSmallMS", "Name", "OxygenTankSmallMS") is False
+    assert find_block_by_name(blocks, "OxygenTankSmallMS") is not None
+
+
+def _template_ingredient_qty(tpl, template_name, key):
+    """Quantite d'un ingredient : la paire vit dans le SOUS-BLOC 'Child
+    Inputs', pas sur le Template lui-meme."""
+    from core.tech_tree import find_block_by_name
+    template = find_block_by_name(tpl, template_name)
+    for child in template.children:
+        if getattr(child, 'kind', None) == 'Child Inputs':
+            for prop in child.children:
+                if prop.get(key) is not None:
+                    return prop.get(key)
+    return None
+
+
+def test_template_ingredient_edit_add_remove_roundtrip(tmp_path):
+    """Edition d'ingredients du Template dans Templates.ecf (fixture derive
+    du vrai fichier) : modification, ajout, suppression."""
+    import shutil
+    from core.tech_tree import (set_template_ingredient, add_template_ingredient,
+                                 remove_template_ingredient, find_block_by_name)
+    tpl_src = Path(__file__).parent / "fixtures" / "block_info_card_scenario" / "Templates.ecf"
+    tpl = tmp_path / "Templates.ecf"
+    shutil.copy(tpl_src, tpl)
+    template_name = "FuelTankMSLarge"
+
+    assert set_template_ingredient(tpl, template_name, "Electronics", "12", "8") is True
+    assert _template_ingredient_qty(tpl, template_name, "Electronics") == "12"
+
+    assert add_template_ingredient(tpl, template_name, "TestOre", "7") is True
+    assert _template_ingredient_qty(tpl, template_name, "TestOre") == "7"
+
+    assert remove_template_ingredient(tpl, template_name, "TestOre", "7") is True
+    assert _template_ingredient_qty(tpl, template_name, "TestOre") is None
+
+    # quantite absente / Template absent : False, jamais de creation aveugle
+    assert set_template_ingredient(tpl, template_name, "Electronics", "99", "MISMATCH") is False
+    assert set_template_ingredient(tpl, "TemplateInconnu", "Electronics", "99", "12") is False
+
+
+TEMPLATE_WITH_OUTPUT_COUNT = """{ Template Name: WithOutput
+  CraftTime: 30
+  OutputCount: 2
+  { Child Inputs
+    SteelPlate: 5
+  }
+}
+"""
+
+
+def test_set_template_output_count(tmp_path):
+    import shutil
+    from core.tech_tree import set_template_output_count, find_block_by_name
+    tpl_src = Path(__file__).parent / "fixtures" / "block_info_card_scenario" / "Templates.ecf"
+    tpl = tmp_path / "Templates.ecf"
+    shutil.copy(tpl_src, tpl)
+    # Le fixture reel n'a PAS d'OutputCount : False, jamais de creation
+    # aveugle (coherent avec set_unlock_level).
+    assert set_template_output_count(tpl, "FuelTankMSLarge", "3") is False
+
+    tpl.write_text(TEMPLATE_WITH_OUTPUT_COUNT, encoding='utf-8')
+    assert set_template_output_count(tpl, "WithOutput", "3") is True
+    assert find_block_by_name(tpl, "WithOutput").get_property("OutputCount") == "3"

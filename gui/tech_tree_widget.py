@@ -42,7 +42,17 @@ Interactions confirmees aupres de l'utilisateur :
     (menu contextuel OU glisser sur l'onglet) -- le menu contextuel est
     retenu pour la V1 (fiable, testable), le glisser-deposer inter-widgets
     pourra s'ajouter plus tard sans changer le modele de donnees.
-  - Double-clic sur un noeud -> edite UnlockCost.
+  - Clic simple SANS deplacement OU double-clic sur un noeud -> active la
+    FICHE D'INFORMATION editable (signal node_activated, cable par
+    gui/tech_tree_dialog.py -- demande du 31/08/2026 : equilibrage rapide
+    directement depuis l'arbre). Le menu contextuel garde l'edition rapide
+    du cout par boite de saisie.
+
+Mise en page ADAPTATIVE (demande du 31/08/2026) : la largeur de colonne est
+recalculee = largeur utile / nombre de jalons, pour que TOUS les niveaux
+(1 a 25) restent visibles sans defilement horizontal a toute resolution ;
+icones, tuiles et badge du cout sont mis a l'echelle (bornes mini/maxi pour
+rester lisibles d'un petit portable au 4K).
 
 N'implemente PAS les barres de couleur "constructeur capable de crafter"
 (Target: dans Templates.ecf) -- explicitement hors perimetre de la V1 a la
@@ -50,8 +60,8 @@ demande de l'utilisateur.
 """
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRect
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QFont, QPainterPath
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRect, QRectF
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QFont, QPainterPath, QLinearGradient
 from PyQt6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QGraphicsLineItem, QGraphicsPathItem, QMenu, QInputDialog,
@@ -63,28 +73,37 @@ from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
 from core.tech_tree_layout import MILESTONE_LEVELS, level_to_x_fraction, x_fraction_to_level
 from gui.theme import icon, BORDER, TEXT_GRAY, CARD_BG, BG, PRIMARY as PRIMARY_HIGHLIGHT
 
-COLUMN_WIDTH = 140
-ROW_HEIGHT = 110
-HEADER_HEIGHT = 40
-ICON_SIZE = 64
+# Bornes de la mise en page adaptative (voir _compute_metrics) : en dessous
+# de COL_MIN les colonnes seraient plus etroites que l'icone minimale (une
+# fenetre minuscule garde donc un scroll horizontal, cas degrade assume) ;
+# au-dela de COL_MAX, l'espace supplmentaire reste reparti entre les colonnes
+# (les 9 jalons remplissent toujours la largeur, seules les icones plafonnent).
+COL_MIN = 96.0
+COL_MAX = 420.0
+ICON_MIN = 44
+ICON_MAX = 132
+_DEFAULT_VIEW_WIDTH = 900.0
 _GENERIC_ICON_NAME = "fa5s.cube"
 _BACKGROUND_ASSET_NAME = "tech_tree_background.jpg"
 _background_pixmap_cache: Optional[QPixmap] = None
 
-# Carre de fond derriere chaque icone -- demande explicite de l'utilisateur
-# (session du 29/08/2026). Couleur VERTE UNIQUE pour toutes les icones :
-# l'ancien code par etat (vert/bleu/noir selon le niveau simule du joueur)
-# a ete retire a la demande explicite de l'utilisateur -- cette distinction
-# n'a de sens qu'EN JEU (progression reelle du joueur), pas dans un editeur
-# de scenario ou l'on modifie librement les valeurs. Couleur echantillonnee
-# directement sur une vraie capture F3 fournie par l'utilisateur (bloc
-# 'Noyau'/'Petit reservoir O2').
-_COLOR_FREE = QColor(18, 69, 15)
+# Tuile derriere chaque icone -- style 'bouton DORE' de la reference fournie
+# par l'utilisateur (session du 31/08/2026, image 1) ADAPTE EN VERT : cadre
+# exterieur en degrade (sombre en bas, plus clair en haut), filet clair
+# interieur, face en degrade vertical + reflet brillant dans la moitie
+# superieure. Dessin VECTORIEL (aucune image embarquee) : suit la mise en
+# page adaptative a toute resolution.
+_TILE_FRAME_TOP = "#5da23a"
+_TILE_FRAME_BOTTOM = "#245414"
+_TILE_INNER_STROKE = "#d6f5bd"
+_TILE_FACE_TOP = "#b3e397"
+_TILE_FACE_BOTTOM = "#5a9c3c"
+_TILE_HIGHLIGHT = QColor(255, 255, 255, 70)
 # Badge de cout (voir _TechNodeItem._paint_cost_badge) : chiffre dore sur
-# pastille sombre -- lisible sur le fond vert des icones comme sur les
-# themes sombres de l'application.
+# pastille sombre, EN HAUT A GAUCHE et en grande police a l'echelle de
+# l'icone -- demande du 31/08/2026 (l'ancien badge bas-droit etait trop
+# petit sur grand ecran).
 _BADGE_TEXT_COLOR = "#FFD34D"
-_BADGE_FONT_FAMILY = "Segoe UI"
 
 
 def _load_background_pixmap() -> Optional[QPixmap]:
@@ -109,7 +128,7 @@ def _load_background_pixmap() -> Optional[QPixmap]:
     return None
 
 
-def _load_node_pixmap(icon_index: dict, node: TechTreeNode) -> QPixmap:
+def _load_node_pixmap(icon_index: dict, node: TechTreeNode, icon_size: int) -> QPixmap:
     """Charge l'icone reelle du noeud si trouvee dans l'index (voir
     core.tech_tree_icons -- fichier sur disque OU membre d'archive .pak,
     toujours lu EN MEMOIRE, jamais extrait sur disque pour les icones
@@ -121,9 +140,9 @@ def _load_node_pixmap(icon_index: dict, node: TechTreeNode) -> QPixmap:
         if data:
             pix = QPixmap()
             if pix.loadFromData(data) and not pix.isNull():
-                return pix.scaled(ICON_SIZE, ICON_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
+                return pix.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
-    generic = icon(_GENERIC_ICON_NAME, color=TEXT_GRAY).pixmap(ICON_SIZE, ICON_SIZE)
+    generic = icon(_GENERIC_ICON_NAME, color=TEXT_GRAY).pixmap(icon_size, icon_size)
     return generic
 
 
@@ -148,6 +167,7 @@ class _TechNodeItem(QGraphicsPixmapItem):
         self._editable = editable
         self._highlighted = highlighted
         self._drag_start_pos: Optional[QPointF] = None
+        self._press_button: Optional[Qt.MouseButton] = None
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setAcceptHoverEvents(True)
         # QGraphicsPixmapItem ne compte par defaut que les pixels OPAQUES
@@ -168,9 +188,7 @@ class _TechNodeItem(QGraphicsPixmapItem):
                   cost=self.node.unlock_cost)
 
     def paint(self, painter: QPainter, option, widget=None) -> None:
-        painter.save()
-        painter.fillRect(self.pixmap().rect(), _COLOR_FREE)
-        painter.restore()
+        self._paint_tile(painter)
         super().paint(painter, option, widget)
         self._paint_cost_badge(painter)
         if self._highlighted:
@@ -180,31 +198,73 @@ class _TechNodeItem(QGraphicsPixmapItem):
             painter.drawRect(self.pixmap().rect().adjusted(1, 1, -1, -1))
             painter.restore()
 
+    def _paint_tile(self, painter: QPainter) -> None:
+        """Tuile 'bouton vert' sous l'icone -- adaptation DIRECTE de la
+        reference doree fournie par l'utilisateur (31/08/2026) : cadre en
+        degrade, filet clair, face brillante. Vectoriel : s'adapte a la
+        taille d'icone calculee par la mise en page adaptative."""
+        rect = QRectF(self.pixmap().rect())
+        if rect.width() < 16:
+            painter.save()
+            painter.fillRect(rect, QColor(_TILE_FACE_BOTTOM))
+            painter.restore()
+            return
+        radius = max(4.0, rect.width() * 0.16)
+        frame = max(2.0, rect.width() * 0.055)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        # Cadre exterieur (la 'bobine' doree de la reference, en vert).
+        frame_grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        frame_grad.setColorAt(0.0, QColor(_TILE_FRAME_TOP))
+        frame_grad.setColorAt(1.0, QColor(_TILE_FRAME_BOTTOM))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(frame_grad)
+        painter.drawRoundedRect(rect, radius, radius)
+        # Face interieure + filet clair juste a l'interieur du cadre.
+        inner = rect.adjusted(frame, frame, -frame, -frame)
+        face_grad = QLinearGradient(inner.topLeft(), inner.bottomLeft())
+        face_grad.setColorAt(0.0, QColor(_TILE_FACE_TOP))
+        face_grad.setColorAt(1.0, QColor(_TILE_FACE_BOTTOM))
+        painter.setBrush(face_grad)
+        painter.drawRoundedRect(inner, radius * 0.72, radius * 0.72)
+        inner_stroke = QRectF(inner).adjusted(1.0, 1.0, -1.0, -1.0)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(_TILE_INNER_STROKE), 1.2))
+        painter.drawRoundedRect(inner_stroke, radius * 0.72, radius * 0.72)
+        # Reflet brillant dans la moitie superieure (l'effet 'verre' de la
+        # reference doree).
+        gloss = QRectF(inner).adjusted(2.0, 2.0, -2.0, -inner.height() * 0.45)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(_TILE_HIGHLIGHT)
+        painter.drawRoundedRect(gloss, radius * 0.6, radius * 0.6)
+        painter.restore()
+
     def _paint_cost_badge(self, painter: QPainter) -> None:
-        """Badge du cout de deblocage (UnlockCost) sur CHAQUE icone -- demande
-        utilisateur du 30/08/2026 : le cout n'etait lisible qu'au survol
-        (infobulle), il doit etre visible en permanence. Pastille sombre
-        semi-transparente + chiffre dore en gras : lisible sur n'importe
-        quelle icone et sur les deux familles de themes."""
+        """Badge du cout de deblocage (UnlockCost) sur CHAQUE icone -- EN
+        HAUT A GAUCHE et mis a l'ECHELLE DE L'ICONE (demande du 31/08/2026 :
+        l'ancien badge bas-droit en police fixe 8pt etait illisible sur
+        grand ecran). Pastille sombre semi-transparente + chiffre dore en
+        gras : lisible sur la tuile verte comme sur les themes sombres."""
         rect = self.pixmap().rect()
         if rect.width() < 24:
             return  # icones minuscules (vignettes) : le badge serait illisible
         cost_text = str(self.node.unlock_cost)
-        font = QFont(_BADGE_FONT_FAMILY)
-        font.setPointSizeF(8)
+        font = QFont()
+        # setPixelSize : suit EXACTEMENT la taille d'icone calculee par la
+        # mise en page adaptative, independamment du DPI systeme.
+        font.setPixelSize(max(12, int(rect.width() * 0.17)))
         font.setBold(True)
         painter.save()
         painter.setFont(font)
         metrics = painter.fontMetrics()
         text_width = metrics.horizontalAdvance(cost_text)
-        pad = 3
+        pad = max(2, rect.width() // 22)
         badge_w = text_width + pad * 2
-        badge_h = metrics.height() - 1
-        badge = QRect(rect.right() - badge_w - 1, rect.bottom() - badge_h - 1,
-                      badge_w, badge_h)
+        badge_h = metrics.height() + pad // 2
+        badge = QRect(rect.left() + 1, rect.top() + 1, badge_w, badge_h)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 165))
+        painter.setBrush(QColor(0, 0, 0, 170))
         painter.drawRoundedRect(badge, 3, 3)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.setPen(QColor(_BADGE_TEXT_COLOR))
@@ -212,6 +272,7 @@ class _TechNodeItem(QGraphicsPixmapItem):
         painter.restore()
 
     def mousePressEvent(self, event) -> None:
+        self._press_button = event.button()
         self._view.node_selected.emit(self.node.name)
         if self._editable and event.button() == Qt.MouseButton.LeftButton:
             self._drag_start_pos = self.pos()
@@ -240,11 +301,21 @@ class _TechNodeItem(QGraphicsPixmapItem):
                 self._view.on_node_dropped(self)
             else:
                 self._view.snap_item_to_position(self, self.node.unlock_level, self._row)
+                # Clic simple SANS deplacement = ouverture de la fiche
+                # d'information editable (demande du 31/08/2026) -- apres le
+                # snap, pour que la position soit deja correcte.
+                if self._press_button == Qt.MouseButton.LeftButton:
+                    self._view.node_activated.emit(self.node.name)
+        self._press_button = None
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:
         if self._editable:
-            self._view.edit_unlock_cost(self.node.name)
+            # Depuis le 31/08/2026, le double-clic ouvre LUI AUSSI la fiche
+            # (le cout y est editable directement) ; l'ancienne boite de
+            # saisie reste accessible via le menu contextuel.
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._view.node_activated.emit(self.node.name)
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event) -> None:
@@ -257,6 +328,7 @@ class TechTreeCategoryView(QGraphicsView):
     (voir gui/tech_tree_dialog.py)."""
 
     node_selected = pyqtSignal(str)
+    node_activated = pyqtSignal(str)         # node_name : clic simple/double-clic -> fiche d'info
     level_changed = pyqtSignal(str, int)     # node_name, new_level
     cost_changed = pyqtSignal(str, int)      # node_name, new_cost
     category_changed = pyqtSignal(str, str)  # node_name, new_category
@@ -285,12 +357,36 @@ class TechTreeCategoryView(QGraphicsView):
         self._connector_branches: Dict[str, bool] = {}  # child_name -> branches_from_parent
         self._bg_scaled_cache: Optional[QPixmap] = None
         self._bg_scaled_cache_size = None
+        # Metriques ADAPTATIVES (voir _compute_metrics) -- recalculees au
+        # redimensionnement ; remplacent les anciennes constantes module
+        # COLUMN_WIDTH/ROW_HEIGHT/HEADER_HEIGHT/ICON_SIZE.
+        self._col_w, self._row_h, self._header_h, self._icon_size = _compute_metrics(_DEFAULT_VIEW_WIDTH)
 
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
         self.rebuild()
+
+    # -- metriques adaptatives ------------------------------------------------
+
+    def _current_metrics(self):
+        return _compute_metrics(float(max(1, self.viewport().width())))
+
+    def resizeEvent(self, event) -> None:
+        """Recalcule la mise en page adaptative quand la largeur change
+        (demande du 31/08/2026 : les 9 jalons restent visibles a toute
+        resolution) -- ne reconstruit la scene que si la largeur de colonne
+        a reellement bouge (epsilon 1.5 px) pour eviter des rebuilds en
+        rafale pendant un redimensionnement interactif."""
+        super().resizeEvent(event)
+        col_w, row_h, header_h, icon_size = self._current_metrics()
+        if (abs(col_w - self._col_w) > 1.5 or row_h != self._row_h
+                or header_h != self._header_h or icon_size != self._icon_size):
+            self._col_w, self._row_h, self._header_h, self._icon_size = col_w, row_h, header_h, icon_size
+            self._bg_scaled_cache = None
+            self._bg_scaled_cache_size = None
+            self.rebuild()
 
     # -- fond d'ecran + en-tete FIXE (ne defilent pas avec le contenu) -------
 
@@ -331,26 +427,29 @@ class TechTreeCategoryView(QGraphicsView):
         painter = QPainter(self.viewport())
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         band_rect = self.viewport().rect()
-        band_rect.setHeight(HEADER_HEIGHT)
+        band_rect.setHeight(self._header_h)
         painter.fillRect(band_rect, QColor(CARD_BG))
         painter.setPen(QPen(QColor(TEXT_GRAY)))
         font = QFont()
         font.setBold(True)
+        font.setPixelSize(max(12, int(self._header_h * 0.42)))
         painter.setFont(font)
         for i, level in enumerate(MILESTONE_LEVELS):
-            scene_x = i * COLUMN_WIDTH + 8
+            scene_x = i * self._col_w + 8
             view_point = self.mapFromScene(scene_x, 0)
-            painter.drawText(view_point.x(), 24, t("techtree.level_header", level=level))
+            painter.drawText(view_point.x(), int(self._header_h * 0.62),
+                             t("techtree.level_header", level=level))
         painter.setPen(QPen(QColor(BORDER), 1))
-        painter.drawLine(0, HEADER_HEIGHT, self.viewport().width(), HEADER_HEIGHT)
+        painter.drawLine(0, self._header_h, self.viewport().width(), self._header_h)
         painter.end()
 
     # -- construction -----------------------------------------------------
 
     def rebuild(self) -> None:
-        """Reconstruit entierement la scene -- appele a l'ouverture et apres
+        """Reconstruit entierement la scene -- appele a l'ouverture, apres
         tout changement affectant la liste des noeuds de cette categorie
-        (deplacement d'un noeud VERS ou DEPUIS cette categorie)."""
+        (deplacement d'un noeud VERS ou DEPUIS cette categorie) et au
+        redimensionnement (mise en page adaptative)."""
         from core.tech_tree_layout import compute_node_positions
 
         self.scene.clear()
@@ -365,14 +464,14 @@ class TechTreeCategoryView(QGraphicsView):
         # -- confirmee identique sur 10 captures d'ecran F3 reelles, ne varie
         # pas selon les donnees du scenario. Les LIBELLES ('Niveau X') ne sont
         # PLUS des items de scene (ils scrolleraient avec le contenu) -- voir
-        # paintEvent() ci-dessous, qui les dessine en surimpression FIXE du
+        # paintEvent() ci-dessus, qui les dessine en surimpression FIXE du
         # viewport (demande explicite : rester visibles pendant le defilement
         # vertical). Seules les lignes verticales en pointilles (reperes de
         # colonne) restent dans la scene, elles doivent bien defiler avec le
         # contenu.
         for i in range(len(MILESTONE_LEVELS)):
-            line = QGraphicsLineItem(i * COLUMN_WIDTH + COLUMN_WIDTH / 2, HEADER_HEIGHT,
-                                      i * COLUMN_WIDTH + COLUMN_WIDTH / 2, HEADER_HEIGHT + 5000)
+            line = QGraphicsLineItem(i * self._col_w + self._col_w / 2, self._header_h,
+                                      i * self._col_w + self._col_w / 2, self._header_h + 5000)
             line.setPen(QPen(QColor(BORDER), 1, Qt.PenStyle.DotLine))
             line.setZValue(-10)
             self.scene.addItem(line)
@@ -380,12 +479,12 @@ class TechTreeCategoryView(QGraphicsView):
         by_name = {n.name: n for n in nodes}
         for node in nodes:
             pos = positions[node.name]
-            pixmap = _load_node_pixmap(self.icon_index, node)
+            pixmap = _load_node_pixmap(self.icon_index, node, self._icon_size)
             editable = self.editable_node_name is None or node.name == self.editable_node_name
             highlighted = node.name == self.highlight_node_name
             item = _TechNodeItem(node, pixmap, self, pos.row, editable=editable, highlighted=highlighted)
-            x = pos.x_fraction * COLUMN_WIDTH + (COLUMN_WIDTH - pixmap.width()) / 2
-            y = HEADER_HEIGHT + pos.row * ROW_HEIGHT + 10
+            x = pos.x_fraction * self._col_w + (self._col_w - pixmap.width()) / 2
+            y = self._row_y(pos.row)
             item.setPos(x, y)
             self.scene.addItem(item)
             self._items_by_name[node.name] = item
@@ -396,11 +495,11 @@ class TechTreeCategoryView(QGraphicsView):
                 self._add_connector(node.parent_name, node.name, branches)
 
         # La marge superieure ne doit JAMAIS remonter au-dessus de y=0 : le
-        # bandeau d'en-tete fixe (voir paintEvent) occupe les HEADER_HEIGHT
+        # bandeau d'en-tete fixe (voir paintEvent) occupe les _header_h
         # premiers pixels du VIEWPORT, pas de la scene -- si sceneRect.top()
-        # est negatif, la premiere ligne de noeuds (y=HEADER_HEIGHT+10) se
-        # retrouve partiellement sous le bandeau au defilement initial (bug
-        # reel signale par l'utilisateur, capture d'ecran du 29/08/2026).
+        # est negatif, la premiere ligne de noeuds se retrouve partiellement
+        # sous le bandeau au defilement initial (bug reel signale par
+        # l'utilisateur, capture d'ecran du 29/08/2026).
         bounds = self.scene.itemsBoundingRect().adjusted(-20, 0, 60, 60)
         top = min(0.0, bounds.top())
         self.scene.setSceneRect(bounds.x(), top, bounds.width(), bounds.height() - top)
@@ -454,15 +553,15 @@ class TechTreeCategoryView(QGraphicsView):
     # -- interactions -------------------------------------------------------
 
     def _column_x_for_level(self, level: int) -> float:
-        return level_to_x_fraction(level) * COLUMN_WIDTH + COLUMN_WIDTH / 2
+        return level_to_x_fraction(level) * self._col_w + self._col_w / 2
 
     def _row_y(self, row: int) -> float:
-        return HEADER_HEIGHT + row * ROW_HEIGHT + 10
+        return self._header_h + row * self._row_h + 10
 
     def _row_for_y(self, y: float) -> int:
         """Ligne la plus proche d'une position Y -- jamais negative (la ligne
         0 est la plus haute possible, juste sous le bandeau d'en-tete)."""
-        return max(0, round((y - HEADER_HEIGHT - 10) / ROW_HEIGHT))
+        return max(0, round((y - self._header_h - 10) / self._row_h))
 
     def snap_item_to_position(self, item: "_TechNodeItem", level: int, row: int) -> None:
         target_x = self._column_x_for_level(level) - item.pixmap().width() / 2
@@ -500,7 +599,7 @@ class TechTreeCategoryView(QGraphicsView):
           rearrangement visuel ephemere."""
         old_row = item._row
         center_x = item.pos().x() + item.pixmap().width() / 2
-        x_fraction = (center_x - COLUMN_WIDTH / 2) / COLUMN_WIDTH
+        x_fraction = (center_x - self._col_w / 2) / self._col_w
         new_level = x_fraction_to_level(x_fraction)
         new_row = self._row_for_y(item.pos().y())
 
@@ -605,3 +704,18 @@ class TechTreeCategoryView(QGraphicsView):
         if hasattr(screen_pos, "toPoint"):
             screen_pos = screen_pos.toPoint()
         menu.exec(screen_pos)
+
+
+def _compute_metrics(view_width: float):
+    """Metriques de la mise en page ADAPTATIVE (demande du 31/08/2026) :
+    (largeur_colonne, hauteur_ligne, hauteur_bandeau, taille_icone).
+    Largeur de colonne = largeur utile / 9 jalons (bornee) -> les niveaux
+    1 a 25 restent TOUS visibles sans scroll horizontal a toute resolution ;
+    icone ~45% de la colonne (bornée), ligne et bandeau proportionnels --
+    lisible du petit portable au 4K. Fonction libre pour rester testable
+    sans PyQt6 (meme principe que core/tech_tree_layout.py)."""
+    col_w = max(COL_MIN, min(COL_MAX, view_width / len(MILESTONE_LEVELS)))
+    icon_size = int(max(ICON_MIN, min(ICON_MAX, col_w * 0.45)))
+    row_h = int(icon_size * 1.55) + 12
+    header_h = max(32, int(icon_size * 0.5))
+    return col_w, row_h, header_h, icon_size

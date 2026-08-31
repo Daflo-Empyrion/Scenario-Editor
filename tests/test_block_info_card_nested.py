@@ -156,9 +156,14 @@ def _find_tree_item(widget, block_name: str):
 
 
 def _label_containing(widget, text: str):
+    """Retrouve la ligne affichant `text` : QLabel simple OU ligne editable
+    (_InlineValueRow, dont le texte vit dans son QLabel interne _lbl)."""
     for i in range(widget._info_card._content_layout.count()):
         w = widget._info_card._content_layout.itemAt(i).widget()
-        if w is not None and hasattr(w, 'text') and text in w.text():
+        if w is None:
+            continue
+        label = getattr(w, '_lbl', w)
+        if hasattr(label, 'text') and text in label.text():
             return w
     return None
 
@@ -181,41 +186,36 @@ def test_crafting_section_visible_in_widget(widget_with_nested_scenario):
     assert _label_containing(widget, "Composants mécaniques") is not None
 
 
-def test_clicking_nested_field_navigates_to_correct_row(widget_with_nested_scenario):
-    """Clic sur 'Dégâts' (Damage, dans '{ Child 0 ... }') doit selectionner
-    le sous-bloc Child 0 et afficher sa ligne Damage dans le tableau de
-    proprietes -- demande explicite de l'utilisateur (29/08/2026)."""
+def test_goto_menu_on_nested_field_selects_correct_row(widget_with_nested_scenario):
+    """'Aller a la ligne dans le fichier' (menu contextuel, ancien
+    comportement du clic gauche -- 31/08/2026 le clic gauche ouvre desormais
+    l'edition inline) sur 'Dégâts' (Damage, dans '{ Child 0 ... }') doit
+    selectionner le sous-bloc Child 0 et afficher sa ligne Damage dans le
+    tableau de proprietes."""
     widget = widget_with_nested_scenario
     item = _find_tree_item(widget, "AssaultRifle")
     widget._on_block_selected(item, 0)
     widget._on_tree_item_double_clicked_for_info_card(item, 0)
 
-    damage_label = _label_containing(widget, "Dégâts")
-    assert damage_label is not None
-
-    press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(5, 5), Qt.MouseButton.LeftButton,
-                         Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    damage_label.mousePressEvent(press)
+    damage_row = _label_containing(widget, "Dégâts")
+    assert damage_row is not None
+    damage_row._request_goto()
 
     found = any(widget.props_table.item(r, 0) and widget.props_table.item(r, 0).text() == "Damage"
                 for r in range(widget.props_table.rowCount()))
     assert found is True
 
 
-def test_clicking_top_level_field_navigates_to_root_row(widget_with_nested_scenario):
-    """Clic sur un champ du bloc RACINE (pas un sous-bloc) doit aussi
-    fonctionner -- ici 'Poids' (Mass)."""
+def test_goto_menu_on_top_level_field_selects_root_row(widget_with_nested_scenario):
+    """Meme navigation pour un champ du bloc RACINE -- ici 'Poids' (Mass)."""
     widget = widget_with_nested_scenario
     item = _find_tree_item(widget, "AssaultRifle")
     widget._on_block_selected(item, 0)
     widget._on_tree_item_double_clicked_for_info_card(item, 0)
 
-    mass_label = _label_containing(widget, "Poids")
-    assert mass_label is not None
-
-    press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(5, 5), Qt.MouseButton.LeftButton,
-                         Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    mass_label.mousePressEvent(press)
+    mass_row = _label_containing(widget, "Poids")
+    assert mass_row is not None
+    mass_row._request_goto()
 
     found = any(widget.props_table.item(r, 0) and widget.props_table.item(r, 0).text() == "Mass"
                 for r in range(widget.props_table.rowCount()))

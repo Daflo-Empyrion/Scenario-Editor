@@ -3898,5 +3898,57 @@
  "protocol.runner_unavailable": {
   "fr": "Le module de session de tests est indisponible dans cette installation (outils de développement absents).",
   "en": "The test session module is not available in this installation (development tools missing)."
+ },
+ "block_info.game_view_toggle": {
+  "fr": "Vue jeu (fidèle F3)",
+  "en": "Game view (F3 faithful)"
+ },
+ "block_info.click_to_edit_tooltip": {
+  "fr": "Cliquer pour modifier cette valeur (Entrée valide, Échap annule). Clic droit : menu.",
+  "en": "Click to edit this value (Enter validates, Escape cancels). Right-click: menu."
+ },
+ "block_info.menu_edit": {
+  "fr": "Modifier",
+  "en": "Edit"
+ },
+ "block_info.menu_delete": {
+  "fr": "Supprimer cette propriété",
+  "en": "Delete this property"
+ },
+ "block_info.menu_goto": {
+  "fr": "Aller à la ligne dans le fichier",
+  "en": "Go to line in file"
+ },
+ "block_info.add_button": {
+  "fr": "+ Ajouter une propriété",
+  "en": "+ Add a property"
+ },
+ "block_info.add_ingredient_button": {
+  "fr": "+ Ajouter un ingrédient",
+  "en": "+ Add an ingredient"
+ },
+ "block_info.add_key_placeholder": {
+  "fr": "Clé de la propriété",
+  "en": "Property key"
+ },
+ "block_info.add_value_placeholder": {
+  "fr": "Valeur",
+  "en": "Value"
+ },
+ "block_info.template_unavailable": {
+  "fr": "Templates.ecf est introuvable ou illisible : l'ingrédient ne peut pas être modifié.",
+  "en": "Templates.ecf is missing or unreadable: the ingredient cannot be edited."
+ },
+ "wsundo.techtree_card_edit": {
+  "fr": "Arbre technologique (fiche) : {name}",
+  "en": "Tech tree (card): {name}"
+ },
+ "wsundo.techtree_card_template": {
+  "fr": "Fiche : ingrédients du Template {name}",
+  "en": "Card: template {name} ingredients"
+ },
+ "wsundo.card_template_edit": {
+  "fr": "Fiche : Template {name} modifié (ingrédients)",
+  "en": "Card: edited template {name} (ingredients)"
  }
 }

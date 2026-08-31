@@ -107,12 +107,7 @@ def test_editing_property_refreshes_open_card_live(widget_with_scenario):
     value_item.setText("999")
     widget._on_cell_changed(value_item)
 
-    card_text = " ".join(
-        widget._info_card._content_layout.itemAt(i).widget().text()
-        for i in range(widget._info_card._content_layout.count())
-        if widget._info_card._content_layout.itemAt(i).widget() is not None
-        and hasattr(widget._info_card._content_layout.itemAt(i).widget(), 'text')
-    )
+    card_text = " ".join(_card_label_texts(widget._info_card))
     assert "999" in card_text
 
 
@@ -314,14 +309,117 @@ def test_created_template_card_shows_scalars_and_craft(widget_with_scenario):
 
 
 def _card_label_texts(card_widget):
-    """Textes de tous les QLabel du contenu de la fiche (section deroulante)
-    -- _ClickableStatLabel est une SOUS-CLASSE de QLabel : isinstance, pas
-    de comparaison de nom de classe."""
+    """Textes affiches dans le contenu de la fiche (section deroulante) :
+    les QLabel simples ET les lignes editables (_InlineValueRow, dont le
+    libelle/valeur vit dans son QLabel interne _lbl -- demande du 31/08/2026,
+    fiche editable)."""
     from PyQt6.QtWidgets import QLabel
+    from gui.block_info_card_widget import _InlineValueRow
     layout = card_widget._content_layout
     texts = []
     for i in range(layout.count()):
         w = layout.itemAt(i).widget()
-        if isinstance(w, QLabel):
+        if isinstance(w, _InlineValueRow):
+            texts.append(w._lbl.text())
+        elif isinstance(w, QLabel):
             texts.append(w.text())
     return texts
+
+
+# ---------------------------------------------------------------------------
+# EDITION directement depuis la fiche (demande du 31/08/2026 : equilibrage
+# rapide sans ouvrir le fichier) -- les handlers d'ecriture de EcfEditWidget
+# suivent le MEME chemin que le tableau de proprietes : annulation interne,
+# annotation, marquage modifie, rafraichissement live.
+# ---------------------------------------------------------------------------
+
+def _open_card(widget, block_name="FuelTankMSLarge"):
+    item = _find_tree_item(widget, block_name)
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
+    return widget._info_card
+
+
+def test_card_value_edit_writes_to_document(widget_with_scenario):
+    widget = widget_with_scenario
+    _open_card(widget)
+
+    widget._on_card_value_edit("HitPoints", "80", "999", False)
+
+    block = next(b for b in widget.doc.iter_blocks() if b.get('Name') == "FuelTankMSLarge")
+    assert block.get_property('HitPoints') == "999"
+    assert widget.is_modified() is True
+    # La fiche est rafraichie (provider -> doc a jour)
+    assert "999" in " ".join(_card_label_texts(widget._info_card))
+
+
+def test_card_value_edit_pushes_internal_undo(widget_with_scenario):
+    widget = widget_with_scenario
+    _open_card(widget)
+    before = len(widget._undo_stack)
+
+    widget._on_card_value_edit("HitPoints", "80", "999", False)
+
+    assert len(widget._undo_stack) == before + 1
+
+
+def test_card_property_add_and_remove(widget_with_scenario):
+    widget = widget_with_scenario
+    _open_card(widget)
+
+    widget._on_card_property_add("TestStat", "42")
+    block = next(b for b in widget.doc.iter_blocks() if b.get('Name') == "FuelTankMSLarge")
+    assert block.get_property('TestStat') == "42"
+    # visible immediatement sur la fiche (vue complete)
+    assert "42" in " ".join(_card_label_texts(widget._info_card))
+
+    widget._on_card_property_remove("TestStat", "42")
+    block = next(b for b in widget.doc.iter_blocks() if b.get('Name') == "FuelTankMSLarge")
+    assert block.get_property('TestStat') is None
+
+
+def test_card_property_remove_never_touches_opening_line_pairs(widget_with_scenario):
+    """Les paires de la ligne d'ouverture (Id, Name) sont structurelles :
+    jamais supprimables depuis la fiche (garde-fou du handler)."""
+    widget = widget_with_scenario
+    _open_card(widget)
+    identity = "FuelTankMSLarge"
+
+    widget._on_card_property_remove("Name", identity)
+
+    assert any(b.get('Name') == identity for b in widget.doc.iter_blocks())
+
+
+def test_card_ingredient_edit_writes_templates_on_disk(widget_with_scenario):
+    """Pas d'onglet Templates.ecf ouvert -> ecriture DISQUE directe de
+    Templates.ecf (capture annulation espace de travail si l'hote la
+    fournit), puis fiche rafraichie."""
+    widget = widget_with_scenario
+    templates_path = widget.sibling_ecf_files[1]
+    _open_card(widget)
+
+    from core.ecf.parser import parse_ecf_file
+    before = parse_ecf_file(templates_path)
+    template_before = next(b for b in before.iter_blocks()
+                           if b.get('Name') == "FuelTankMSLarge")
+
+    # Une quantite REELLE du fixture (Composants electroniques = 8)
+    widget._on_card_value_edit("Electronics", "8", "12", True)
+
+    after = parse_ecf_file(templates_path)
+    template_after = next(b for b in after.iter_blocks()
+                          if b.get('Name') == "FuelTankMSLarge")
+    before_qty = None
+    after_qty = None
+    for child in template_before.children:
+        if getattr(child, 'kind', None) == 'Child Inputs':
+            for prop in child.children:
+                if prop.get('Electronics') is not None:
+                    before_qty = prop.get('Electronics')
+    for child in template_after.children:
+        if getattr(child, 'kind', None) == 'Child Inputs':
+            for prop in child.children:
+                if prop.get('Electronics') is not None:
+                    after_qty = prop.get('Electronics')
+    assert before_qty is not None
+    assert after_qty == "12"
+    assert widget._info_card.isHidden() is False

@@ -64,11 +64,49 @@ def test_cost_badge_gold_digits_rendered(qapp):
 
 
 def test_cost_badge_dark_plate_behind_digits(qapp):
-    """La pastille sombre semi-transparente assombrit le coin bas-droit :
-    sans elle, le chiffre dore serait illisible sur les icones claires."""
+    """La pastille sombre semi-transparente assombrit le coin HAUT-GAUCHE --
+    position demandee par l'utilisateur le 31/08/2026 (l'ancien badge
+    bas-droit en police fixe etait trop petit sur grand ecran) : sans elle,
+    le chiffre dore serait illisible sur les icones claires."""
     image = _render_node(14, qapp)
-    corner = image.pixelColor(46, 46)
+    corner = image.pixelColor(3, 3)
     assert corner.red() < 120 and corner.green() < 120  # coin assombri
+
+
+def test_cost_badge_font_scales_with_icon_size(qapp):
+    """Demande du 31/08/2026 : la police du badge est a l'ECHELLE de
+    l'icone (pixelSize proportionnel), jamais la police fixe 8pt d'origine
+    qui etait illisible sur grand ecran."""
+    from PyQt6.QtGui import QFont
+    node = TechTreeNode(name="TestNode", source="block", unlock_level=5,
+                        unlock_cost=14, categories=["Base"])
+    pixmap = QPixmap(128, 128)
+    pixmap.fill(QColor(18, 69, 15))
+    item = _TechNodeItem(node, pixmap, view=None, row=0, editable=False)
+    image = QImage(128, 128, QImage.Format.Format_ARGB32)
+    image.fill(QColor(18, 69, 15))
+    painter = QPainter(image)
+    font_before = painter.font()
+    item._paint_cost_badge(painter)
+    painter.end()
+    # Verification indirecte mais deterministe : le badge peint sur 128px
+    # est nettement plus grand que sur 48px (hauteur pastille ~ fontMetrics).
+    small_image = _render_node(14, qapp)
+
+    def _badge_height(image):
+        first_row = None
+        last_row = None
+        for y in range(image.height()):
+            for x in range(image.width()):
+                c = image.pixelColor(x, y)
+                if (c.red(), c.green(), c.blue()) == BADGE_RGB:
+                    if first_row is None:
+                        first_row = y
+                    last_row = y
+                    break
+        return (last_row - first_row) if first_row is not None else 0
+
+    assert _badge_height(image) > _badge_height(small_image)
 
 
 def test_cost_badge_skipped_on_tiny_icons(qapp):

@@ -192,6 +192,15 @@ class Session:
 # Widgets utilitaires
 # ============================================================================
 
+# Barre 'Resultat attendu' : fonds clairs (vert = OK, rouge = conseil
+# d'annotation) -- la couleur de TEXTE doit y etre SOMBRE explicite, sinon
+# le texte blanc des themes sombres devient illisible (bug du 31/08/2026).
+_STYLE_ATTENDU_OK = ("background:#e8f5e9; border:1px solid #1a7f37; "
+                     "color:#133a17; border-radius:6px; padding:8px;")
+_STYLE_ATTENDU_HINT = ("background:#fdecea; border:1px solid #c62828; "
+                       "color:#5c1310; border-radius:6px; padding:8px;")
+
+
 def _badge(statut: str) -> QLabel:
     lab = QLabel()
     lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -287,8 +296,10 @@ class StepWindow(QMainWindow):
 
         self.lbl_attendu = QLabel()
         self.lbl_attendu.setWordWrap(True)
-        self.lbl_attendu.setStyleSheet(
-            "background:#e8f5e9; border:1px solid #1a7f37; border-radius:6px; padding:8px;")
+        # TEXTE SOMBRE explicite : sur les themes sombres, la couleur de
+        # texte du theme (blanc) heritait sur ce fond clair -- invisible
+        # (retour utilisateur du 31/08/2026, capture). Voir _STYLE_ATTENDU_OK.
+        self.lbl_attendu.setStyleSheet(_STYLE_ATTENDU_OK)
         root.addWidget(self.lbl_attendu)
 
         root.addWidget(QLabel(t("runner.annotation_label")))
@@ -345,8 +356,10 @@ class StepWindow(QMainWindow):
                                f'{case["id"]} — {case["titre"]}</span>')
         if case.get("pre"):
             self.lbl_pre.setVisible(True)
+            # Texte sombre explicite sur le bandeau jaune clair -- meme bug
+            # que la barre 'Resultat attendu' sur themes sombres.
             self.lbl_pre.setText(f'<div style="background:#fff7e0; border:1px solid #d9a800; '
-                                 f'border-radius:6px; padding:6px;"><b>Preparation :</b> '
+                                 f'color:#4a3a00; border-radius:6px; padding:6px;"><b>Preparation :</b> '
                                  f'{case["pre"]}</div>')
         else:
             self.lbl_pre.setVisible(False)
@@ -364,12 +377,10 @@ class StepWindow(QMainWindow):
             # Rester sur place pour ecrire l'observation : c'est elle qui fera
             # le ticket GitHub ensuite.
             self.notes.setFocus()
-            self.lbl_attendu.setStyleSheet(
-                "background:#fdecea; border:1px solid #c62828; border-radius:6px; padding:8px;")
+            self.lbl_attendu.setStyleSheet(_STYLE_ATTENDU_HINT)
             self.lbl_attendu.setText(t("runner.fail_annotation_hint"))
             return
-        self.lbl_attendu.setStyleSheet(
-            "background:#e8f5e9; border:1px solid #1a7f37; border-radius:6px; padding:8px;")
+        self.lbl_attendu.setStyleSheet(_STYLE_ATTENDU_OK)
         self.session.set_result(case["id"], statut, annotation)
         if self.on_updated:
             self.on_updated()

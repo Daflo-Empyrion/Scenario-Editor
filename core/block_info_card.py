@@ -26,11 +26,20 @@ proprietes affichees (HitPoints/Mass/Volume/...) en oubliait -- CONFIRME sur
 le vrai FuelTankMSLarge que l'attribut ECF 'display' (present sur la MEME
 ligne qu'une propriete, ex: 'HitPoints: 80, type: int, display: true')
 identifie EXACTEMENT et EXHAUSTIVEMENT quelles proprietes le jeu affiche dans
-cette fiche : scan generique de TOUTE propriete dont 'display' n'est pas
-litteralement 'false' (inclut 'display: true' ET les valeurs speciales comme
-'display: RadiationLevel', confirme sur Radiation). Seule exception confirmee
-par la capture : MarketPrice a 'display: false' sur le vrai fichier mais est
-neanmoins toujours affiche -- traite a part, inconditionnellement.
+cette fiche. Seule exception confirmee par la capture : MarketPrice a
+'display: false' sur le vrai fichier mais est neanmoins toujours affiche --
+traite a part, inconditionnellement.
+
+DEUX MODES D'AFFICHAGE (demande explicite de l'utilisateur du 31/08/2026,
+remplace l'ancienne regle figee "fidelite F3 uniquement") :
+  - Vue COMPLETE (defaut) : TOUTES les proprietes sont affichees, y compris
+    celles portant 'display: false' -- l'editeur veut TOUT voir pour
+    equilibrer un scenario sans ouvrir le fichier.
+  - Vue JEU (fidelle F3) : l'ancienne regle stricte (ce qui n'a pas
+    'display' actif n'est pas affiche), utile pour comparer avec la fiche
+    telle que le jeu la montre.
+La bascule entre les deux vit dans gui/block_info_card_widget.py ; ce module
+recoit simplement le boolen `show_all` (True = vue complete).
 
 BBCODE : le balisage riche-texte du jeu ([c][RRGGBB]...[-][/c], [u], [sup]...)
 n'apparait pas SEULEMENT dans le texte 'Info:' -- CONFIRME que les valeurs de
@@ -97,6 +106,13 @@ class InfoCardField:
 class InfoCardIngredient:
     name: str
     quantity: str
+    # Cle/valeur BRUTES de l'ingredient dans la section 'Child Inputs' du
+    # Template (Templates.ecf) -- indispensables depuis que la fiche est
+    # EDITABLE (31/08/2026) : elles permettent de retrouver la paire exacte
+    # a modifier, au meme titre que source_key/source_raw_value des
+    # InfoCardField. Videntes pour un ingredient sans quantite.
+    source_key: Optional[str] = None
+    source_raw_value: Optional[str] = None
 
 
 @dataclass
@@ -110,8 +126,7 @@ class BlockInfoCard:
     crafting_header: Optional[str] = None
     input_items_label: Optional[str] = None
     ingredients: List[InfoCardIngredient] = field(default_factory=list)
-    output_count_label: Optional[str] = None
-    output_count_value: Optional[str] = None
+    output_count: Optional[InfoCardField] = None
     market_price: Optional[InfoCardField] = None
 
 
@@ -192,12 +207,18 @@ def _format_value(key: str, raw_value: str, formatter: Optional[str],
     return _bbcode_to_html(value) + suffix
 
 
-def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: str) -> List[InfoCardField]:
-    """Scan GENERIQUE, RECURSIF (voir REECRIT 29/08/2026 ci-dessous), de
-    toute propriete dont l'attribut 'display' n'est pas litteralement
-    'false' -- voir docstring du module pour la confirmation contre de
-    vraies donnees. Ordre = ordre d'apparition dans le fichier (parcours en
-    profondeur).
+def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: str,
+                             show_all: bool = True) -> List[InfoCardField]:
+    """Scan GENERIQUE, RECURSIF (voir REECRIT 29/08/2026 ci-dessous), des
+    proprietes a afficher, selon le mode choisi par `show_all` :
+      - show_all=True (VUE COMPLETE, defaut depuis le 31/08/2026) : TOUTES
+        les proprietes, y compris celles portant 'display: false' -- demande
+        explicite de l'utilisateur ("je veux tout voir sur la fiche").
+      - show_all=False (VUE JEU) : l'ancienne regle stricte -- uniquement les
+        proprietes dont l'attribut 'display' n'est pas litteralement
+        'false', pour rester fidele a la fiche F3 en jeu (voir docstring du
+        module pour la confirmation contre de vraies donnees).
+    Ordre = ordre d'apparition dans le fichier (parcours en profondeur).
 
     REECRIT le 29/08/2026 (retour utilisateur) : un item comme AssaultRifle
     (ItemsConfig.ecf) declare ses statistiques reelles (ROF, Automatic,
@@ -211,16 +232,17 @@ def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: s
     dediee (voir build_block_info_card), jamais melange aux proprietes du
     bloc -- dans un sens comme dans l'autre.
 
-    REPLI sans attribut 'display' (ajout du 30/08/2026, retour utilisateur) :
-    un bloc/item/Template VIENT D'ETRE CREE par l'application (creation
-    guidee, duplication, fusion...) -> ses proprietes n'ont AUCUN attribut
-    'display', l'ancien regle 'display present et != false' les excluait
-    toutes et la fiche n'affichait que le nom et les ingredients de craft.
-    Si AUCUNE propriete du bloc (recursivement) ne porte d'attribut
-    'display', le fichier n'utilise clairement pas ce systeme : on affiche
-    alors TOUTES les proprietes (hors exclusions ci-dessus). Des qu'UNE
-    SEULE propriete porte un 'display', on est sur un vrai fichier du jeu :
-    regle stricte d'origine, pour rester fidele a la fiche F3 en jeu."""
+    REPLI sans attribut 'display' (ajout du 30/08/2026, retour utilisateur,
+    mode VUE JEU uniquement) : un bloc/item/Template VIENT D'ETRE CREE par
+    l'application (creation guidee, duplication, fusion...) -> ses
+    proprietes n'ont AUCUN attribut 'display', l'ancienne regle 'display
+    present et != false' les excluait toutes et la fiche n'affichait que le
+    nom et les ingredients de craft. Si AUCUNE propriete du bloc
+    (recursivement) ne porte d'attribut 'display', le fichier n'utilise
+    clairement pas ce systeme : on affiche alors TOUTES les proprietes (hors
+    exclusions ci-dessus). Des qu'UNE SEULE propriete porte un 'display', on
+    est sur un vrai fichier du jeu : regle stricte d'origine, pour rester
+    fidele a la fiche F3 en jeu."""
     fields: List[InfoCardField] = []
     seen: set = set()
     uses_display_system = _block_uses_display_system(block)
@@ -244,11 +266,12 @@ def _collect_display_fields(block: EcfBlock, loc: LocalizationIndex, language: s
                     display_value = v2
                 elif k2 == 'formatter':
                     formatter = v2
-            if display_value is None:
-                if uses_display_system:
+            if not show_all:  # mode VUE JEU : l'attribut 'display' filtre
+                if display_value is None:
+                    if uses_display_system:
+                        continue
+                elif display_value.strip().lower() == 'false':
                     continue
-            elif display_value.strip().lower() == 'false':
-                continue
             seen.add(main_key)
             label = _translate_label(main_key, loc, language)
             value = _format_value(main_key, main_value, formatter, loc, language)
@@ -328,9 +351,9 @@ def card_to_markdown(card: BlockInfoCard) -> str:
             for ing in card.ingredients:
                 lines.append(f"- {ing.name} : {ing.quantity}")
             lines.append("")
-        if card.output_count_value is not None:
-            lines.append(f"- **{_strip_html(card.output_count_label or '')}** : "
-                         f"{_strip_html(card.output_count_value)}")
+        if card.output_count is not None:
+            lines.append(f"- **{_strip_html(card.output_count.label or '')}** : "
+                         f"{_strip_html(card.output_count.value)}")
             lines.append("")
     if card.market_price:
         lines.append(f"- **{_strip_html(card.market_price.label)}** : "
@@ -342,10 +365,13 @@ def card_to_markdown(card: BlockInfoCard) -> str:
 
 
 def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str,
-                           templates_doc: Optional[EcfDocument] = None) -> BlockInfoCard:
+                           templates_doc: Optional[EcfDocument] = None,
+                           show_all: bool = True) -> BlockInfoCard:
     """Construit la fiche d'information complete pour `block` -- voir
     docstring du module pour le detail de chaque champ et sa verification
-    contre de vraies donnees."""
+    contre de vraies donnees. `show_all=True` (defaut depuis le 31/08/2026)
+    = vue COMPLETE (toutes les proprietes, meme 'display: false') ;
+    False = vue JEU fidele a la fiche F3."""
     name = block.get('Name') or block.get_property('Name') or ""
     title = _bbcode_to_html((loc.get(name, language) if name else None) or name)
     custom_icon = block.get_property('CustomIcon')
@@ -363,7 +389,7 @@ def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str
         icon_key=icon_key,
         root_identity=block_identity(block) or name,
         description_html=description_html,
-        stat_fields=_collect_display_fields(block, loc, language),
+        stat_fields=_collect_display_fields(block, loc, language, show_all=show_all),
     )
 
     for key in ("UnlockCost", "UnlockLevel"):
@@ -394,13 +420,23 @@ def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str
         for child in template.children:
             if getattr(child, 'kind', None) == "Child Inputs":
                 for prop in child.children:
-                    for k, v in getattr(prop, 'pairs', []):
-                        if k:
-                            card.ingredients.append(InfoCardIngredient(
-                                name=_translate_label(k, loc, language), quantity=_bbcode_to_html(v)))
+                    pairs = getattr(prop, 'pairs', [])
+                    if not pairs:
+                        continue
+                    k, v = pairs[0]
+                    if k:
+                        # source_key/source_raw_value = paire BRUTE dans le
+                        # Template -- requis pour l'edition d'ingredient
+                        # directement depuis la fiche (demande du 31/08/2026).
+                        card.ingredients.append(InfoCardIngredient(
+                            name=_translate_label(k, loc, language),
+                            quantity=_bbcode_to_html(v),
+                            source_key=k, source_raw_value=v))
         output_count = template.get_property('OutputCount')
         if output_count is not None:
-            card.output_count_label = _translate_label("biwOutputCount", loc, language)
-            card.output_count_value = _bbcode_to_html(output_count.strip())
+            card.output_count = InfoCardField(
+                label=_translate_label("biwOutputCount", loc, language),
+                value=_bbcode_to_html(output_count.strip()),
+                source_key="OutputCount", source_raw_value=output_count)
 
     return card

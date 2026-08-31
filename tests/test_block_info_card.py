@@ -280,12 +280,30 @@ def test_created_template_output_count_in_dedicated_section_only():
     template = next(doc.iter_blocks())
     card = build_block_info_card(template, _load_loc_index(), "fr")
     assert "OutputCount" not in {f.label for f in card.stat_fields}
-    assert card.output_count_value == "2"
+    assert card.output_count.value == "2"
+    # Source brute conservee pour l'edition depuis la fiche (31/08/2026).
+    assert card.output_count.source_key == "OutputCount"
+    assert card.output_count.source_raw_value == "2"
 
 
-def test_display_false_still_hides_even_without_display_system():
-    """Un 'display: false' EXPLICITE cache toujours la propriete, meme sur
-    un bloc qui n'utilise pas le systeme display."""
+def test_ingredients_carry_raw_source_for_editing():
+    """Demande du 31/08/2026 (fiche editable) : chaque ingredient conserve la
+    paire BRUTE (cle, quantite) du 'Child Inputs' du Template."""
+    doc = _make_doc(CREATED_TEMPLATE_TEXT)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr")
+    by_raw = {i.source_key: i.source_raw_value for i in card.ingredients}
+    assert by_raw["SteelPlate"] == "5"
+    assert by_raw["Electronics"] == "2"
+
+
+# --------------------------------------- bascule vue COMPLETE / vue JEU
+# (demande du 31/08/2026 : par defaut TOUTES les proprietes sont affichees,
+# meme 'display: false' ; show_all=False retablit la fide lite F3 du jeu)
+
+def test_complete_view_shows_display_false_by_default():
+    """Vue COMPLETE (defaut 31/08/2026) : 'je veux tout voir sur la fiche' --
+    une propriete 'display: false' est AFFICHEE par defaut."""
     text = """{ Template Name: X
   CraftTime: 10
   Target: "BaseC", display: false
@@ -293,16 +311,34 @@ def test_display_false_still_hides_even_without_display_system():
 """
     doc = _make_doc(text)
     template = next(doc.iter_blocks())
-    card = build_block_info_card(template, _load_loc_index(), "fr")
+    card = build_block_info_card(template, _load_loc_index(), "fr", show_all=True)
     by_label = {f.label: f.value for f in card.stat_fields}
-    assert "Target" not in by_label
+    from core.i18n import t
+    basec = t("ecfprop.BaseC")
+    assert by_label.get(_expected_label("Target")) == (basec if basec != "ecfprop.BaseC" else "BaseC")
     assert by_label.get(_expected_label("CraftTime")) == "10"
 
 
-def test_real_file_with_display_system_keeps_strict_rule():
-    """Des qu'UNE propriete porte 'display' (vrai fichier du jeu), la regle
-    stricte s'applique : une propriete SANS display n'est pas affichee --
-    fidelite a la fiche F3 preservee."""
+def test_game_view_hides_display_false():
+    """Vue JEU (show_all=False) : l'ancienne regle stricte -- 'display:
+    false' masque la propriete, meme sur un bloc sans systeme display."""
+    text = """{ Template Name: X
+  CraftTime: 10
+  Target: "BaseC", display: false
+}
+"""
+    doc = _make_doc(text)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr", show_all=False)
+    by_label = {f.label: f.value for f in card.stat_fields}
+    assert _expected_label("Target") not in by_label
+    assert by_label.get(_expected_label("CraftTime")) == "10"
+
+
+def test_game_view_keeps_strict_rule_on_real_display_files():
+    """Vue JEU (show_all=False) : des qu'UNE propriete porte 'display' (vrai
+    fichier du jeu), une propriete SANS display n'est pas affichee --
+    fidelite a la fiche F3 preservee dans ce mode."""
     text = """{ Template Name: Y
   CraftTime: 10, display: true
   InternalThing: whatever
@@ -310,10 +346,28 @@ def test_real_file_with_display_system_keeps_strict_rule():
 """
     doc = _make_doc(text)
     template = next(doc.iter_blocks())
-    card = build_block_info_card(template, _load_loc_index(), "fr")
+    card = build_block_info_card(template, _load_loc_index(), "fr", show_all=False)
     by_label = {f.label: f.value for f in card.stat_fields}
     assert by_label.get(_expected_label("CraftTime")) == "10"
     assert "InternalThing" not in by_label
+
+
+def test_complete_view_shows_everything_on_real_display_files():
+    """Vue COMPLETE : sur le meme fichier a systeme display, les proprietes
+    sans attribut ET celles en 'display: false' apparaissent toutes."""
+    text = """{ Template Name: Y
+  CraftTime: 10, display: true
+  InternalThing: whatever
+  SecretStat: 42, display: false
+}
+"""
+    doc = _make_doc(text)
+    template = next(doc.iter_blocks())
+    card = build_block_info_card(template, _load_loc_index(), "fr", show_all=True)
+    by_label = {f.label: f.value for f in card.stat_fields}
+    assert by_label.get(_expected_label("CraftTime")) == "10"
+    assert by_label.get("InternalThing") == "whatever"
+    assert by_label.get("SecretStat") == "42"
 
 
 def test_ecfprop_keys_actually_defined():

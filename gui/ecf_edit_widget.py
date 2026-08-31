@@ -1373,7 +1373,12 @@ class EcfEditWidget(QWidget):
                     if hasattr(edit_widget, 'doc'):
                         return edit_widget.doc
         try:
-            return parse_ecf_file(templates_path)
+            # Parse via le CACHE (core/ecf/doc_cache.py -- 31/08/2026 :
+            # re-parsing de Templates.ecf a CHAQUE ouverture de fiche = latence
+            # ; lecture seule, l'invalidation par (mtime, taille) garantit un
+            # document frais apres toute ecriture).
+            from core.ecf.doc_cache import get_parsed_doc
+            return get_parsed_doc(templates_path)
         except Exception:
             return None
 
@@ -1391,7 +1396,11 @@ class EcfEditWidget(QWidget):
         voir gui/block_info_card_widget.py. S'ouvre UNIQUEMENT depuis un
         DOUBLE-clic (seul appelant : _on_tree_item_double_clicked_for_info_card,
         lui-meme branche sur QTreeWidget.itemDoubleClicked), jamais au survol,
-        sur un clic simple ni automatiquement."""
+        sur un clic simple ni automatiquement.
+        EDITABLE depuis le 31/08/2026 : les signaux de la fiche sont cablés
+        sur les handlers d'ecriture ci-dessous (meme chemin que le tableau de
+        proprietes : annulation interne, annotation, marquage modifie) ; le
+        provider permet la bascule vue jeu/vue complete et refresh()."""
         name = block.get('Name') or block.get_property('Name')
         if not name:
             return
@@ -1400,32 +1409,114 @@ class EcfEditWidget(QWidget):
         loc = self._get_info_card_localization_index()
         templates_doc = self._get_info_card_templates_doc()
         card_data = build_block_info_card(block, loc, get_language(), templates_doc)
-
-        pixmap = None
-        if card_data.icon_key:
-            from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
-            icon_index = self._get_info_card_icon_index()
-            ref = resolve_icon_path(icon_index, card_data.icon_key)
-            if ref is not None:
-                data = load_icon_bytes(ref)
-                if data:
-                    candidate = QPixmap()
-                    if candidate.loadFromData(data) and not candidate.isNull():
-                        pixmap = candidate
+        pixmap = self._resolve_card_icon_pixmap(card_data.icon_key)
 
         if self._info_card is None:
             from gui.block_info_card_widget import BlockInfoCardWidget
             self._info_card = BlockInfoCardWidget(self)
-            self._info_card.field_clicked.connect(self._on_info_card_field_clicked)
+            # Navigation 'Aller a la ligne' du menu contextuel (l'ancien
+            # signal field_clicked, emis au clic gauche, a ete remplace par
+            # l'edition inline -- demande du 31/08/2026).
+            self._info_card.set_navigation_callback(self._on_info_card_field_clicked)
+            self._info_card.value_edit_requested.connect(self._on_card_value_edit)
+            self._info_card.property_add_requested.connect(self._on_card_property_add)
+            self._info_card.property_remove_requested.connect(self._on_card_property_remove)
+            self._info_card.ingredient_add_requested.connect(self._on_card_ingredient_add)
+            self._info_card.ingredient_remove_requested.connect(self._on_card_ingredient_remove)
         # Ne repositionne QUE lors d'une VRAIE ouverture (fiche fermee, ou
         # affichant deja un AUTRE bloc) -- un simple rafraichissement (meme
         # bloc, ex: apres edition d'une propriete) ne doit jamais annuler un
         # deplacement manuel de l'utilisateur (fiche deplacable a la souris,
         # demande explicite du 29/08/2026).
         was_showing_this_block = self._info_card.is_showing(name)
-        self._info_card.show_card(name, card_data, pixmap)
+        self._info_card.show_card(name, card_data, pixmap,
+                                  provider=self._make_info_card_provider(name),
+                                  editable=True,
+                                  values_provider=self._card_values_provider,
+                                  ingredients_provider=self._card_ingredients_provider)
         if not was_showing_this_block:
             self._position_info_card()
+
+    def _card_ingredients_provider(self):
+        """Noms d'items/blocs proposables comme ingredient (formulaire
+        d'ajout d'ingredient de la fiche) -- MEME pool que la creation de
+        Template (list_craftable_names sur ItemsConfig.ecf + BlocksConfig.ecf),
+        pas des cles de proprietes (retour utilisateur du 31/08/2026)."""
+        if not self.sibling_ecf_files:
+            return []
+        from core.ecf.block_creation import find_file_by_name, list_craftable_names
+        items_path = find_file_by_name(self.sibling_ecf_files, 'ItemsConfig.ecf')
+        blocks_path = find_file_by_name(self.sibling_ecf_files, 'BlocksConfig.ecf')
+        try:
+            return list_craftable_names(items_path, blocks_path)
+        except Exception:
+            return []
+
+    def _card_values_provider(self):
+        """Pool des listes deroulantes de la fiche : MEME regle que le
+        tableau de proprietes (demande du 31/08/2026) -- valeurs observees
+        dans le fichier ouvert pour le genre du bloc affiche, triees par
+        frequence, saisie libre toujours possible. Les variantes '+Block'/
+        '+Item' (patchs du jeu) sont fondues dans le meme pool."""
+        block = self._find_block_for_card() or self._current_block
+        if block is None:
+            return {}
+        from core.ecf.block_creation import scan_properties_for_kind
+        merged: dict = {}
+        for kind in {block.kind, '+' + block.kind}:
+            for key, counter in scan_properties_for_kind(self.doc, kind).items():
+                total = merged.get(key)
+                if total is None:
+                    merged[key] = counter
+                else:
+                    total.update(counter)
+        return {key: [v for v, _c in counter.most_common()]
+                for key, counter in merged.items()}
+
+    def _make_info_card_provider(self, block_name: str):
+        """Provider de la fiche (voir BlockInfoCardWidget.show_card) :
+        reconstruit (BlockInfoCard, QPixmap) depuis l'etat ACTUEL de
+        self.doc -- retrouve le bloc par identite, puis par Name en repli
+        (les +Block/+Item de patch gardent le meme Name). Lève ValueError si
+        le bloc a disparu (suppression) : refresh() de la fiche garde alors
+        son affichage courant."""
+        def _provider(show_all: bool):
+            block = None
+            target_identity = None
+            for b in self.doc.iter_blocks():
+                b_name = b.get('Name') or b.get_property('Name')
+                if b_name == block_name:
+                    if target_identity is None:
+                        target_identity = block_identity(b)
+                    if target_identity == self._info_card.root_identity:
+                        block = b
+                        break
+                    if block is None:
+                        block = b  # repli : premier bloc au meme Name
+            if block is None:
+                raise ValueError(block_name)
+            from core.i18n import get_language
+            from core.block_info_card import build_block_info_card
+            loc = self._get_info_card_localization_index()
+            templates_doc = self._get_info_card_templates_doc()
+            card_data = build_block_info_card(block, loc, get_language(), templates_doc,
+                                               show_all=show_all)
+            return card_data, self._resolve_card_icon_pixmap(card_data.icon_key)
+        return _provider
+
+    def _resolve_card_icon_pixmap(self, icon_key: str) -> Optional[QPixmap]:
+        pixmap = None
+        if icon_key:
+            from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
+            icon_index = self._get_info_card_icon_index()
+            ref = resolve_icon_path(icon_index, icon_key)
+            if ref is not None:
+                data = load_icon_bytes(ref)
+                if data:
+                    candidate = QPixmap()
+                    if candidate.loadFromData(data) and not candidate.isNull():
+                        pixmap = candidate
+        return pixmap
 
     def _position_info_card(self) -> None:
         """Position INITIALE seulement (voir _show_info_card_for, jamais
@@ -1459,6 +1550,266 @@ class EcfEditWidget(QWidget):
         name = block.get('Name') or block.get_property('Name')
         if name and self._info_card.is_showing(name):
             self._show_info_card_for(block)
+
+    # -- ecriture depuis la fiche d'information (demande du 31/08/2026) -----
+    # La fiche emet des signaux ; ces handlers appliquent les memes mutations
+    # que le tableau de proprietes (annulation interne, annotations, marquage
+    # modifie), puis rafraichissent la fiche via son provider. Les
+    # ingredients vivent dans Templates.ecf : onglet ouvert = edition de SON
+    # document (meme precedent que la creation de Template par duplication) ;
+    # sinon ecriture disque + annulation d'espace de travail.
+
+    def _find_block_for_card(self) -> Optional[EcfBlock]:
+        if self._info_card is None:
+            return None
+        name = self._info_card._current_block_name
+        if not name:
+            return None
+        fallback = None
+        for b in self.doc.iter_blocks():
+            if (b.get('Name') or b.get_property('Name')) == name:
+                if block_identity(b) == self._info_card.root_identity:
+                    return b
+                if fallback is None:
+                    fallback = b
+        return fallback
+
+    @staticmethod
+    def _find_card_property_node(block: EcfBlock, key: str, value: str):
+        """Retrouve la cible d'une edition (key, valeur brute) dans le bloc :
+        l'EcfBlock lui-meme si la paire est sur sa ligne d'ouverture, sinon
+        la premiere EcfProperty (recursivement, ordre du fichier -- meme
+        ordre que le scan de la fiche) portant cette paire. None si absent."""
+        for k, v in block.pairs:
+            if k == key and v == value:
+                return block
+        def _walk(node: EcfBlock):
+            for child in node.children:
+                if isinstance(child, EcfProperty):
+                    for k, v in child.pairs:
+                        if k == key and v == value:
+                            return child
+                elif isinstance(child, EcfBlock):
+                    found = _walk(child)
+                    if found is not None:
+                        return found
+            return None
+        return _walk(block)
+
+    def _card_annotate_edit(self, target, key: str, old_value: str) -> None:
+        if settings.get_annotations_enabled():
+            annotate_property(target, f"# original {key}: {old_value} -- Mod par {settings.get_author()}")
+
+    def _card_annotate_add(self, target) -> None:
+        if settings.get_annotations_enabled():
+            annotate_property(target, f"# Ajoute par {settings.get_author()}")
+
+    def _after_card_block_write(self) -> None:
+        self._set_modified(True)
+        self._refresh_props_table()
+        if self._info_card is not None:
+            self._info_card.refresh()
+
+    def _on_card_value_edit(self, source_key: str, old_value: str, new_value: str,
+                             from_template: bool) -> None:
+        if from_template:
+            self._card_edit_template_value(source_key, old_value, new_value)
+            return
+        block = self._find_block_for_card()
+        if block is None:
+            return
+        target = self._find_card_property_node(block, source_key, old_value)
+        if target is None:
+            return
+        self._snapshot_undo()
+        if isinstance(target, EcfBlock):
+            target.set(source_key, new_value)
+        else:
+            for i, (k, v) in enumerate(target.pairs):
+                if k == source_key and v == old_value:
+                    target.pairs[i] = (source_key, new_value)
+                    break
+            target.dirty = True
+            self._card_annotate_edit(target, source_key, old_value)
+        self._edited_prop_nodes.add(id(target))
+        self._after_card_block_write()
+
+    def _on_card_property_add(self, key: str, value: str) -> None:
+        block = self._find_block_for_card()
+        if block is None or not key.strip():
+            return
+        self._snapshot_undo()
+        # Meme syntaxe multi-paires que '+ Propriete' du tableau (voir
+        # _add_property_dialog) : on peut coller 'AlienParts04, param1: 0.6'.
+        from core.ecf.parser import _parse_pairs
+        extra = _parse_pairs(value.strip())
+        if len(extra) > 1 and extra[0][0] is None:
+            pairs = [(key.strip(), extra[0][1])] + extra[1:]
+        else:
+            pairs = [(key.strip(), value.strip())]
+        new_prop = add_property_line(block, pairs)
+        self._card_annotate_add(new_prop)
+        self._after_card_block_write()
+
+    def _on_card_property_remove(self, source_key: str, old_value: str) -> None:
+        block = self._find_block_for_card()
+        if block is None:
+            return
+        target = self._find_card_property_node(block, source_key, old_value)
+        if target is None or isinstance(target, EcfBlock):
+            # Les paires de la ligne d'ouverture (Id, Name...) sont
+            # structurelles : jamais supprimees depuis la fiche.
+            return
+        self._snapshot_undo()
+        remove_property_line(block, target)
+        self._after_card_block_write()
+
+    # -- ingredients (Templates.ecf) -----------------------------------------
+
+    def _resolve_templates_edit_target(self):
+        """(edit_widget_ou_None, doc, path) du Template a editer : l'onglet
+        Templates.ecf DEJA OUVERT si present (forcement a jour, undo/modified
+        geres -- meme precedent que la creation par duplication), sinon une
+        lecture disque (ecriture directe + annulation d'espace de travail)."""
+        if not self.sibling_ecf_files:
+            return None, None, None
+        from core.ecf.block_creation import find_file_by_name
+        templates_path = find_file_by_name(self.sibling_ecf_files, 'Templates.ecf')
+        if templates_path is None:
+            return None, None, None
+        main_window = self.window()
+        if hasattr(main_window, 'tabs'):
+            for i in range(main_window.tabs.count()):
+                if main_window.tabs.tabToolTip(i) == str(templates_path):
+                    tab_widget = main_window.tabs.widget(i)
+                    edit_widget = getattr(tab_widget, 'edit_widget', tab_widget)
+                    if hasattr(edit_widget, 'doc'):
+                        return edit_widget, edit_widget.doc, templates_path
+        try:
+            return None, parse_ecf_file(templates_path), templates_path
+        except Exception:
+            return None, None, None
+
+    @staticmethod
+    def _find_template_block_by_name(doc, name: str) -> Optional[EcfBlock]:
+        for b in doc.iter_blocks():
+            if b.kind in ("Template", "+Template") and \
+                    (b.get('Name') == name or b.get_property('Name') == name):
+                return b
+        return None
+
+    def _card_template_find_target(self, templates_doc, source_key: str, old_value: str):
+        """(template, child_inputs_ou_None, prop_cible_ou_None) pour la cle
+        editee dans le Template affiche par la fiche. OutputCount est un
+        scalaire du Template lui-meme, les ingredients vivent dans 'Child
+        Inputs'."""
+        name = self._info_card._current_block_name if self._info_card else None
+        if not name or templates_doc is None:
+            return None, None, None
+        template = self._find_template_block_by_name(templates_doc, name)
+        if template is None:
+            return None, None, None
+        if source_key == "OutputCount":
+            return template, None, template
+        for child in template.children:
+            if isinstance(child, EcfBlock) and child.kind == 'Child Inputs':
+                for prop in child.children:
+                    if isinstance(prop, EcfProperty):
+                        for k, v in prop.pairs:
+                            if k == source_key and v == old_value:
+                                return template, child, prop
+        return template, None, None
+
+    def _card_template_finish_write(self, templates_edit, templates_path, prior,
+                                     template: EcfBlock, doc) -> None:
+        """Persistance apres une mutation du Template : onglet ouvert = son
+        document vit en memoire (marque modifie, tableau rafraichi) ; sinon
+        ecriture disque atomique + annulation d'espace de travail. Puis
+        rafraichit la fiche (provider -> doc a jour)."""
+        if templates_edit is not None:
+            templates_edit._set_modified(True)
+            if templates_edit._current_block is template:
+                templates_edit._refresh_props_table()
+        else:
+            from core.fsutil import atomic_write_text
+            from core.workspace_undo import FileStateUndo
+            atomic_write_text(templates_path, doc.render())
+            main_window = self.window()
+            if prior is not None and hasattr(main_window, "_push_workspace_undo"):
+                main_window._push_workspace_undo(FileStateUndo(
+                    templates_path, prior,
+                    t("wsundo.card_template_edit", name=self._info_card._current_block_name or "")))
+        if self._info_card is not None:
+            self._info_card.refresh()
+
+    def _card_edit_template_value(self, source_key: str, old_value: str, new_value: str) -> None:
+        templates_edit, templates_doc, templates_path = self._resolve_templates_edit_target()
+        template, child_inputs, prop = self._card_template_find_target(templates_doc, source_key, old_value)
+        if template is None or prop is None:
+            QMessageBox.warning(self, t("err.title"), t("block_info.template_unavailable"))
+            return
+        prior = None
+        if templates_edit is not None:
+            templates_edit._snapshot_undo()
+        else:
+            from core.workspace_undo import capture_file
+            prior = capture_file(templates_path)
+        if source_key == "OutputCount":
+            template.set_property("OutputCount", new_value)
+        else:
+            for i, (k, v) in enumerate(prop.pairs):
+                if k == source_key and v == old_value:
+                    prop.pairs[i] = (source_key, new_value)
+                    break
+            prop.dirty = True
+            self._card_annotate_edit(prop, source_key, old_value)
+        self._card_template_finish_write(templates_edit, templates_path, prior,
+                                          template, doc=templates_doc)
+
+    def _on_card_ingredient_add(self, key: str, quantity: str) -> None:
+        if not key.strip():
+            return
+        templates_edit, templates_doc, templates_path = self._resolve_templates_edit_target()
+        name = self._info_card._current_block_name if self._info_card else None
+        template = self._find_template_block_by_name(templates_doc, name) if templates_doc else None
+        if template is None:
+            QMessageBox.warning(self, t("err.title"), t("block_info.template_unavailable"))
+            return
+        prior = None
+        if templates_edit is not None:
+            templates_edit._snapshot_undo()
+        else:
+            from core.workspace_undo import capture_file
+            prior = capture_file(templates_path)
+        from core.ecf.block_creation import add_child_inputs
+        section = add_child_inputs(template, [(key.strip(), quantity)])
+        # add_child_inputs retourne la SECTION 'Child Inputs' -- retrouve la
+        # ligne d'ingredient fraichement ajoutee pour l'annotation.
+        added = None
+        for prop in section.children:
+            if isinstance(prop, EcfProperty):
+                for k, v in prop.pairs:
+                    if k == key.strip() and v == quantity:
+                        added = prop
+        if added is not None:
+            self._card_annotate_add(added)
+        self._card_template_finish_write(templates_edit, templates_path, prior,
+                                          template, doc=templates_doc)
+
+    def _on_card_ingredient_remove(self, source_key: str, old_value: str) -> None:
+        templates_edit, templates_doc, templates_path = self._resolve_templates_edit_target()
+        template, child_inputs, prop = self._card_template_find_target(templates_doc, source_key, old_value)
+        if template is None or child_inputs is None or prop is None:
+            return
+        prior = None
+        if templates_edit is not None:
+            templates_edit._snapshot_undo()
+        else:
+            from core.workspace_undo import capture_file
+            prior = capture_file(templates_path)
+        remove_property_line(child_inputs, prop)
+        self._card_template_finish_write(templates_edit, templates_path, prior,
+                                          template, doc=templates_doc)
 
     def _detect_repeating_items(self, block: EcfBlock):
         """Delegue a core.ecf.model.detect_repeating_items -- extrait pour

@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .ecf.model import EcfBlock, EcfProperty, add_property_line, remove_property_line
+from .ecf.doc_cache import get_parsed_doc
 from .ecf.parser import parse_ecf_file
 from .fsutil import atomic_write_text
 from .parsers_utils import parse_quoted_list
@@ -123,7 +124,13 @@ class TechTree:
 
 
 def _extract_nodes(path: Path, source: str) -> List[TechTreeNode]:
-    doc = parse_ecf_file(path)
+    # Parse via le CACHE (voir core/ecf/doc_cache.py -- retour utilisateur du
+    # 31/08/2026 : latence de plusieurs secondes a chaque clic dans l'arbre,
+    # chaque clic re-parsant des fichiers entiers) : l'ouverture du dialogue
+    # pre-chauffe ainsi le cache, et les clics suivants ne re-parsent plus
+    # rien tant que les fichiers ne changent pas. Lecture seule : les
+    # TechTreeNode construits ci-dessous sont des copies, jamais le document.
+    doc = get_parsed_doc(path)
     base_kind = 'Block' if source == 'block' else 'Item'
     # Un vrai BlocksConfig.ecf/ItemsConfig.ecf vanilla (confirme sur le fichier
     # Steam reel, session du 29/08/2026) contient aussi des blocs '+Block'/
@@ -269,3 +276,197 @@ def set_tech_tree_parent(path: Path, name: str, new_parent: Optional[str]) -> bo
             atomic_write_text(path, doc.render())
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Edition GENERIQUE depuis la fiche d'information de l'arbre technologique
+# (demande du 31/08/2026 : equilibrage rapide directement depuis l'arbre).
+# Meme discipline que les fonctions ci-dessus : parse -> mutation precise ->
+# reecriture atomique round-trip ; jamais de creation a l'aveugle (les
+# fonctions add_* sont les seules a creer, sur action explicite).
+# ---------------------------------------------------------------------------
+
+def find_block_by_name(path: Path, name: str) -> Optional[EcfBlock]:
+    """Retrouve le bloc/item par Name dans le fichier donne. Parse via le
+    CACHE de documents (core/ecf/doc_cache.py -- lectures fiche uniquement ;
+    apres toute ecriture, le (mtime, taille) change et la lecture suivante
+    re-parse un document frais). None si absent."""
+    if path is None or not path.exists():
+        return None
+    doc = get_parsed_doc(path)
+    for b in doc.iter_blocks():
+        if b.get('Name') == name or b.get_property('Name') == name:
+            return b
+    return None
+
+
+def _locate_property(block: EcfBlock, key: str, old_value: Optional[str]):
+    """Retrouve la cible d'une edition : l'EcfBlock si la paire est sur sa
+    ligne d'ouverture, sinon la premiere EcfProperty (recursivement, ordre du
+    fichier) portant la paire (key, old_value) -- ou (key, n'importe quelle
+    valeur) si old_value est None. None si introuvable."""
+    for k, v in block.pairs:
+        if k == key and (old_value is None or v == old_value):
+            return block
+
+    def _walk(node: EcfBlock):
+        for child in node.children:
+            if isinstance(child, EcfProperty):
+                for k, v in child.pairs:
+                    if k == key and (old_value is None or v == old_value):
+                        return child
+            elif isinstance(child, EcfBlock):
+                found = _walk(child)
+                if found is not None:
+                    return found
+        return None
+    return _walk(block)
+
+
+def set_block_property(path: Path, name: str, key: str, new_value: str,
+                        old_value: Optional[str] = None) -> bool:
+    """Modifie UNE propriete du bloc/item identifie par Name (peu importe sa
+    position : ligne d'ouverture ou ligne enfant, meme imbriquee) et
+    sauvegarde. Retourne False si le bloc ou la propriete est introuvable."""
+    doc = parse_ecf_file(path)
+    for b in doc.iter_blocks():
+        if b.get('Name') == name or b.get_property('Name') == name:
+            target = _locate_property(b, key, old_value)
+            if target is None:
+                return False
+            if isinstance(target, EcfBlock):
+                if not target.set(key, new_value):
+                    return False
+            else:
+                for i, (k, v) in enumerate(target.pairs):
+                    if k == key and (old_value is None or v == old_value):
+                        target.pairs[i] = (key, new_value)
+                        target.dirty = True
+                        break
+                else:
+                    return False
+            atomic_write_text(path, doc.render())
+            return True
+    return False
+
+
+def add_block_property(path: Path, name: str, key: str, value: str) -> bool:
+    """Ajoute UNE propriete au bloc/item identifie par Name (action explicite
+    de l'utilisateur depuis la fiche). Retourne False si le bloc est
+    introuvable ou la cle vide."""
+    if not key.strip():
+        return False
+    doc = parse_ecf_file(path)
+    for b in doc.iter_blocks():
+        if b.get('Name') == name or b.get_property('Name') == name:
+            add_property_line(b, [(key.strip(), value)])
+            atomic_write_text(path, doc.render())
+            return True
+    return False
+
+
+def remove_block_property(path: Path, name: str, key: str,
+                           old_value: Optional[str] = None) -> bool:
+    """Supprime UNE propriete (ligne enfant uniquement -- les paires de la
+    ligne d'ouverture comme Id/Name sont structurelles et ne sont JAMAIS
+    supprimees depuis la fiche). Retourne False si introuvable."""
+    doc = parse_ecf_file(path)
+    for b in doc.iter_blocks():
+        if b.get('Name') == name or b.get_property('Name') == name:
+            for child in list(b.children):
+                if isinstance(child, EcfProperty):
+                    for k, v in child.pairs:
+                        if k == key and (old_value is None or v == old_value):
+                            remove_property_line(b, child)
+                            atomic_write_text(path, doc.render())
+                            return True
+            return False
+    return False
+
+
+def _find_template_block(path: Path, template_name: str):
+    doc = parse_ecf_file(path)
+    for b in doc.iter_blocks():
+        if b.kind in ("Template", "+Template") and \
+                (b.get('Name') == template_name or b.get_property('Name') == template_name):
+            return doc, b
+    return doc, None
+
+
+def _template_child_inputs(template: EcfBlock) -> Optional[EcfBlock]:
+    for child in template.children:
+        if isinstance(child, EcfBlock) and child.kind == 'Child Inputs':
+            return child
+    return None
+
+
+def set_template_ingredient(templates_path: Path, template_name: str, key: str,
+                             new_quantity: str, old_quantity: Optional[str] = None) -> bool:
+    """Modifie la quantite d'UN ingredient (section 'Child Inputs' du
+    Template) dans Templates.ecf -- edition directe depuis la fiche de
+    l'arbre technologique. Retourne False si Template/ingredient introuvable."""
+    doc, template = _find_template_block(templates_path, template_name)
+    if template is None:
+        return False
+    child_inputs = _template_child_inputs(template)
+    if child_inputs is None:
+        return False
+    for child in child_inputs.children:
+        if isinstance(child, EcfProperty):
+            for i, (k, v) in enumerate(child.pairs):
+                if k == key and (old_quantity is None or v == old_quantity):
+                    child.pairs[i] = (key, new_quantity)
+                    child.dirty = True
+                    atomic_write_text(templates_path, doc.render())
+                    return True
+    return False
+
+
+def add_template_ingredient(templates_path: Path, template_name: str,
+                             key: str, quantity: str) -> bool:
+    """Ajoute UN ingredient au Template (action explicite depuis la fiche) --
+    passe par add_child_inputs qui cree OU complete la section 'Child
+    Inputs' avec l'indent correct quel que soit le niveau."""
+    if not key.strip():
+        return False
+    from .ecf.block_creation import add_child_inputs
+    doc, template = _find_template_block(templates_path, template_name)
+    if template is None:
+        return False
+    add_child_inputs(template, [(key.strip(), quantity)])
+    atomic_write_text(templates_path, doc.render())
+    return True
+
+
+def remove_template_ingredient(templates_path: Path, template_name: str, key: str,
+                                old_quantity: Optional[str] = None) -> bool:
+    """Supprime UN ingredient du Template. Retourne False si introuvable."""
+    doc, template = _find_template_block(templates_path, template_name)
+    if template is None:
+        return False
+    child_inputs = _template_child_inputs(template)
+    if child_inputs is None:
+        return False
+    for child in list(child_inputs.children):
+        if isinstance(child, EcfProperty):
+            for k, v in child.pairs:
+                if k == key and (old_quantity is None or v == old_quantity):
+                    remove_property_line(child_inputs, child)
+                    atomic_write_text(templates_path, doc.render())
+                    return True
+    return False
+
+
+def set_template_output_count(templates_path: Path, template_name: str,
+                               new_count: str) -> bool:
+    """Modifie OutputCount (scalaire du Template). Retourne False si absent
+    (pas de creation a l'aveugle -- coherent avec set_unlock_level)."""
+    doc, template = _find_template_block(templates_path, template_name)
+    if template is None:
+        return False
+    if template.get_property('OutputCount') is None:
+        return False
+    if not template.set_property('OutputCount', new_count):
+        return False
+    atomic_write_text(templates_path, doc.render())
+    return True
