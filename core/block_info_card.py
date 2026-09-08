@@ -121,6 +121,10 @@ class BlockInfoCard:
     icon_key: str
     root_identity: str = ""
     description_html: Optional[str] = None
+    # Cle de localisation pointee par la propriete 'Info:' du bloc (YAML-009
+    # voisin : le descriptif VIT dans Localization.csv, pas dans l'ECF) --
+    # None si le bloc n'a pas de propriete Info (cas creation).
+    info_key: Optional[str] = None
     stat_fields: List[InfoCardField] = field(default_factory=list)
     unlock_fields: List[InfoCardField] = field(default_factory=list)
     crafting_header: Optional[str] = None
@@ -389,6 +393,7 @@ def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str
         icon_key=icon_key,
         root_identity=block_identity(block) or name,
         description_html=description_html,
+        info_key=info_key.strip() if info_key else None,
         stat_fields=_collect_display_fields(block, loc, language, show_all=show_all),
     )
 

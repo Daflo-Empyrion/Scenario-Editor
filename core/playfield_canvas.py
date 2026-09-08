@@ -87,8 +87,34 @@ class CanvasEntity:
 def extract_canvas_entities(doc) -> List[CanvasEntity]:
     """Extrait toutes les entites affichables d'un playfield, en reutilisant
     exclusivement les fonctions de core/playfield_editor.py deja verifiees
-    contre de vrais fichiers plutot que de reimplementer une extraction."""
+    contre de vrais fichiers plutot que de reimplementer une extraction.
+
+    Resolution APPROXIMATIVE des POI Random (MAP-001, fichier RE2 reel :
+    60+ POI mais 1 seul affiche) : les SpawnPOINear forment des CHAINES --
+    'R2AntennaStory pres de NullPOI, NullPOI pres de START' -- resolues ici
+    par propagation iterative : START = position du premier point d'apparition
+    joueur (Fallback : premier POI Fixed), puis chaque Random dont une
+    reference devient connue herite de cette position APPROXIMATIVE (rayon =
+    milieu de SpawnPOINearRange). Un POI Random n'a JAMAIS de position
+    editable (pas de pos_property_key) : le deplacement reste reserve aux
+    POI Fixed, une position Random est un centre de dispersion, pas un
+    emplacement."""
     entities: List[CanvasEntity] = []
+
+    # Points d'apparition joueur d'abord : servent d'ancrage 'START' pour la
+    # resolution des chaines SpawnPOINear (tres frequent dans les fichiers RE2).
+    start_anchor: Optional[Tuple[float, float, float]] = None
+    start_items: List[CanvasEntity] = []
+    for item in find_fixed_player_start_items(doc):
+        params = dict(get_item_params(item))
+        pos = parse_pos_3d(params.get("Pos"))
+        entity = CanvasEntity(
+            kind="player_start", name=f"Start ({item.value})", position=pos,
+            faction="Admin", extra=params, source_item=item, pos_property_key="Pos",
+        )
+        start_items.append(entity)
+        if pos is not None and start_anchor is None:
+            start_anchor = pos
 
     fixed_positions: Dict[str, Tuple[float, float, float]] = {}
     for item in find_fixed_poi_items(doc):
@@ -102,44 +128,77 @@ def extract_canvas_entities(doc) -> List[CanvasEntity]:
             kind="poi_fixed", name=name, position=pos, faction=faction,
             extra=params, source_item=item, pos_property_key="Pos",
         ))
+    if start_anchor is None:
+        # Aucun point d'apparition positionne : START retombe sur le premier
+        # POI Fixed positionne (vaut mieux que rien pour amorcer les chaines).
+        start_anchor = next(iter(fixed_positions.values()), None)
 
+    # Positions connues pour la resolution : POI Fixed + START. S'etend au fur
+    # et a mesure avec les Random resolus (propagation de chaines).
+    known_positions: Dict[str, Tuple[float, float, float]] = dict(fixed_positions)
+    if start_anchor is not None:
+        known_positions.setdefault("START", start_anchor)
+
+    random_entries: List[Tuple[dict, str]] = []
     for item in find_random_poi_items(doc):
         params = dict(get_item_params(item))
         name = params.get("GroupName") or item.value or "?"
-        faction = params.get("Faction", "None")
-        # Tente de resoudre une position approximative via SpawnPOINear, s'il
-        # reference un POI Fixed connu -- reste souvent non resolu sur un
-        # scenario reel (les Random referencent le plus souvent d'autres
-        # Random, pas des Fixed), c'est un cas attendu, pas une erreur :
-        # l'entite est alors simplement non affichee (position=None).
-        center = None
-        radius = None
-        spawn_near = params.get("SpawnPOINear")
-        if spawn_near:
-            for ref in parse_bracketed_list(spawn_near):
-                if ref in fixed_positions:
-                    center = fixed_positions[ref]
-                    break
+        random_entries.append((params, name))
+
+    def _radius_of(params: dict) -> Optional[float]:
         spawn_range = params.get("SpawnPOINearRange")
-        if spawn_range and center:
-            rng = parse_bracketed_list(spawn_range)
-            if len(rng) >= 2:
-                lo = parse_float_or(rng[0], None)
-                hi = parse_float_or(rng[1], None)
-                if lo is not None and hi is not None:
-                    radius = (lo + hi) / 2.0
+        if not spawn_range:
+            return None
+        rng = parse_bracketed_list(spawn_range)
+        if len(rng) >= 2:
+            lo = parse_float_or(rng[0], None)
+            hi = parse_float_or(rng[1], None)
+            if lo is not None and hi is not None:
+                return (lo + hi) / 2.0
+        return None
+
+    # Passe iterative : tant qu'un Random non resolu reference une position
+    # devenue connue, il est place (approximatif) et peut lui-meme servir de
+    # reference. Converge en quelques passes sur un vrai fichier (chaine
+    # NullPOI -> R2AntennaStory -> R2JunkAkua -> ...).
+    pending = list(random_entries)
+    for _ in range(32):
+        progress = False
+        still_pending = []
+        for params, name in pending:
+            center = None
+            spawn_near = params.get("SpawnPOINear")
+            if spawn_near:
+                for ref in parse_bracketed_list(spawn_near):
+                    if ref in known_positions:
+                        center = known_positions[ref]
+                        break
+            if center is not None:
+                known_positions.setdefault(name, center)
+                entities.append(CanvasEntity(
+                    kind="poi_random", name=name, position=center,
+                    radius=_radius_of(params),
+                    faction=params.get("Faction", "None"),
+                    extra=params, source_item=None,
+                ))
+                progress = True
+            else:
+                still_pending.append((params, name))
+        pending = still_pending
+        if not pending or not progress:
+            break
+
+    # Non resolus (aucune reference connue) : entite sans position -- comptee
+    # dans "sans position" du canvas, jamais inventee.
+    for params, name in pending:
         entities.append(CanvasEntity(
-            kind="poi_random", name=name, position=center, radius=radius,
-            faction=faction, extra=params, source_item=item,
+            kind="poi_random", name=name, position=None,
+            radius=_radius_of(params),
+            faction=params.get("Faction", "None"),
+            extra=params, source_item=None,
         ))
 
-    for item in find_fixed_player_start_items(doc):
-        params = dict(get_item_params(item))
-        pos = parse_pos_3d(params.get("Pos"))
-        entities.append(CanvasEntity(
-            kind="player_start", name=f"Start ({item.value})", position=pos,
-            faction="Admin", extra=params, source_item=item, pos_property_key="Pos",
-        ))
+    entities.extend(start_items)
 
     for item in find_space_resource_items(doc):
         # Position volontairement None -- voir le commentaire de tete de

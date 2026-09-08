@@ -357,7 +357,9 @@ def test_p6_status_label_refreshed_after_project_resume(qapp, monkeypatch, tmp_p
     scenario = scan_scenario(tmp_path)
 
     win = _make_window(qapp, monkeypatch, tmp_path)
-    assert "Aucun projet ouvert" in win.status_project_label.text()
+    # libelle localise (la machine de test peut etre en EN)
+    from core.i18n import t
+    assert t("status.no_project") in win.status_project_label.text()
 
     record = ProjectRecord(source_a=str(tmp_path), working=str(tmp_path))
     monkeypatch.setattr(win, "_remember_current_project", lambda: None)
@@ -365,6 +367,7 @@ def test_p6_status_label_refreshed_after_project_resume(qapp, monkeypatch, tmp_p
 
     assert win.workspace is not None
     assert tmp_path.name in win.status_project_label.text()
-    assert "Aucun projet ouvert" not in win.status_project_label.text()
+    assert t("status.no_project") not in win.status_project_label.text()
     # et le libelle du bandeau copie de travail est aussi rafraichi
-    assert win.label_working.text() == "Copie de travail (modifiable)" or "Copie de travail" in win.label_working.text()
+    assert ("Copie de travail" in win.label_working.text()
+            or "Working copy" in win.label_working.text())

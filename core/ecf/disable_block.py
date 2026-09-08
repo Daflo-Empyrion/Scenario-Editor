@@ -137,3 +137,81 @@ def enable_disabled_block(doc: EcfDocument, disabled: DisabledBlock) -> bool:
 
     doc.nodes[disabled.header_index:disabled.end_index + 1] = [new_blocks[0]]
     return True
+
+
+# ============================================================================
+# Blocs DESACTIVEES NATIVEMENT (commentes par l'auteur du fichier, pas par
+# l'application) -- YAML-009 cote ECF
+# ============================================================================
+
+@dataclass
+class NativeCommentedBlock:
+    """Un bloc ECF entierement commente dans le fichier source (ex: '#{ +Block',
+    '#  Id: 5'..., '#}') -- que l'auteur avait desactive AVANT l'import, sans
+    passer par la fonction disable_block() de l'application."""
+    label: str   # lisible : kind + Id/Name extraits du texte commente
+    nodes: list  # [EcfComment | EcfBlank] du bloc, dans l'ordre du fichier
+
+
+def find_native_commented_blocks(doc) -> List[NativeCommentedBlock]:
+    """Trouve les blocs commentes NATIFS : un run de commentaires qui ouvre une
+    accolade ('#{ +Block', '# { +Item'...) et se ferme par un commentaire avec
+    '}'. Les lignes vides intercalees font partie du bloc. Ne modifie rien."""
+    from .model import EcfComment
+
+    def _body(raw: str) -> str:
+        return raw.lstrip().lstrip('#').strip()
+
+    found: List[NativeCommentedBlock] = []
+    run: list = []
+    in_block = False
+
+    def _flush():
+        nonlocal run, in_block
+        if in_block and run:
+            text = " ".join(_body(n.raw) for n in run if hasattr(n, 'raw'))
+            m_id = re.search(r'\bId:\s*(\d+)', text)
+            m_name = re.search(r'\bName:\s*"?([^"\r\n}]+)"?', text)
+            m_kind = re.search(r'[{\s][-+]?\s*([A-Za-z]\w*)', text)
+            label = (m_kind.group(1) if m_kind else "Bloc")
+            ident = m_id.group(1) if m_id else (m_name.group(1).strip() if m_name else "?")
+            found.append(NativeCommentedBlock(label=f"{label} [{ident}]", nodes=list(run)))
+        run = []
+        in_block = False
+
+    for node in doc.nodes:
+        if isinstance(node, EcfComment):
+            body = _body(node.raw)
+            if not in_block and '{' in body:
+                _flush()
+                in_block = True
+                run.append(node)
+                if '}' in body:
+                    _flush()
+            elif in_block:
+                run.append(node)
+                if '}' in body:
+                    _flush()
+            else:
+                _flush()
+        elif isinstance(node, EcfBlank):
+            if in_block:
+                run.append(node)
+        else:
+            _flush()
+    _flush()
+    return found
+
+
+def uncomment_native_block(block: NativeCommentedBlock) -> None:
+    """Reactiver un bloc commente nativement : retire les '#' de chaque ligne
+    (EN MEMOIRE) ; l'appelant re-parse ensuite le document et rafraichit."""
+    from .model import EcfComment
+    for node in block.nodes:
+        if isinstance(node, EcfComment):
+            stripped = node.raw.lstrip()
+            indent = node.raw[:len(node.raw) - len(stripped)]
+            body = stripped.lstrip('#')
+            if body.startswith((' ', '{')):
+                body = body.lstrip() if body.startswith('{') else body
+            node.raw = indent + body

@@ -56,7 +56,7 @@ from gui.theme import icon, icon_size
 from gui.msgboxes import ask_yes_no
 from gui import theme as _theme
 from gui.neon_delegate import NeonItemDelegate
-from gui.csv_edit_widget import TranslationResultDialog
+from gui.csv_edit_widget import TranslationResultDialog, mark_modified
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
@@ -430,6 +430,11 @@ class TransformDialog(QDialog):
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.key_input.setCompleter(completer)
         self.key_input.textEdited.connect(self._on_key_typed_manually)
+        # ECF-024 : valider une suggestion du completer n'emet PAS textEdited
+        # (insertion programmatique) -- la case correspondante restait
+        # decochee, obligeant a defiler la liste pour la cocher a la main.
+        self._key_sync_in_progress = False
+        self.key_input.textChanged.connect(self._on_key_text_changed)
 
         form = QFormLayout()
         self.op_combo = QComboBox()
@@ -560,6 +565,25 @@ class TransformDialog(QDialog):
         self.keys_list.blockSignals(False)
         self.key_input.setText(changed_item.data(Qt.ItemDataRole.UserRole))
         self._update_field_visibility()
+
+    def _on_key_text_changed(self, text):
+        """Synchronisation champ -> liste : coche la case de la cle exactement
+        saisie (suggestion d'autocompletion validee, ou nom tape en entier),
+        decoche les autres. Garde _key_sync_in_progress pour eviter la
+        recursion avec _on_key_checkbox_changed (qui fait setText)."""
+        if self._key_sync_in_progress:
+            return
+        self._key_sync_in_progress = True
+        try:
+            key = text.strip()
+            self.keys_list.blockSignals(True)
+            for i in range(self.keys_list.count()):
+                item = self.keys_list.item(i)
+                match = bool(key) and item.data(Qt.ItemDataRole.UserRole) == key
+                item.setCheckState(Qt.CheckState.Checked if match else Qt.CheckState.Unchecked)
+            self.keys_list.blockSignals(False)
+        finally:
+            self._key_sync_in_progress = False
 
     def _on_key_typed_manually(self, _text):
         """Taper directement dans le champ decoche toute selection faite dans la
@@ -960,7 +984,6 @@ class EcfEditWidget(QWidget):
         # toujours refleter l'etat le plus a jour, y compris un Template
         # tout juste cree par duplication et encore non enregistre).
         self._info_card = None
-        self._info_card_localization_index = None
         self._info_card_icon_index = None
         self._undo_stack: list = []  # textes serialises (fidelite deja prouvee par le parser)
         self._undo_max = 20
@@ -1034,8 +1057,9 @@ class EcfEditWidget(QWidget):
         toolbar.addStretch()
         layout.addLayout(toolbar, 0)
 
-        from PyQt6.QtGui import QKeySequence, QShortcut
-        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
+        # Ctrl+Z gere par le raccourci UNIQUE de la fenetre principale
+        # (main_window._global_undo) : un QShortcut ici aussi le rendrait
+        # ambigu (ECF-005).
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -1120,11 +1144,17 @@ class EcfEditWidget(QWidget):
     def undo(self):
         if not self._undo_stack:
             return
+        # ECF-017 : conserver l'endroit ou l'utilisateur se trouvait -- apres
+        # reconstruction de l'arbre, on re-selectionne le bloc courant (par
+        # identite Id/Name) au lieu de laisser la selection en haut de l'arbre.
+        previous_identity = block_identity(self._current_block) if self._current_block else None
         previous_text = self._undo_stack.pop()
         self.doc = parse_ecf_text(previous_text)
         self._current_block = None
         self.props_table.setRowCount(0)
         self._populate_tree()
+        if previous_identity is None or not self.select_block_by_identity(previous_identity):
+            self._refresh_props_table()
         self._set_modified(True)
         if not self._undo_stack:
             self.btn_undo.setEnabled(False)
@@ -1135,9 +1165,36 @@ class EcfEditWidget(QWidget):
 
     def _populate_tree(self):
         self.tree.clear()
+        # TECH-008 : les QTreeWidgetItem referencies par la recherche viennent
+        # d'etre detruits (clear) -- conserver _search_matches reviendrait a
+        # faire setCurrentItem() sur un objet C++ mort (RuntimeError), et la
+        # recherche restait bloquee jusqu'a fermeture/réouverture du fichier.
+        self._search_matches = []
+        self._search_index = -1
+        self._search_last_query = ""
         group_before, label_by_block_id = self.doc.scan_section_groups_and_labels()
         self._label_by_block_id = label_by_block_id
+        # YAML-009 cote ECF : blocs commentes NATIVEMENT dans le fichier ->
+        # entrees GRISEES dans l'arbre, reactivables au clic droit.
+        from core.ecf.disable_block import find_native_commented_blocks
+        native_by_start = {}
+        consumed = set()
+        for nb in find_native_commented_blocks(self.doc):
+            if nb.nodes:
+                native_by_start[id(nb.nodes[0])] = nb
+                for extra in nb.nodes[1:]:
+                    consumed.add(id(extra))
         for index, node in enumerate(self.doc.nodes):
+            if id(node) in consumed:
+                continue
+            nb = native_by_start.get(id(node))
+            if nb is not None:
+                gray = QTreeWidgetItem([t("ecf.native_commented_label", label=nb.label)])
+                gray.setFlags(gray.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                gray.setForeground(0, QBrush(QColor("#8a8a8a")))
+                gray.setData(0, Qt.ItemDataRole.UserRole, nb)
+                self.tree.addTopLevelItem(gray)
+                continue
             if index in group_before:
                 self.tree.addTopLevelItem(self._make_group_header_item(group_before[index]))
             if isinstance(node, EcfBlock):
@@ -1342,10 +1399,15 @@ class EcfEditWidget(QWidget):
         self._show_info_card_for(block)
 
     def _get_info_card_localization_index(self):
-        if self._info_card_localization_index is None:
-            from core.localization_lookup import build_localization_index
-            self._info_card_localization_index = build_localization_index(self.working_root)
-        return self._info_card_localization_index
+        """Retourne l'index de localisation FRAIS : build_localization_index
+        est deja cache au niveau module (cle = mtime+taille des sources), donc
+        l'appel est gratuit quand rien n'a change et RELIT le disque des que
+        Localization.csv a change. L'ancien cache au niveau widget (posé une
+        fois au premier clic, jamais invalide) faisait qu'une description
+        modifiee n'apparaissait qu'apres fermeture/reouverture du fichier --
+        retour utilisateur du 07/09/2026 (fiche descriptif)."""
+        from core.localization_lookup import build_localization_index
+        return build_localization_index(self.working_root)
 
     def _get_info_card_templates_doc(self):
         """Cherche TOUJOURS l'etat le PLUS A JOUR de Templates.ecf -- bug
@@ -1423,6 +1485,7 @@ class EcfEditWidget(QWidget):
             self._info_card.property_remove_requested.connect(self._on_card_property_remove)
             self._info_card.ingredient_add_requested.connect(self._on_card_ingredient_add)
             self._info_card.ingredient_remove_requested.connect(self._on_card_ingredient_remove)
+            self._info_card.description_edit_requested.connect(self._on_card_description_edit)
         # Ne repositionne QUE lors d'une VRAIE ouverture (fiche fermee, ou
         # affichant deja un AUTRE bloc) -- un simple rafraichissement (meme
         # bloc, ex: apres edition d'une propriete) ne doit jamais annuler un
@@ -1457,7 +1520,9 @@ class EcfEditWidget(QWidget):
         tableau de proprietes (demande du 31/08/2026) -- valeurs observees
         dans le fichier ouvert pour le genre du bloc affiche, triees par
         frequence, saisie libre toujours possible. Les variantes '+Block'/
-        '+Item' (patchs du jeu) sont fondues dans le meme pool."""
+        '+Item' (patchs du jeu) sont fondues dans le meme pool. FICHE-006 :
+        un pool GLOBAL (tous genres) complete les cles absentes -- sinon un
+        bloc au genre unique offrait un formulaire d'ajout VIDE."""
         block = self._find_block_for_card() or self._current_block
         if block is None:
             return {}
@@ -1470,6 +1535,9 @@ class EcfEditWidget(QWidget):
                     merged[key] = counter
                 else:
                     total.update(counter)
+        for key, counter in scan_properties_for_kind(self.doc, None).items():
+            if key not in merged:
+                merged[key] = counter
         return {key: [v for v, _c in counter.most_common()]
                 for key, counter in merged.items()}
 
@@ -1890,18 +1958,26 @@ class EcfEditWidget(QWidget):
             if tooltip:
                 item_k.setToolTip(tooltip)
             if id(prop_node) in self._edited_prop_nodes:
-                item_k.setBackground(COLOR_MODIFIED_ROW)
-                item_v.setBackground(COLOR_MODIFIED_ROW)
+                mark_modified(item_k)
+                mark_modified(item_v)
             self.props_table.setItem(i, 0, item_k)
             self.props_table.setItem(i, 1, item_v)
 
         # Liste deroulante (editable) sur CHAQUE cellule de valeur -- valeurs
         # observees dans le fichier pour la propriete de la ligne, triees par
         # frequence (demande explicite de l'utilisateur du 30/08/2026).
+        # ECF-001 : le pool limite aux blocs du MEME GENRE laissait une liste
+        # vide des qu'un bloc avait un genre unique dans le fichier (aucune
+        # autre occurrence du genre = aucun historique) -- un pool GLOBAL
+        # (meme cle, tous genres confondus) sert desormais de repli.
         from core.ecf.block_creation import scan_properties_for_kind
         observed = scan_properties_for_kind(self.doc, block.kind)
         values_by_key = {key: [v for v, _c in counter.most_common()]
                          for key, counter in observed.items()}
+        observed_all = scan_properties_for_kind(self.doc, None)
+        for key, counter in observed_all.items():
+            if not values_by_key.get(key):
+                values_by_key[key] = [v for v, _c in counter.most_common()]
         self.props_table.setItemDelegateForColumn(
             1, _PropertyValueDelegate(values_by_key, self.props_table))
 
@@ -1946,8 +2022,8 @@ class EcfEditWidget(QWidget):
             item_value.setData(Qt.ItemDataRole.UserRole, (prop, first_key))
             modified = id(prop) in self._edited_prop_nodes
             if modified:
-                item_type.setBackground(COLOR_MODIFIED_ROW)
-                item_value.setBackground(COLOR_MODIFIED_ROW)
+                mark_modified(item_type)
+                mark_modified(item_value)
             self.props_table.setItem(row, 0, item_type)
             self.props_table.setItem(row, 1, item_value)
 
@@ -1956,7 +2032,7 @@ class EcfEditWidget(QWidget):
                 cell = QTableWidgetItem(pairs_by_key.get(param_key, ""))
                 cell.setData(Qt.ItemDataRole.UserRole, (prop, param_key))
                 if modified:
-                    cell.setBackground(COLOR_MODIFIED_ROW)
+                    mark_modified(cell)
                 self.props_table.setItem(row, 2 + col_idx, cell)
 
     def _on_cell_changed(self, item: QTableWidgetItem):
@@ -2034,8 +2110,14 @@ class EcfEditWidget(QWidget):
         self._edited_prop_nodes.add(id(prop_node))
         self._set_modified(True)
         self.props_table.blockSignals(True)
-        item.setBackground(COLOR_MODIFIED_ROW)
+        mark_modified(item)
         self.props_table.blockSignals(False)
+        # ECF-003 : repercuter le surlignage sur la colonne GAUCHE (bloc
+        # courant dans l'arbre) -- la modification etait invisible tant qu'on
+        # ne regardait pas le tableau de droite.
+        tree_item = self.tree.currentItem()
+        if tree_item is not None:
+            mark_modified(tree_item, 0)
         if self._current_block is not None:
             self._refresh_info_card_if_showing(self._current_block)
 
@@ -2184,12 +2266,52 @@ class EcfEditWidget(QWidget):
         if not self._current_block:
             QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
             return
-        key, ok = QInputDialog.getText(self, t("ecf.add_property_title"), t("ecf.property_name_label"))
-        if not ok or not key.strip():
+        # ECF-008 : cles et valeurs OBSERVEES dans le fichier ouvert proposes
+        # en listes deroulantes EDITABLES (saisie libre toujours possible),
+        # au lieu de deux champs de saisie a vide ; la valeur proposee suit la
+        # cle choisie. Meme discipline que partout ailleurs (regle projet).
+        from core.ecf.block_creation import scan_properties_for_kind
+        observed = scan_properties_for_kind(self.doc, None)
+        values_by_key = {k: [v for v, _c in c.most_common()] for k, c in observed.items()}
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("ecf.add_property_title"))
+        form = QFormLayout(dialog)
+        key_combo = QComboBox()
+        key_combo.setEditable(True)
+        key_combo.addItems(sorted(values_by_key.keys()))
+        value_label = QLabel(t("ecf.property_value_label", key=key_combo.currentText().strip()))
+        value_label.setWordWrap(True)
+        value_combo = QComboBox()
+        value_combo.setEditable(True)
+
+        def _fill_values():
+            key = key_combo.currentText().strip()
+            value_label.setText(t("ecf.property_value_label", key=key))
+            current = value_combo.currentText()
+            value_combo.clear()
+            value_combo.addItems(values_by_key.get(key, []))
+            value_combo.setCurrentText(current)
+
+        key_combo.currentTextChanged.connect(_fill_values)
+        _fill_values()
+        form.addRow(t("ecf.property_name_label"), key_combo)
+        form.addRow(value_label, value_combo)
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton(t("btn.add_property"))
+        btn_ok.setObjectName("primaryButton")
+        btn_ok.clicked.connect(dialog.accept)
+        buttons.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(dialog.reject)
+        buttons.addWidget(btn_cancel)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        value, ok = QInputDialog.getText(self, t("ecf.add_property_title"),
-                                          t("ecf.property_value_label", key=key))
-        if not ok:
+        key = key_combo.currentText().strip()
+        value = value_combo.currentText()
+        if not key:
             return
         self._snapshot_undo()
 
@@ -2204,14 +2326,17 @@ class EcfEditWidget(QWidget):
         from core.ecf.parser import _parse_pairs
         extra = _parse_pairs(value.strip())
         if len(extra) > 1 and extra[0][0] is None:
-            pairs = [(key.strip(), extra[0][1])] + extra[1:]
+            pairs = [(key, extra[0][1])] + extra[1:]
         else:
-            pairs = [(key.strip(), value.strip())]
+            pairs = [(key, value.strip())]
 
         new_prop = add_property_line(self._current_block, pairs)
         if settings.get_annotations_enabled():
             author = settings.get_author()
             annotate_property(new_prop, f"# Ajoute par {author}")
+        # ECF-008 : surlignage immediat de l'ajout (tableau de droite), comme
+        # pour toute autre edition.
+        self._edited_prop_nodes.add(id(new_prop))
         self._set_modified(True)
         self._refresh_props_table()
 
@@ -2264,21 +2389,129 @@ class EcfEditWidget(QWidget):
     # Blocs : ajout / suppression
     # ------------------------------------------------------------------
 
+    def _activate_native_block(self, nb):
+        """YAML-009 cote ECF : reactiver un bloc commente nativement --
+        de-commentation (undo snapshot AVANT), re-parse complet du document."""
+        from core.ecf.disable_block import uncomment_native_block
+        self._snapshot_undo()
+        uncomment_native_block(nb)
+        self.doc = parse_ecf_text(self.doc.render())
+        self._current_block = None
+        self._populate_tree()
+        self._set_modified(True)
+
+    def _on_card_description_edit(self):
+        """Edition du DESCRIPTIF de la fiche (bouton crayon) : le texte vit
+        dans Extras/Localization.csv (ligne = cle pointee par la propriete
+        'Info:' du bloc), PAS dans l'ECF -- on ecrit donc le CSV (FR + EN,
+        ecriture atomique + undo global) et, si le bloc n'avait pas de
+        propriete Info, on la cree d'abord sur le bloc (meme discipline que
+        toute edition du tableau : snapshot, annotation, marqueur modifie)."""
+        block = self._current_block or self._find_block_for_card()
+        if block is None or self.working_root is None:
+            return
+        name = block.get('Name') or block.get_property('Name') or ''
+        info_key = (block.get_property('Info') or '').strip()
+        from core.localization_lookup import (
+            build_localization_index, write_scenario_localization_entries,
+            SCENARIO_LOCALIZATION_RELATIVE_PATH,
+        )
+        from gui.block_info_card_widget import DescriptionEditDialog
+
+        loc = build_localization_index(self.working_root)
+        if info_key:
+            fr_text = loc.get(info_key, 'fr') or ''
+            en_text = loc.get(info_key, 'en') or ''
+            creating = False
+        else:
+            fr_text = en_text = ''
+            creating = True
+        key_to_use = info_key or (name + 'Desc')
+
+        dialog = DescriptionEditDialog(key_to_use, fr_text, en_text,
+                                       creating=creating, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        fr_text, en_text = dialog.get_texts()
+        if not key_to_use:
+            QMessageBox.warning(self, t("block_info.desc_edit_title"),
+                                t("block_info.desc_no_name"))
+            return
+
+        # 1) ECF : propriete Info absente -> la creer sur le bloc (onglet ouvert)
+        if not info_key:
+            self._snapshot_undo()
+            new_prop = add_property_line(block, [('Info', key_to_use)])
+            if settings.get_annotations_enabled():
+                annotate_property(new_prop, f"# Ajoute par {settings.get_author()}")
+            self._edited_prop_nodes.add(id(new_prop))
+            self._set_modified(True)
+            self._refresh_props_table()
+
+        # 2) CSV : ecriture FR/EN atomique + undo global + rechargement onglet
+        from core.workspace_undo import capture_file, FileStateUndo
+        csv_path = self.working_root.joinpath(*SCENARIO_LOCALIZATION_RELATIVE_PATH)
+        prior = capture_file(csv_path)
+        write_scenario_localization_entries(
+            self.working_root, {key_to_use: {'English': en_text, 'Français': fr_text}})
+        main_window = self.window()
+        if hasattr(main_window, '_push_workspace_undo'):
+            main_window._push_workspace_undo(FileStateUndo(
+                csv_path, prior,
+                t("block_info.desc_edit_undo", key=key_to_use)))
+            if main_window.workspace:
+                main_window.workspace.rescan_working()
+            main_window._reload_tab_if_open_and_unmodified(csv_path)
+
+        # 3) la fiche relit la localisation fraiche
+        self._info_card.refresh()
+        if hasattr(main_window, 'statusBar'):
+            main_window.statusBar().showMessage(
+                t("block_info.desc_edit_done", key=key_to_use), 8000)
+
+    def _create_template_for_block(self, block: EcfBlock):
+        """FUS-004 : creation d'un Template depuis le clic droit sur un bloc
+        (cas : item/bloc du scenario non prevu au craft). Delegue au chemin
+        existant via la fenetre principale, en ciblant le NOM du bloc."""
+        name = block.get_property('Name')
+        if not name:
+            QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
+            return
+        main_window = self.window()
+        if hasattr(main_window, '_offer_template_for_merged_block'):
+            main_window._offer_template_for_merged_block(block, self.path)
+
     def _show_tree_context_menu(self, pos):
         item = self.tree.itemAt(pos)
         if not item:
             return
-        block = item.data(0, Qt.ItemDataRole.UserRole)
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        from core.ecf.disable_block import NativeCommentedBlock
+        if isinstance(data, NativeCommentedBlock):
+            menu = QMenu(self)
+            action_enable = menu.addAction(
+                t("ecf.activate_native_action", label=data.label))
+            chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
+            if chosen == action_enable:
+                self._activate_native_block(data)
+            return
+        block = data
         if not isinstance(block, EcfBlock):
             return
         menu = QMenu(self)
         action_duplicate = menu.addAction(t("dup.duplicate"))
+        # FUS-004 : creer un Template pour CE bloc (bloc present au craft mais
+        # sans recette) -- meme chemin que la proposition post-fusion
+        # (main_window._offer_template_for_merged_block -> template_tools).
+        action_template = menu.addAction(t("ecf.create_template_action"))
         menu.addSeparator()
         action_disable = menu.addAction(t("ecf.disable_block_action"))
         action_del = menu.addAction(t("ecf.delete_block_action"))
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
         if chosen == action_duplicate:
             self._duplicate_block_action(block)
+        elif chosen == action_template:
+            self._create_template_for_block(block)
         elif chosen == action_disable:
             if ask_yes_no(self, t("merge.confirm_title"),
                           t("ecf.confirm_disable_block", name=item.text(0))):
@@ -2347,7 +2580,10 @@ class EcfEditWidget(QWidget):
 
         dialog = DuplicateVariantsDialog(current_id, current_name, suggestions, numeric_fields,
                                           parent=self, show_id_field=True, source_block=block,
-                                          values_by_key=values_by_key)
+                                          values_by_key=values_by_key,
+                                          existing_names={
+                                              n for n in (b.get_property('Name') for b in self.doc.iter_blocks())
+                                              if n})
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -2635,6 +2871,15 @@ class EcfEditWidget(QWidget):
         # FR/EN tout de suite, comme la duplication le fait deja.
         self._offer_localization_adjustment(None, [table_dialog.result_name]
                                             if table_dialog.result_name else [])
+        # ECF-010 : proposer d'ouvrir la FICHE D'INFO EDITABLE du bloc fraichement
+        # cree (completer Icon/Description/masse/volume... sans le chercher dans
+        # l'arbre). PAS proposee dans Templates.ecf lui-meme (meme regle que
+        # _maybe_propose_template : edition directe du fichier de recettes).
+        if self.path.name.lower() != 'templates.ecf' and                 self.select_block_by_identity(table_dialog.result_name or table_dialog.result_id):
+            if ask_yes_no(self, t("addblock.ask_infocard_title"),
+                          t("addblock.ask_infocard_msg", name=created_name)):
+                if self._current_block is not None:
+                    self._show_info_card_for(self._current_block)
 
     def _check_before_insert(self, new_blocks: list) -> bool:
         """Controle pre-insertion des duplications (meme moteur que la creation

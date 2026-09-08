@@ -378,3 +378,94 @@ def run_checks(ctx: CrossRefContext, check_ids: List[str]) -> List[CrossRefIssue
             continue
         issues.extend(check.run(ctx))
     return issues
+
+
+# ============================================================================
+# Propositions de correction pour les references de dialogues cassees
+# (VERIF-006) -- analyse + application, utilises par l'interface
+# ============================================================================
+
+def collect_dialogue_names(ecf_files: List[Path]) -> List[str]:
+    """Tous les Name des blocs +Dialogue des fichiers donnes, tries -- alimente
+    la liste de choix de la fenetre de correction."""
+    import difflib
+    names: Set[str] = set()
+    for path in ecf_files:
+        try:
+            doc = parse_ecf_file(path)
+        except Exception:
+            continue
+        for block in doc.iter_blocks():
+            if block.kind == '+Dialogue':
+                name = block.get_property('Name')
+                if name:
+                    names.add(name)
+    return sorted(names)
+
+
+def closest_dialogue_name(value: str, names: List[str]) -> Optional[str]:
+    """Le nom de dialogue existant le plus proche de la reference cassee
+    (typo probable) -- None si rien ne se rapproche assez."""
+    import difflib
+    matches = difflib.get_close_matches(value, names, n=1, cutoff=0.75)
+    return matches[0] if matches else None
+
+
+def apply_dialogue_ref_fix(path: Path, source_identity: str, ref_key: str,
+                           ref_value: str, new_value: Optional[str]) -> bool:
+    """Applique la correction choisie SUR DISQUE (ecriture atomique) :
+    - new_value = nom -> remplace la valeur de la reference cassee ;
+    - new_value = None -> RETIRE la paire cassee (et la ligne entiere si elle
+      ne contenait qu'elle).
+    Retourne True si la modification a eu lieu."""
+    from .parser import parse_ecf_file
+    from .model import EcfProperty, block_identity
+    from ..fsutil import atomic_write_text
+
+    doc = parse_ecf_file(path)
+    target = None
+    for block in doc.iter_blocks():
+        if block.kind == '+Dialogue' and block_identity(block) == source_identity:
+            target = block
+            break
+    if target is None:
+        # Repli (fichiers non canoniques ou identite '?' -- verif VERIF-006) :
+        # le +Dialogue contenant EXACTEMENT cette paire (reference, valeur).
+        candidates = []
+        for block in doc.iter_blocks():
+            if block.kind != '+Dialogue':
+                continue
+            for child in block.children:
+                if isinstance(child, EcfProperty) and any(
+                        k == ref_key and v == ref_value for k, v in child.pairs):
+                    candidates.append(block)
+                    break
+        if len(candidates) == 1:
+            target = candidates[0]
+    if target is None:
+        return False
+
+    modified = False
+    for child in list(target.children):
+        if not isinstance(child, EcfProperty):
+            continue
+        if not any(k == ref_key and v == ref_value for k, v in child.pairs):
+            continue
+        if new_value is None and len(child.pairs) == 1:
+            target.children.remove(child)
+            modified = True
+        else:
+            new_pairs = []
+            for k, v in child.pairs:
+                if k == ref_key and v == ref_value:
+                    if new_value is not None:
+                        new_pairs.append((k, new_value))
+                    modified = True
+                    continue
+                new_pairs.append((k, v))
+            child.pairs = new_pairs
+            child.dirty = True
+    if not modified:
+        return False
+    atomic_write_text(path, doc.render())
+    return True

@@ -205,10 +205,24 @@ class ScenarioCompareDialog(QDialog):
         if entry.status == 'unchanged':
             self.detail_view.setPlainText(entry.rel_path)
         elif entry.detail:
-            self.detail_view.setPlainText(f"{entry.rel_path}\n{'=' * len(entry.rel_path)}\n\n{entry.detail}")
+            self.detail_view.setPlainText(f"{entry.rel_path}{nl}{'=' * len(entry.rel_path)}{nl}{nl}{entry.detail}")
+        elif entry.status in ('added', 'removed'):
+            # COMP-002 : un fichier AJOUTE ou SUPPRIME n'a pas de diff possible
+            # -- montrer un APERCU de son contenu (tronque) au lieu d'un
+            # message vide qui ressemblait a un fichier 'non pris en charge'.
+            root = self.result.root_b if entry.status == 'added' else self.result.root_a
+            preview = ""
+            try:
+                raw = (root / entry.rel_path).read_bytes()[:20000]
+                preview = raw.decode('utf-8', errors='replace')
+                if len(raw) == 20000:
+                    preview += nl + "... [tronque]"
+            except (OSError, ValueError) as e:
+                preview = t("compare.preview_error", error=str(e))
+            side = t("compare.side_added") if entry.status == 'added' else t("compare.side_removed")
+            self.detail_view.setPlainText(f"{entry.rel_path} -- {side}{nl}{'=' * len(entry.rel_path)}{nl}{nl}{preview}")
         else:
-            self.detail_view.setPlainText(f"{entry.rel_path}\n\n{t('compare.no_detail')}")
-
+            self.detail_view.setPlainText(f"{entry.rel_path}{nl}{nl}{t('compare.no_detail')}")
     def _export_report(self):
         if not self.result:
             QMessageBox.warning(self, t("err.missing_field"), t("compare.both_required"))

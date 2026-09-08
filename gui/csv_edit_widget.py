@@ -44,6 +44,22 @@ from gui.csv_dialogs import (
 )
 
 COLOR_MODIFIED_CELL = QBrush(QColor(255, 250, 200))
+# ECF-003 : le texte herite du theme (clair sur fond noir en theme sombre)
+# devenait ILLISIBLE sur le jaune pale. Avant-plan brun fonce pose avec chaque
+# surlignage => lisible sur les deux familles de themes.
+FOREGROUND_MODIFIED = QBrush(QColor(74, 54, 0))
+
+
+def mark_modified(item, column: int = None):
+    """Surlignage de modification cohérent : fond jaune pale + avant-plan
+    sombre, quelle que soit la famille de thème. `column=None` pour un
+    QTableWidgetItem (une colonne implicite), sinon un QTreeWidgetItem."""
+    if column is None:
+        item.setBackground(COLOR_MODIFIED_CELL)
+        item.setForeground(FOREGROUND_MODIFIED)
+    else:
+        item.setBackground(column, COLOR_MODIFIED_CELL)
+        item.setForeground(column, FOREGROUND_MODIFIED)
 
 
 class CsvEditWidget(QWidget):
@@ -72,6 +88,7 @@ class CsvEditWidget(QWidget):
         self._search_index = -1
         self._search_last_scope_key = None
         self._batch_worker = None  # traduction en lot en cours (ref forte : sinon le GC tue le QThread en vol)
+        self._highlighted_keys: set = set()  # cles CSV modifiees en memoire par l'editeur PDA
 
         handler = CsvHandler()
         raw = handler.load(path)
@@ -183,7 +200,9 @@ class CsvEditWidget(QWidget):
                       activated=self._do_paste)
             QShortcut(QKeySequence(Qt.Key.Key_Delete), self.table,
                       activated=self._do_delete_content)
-            QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
+            # Pas de QShortcut Undo ici : gere par le raccourci UNIQUE de la
+            # fenetre principale (main_window._global_undo) -- un doublon le
+            # rendrait ambigu (CSV-010).
         layout.addWidget(self.table, 1)
 
     def _populate_table(self):
@@ -212,6 +231,27 @@ class CsvEditWidget(QWidget):
                 val = row[c] if c < len(row) else ""
                 self.table.setItem(r, c, QTableWidgetItem(val))
         self.table.blockSignals(False)
+        self._apply_row_highlights()
+
+    def highlight_touched_rows(self, keys: set):
+        """Surligne les lignes dont la KEY est dans `keys` -- jetons crees ou
+        modifies EN MEMOIRE par l'editeur PDA (core/pda/model.py) ; rend
+        visible ce qui a change dans PDA.csv sans parcourir 9000 lignes.
+        Reapplique automatiquement par _populate_table()."""
+        if not keys:
+            return
+        self._highlighted_keys = {k.strip() for k in keys}
+        self._apply_row_highlights()
+
+    def _apply_row_highlights(self):
+        if not self._highlighted_keys:
+            return
+        for r, row in enumerate(self.doc.rows):
+            if row and row[0].strip() in self._highlighted_keys:
+                for c in range(self.table.columnCount()):
+                    item = self.table.item(r, c)
+                    if item is not None:
+                        mark_modified(item)
 
     def _set_modified(self, value: bool):
         if value != self._modified:
@@ -350,7 +390,7 @@ class CsvEditWidget(QWidget):
         self.doc.rows = rows
 
     def _on_cell_changed(self, item: QTableWidgetItem):
-        item.setBackground(COLOR_MODIFIED_CELL)
+        mark_modified(item)
         self._set_modified(True)
 
     def _add_row(self):

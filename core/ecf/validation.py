@@ -335,27 +335,28 @@ def _check_container_volume(block: EcfBlock, name_index: Dict[str, EcfBlock]) ->
 
 
 def _check_unquoted_commas(block: EcfBlock) -> List[ValidationIssue]:
-    """Detecte les virgules non protegees dans une propriete-liste. Le
-    parseur ECF scinde deja 'AllowPlacingAt: Base,MS' en deux paires
-    distinctes des l'analyse ('AllowPlacingAt': 'Base') puis (None: 'MS') --
-    confirme directement sur notre propre parseur. La signature a detecter
-    n'est donc pas une virgule DANS une valeur, mais une paire LIST_PROPERTIES
-    immediatement suivie sur la meme ligne d'une paire "orpheline" (cle=None)."""
+    """Detecte les virgules non protegees dans une valeur de propriete. Le
+    parseur ECF scinde deja 'SizeBlocks: 4,7' en deux paires distinctes des
+    l'analyse ('SizeBlocks': '4') puis (None: '7') -- confirme directement sur
+    notre propre parseur, ET LA VIRGULE A ALORS DISPARU de la premiere valeur :
+    on ne peut donc PAS la chercher dans le texte. La signature fiable est la
+    paire "orpheline" (cle=None) qui suit une paire normale : aucune syntaxe
+    ECF legale ne produit de paire sans cle. Regle GENERICQUE (v1.6.1, apres
+    VERIF-010 : l'ancienne liste figee AllowPlacingAt/ChildBlocks laissait
+    passer SizeBlocks, TechTreeNames et toute autre propriete-liste)."""
     issues: List[ValidationIssue] = []
     for child in block.children:
         if not isinstance(child, EcfProperty):
             continue
-        for i, (key, value) in enumerate(child.pairs):
-            if key not in LIST_PROPERTIES or value is None:
+        pairs = child.pairs
+        for i, (key, value) in enumerate(pairs):
+            if key is None or value is None:
                 continue
-            stripped = value.strip()
-            if stripped.startswith('"') and stripped.endswith('"'):
-                continue
-            if i + 1 < len(child.pairs) and child.pairs[i + 1][0] is None:
-                orphan_value = child.pairs[i + 1][1]
+            if i + 1 < len(pairs) and pairs[i + 1][0] is None:
+                orphan_value = pairs[i + 1][1]
                 issues.append(ValidationIssue(
                     code='E004', level='error', block=block, property_key=key,
-                    message=(f"Virgule non protegee : '{stripped},{orphan_value}' scinde "
+                    message=(f"Virgule non protegee : '{value},{orphan_value}' scinde "
                              f"en deux -- ecrire {key}: \"...\" entre guillemets.")))
     return issues
 

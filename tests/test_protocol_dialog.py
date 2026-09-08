@@ -44,11 +44,13 @@ def test_protocol_has_gui_category_and_new_cases():
 
 
 def test_protocol_markdown_export_contains_cases():
+    from core.i18n import t
     m = _load_protocol()
     md = m.protocol_to_markdown()
     assert "228 cas" in md or str(len(m.CASES)) in md
     assert "### PROJ-001" in md
-    assert "Resultat attendu" in md
+    # libelle localise du resultat attendu (fr accentue / en)
+    assert t("protocol.md_expected") in md
     # les rev d'incrementation apparaissent
     assert "rev 2" in md
 
@@ -110,7 +112,8 @@ def test_start_session_button_opens_runner(qapp, monkeypatch):
     dlg = tp.TestProtocolDialog()
     runner = dlg._start_session()
     assert runner is not None and runner.isVisible() is True
-    assert runner.windowTitle().startswith("Protocole de test")
+    # le titre porte le nom de l'application quelle que soit la langue
+    assert "Empyrion Scenario Editor" in runner.windowTitle()
     # second appel : la fenetre existante est remise en avant (pas de doublon)
     runner2 = dlg._start_session()
     assert runner2 is runner

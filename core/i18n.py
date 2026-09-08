@@ -42,18 +42,23 @@ def set_language(lang: str) -> None:
     settings.set_language(lang)
 
 
-def t(translation_key: str, **kwargs) -> str:
-    """Traduit `translation_key` dans la langue active. Si la cle est absente, retourne
-    la cle elle-meme (visible et sans plantage -- signale qu'une chaine reste a
-    traduire). Le parametre s'appelle volontairement `translation_key` et non `key` :
-    plusieurs chaines traduites ont elles-memes un placeholder nomme {key} (ex: la cle
-    d'une ligne CSV), et un appel comme t("...", key=ma_valeur) entrerait sinon en
-    collision avec le nom du premier parametre positionnel -- erreur reelle deja
-    rencontree en production (TypeError: t() got multiple values for argument 'key')."""
+def t(translation_key: str, to_lang: str | None = None, **kwargs) -> str:
+    """Traduit `translation_key` dans la langue active (ou `to_lang` si
+    fourni -- utilise pour generer un contenu dans une langue imposee,
+    ex : exports du protocole de test). Si la cle est absente, retourne
+    la cle elle-meme (visible et sans plantage -- signale qu'une chaine
+    reste a traduire). Le parametre s'appelle volontairement
+    `translation_key` et non `key` : plusieurs chaines traduites ont
+    elles-memes un placeholder nomme {key} (ex: la cle d'une ligne CSV),
+    et un appel comme t("...", key=ma_valeur) entrerait sinon en collision
+    avec le nom du premier parametre positionnel -- erreur reelle deja
+    rencontree en production (TypeError: t() got multiple values for
+    argument 'key'). Pareil pour `to_lang` : des appelants passent deja
+    un kwarg metier `lang=` (status.row_translated...)."""
     entry = STRINGS.get(translation_key)
     if entry is None:
         return translation_key
-    lang = get_language()
+    lang = to_lang or get_language()
     text = entry.get(lang, entry.get("fr", translation_key))
     if kwargs:
         try:

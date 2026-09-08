@@ -71,9 +71,11 @@ def test_path_and_edit_widget_flattened_correctly(window_with_scenario):
 def test_tab_title_updates_correctly(window_with_scenario):
     window, config_dir = window_with_scenario
     widget = window.open_working_file_tab(config_dir / "Dialogues.ecf")
+    # OPEN-011 (v1.6.1) : marqueur de modification = point plein (plus
+    # d'etoile, invisible selon l'utilisateur) + icone + texte rouge.
     assert window.tabs.tabText(0) == "✎ Dialogues.ecf"
     widget.edit_widget._set_modified(True)
-    assert window.tabs.tabText(0) == "✎ * Dialogues.ecf"
+    assert window.tabs.tabText(0) == "● Dialogues.ecf"
 
 
 def test_modification_via_ecf_tab_reflects_in_browser_after_save(window_with_scenario):

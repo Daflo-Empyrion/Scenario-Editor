@@ -26,14 +26,29 @@ lancement de sessions (bouton "Commencer une session de tests...", vers
 gui/test_protocol_runner.py) fonctionnent aussi dans la version INSTALLEE.
 Fenetre NON MODALE (meme motif que les autres fenetres de resultats).
 """
+import html
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QTextEdit, QSplitter,
+    QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QTextEdit, QSplitter, QWidget,
 )
 
 from core.i18n import t
-from core.test_protocol import CATEGORIES, cases_by_category, protocol_to_markdown
+from core.test_protocol import (
+    CATEGORIES, cases_by_category, category_label,
+    localized_case, protocol_to_markdown,
+)
+
+
+def _theme_icon(name: str):
+    """Icone qtawesome avec repli propre (QIcon vide si absente)."""
+    try:
+        from gui.theme import icon as _icon
+        return _icon(name)
+    except Exception:
+        from PyQt6.QtGui import QIcon
+        return QIcon()
 
 
 # References fortes : une fenetre runner sans reference Python serait
@@ -93,9 +108,26 @@ class TestProtocolDialog(QDialog):
         self.tree.itemSelectionChanged.connect(self._show_details)
         splitter.addWidget(self.tree)
 
+        details_holder = QWidget()
+        details_lay = QVBoxLayout(details_holder)
+        details_lay.setContentsMargins(0, 0, 0, 0)
+        details_lay.setSpacing(4)
         self.details = QTextEdit()
         self.details.setReadOnly(True)
-        splitter.addWidget(self.details)
+        details_lay.addWidget(self.details, 1)
+        # Barre de copie des commandes du cas selectionne (commandes console
+        # et chemins : un bouton par commande + copie globale).
+        cmds_row = QHBoxLayout()
+        self.btn_copy_all_cmds = QPushButton(t("runner.copy_all_cmds"))
+        self.btn_copy_all_cmds.setObjectName("secondaryButton")
+        self.btn_copy_all_cmds.setIcon(_theme_icon("fa5s.copy"))
+        self.btn_copy_all_cmds.clicked.connect(self._copy_all_cmds)
+        self.btn_copy_all_cmds.setVisible(False)
+        cmds_row.addWidget(self.btn_copy_all_cmds)
+        cmds_row.addStretch()
+        details_lay.addLayout(cmds_row)
+        self._current_cmds = []
+        splitter.addWidget(details_holder)
         splitter.setSizes([320, 260])
         layout.addWidget(splitter, 1)
 
@@ -126,22 +158,29 @@ class TestProtocolDialog(QDialog):
         self._cases_by_id = {}
         grouped = cases_by_category()
         shown = 0
-        for code, label in CATEGORIES:
+        for code, _label in CATEGORIES:
             cases = grouped[code]
             if not cases:
                 continue
-            matching = [c for c in cases
-                        if not query
-                        or query in c["id"].lower()
-                        or query in c["titre"].lower()
-                        or any(query in step.lower() for step in c.get("etapes", []))
-                        or query in c["attendu"].lower()]
+            matching = []
+            for c in cases:
+                if not query:
+                    matching.append(c)
+                    continue
+                loc = localized_case(c)
+                if (query in c["id"].lower()
+                        or query in loc["titre"].lower()
+                        or any(query in row["txt"].lower() for row in loc["etapes"])
+                        or any(query in cmd.lower() for row in loc["etapes"] for cmd in row["cmds"])
+                        or query in loc["attendu"].lower()):
+                    matching.append(c)
             if not matching:
                 continue
-            cat_item = QTreeWidgetItem([label])
+            cat_item = QTreeWidgetItem([category_label(code)])
             for case in matching:
+                loc = localized_case(case)
                 rev = f" (rev {case['rev']})" if case.get("rev") else ""
-                item = QTreeWidgetItem([case["id"], case["titre"] + rev])
+                item = QTreeWidgetItem([case["id"], loc["titre"] + rev])
                 item.setData(0, Qt.ItemDataRole.UserRole, case)
                 self._cases_by_id[id(item)] = case
                 cat_item.addChild(item)
@@ -158,15 +197,28 @@ class TestProtocolDialog(QDialog):
         case = items[0].data(0, Qt.ItemDataRole.UserRole)
         if case is None:
             return
-        lines = [f"<b>{case['id']} - {case['titre']}</b><br>"]
-        if case.get("pre"):
-            lines.append(f"<i>{t('protocol.pre')} : {case['pre']}</i><br>")
+        loc = localized_case(case)
+        lines = [f"<b>{html.escape(loc['id'])} - {html.escape(loc['titre'])}</b><br>"]
+        if loc.get("pre"):
+            lines.append(f"<i>{html.escape(t('protocol.pre'))} : "
+                         f"{html.escape(loc['pre'])}</i><br>")
         lines.append("<ol>")
-        for step in case.get("etapes", []):
-            lines.append(f"<li>{step}</li>")
+        self._current_cmds = []
+        for row in loc["etapes"]:
+            lines.append(f"<li>{html.escape(row['txt'])}</li>")
+            for cmd in row["cmds"]:
+                self._current_cmds.append(cmd)
+                lines.append(f"<dd><code>{html.escape(cmd)}</code></dd>")
         lines.append("</ol>")
-        lines.append(f"<b>{t('protocol.expected')} :</b> {case['attendu']}")
+        lines.append(f"<b>{html.escape(t('protocol.expected'))} :</b> "
+                     f"{html.escape(loc['attendu'])}")
         self.details.setHtml("".join(lines))
+        self.btn_copy_all_cmds.setVisible(bool(self._current_cmds))
+
+    def _copy_all_cmds(self) -> None:
+        if self._current_cmds:
+            from PyQt6.QtWidgets import QApplication
+            QApplication.clipboard().setText("\r\n".join(self._current_cmds))
 
     def _export_markdown(self) -> None:
         from gui.results_window_helpers import export_text_to_file

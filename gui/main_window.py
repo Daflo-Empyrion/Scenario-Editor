@@ -39,10 +39,11 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
     QProgressDialog, QInputDialog, QPushButton, QSizePolicy, QDialog, QCheckBox,
     QRadioButton, QButtonGroup, QListWidget, QListWidgetItem, QTextBrowser,
+    QComboBox, QTextEdit, QPlainTextEdit,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
-from PyQt6.QtGui import QColor, QBrush, QDesktopServices, QPixmap
+from PyQt6.QtGui import QColor, QBrush, QDesktopServices, QPixmap, QIcon as _QIcon
 from PyQt6.QtCore import QUrl
 
 from core.scanner import scan_scenario
@@ -119,24 +120,13 @@ class MainWindow(QMainWindow):
         # sans support (Win10, macOS, Linux, RDP...), enable_acrylic() retourne
         # False et la fenetre reste 100% peinte par la feuille de style, sans
         # aucune difference de mise en page (voir core/win_backdrop.py).
-        if get_palette(_theme.CURRENT_THEME_ID).get("acrylic")                 and win_backdrop.acrylic_supported():
-            # L'attribut de translucence DOIT etre pose AVANT la creation du
-            # HWND natif (winId(), fait par enable_acrylic) -- pose APRES il
-            # est silencieusement ignore : c'est pourquoi l'acrylic semblait
-            # sans effet au premier test (retour utilisateur du 30/08/2026).
-            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-            if win_backdrop.enable_acrylic(self):
-                # Translucence limitee au conteneur racine et aux widgets
-                # simples : les vues (arbres, tableaux) gardent leur fond
-                # lisible (le theme h les peint en verre translucent
-                # au-dessus du fond de fenetre).
-                self.setStyleSheet(
-                    "QMainWindow { background-color: rgba(4, 8, 16, 186); }"
-                    " .QWidget { background-color: rgba(4, 8, 16, 186); }")
-            else:
-                # Le systeme a refuse malgre le support (ex: bureau a
-                # distant) -- INVARIANT : jamais translucide sans flou.
-                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        # L'attribut de translucence DOIT etre pose AVANT la creation du HWND
+        # natif (winId(), fait par enable_acrylic) -- pose APRES il est
+        # silencieusement ignore : c'est pourquoi l'acrylic semblait sans
+        # effet au premier test (retour utilisateur du 30/08/2026). Le bloc
+        # complet est desormais portee par _apply_theme_backdrop(), appelee
+        # ici ET a chaque changement de theme (OPT-004/GUI-002).
+        self._apply_theme_backdrop()
 
         # Sauvegarde automatique periodique (voir core/autosave.py) -- dossier
         # de recuperation SEPARE de la vraie copie de travail, jamais ecrit
@@ -214,6 +204,9 @@ class MainWindow(QMainWindow):
         self.action_pda_mission = self.menu_tools.addAction(t("menu.tools.pda_mission"))
         self.action_pda_mission.setShortcut("Ctrl+M")
         self.action_pda_mission.triggered.connect(self._open_pda_mission_dialog)
+        self.action_pda_editor = self.menu_tools.addAction(t("menu.tools.pda_editor"))
+        self.action_pda_editor.setToolTip(t("menu.tools.pda_editor.tip"))
+        self.action_pda_editor.triggered.connect(self._open_pda_editor)
         self.menu_tools.addSeparator()
         self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
@@ -262,6 +255,8 @@ class MainWindow(QMainWindow):
         self.action_toggle_autosave.toggled.connect(settings.set_autosave_enabled)
         self.action_default_language = self.menu_options.addAction(t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
+        self.action_vanilla_content = self.menu_options.addAction(t("menu.options.vanilla_content"))
+        self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
 
         self.menu_theme = self.menu_options.addMenu(t("menu.options.theme"))
         self._theme_actions = {}
@@ -361,6 +356,12 @@ class MainWindow(QMainWindow):
         # web ci-dessus vers le texte officiel en ligne.
         license_path = self._resolve_license_path()
         if license_path is not None:
+            # OPT-008 : le TEXTE officiel GPLv3 n'existe qu'en anglais (les
+            # traductions ne sont pas opposables juridiquement) -- on l'explique
+            # explicitement au lieu de laisser croire a un oubli de traduction.
+            license_lang_note = QLabel(t("about.license_lang_note"))
+            license_lang_note.setWordWrap(True)
+            layout.addWidget(license_lang_note)
             open_license_button = QPushButton(t("about.open_license_file"))
             open_license_button.clicked.connect(
                 lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(license_path))))
@@ -504,6 +505,7 @@ class MainWindow(QMainWindow):
         self.action_tech_tree.setText(t("menu.tools.tech_tree"))
         self.action_search_scenario.setText(t("menu.file.search_scenario"))
         self.action_pda_mission.setText(t("menu.tools.pda_mission"))
+        self.action_pda_editor.setText(t("menu.tools.pda_editor"))
         self.action_quit.setText(t("menu.file.quit"))
 
         self.menu_check.setTitle(t("menu.verification"))
@@ -521,6 +523,7 @@ class MainWindow(QMainWindow):
         self.action_toggle_online_translation.setText(t("menu.options.online_translation"))
         self.action_toggle_autosave.setText(t("menu.options.autosave_enabled"))
         self.action_default_language.setText(t("menu.options.default_language"))
+        self.action_vanilla_content.setText(t("menu.options.vanilla_content"))
 
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
@@ -586,7 +589,11 @@ class MainWindow(QMainWindow):
         self.btn_workspace_undo.clicked.connect(self._undo_workspace_action)
         toolbar.addWidget(self.btn_workspace_undo)
         from PyQt6.QtGui import QKeySequence, QShortcut
-        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self._undo_workspace_action)
+        # Ctrl+Z : UN SEUL raccourci au niveau fenetre. Raccourcis dupliques
+        # (fenetre + chaque onglet) = QShortcut identiques concurrents : Qt les
+        # declare ambigus et n'en execute AUCUN (cause des tests ECF-005,
+        # ECF-028, CSV-010 : le bouton Annuler marchait, pas le clavier).
+        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self._global_undo)
 
         self.btn_language = QPushButton(icon("fa5s.globe", "#ffffff"), i18n.get_language().upper())
         self.btn_language.setIconSize(icon_size())
@@ -635,6 +642,38 @@ class MainWindow(QMainWindow):
         else:
             self.btn_workspace_undo.setEnabled(False)
             self.btn_workspace_undo.setToolTip(t("wsundo.tooltip_empty"))
+
+    def _global_undo(self):
+        """Routage du Ctrl+Z unique : champ texte focus -> undo du champ ;
+        onglet editable actif -> undo de l'onglet ; sinon -> annulation de
+        l'operation espace de travail (fusion/duplication/copie)."""
+        w = QApplication.focusWidget()
+        if isinstance(w, (QLineEdit, QTextEdit)) and w.isEnabled():
+            w.undo()
+            return
+        if isinstance(w, QComboBox) and w.isEditable() and w.lineEdit() is not None:
+            w.lineEdit().undo()
+            return
+        tab = self.tabs.currentWidget() if hasattr(self, 'tabs') else None
+        # L'onglet actif peutetre un wrapper (CompareWidget) sans attribut
+        # editable/undo : interroger aussi le widget d'edition INTERNE, sinon
+        # Ctrl+Z ne fait plus rien dans les onglets ECF cote a cote (attrape
+        # par le test direct de l'application).
+        candidates = [tab]
+        inner = getattr(tab, 'edit_widget', None) if tab is not None else None
+        if inner is not None:
+            candidates.append(inner)
+        for cand in candidates:
+            if cand is None or not hasattr(cand, 'undo'):
+                continue
+            # EcfEditWidget n'expose PAS d'attribut editable (toujours editable)
+            # : seul un False explicite (onglets lecture seule, sans undo)
+            # doit bloquer.
+            if getattr(cand, 'editable', True) is False:
+                continue
+            cand.undo()
+            return
+        self._undo_workspace_action()
 
     def _undo_workspace_action(self):
         if not self.workspace_undo.can_undo():
@@ -863,8 +902,49 @@ class MainWindow(QMainWindow):
             return
         from gui.galaxy_viewer_dialog import GalaxyViewerDialog
         with busy_guard(self):
-            self._galaxy_viewer_dialog = GalaxyViewerDialog(doc, parent=self)
+            self._galaxy_viewer_dialog = GalaxyViewerDialog(
+                doc, parent=self, sectors_path=sectors_files[0],
+                push_undo=self._push_workspace_undo,
+                is_path_modified=self._is_path_modified,
+                reload_path=self._reload_tab_if_open_and_unmodified)
         self._galaxy_viewer_dialog.show()
+
+    def _open_preview_tab(self, path: Path, ext: str) -> bool:
+        """OPEN-009 : ouvre un onglet APERCU (lecture seule) pour les formats
+        affichables sans editeur (images, PDF). Retourne False si aucun
+        format pris en charge -> l'appelant affiche le message habituel."""
+        from gui.preview_widget import can_preview, IMAGE_EXTENSIONS, PdfPreviewWidget, ImagePreviewWidget
+        ext = ext.lower()
+        if ext in IMAGE_EXTENSIONS:
+            widget = ImagePreviewWidget(path)
+        elif ext == '.pdf' and can_preview(path):
+            widget = PdfPreviewWidget(path)
+        else:
+            return False
+        # Pas d'emoji dans les titres (non rendus sous Windows/Qt -- regle
+        # projet) : suffixe texte explicite a la place.
+        index = self.tabs.addTab(widget, path.name + t("preview.tab_suffix"))
+        self.tabs.setTabToolTip(index, str(path))
+        self.tabs.setCurrentIndex(index)
+        return True
+
+    def ensure_analysis_fresh_tabs(self) -> None:
+        """Les dialogues de verification (references croisees, validation,
+        centre de sante) lisent les FICHIERS SUR DISQUE : des onglets modifies
+        non enregistres donnaient des resultats faux ("aucune reference cassee"
+        alors que le bloc casse n'etait qu'en memoire -- VERIF-001, VERIF-009).
+        Propose d'enregistrer avant l'analyse ; refuser reste possible (les
+        resultats porteront alors sur la derniere version enregistree)."""
+        modified = self._modified_tab_widgets()
+        if not modified:
+            return
+        if ask_yes_no(self, t("verify.save_first_title"),
+                      t("verify.save_first_msg", n=len(modified))):
+            for widget in modified:
+                try:
+                    widget.save()
+                except Exception:
+                    pass  # l'erreur de sauvegarde est deja notifiee par l'onglet ; ne bloque pas l'analyse
 
     def _is_path_modified(self, path: Path) -> bool:
         """True si ce fichier est actuellement ouvert dans un onglet AVEC des
@@ -964,6 +1044,67 @@ class MainWindow(QMainWindow):
         if hasattr(csv_widget, "_populate_table"):
             csv_widget._populate_table()
 
+    def _open_pda_editor(self):
+        """NOUVEAU module PDA (editeur complet + assistant, core/pda/ +
+        gui/pda/) -- meme contrat que l'ancienne creation guidee : PDA.yaml/
+        PDA.csv ouvres comme de VRAIS onglets de la copie de travail, jamais
+        d'ecriture directe sur disque. Les suggestions contextuelles fusionnent
+        scenario ouvert + installation vanille (reglage
+        vanilla_content_path, repli gracieux si absent)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        yaml_path = next((f.path for f in self.workspace.working.extras if f.path.name == "PDA.yaml"), None)
+        csv_path = next((f.path for f in self.workspace.working.extras if f.path.name == "PDA.csv"), None)
+        if yaml_path is None or csv_path is None:
+            QMessageBox.information(self, t("pda.editor.title"), t("pda_mission.err_files_not_found"))
+            return
+
+        with busy_guard(self):
+            yaml_widget = self.open_working_file_tab(yaml_path)
+            csv_widget = self.open_working_file_tab(csv_path)
+        if yaml_widget is None or csv_widget is None:
+            return
+
+        from core.pda.model import PdaModel
+        from core.pda.suggestions import PdaSuggestions
+        from gui.pda.editor_dialog import PdaEditorDialog
+
+        model = PdaModel(yaml_widget.doc, csv_widget.doc)
+        scenario_content = self.workspace.working_root / "Content"
+        vanilla_content = None
+        try:
+            from core.settings import get_vanilla_content_path
+            candidate = get_vanilla_content_path()
+            if candidate and Path(candidate).is_dir():
+                vanilla_content = Path(candidate)
+        except Exception:
+            vanilla_content = None
+        ecf_files = [f.path for f in self.workspace.working.configuration if f.extension == '.ecf']
+        suggestions = PdaSuggestions(model, scenario_content_dir=scenario_content,
+                                     vanilla_content_dir=vanilla_content,
+                                     sibling_ecf_files=ecf_files)
+
+        dialog = PdaEditorDialog(model, suggestions, parent=self,
+                                 scenario_key=str(self.workspace.working_root))
+        dialog.exec()
+        # Le dialogue a pu muter les documents (meme sans accept() explicite :
+        # le bouton Fermer passe par accept(), la croix par reject -- les
+        # mutations sont en memoire dans les deux cas, on marque modifie).
+        yaml_widget._set_modified(True)
+        csv_widget._set_modified(True)
+        if hasattr(csv_widget, "_populate_table"):
+            csv_widget._populate_table()
+        # Rend VISIBLE ce que l'editeur PDA a modifie (demande utilisateur) :
+        # arbre YAML recharge depuis le doc partage + lignes modifiees
+        # surlignees dans les deux onglets (meme couleur jaune pale).
+        if hasattr(yaml_widget, "refresh_from_doc"):
+            yaml_widget.refresh_from_doc()
+        if hasattr(yaml_widget, "highlight_dirty_entries"):
+            yaml_widget.highlight_dirty_entries()
+        if hasattr(csv_widget, "highlight_touched_rows"):
+            csv_widget.highlight_touched_rows(model.take_touched_csv_tokens())
+
     def _set_theme(self, theme_id: str):
         """Bascule le theme visuel a l'execution -- appelle apply_theme sur
         l'instance QApplication (jamais None dans l'app reelle : main()
@@ -971,22 +1112,76 @@ class MainWindow(QMainWindow):
         cette methode doivent fournir un QApplication actif via la fixture
         qapp) et persiste le choix. Les icones/couleurs semantiques (RED,
         ORANGE, GREEN...) des dialogues deja ouverts ne se mettent a jour
-        qu'a leur prochaine ouverture -- voir gui/theme.py."""
+        qu'a leur prochaine ouverture -- voir gui/theme.py.
+
+        OPT-004 : les repeints intermediaires sont GELES pendant l'echange de
+        feuille de style (setUpdatesEnabled False sur chaque fenetre top-level)
+        -- sinon Qt repeint l'interface etat par etat et le changement semble
+        trainee plusieurs secondes sur une session chargee."""
         from PyQt6.QtWidgets import QApplication
-        from gui.theme import apply_theme
+        from gui.theme import apply_theme, get_palette
         app = QApplication.instance()
         if app is not None:
-            apply_theme(app, theme_id)
+            frozen = []
+            for w in app.topLevelWidgets():
+                if w.isVisible() and w.updatesEnabled():
+                    w.setUpdatesEnabled(False)
+                    frozen.append(w)
+            try:
+                apply_theme(app, theme_id)
+            finally:
+                for w in frozen:
+                    w.setUpdatesEnabled(True)
+            app.processEvents()
         settings.set_theme(theme_id)
         for tid, action in self._theme_actions.items():
             action.setChecked(tid == theme_id)
         self._refresh_panel_and_status_labels()
+        # Verriere en cours de session : (re)tenter l'acrylique pour CE theme
+        # et le retirer si on en sort -- avant ce correctif, l'acrylique
+        # n'etait evalue qu'au demarrage, le changement de theme a chaud
+        # donnait un theme a moitie applique (GUI-002).
+        self._apply_theme_backdrop()
+
+    def _apply_theme_backdrop(self):
+        """Applique (ou retire) le flou acrylique Windows 11 selon que le
+        theme courant le demande -- appele au demarrage ET a chaque changement
+        de theme."""
+        from PyQt6.QtCore import Qt as _Qt
+        palette = _theme.get_palette(_theme.CURRENT_THEME_ID)
+        wants = bool(palette.get("acrylic")) and win_backdrop.acrylic_supported()
+        if wants:
+            self.setAttribute(_Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            if win_backdrop.enable_acrylic(self):
+                self.setStyleSheet(
+                    "QMainWindow { background-color: rgba(4, 8, 16, 186); }"
+                    " .QWidget { background-color: rgba(4, 8, 16, 186); }")
+                return True
+            self.setAttribute(_Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        else:
+            self.setAttribute(_Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        return False
 
     def _set_author_dialog(self):
         current = settings.get_author()
         name, ok = QInputDialog.getText(self, t("author.title"), t("author.label"), text=current)
         if ok and name.strip():
             settings.set_author(name.strip())
+
+    def _set_vanilla_content_dialog(self):
+        """Dossier Content de l'installation Steam du jeu -- sert au nouveau
+        module PDA pour completer les suggestions (POI, playfields,
+        creatures...) avec la vanille. Vide = desactive (scenario seul)."""
+        current = settings.get_vanilla_content_path()
+        path = QFileDialog.getExistingDirectory(self, t("vanilla.title"), current or "")
+        if not path:
+            # getExistingDirectory retourne '' a l'annulation ET pour effacer :
+            # on demande confirmation avant de perdre le reglage existant.
+            if current and ask_yes_no(self, t("vanilla.title"), t("vanilla.clear_confirm")):
+                settings.set_vanilla_content_path("")
+            return
+        settings.set_vanilla_content_path(path)
+        QMessageBox.information(self, t("vanilla.title"), t("vanilla.saved", path=path))
 
     def check_pending_conflicts_dialog(self):
         if not self.workspace:
@@ -1532,10 +1727,92 @@ class MainWindow(QMainWindow):
               rows=n_csv_rows, conflicts=len(id_conflicts))
         )
 
+    def _merge_ecf_with_preview(self, source_path: Path, dest_path: Path, source_label: str):
+        """Fusion ECF avec apercu modifiable (ECF-030/FUS-010) : calcul en
+        memoire -> tableau coche avant/apres -> ecriture des seules lignes
+        cochees -> undo + reouverture de l'onglet POSITIONNE sur le premier
+        bloc fusionne (plus besoin de le chercher dans l'arbre)."""
+        from gui.merge_preview_dialog import MergePreviewDialog
+        from core.ecf.merge import merge_documents
+        try:
+            working_doc = parse_ecf_file(dest_path)
+            source_doc = parse_ecf_file(source_path)
+        except Exception as e:
+            QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=source_path.name)} :\n{e}")
+            return
+
+        # Garde-fou : l'onglet destination modifie non enregistre rendrait la
+        # fusion aveugle aux changements en memoire.
+        if self._is_path_modified(dest_path):
+            QMessageBox.warning(self, t("mergepreview.title"),
+                                t("mergepreview.dest_modified", name=dest_path.name))
+            return
+
+        with busy_guard(self):
+            dialog = MergePreviewDialog(working_doc, source_doc, source_label, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return  # annule : RIEN n'a ete ecrit
+
+        result = dialog.result
+        prior = capture_file(dest_path)
+        try:
+            from core.fsutil import atomic_write_text
+            atomic_write_text(dest_path, result.document.render())
+        except OSError as e:
+            QMessageBox.critical(self, t("err.title"), f"{t('merge.file_error', file=dest_path.name)} :\n{e}")
+            return
+
+        # Recalcule le highlight depuis l'arbitrage utilisateur : seules les
+        # lignes COCHEES restent des changements (blocs retires, valeurs
+        # d'origine restaurees pour les lignes decochees).
+        new_blocks = set()
+        changed_blocks = {}
+        for r in range(dialog.table.rowCount()):
+            row = dialog.rows[r]
+            checked = dialog.table.item(r, dialog.COL_CHECK).checkState() == Qt.CheckState.Checked
+            if not checked:
+                continue
+            if row.row_type == 'added_block':
+                new_blocks.add(row.block_key)
+            else:
+                changed_blocks.setdefault(row.block_key, set()).add(row.prop_key)
+        if new_blocks or changed_blocks:
+            self._highlights[dest_path] = MergeHighlight(new_blocks=new_blocks,
+                                                          changed_blocks=changed_blocks)
+        else:
+            self._highlights.pop(dest_path, None)
+        self._push_workspace_undo(FileStateUndo(dest_path, prior,
+                                                 t("wsundo.merge_file", name=dest_path.name)))
+        self.workspace.rescan_working()
+        self._populate_tree(self.tree_working, self.workspace.working)
+
+        first_identity = None
+        for row in dialog.rows:
+            if row.row_type == 'added_block':
+                first_identity = row.block_key[1]
+                break
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest_path):
+                self.tabs.removeTab(i)
+                widget = self.open_working_file_tab(dest_path)
+                edit = getattr(widget, 'edit_widget', widget)
+                if first_identity is not None and hasattr(edit, 'select_block_by_identity'):
+                    edit.select_block_by_identity(first_identity)
+                break
+        self.statusBar().showMessage(t("mergepreview.status_done", file=dest_path.name))
+
     def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
         rel = path.relative_to(source_root)
         dest_before = self.workspace.working_root / rel
         prior = capture_file(dest_before)
+
+        # ECF-030/FUS-010 : pour un ECF DEJA PRESENT dans la copie de travail,
+        # la fusion est desormais CALCULEE EN MEMOIRE et soumise a un apercu
+        # MODIFIABLE (ligne par ligne, avant/apres) AVANT toute ecriture.
+        if dest_before.suffix.lower() == '.ecf' and dest_before.exists() and settings.get_merge_enabled():
+            self._merge_ecf_with_preview(path, dest_before, source_label)
+            return
+
         try:
             dest, highlight, id_conflicts, csv_report = merge_file_into_working(
                 self.workspace, path, source_root, source_label)
@@ -1643,8 +1920,16 @@ class MainWindow(QMainWindow):
         used_ids = find_used_ids([dest_path])
         suggestions = suggest_free_ids(used_ids, 5)
         numeric_fields = detect_numeric_fields_block(block)
+        # FUS-006/FUS-014 : noms deja pris dans la copie de travail -> le
+        # dialogue controle le nom EN DIRECT (garder l'original si libre).
+        try:
+            from core.ecf.parser import parse_ecf_file as _parse_dest
+            _dest_names = {n for n in (b.get_property('Name') for b in _parse_dest(dest_path).iter_blocks()) if n}
+        except Exception:
+            _dest_names = set()
         dialog = DuplicateVariantsDialog(current_id, current_name, suggestions,
-                                          numeric_fields, parent=self, show_id_field=True)
+                                          numeric_fields, parent=self, show_id_field=True,
+                                          existing_names=_dest_names)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         annotation = None
@@ -1935,7 +2220,13 @@ class MainWindow(QMainWindow):
         elif status == 'merged':
             self.statusBar().showMessage(t("status.row_merged", key=key, file=dest.name))
         else:
-            self.statusBar().showMessage(t("status.row_unchanged", key=key, file=dest.name))
+            # CSV-002 : avec une cle deja presente et des cellules remplies,
+            # la fusion "copie de travail prioritaire" ne change RIEN par
+            # conception -- le message de barre d'etat, ephemere, donnait
+            # l'impression d'un bouton mort. Explication explicite.
+            QMessageBox.information(
+                self, t("copy.row_unchanged_title"),
+                t("copy.row_unchanged_msg", key=key, file=dest.name))
 
     def _duplicate_csv_row_dialog(self, row: list, source_file_path: Path,
                                    source_root: Path, source_label: str):
@@ -1945,9 +2236,26 @@ class MainWindow(QMainWindow):
         rel = source_file_path.relative_to(source_root)
         old_key = row[0] if row else "?"
 
+        # FUS-008 : PROPOSER une cle libre (base_2, base_3...) au lieu d'un
+        # champ vide -- modifiable bien entendu.
+        suggestion = old_key + "_2"
+        dest_probe = self.workspace.working_root / rel
+        try:
+            taken = set()
+            if dest_probe.exists():
+                from core.csv_handler import CsvHandler
+                _doc = CsvHandler().parse(CsvHandler().load(dest_probe))
+                taken = {r[0] for r in _doc.rows if r}
+            n = 2
+            while suggestion in taken:
+                n += 1
+                suggestion = f"{old_key}_{n}"
+        except Exception:
+            pass
         new_key, ok = QInputDialog.getText(
             self, t("csv.duplicate_title"),
-            t("csv.duplicate_current_key", key=old_key)
+            t("csv.duplicate_current_key", key=old_key),
+            text=suggestion
         )
         if not ok:
             return
@@ -2015,9 +2323,23 @@ class MainWindow(QMainWindow):
         current = entry.value if (entry.key and entry.key.strip().lower() in ('name', 'id')) \
             else (entry.key or entry.value)
 
+        # FUS-009 (meme principe que FUS-008) : proposer une valeur libre.
+        suggestion = current + "_2"
+        try:
+            from core.yamllite.parser import parse_yaml_file as _parse_y
+            _dest_doc = _parse_y(self.workspace.working_root / rel)
+            taken = {n.value for n in _dest_doc.nodes
+                     if getattr(n, 'is_sequence_item', False) and getattr(n, 'key', None) in ('Name', 'Id') and n.value}
+            n = 2
+            while suggestion in taken:
+                n += 1
+                suggestion = f"{current}_{n}"
+        except Exception:
+            pass
         new_value, ok = QInputDialog.getText(
             self, t("yaml.duplicate_title"),
-            t("yaml.duplicate_current_value", value=current)
+            t("yaml.duplicate_current_value", value=current),
+            text=suggestion
         )
         if not ok:
             return
@@ -2242,7 +2564,17 @@ class MainWindow(QMainWindow):
             return
         inner = getattr(widget, 'edit_widget', widget)  # CompareWidget a un sous-widget, CsvEditWidget non
         base = inner.path.name
-        self.tabs.setTabText(idx, ("✎ * " if modified else "✎ ") + base)
+        # OPEN-011 : le petit '*' etait invisible. Desormais un onglet modifie
+        # porte : une icone crayon + un point plein rouge + le TEXTE DE L'ONGLET
+        # EN ROUGE (QTabBar.setTabTextColor) -- visible sur tous les themes.
+        self.tabs.setTabText(idx, ("● " if modified else "") + base)
+        tab_bar = self.tabs.tabBar()
+        tab_bar.setTabTextColor(idx, QColor("#e53935") if modified else QColor())
+        if modified:
+            from gui.theme import icon as _icon
+            self.tabs.setTabIcon(idx, _icon("fa5s.pen", "#e53935"))
+        else:
+            self.tabs.setTabIcon(idx, _QIcon())
 
     def _clear_autosave_for_widget(self, widget):
         """A connecter au signal 'saved' de chaque onglet -- des qu'un fichier
@@ -2345,6 +2677,11 @@ class MainWindow(QMainWindow):
                                         copy_label=source_label, on_translate_cell=on_translate_cell,
                                         on_duplicate_row=on_duplicate_row)
             else:
+                # OPEN-009 : apercu intégré pour les formats que l'on sait
+                # AFFICHER sans les éditer (images, PDF) ; message clair
+                # seulement pour les formats sans parseur ni visionneuse.
+                if self._open_preview_tab(path, ext):
+                    return
                 QMessageBox.information(self, t("open.not_supported_title"), t("open.not_supported_msg", ext=ext))
                 return
         except Exception as e:

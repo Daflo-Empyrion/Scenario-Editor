@@ -113,8 +113,11 @@ class ValidationDialog(QDialog):
         layout.addLayout(bottom_row)
 
     def _run_validation(self):
+        # VERIF-009 : la validation lit le disque -- proposer d'abord
+        # d'enregistrer les onglets modifies (meme mecanisme que VERIF-001).
+        self.main_window.ensure_analysis_fresh_tabs()
         # Retour utilisateur 30/08/2026 : la validation peut prendre du temps
-        # sur un gros scenario -- curseur + boite "en cours" imm�diates.
+        # sur un gros scenario -- curseur + boite "en cours" immediates.
         with busy_guard(self):
             self.issues_by_file = validate_scenario(self.scenario_root)
             self._populate_tree()

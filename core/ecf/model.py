@@ -270,7 +270,25 @@ def add_repeating_item_row(block: EcfBlock, item_type: str, first_value: str,
 
     next_number = same_type_max + 1
     new_key = f"{item_type}_{next_number}"
-    pairs = [(new_key, first_value)] + list(extra_pairs)
+
+    def _quote_if_needed(value: str) -> str:
+        """ECF-015 : une valeur contenant une virgule ou un espace DOIT etre
+        entre guillemets dans le format ECF, sinon elle est coupee en deux au
+        parse (moteur du jeu comme notre parseur). Les valeurs deja
+        quotees/nombreuses simples ne sont pas touchees ('42' reste 42,
+        '"1, 2"' reste tel quel)."""
+        value = value.strip()
+        if not value:
+            return value
+        if value.startswith('"') and value.endswith('"'):
+            return value
+        if (',' in value
+                or (' ' in value and not (value.startswith('[') or value.startswith('{')))):
+            return f'"{value}"'
+        return value
+
+    pairs = [(new_key, _quote_if_needed(first_value))] + [
+        (k, _quote_if_needed(v)) for (k, v) in extra_pairs]
     new_prop = EcfProperty(raw="", indent=indent, pairs=pairs, comment=None,
                             eol=block.eol or "\r\n", dirty=True)
 
@@ -318,11 +336,18 @@ def create_block(kind: str, pairs: List[Tuple[Optional[str], str]], eol: str = "
                      raw_open="", close_raw=f"}}{eol}", children=[], dirty=True)
 
 
+_NOTE_SEG_RE = re.compile(r'\s*#\s*original\s+[^#]*?--\s*Mod par [^#]*(?=#|$)')
+
+
 def annotate_property(prop: EcfProperty, note_text: str) -> None:
     """Ajoute une note de tracabilite en fin de ligne (ex: '# original: 100 -- Mod par
-    Daflo'), sans ecraser un commentaire deja present sur cette ligne."""
+    Daflo'). Remplace la note 'original' precedente au lieu de concatener : sinon les
+    editions repetees d'une meme propriete alignent les notes ('# original: 40 -- Mod
+    par X  # original: 1 -- Mod par X  ...') et la ligne devient illisible. Un
+    commentaire existant NON issu d'une annotation est conserve."""
     if prop.comment:
-        prop.comment = prop.comment + "  " + note_text
+        base = _NOTE_SEG_RE.sub('', prop.comment).rstrip()
+        prop.comment = (base + "  " + note_text) if base else note_text
     else:
         prop.comment = note_text
     prop.dirty = True

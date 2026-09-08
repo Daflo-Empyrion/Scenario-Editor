@@ -26,6 +26,16 @@ from core.ecf.parser import parse_ecf_file
 from core.localization_lookup import _parse_csv_text, LocalizationIndex
 from core.block_info_card import build_block_info_card
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _force_fr_labels(monkeypatch):
+    """Les libelles attendus dans ce fichier sont FR : forcer la langue
+    (la machine de test peut etre reglee EN)."""
+    import core.settings
+    monkeypatch.setattr(core.settings, "get_language", lambda: "fr")
+
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "block_info_card_nested_scenario"
 
 

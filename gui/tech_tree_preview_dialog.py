@@ -86,6 +86,18 @@ class TechTreePreviewDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(t("techtree.preview_instructions")))
 
+        # TECH-012 : le glisser VERTICAL declenche le mode 'choix du parent'
+        # (moteur de la vue). Sans bandeau ni connexion, l'utilisateur ne
+        # savait pas que ce mode etait actif -- tous ses clics suivants
+        # etaient avales par le pick -> impression de ne pouvoir deplacer le
+        # bloc QU'UNE FOIS. Desormais : bandeau visible + Esc pour annuler +
+        # le parent choisi est reellement pris en compte.
+        self.pick_banner = QLabel(t("techtree.preview_pick_banner"))
+        self.pick_banner.setStyleSheet("color: #ffb74d; font-weight: 600;")
+        self.pick_banner.setWordWrap(True)
+        self.pick_banner.hide()
+        layout.addWidget(self.pick_banner)
+
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs, 1)
 
@@ -97,6 +109,9 @@ class TechTreePreviewDialog(QDialog):
             view.level_changed.connect(self._on_level_changed)
             view.cost_changed.connect(self._on_cost_changed)
             view.category_changed.connect(self._on_category_changed)
+            view.parent_pick_started.connect(self._on_pick_started)
+            view.parent_pick_finished.connect(self._on_pick_finished)
+            view.parent_changed.connect(self._on_parent_changed)
             self._views[category] = view
             self.tabs.addTab(view, category)
 
@@ -134,6 +149,16 @@ class TechTreePreviewDialog(QDialog):
             if view is not None:
                 view.rebuild()
         self.tabs.setCurrentWidget(self._views[new_category])
+
+    def _on_pick_started(self, node_name: str) -> None:
+        self.pick_banner.show()
+
+    def _on_pick_finished(self) -> None:
+        self.pick_banner.hide()
+
+    def _on_parent_changed(self, node_name: str, new_parent: str) -> None:
+        if node_name == _PENDING_NODE_NAME:
+            self.pending_node.parent_name = new_parent or None
 
     # -- resultat -------------------------------------------------------------
 

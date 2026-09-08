@@ -63,10 +63,12 @@ def test_ask_yes_no_returns_true_on_yes(qapp, monkeypatch):
     cles btn.yes/btn.no) -- jamais les boutons standards de Qt : demande
     explicite de l'utilisateur (30/08/2026) pour une traduction garantie."""
     from gui.msgboxes import ask_yes_no
+    from core.i18n import t
 
     def fake_exec(box):
         yes_btn, no_btn = box.buttons()[0], box.buttons()[1]
-        assert yes_btn.text() == "Oui" and no_btn.text() == "Non"
+        # libelles resolus dans la langue active (fr OU en selon la machine)
+        assert yes_btn.text() == t("btn.yes") and no_btn.text() == t("btn.no")
         yes_btn.click()
         return 0
 

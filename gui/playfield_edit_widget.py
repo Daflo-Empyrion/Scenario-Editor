@@ -38,7 +38,9 @@ from typing import List, Optional, Callable
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QMessageBox, QDialog, QComboBox, QDialogButtonBox, QFormLayout,
+    QMenu,
 )
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from core.i18n import t
@@ -48,7 +50,9 @@ from core.playfield_editor import (
     find_top_level_key, list_items, find_poi_items, find_creature_items,
     get_item_params, set_item_param, list_resource_block_names,
     add_resource_item, remove_resource_item,
-    get_creature_biome, get_properties_value, set_properties_value,
+    get_creature_biome, set_creature_biome, observed_creature_biomes,
+    find_commented_items, uncomment_commented_item,
+    get_properties_value, set_properties_value,
     find_space_resource_items, get_space_resource_display_name,
     list_space_material_names, add_space_resource_item, remove_space_resource_item,
     find_drone_stock_items, find_free_drones_items, find_space_vessels_items,
@@ -65,13 +69,17 @@ class SyntheticColumn:
     biome d'une creature (contexte englobant, pas un parametre de l'item
     lui-meme), ou RegenAfter d'un POI (imbrique dans Properties, pas une
     valeur scalaire directe). getter(item) -> texte affiche ; setter(item,
-    texte) -> bool (None si colonne en lecture seule, ex: le biome)."""
+    texte) -> bool (None si colonne en lecture seule, ex: le biome).
+    choices_fn -> pool de la liste deroulante EDITABLE de la colonne
+    (YAML-010 : biomes observes dans le fichier)."""
 
     def __init__(self, label: str, getter: Callable[[YamlEntry], Optional[str]],
-                 setter: Optional[Callable[[YamlEntry, str], bool]] = None):
+                 setter: Optional[Callable[[YamlEntry, str], bool]] = None,
+                 choices_fn: Optional[Callable[[], List[str]]] = None):
         self.label = label
         self.getter = getter
         self.setter = setter
+        self.choices_fn = choices_fn
 
     @property
     def editable(self) -> bool:
@@ -126,6 +134,9 @@ class PlayfieldSectionTable(QWidget):
                  before_edit_callback: Optional[Callable[[], None]] = None,
                  synthetic_columns: Optional[List[SyntheticColumn]] = None,
                  name_display_fn: Optional[Callable[[YamlEntry], str]] = None,
+                 filter_getter: Optional[Callable[[YamlEntry], str]] = None,
+                 commented_fn: Optional[Callable[[], list]] = None,
+                 on_activate_commented: Optional[Callable[[object], None]] = None,
                  parent=None):
         super().__init__(parent)
         self.get_items_fn = get_items_fn
@@ -134,6 +145,11 @@ class PlayfieldSectionTable(QWidget):
         self.before_edit_callback = before_edit_callback
         self.synthetic_columns = synthetic_columns or []
         self.name_display_fn = name_display_fn or (lambda item: item.value)
+        # YAML-009 : entrees DESACTIVEES NATIVEMENT (commentees dans le fichier)
+        # affichees grisees, reactivable au clic droit.
+        self.commented_fn = commented_fn
+        self.on_activate_commented = on_activate_commented
+        self._commented_by_row: dict = {}
         self._items_by_row: List[YamlEntry] = []
         self._columns: List[str] = []
 
@@ -153,8 +169,24 @@ class PlayfieldSectionTable(QWidget):
         self.count_label = QLabel("")
         layout.addWidget(self.count_label)
 
+        # YAML-010 : filtre par valeur de colonne synthetique (ex: biome par
+        # creature) -- "Tous" par defaut, choix reconstruits a chaque refresh.
+        self._filter_getter = filter_getter
+        self._filter_value = ""
+        if self._filter_getter is not None:
+            filter_row = QHBoxLayout()
+            filter_row.addWidget(QLabel(t("playfield.filter_label")))
+            self.filter_combo = QComboBox()
+            self.filter_combo.currentTextChanged.connect(self._on_filter_changed)
+            filter_row.addWidget(self.filter_combo, 1)
+            filter_row.addStretch()
+            layout.addLayout(filter_row)
+
         self.table = QTableWidget()
         self.table.itemChanged.connect(self._on_cell_changed)
+        if commented_fn is not None:
+            self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self.table.customContextMenuRequested.connect(self._show_commented_menu)
         layout.addWidget(self.table, 1)
 
         self._name_column_label = name_column_label
@@ -165,7 +197,32 @@ class PlayfieldSectionTable(QWidget):
         """Reconstruit entierement le tableau depuis le document actuel -- a
         appeler apres toute modification externe (undo, sauvegarde...)."""
         self.table.blockSignals(True)
-        self._items_by_row = list(self.get_items_fn())
+        all_items = list(self.get_items_fn())
+        # Filtre (YAML-010) : applique le choix courant + met a jour les choix
+        # proposes (nouveaux biomes observes inclus).
+        items = all_items
+        if self._filter_getter is not None:
+            choices = sorted({v for it in all_items if (v := self._filter_getter(it))})
+            self.filter_combo.blockSignals(True)
+            current = self._filter_value
+            self.filter_combo.clear()
+            self.filter_combo.addItem(t("playfield.filter_all"))
+            for choice in choices:
+                self.filter_combo.addItem(choice)
+            if current and current != t("playfield.filter_all"):
+                idx = self.filter_combo.findText(current)
+                self.filter_combo.setCurrentIndex(idx if idx >= 0 else 0)
+            else:
+                self._filter_value = t("playfield.filter_all")
+                self.filter_combo.setCurrentIndex(0)
+            self.filter_combo.blockSignals(False)
+            if self._filter_value != t("playfield.filter_all"):
+                items = [it for it in all_items if self._filter_value in (self._filter_getter(it) or "")]
+        self._items_by_row = items
+        # YAML-009 : entrees commentees nativement -> lignes GRISEES en fin de
+        # tableau, reactivables au clic droit.
+        commented = list(self.commented_fn()) if self.commented_fn is not None else []
+        self._commented_by_row = {}
 
         # Union des cles de parametres, triees par frequence d'usage decroissante
         # (les plus communes d'abord, plus lisible qu'un ordre alphabetique brut
@@ -184,6 +241,30 @@ class PlayfieldSectionTable(QWidget):
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
         self.table.setRowCount(len(self._items_by_row))
+
+        # YAML-010 : liste deroulante EDITABLE sur les colonnes synthetiques
+        # qui fournissent un pool (biomes observes...), saisie libre permise.
+        from PyQt6.QtWidgets import QStyledItemDelegate, QComboBox as _QComboBox
+        from PyQt6.QtCore import Qt as _Qt
+
+        class _SynthComboDelegate(QStyledItemDelegate):
+            def __init__(self, choices_fn):
+                super().__init__()
+                self._choices_fn = choices_fn
+
+            def createEditor(self, parent, option, index):
+                combo = _QComboBox(parent)
+                combo.setEditable(True)
+                try:
+                    combo.addItems(self._choices_fn() or [])
+                except Exception:
+                    pass
+                combo.setCurrentText(index.data() or "")
+                return combo
+
+        for col_offset, synth in enumerate(self.synthetic_columns):
+            if synth.choices_fn is not None and synth.editable:
+                self.table.setItemDelegateForColumn(1 + col_offset, _SynthComboDelegate(synth.choices_fn))
 
         for row, item in enumerate(self._items_by_row):
             name_item = QTableWidgetItem(self.name_display_fn(item))
@@ -209,11 +290,54 @@ class PlayfieldSectionTable(QWidget):
                     cell = QTableWidgetItem(params[key])
                 self.table.setItem(row, col, cell)
 
+        if commented:
+            gray = QTableWidgetItem()
+            gray_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+            for offset, citem in enumerate(commented):
+                row_i = len(self._items_by_row) + offset
+                self._commented_by_row[row_i] = citem
+                name_cell = QTableWidgetItem(
+                    t("playfield.commented_prefix", label=citem.label))
+                name_cell.setFlags(gray_flags)
+                name_cell.setForeground(QBrush(QColor("#8a8a8a")))
+                self.table.setItem(row_i, 0, name_cell)
+                for col in range(1, self.table.columnCount()):
+                    empty = QTableWidgetItem("")
+                    empty.setFlags(gray_flags)
+                    self.table.setItem(row_i, col, empty)
+
         self.table.resizeColumnsToContents()
         self.table.blockSignals(False)
-        self.count_label.setText(t("playfield.count_label", n=len(self._items_by_row)))
+        n_commented = len(commented)
+        if n_commented:
+            self.count_label.setText(
+                t("playfield.count_label", n=len(self._items_by_row))
+                + "  --  " + t("playfield.commented_count", n=n_commented))
+        else:
+            self.count_label.setText(t("playfield.count_label", n=len(self._items_by_row)))
         if self._allow_add_remove:
             self.btn_remove.setEnabled(len(self._items_by_row) > 0)
+
+    def _show_commented_menu(self, pos):
+        """YAML-009 : clic droit sur une entree GRISEE (commentee nativement
+        dans le fichier) -> 'Activer cette entree' (de-commentation)."""
+        row = self.table.rowAt(pos.y())
+        citem = self._commented_by_row.get(row)
+        if citem is None or self.on_activate_commented is None:
+            return
+        menu = QMenu(self)
+        action = menu.addAction(t("playfield.activate_commented", label=citem.label))
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if chosen == action:
+            self.on_activate_commented(citem)
+
+    def _on_filter_changed(self, text: str):
+        """YAML-010 : changement du filtre (ex: biome) -> reconstruction du
+        tableau avec uniquement les lignes correspondantes."""
+        if self._filter_getter is None:
+            return
+        self._filter_value = text or t("playfield.filter_all")
+        self.refresh()
 
     def _on_cell_changed(self, cell: QTableWidgetItem):
         row, col = cell.row(), cell.column()
@@ -299,7 +423,6 @@ class PlayfieldEditWidget(QWidget):
         # copie -- une modification d'un cote est visible immediatement de
         # l'autre.
         self.raw_widget = YamlEditWidget(path)
-        self.doc = self.raw_widget.doc
         self.raw_widget.modified_changed.connect(self.modified_changed.emit)
         self.raw_widget.modified_changed.connect(self._update_modified_label)
         self.raw_widget.saved.connect(self.saved.emit)
@@ -314,16 +437,23 @@ class PlayfieldEditWidget(QWidget):
         )
         poi_tab_inner = self._build_readonly_params_tab(
             lambda: find_poi_items(self.doc), t("playfield.col_groupname"),
-            synthetic_columns=[poi_regen_column])
+            synthetic_columns=[poi_regen_column],
+            commented_fn=self._commented_fn("POIs", ("GroupName",)))
         poi_tab = self._wrap_with_poi_inspector_button(poi_tab_inner)
 
         creature_biome_column = SyntheticColumn(
             label=t("playfield.col_biome"),
             getter=get_creature_biome,
+            # YAML-010 : biome MODIFIABLE (reecrit la zone '- Biomes: [...]')
+            # en liste deroulante des biomes observes dans le fichier.
+            setter=set_creature_biome,
+            choices_fn=lambda: observed_creature_biomes(self.doc),
         )
         creatures_tab = self._build_readonly_params_tab(
             lambda: find_creature_items(self.doc), t("playfield.col_name"),
-            synthetic_columns=[creature_biome_column])
+            synthetic_columns=[creature_biome_column],
+            filter_getter=get_creature_biome,
+            commented_fn=self._commented_fn("CreatureSpawning"))
 
         drones_tab = self._build_drones_tab()
         spawn_zones_tab = self._build_spawn_zones_tab()
@@ -342,6 +472,31 @@ class PlayfieldEditWidget(QWidget):
         # l'onglet YAML brut aurait modifie quelque chose entre-temps (edition
         # directe, undo...).
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
+
+    @property
+    def doc(self):
+        """Document PARTAGE avec l'onglet YAML complet -- toujours lu en direct
+        via raw_widget : undo() RE-CREE le document (re-parse du texte), une
+        reference capturee a l'init deviendrait orpheline et les editions des
+        tables structurees se perdraient silencieusement (YAML-014)."""
+        return self.raw_widget.doc
+
+    def _commented_fn(self, section_key: str, item_keys: tuple = ("Name",)):
+        """YAML-009 : fournisseur des entrees commentees nativement pour UNE
+        section (lu en direct sur le document partage, comme les items)."""
+        return lambda: find_commented_items(self.doc, section_key, item_keys)
+
+    def _activate_commented_item(self, citem):
+        """YAML-009 : reactiver une entree commentee nativement --
+        de-commentation des lignes (undo snapshot AVANT), puis re-parse du
+        document pour que l'entree devienne une vraie entree editable."""
+        from core.yamllite.parser import parse_yaml_text
+        self.raw_widget._snapshot_undo()
+        uncomment_commented_item(citem)
+        self.raw_widget.doc = parse_yaml_text(self.raw_widget.doc.render())
+        self.raw_widget.refresh_from_doc()
+        self._on_structured_change([])
+        self._refresh_all_tables()
 
     def _on_tab_changed(self, index: int):
         widget = self.tab_widget.widget(index)
@@ -384,7 +539,7 @@ class PlayfieldEditWidget(QWidget):
         glisser-deposer doit se refleter dans l'indicateur "modifications non
         enregistrees" de l'onglet YAML complet, comme toute autre edition
         structuree (meme mecanisme que _on_structured_change)."""
-        self.canvas_widget = PlayfieldCanvasWidget(self.doc)
+        self.canvas_widget = PlayfieldCanvasWidget(lambda: self.doc)
         self.canvas_widget.modified.connect(lambda: self._on_structured_change([]))
         return self.canvas_widget
 
@@ -395,6 +550,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.random_resources_label')}</b>"))
         random_table = PlayfieldSectionTable(
             get_items_fn=lambda: list_items(self.doc, "RandomResources", "Name"),
+            commented_fn=self._commented_fn("RandomResources"),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=True,
             add_callback=lambda: self._add_resource("RandomResources"),
@@ -406,6 +563,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.asteroid_resources_label')}</b>"))
         asteroid_table = PlayfieldSectionTable(
             get_items_fn=lambda: list_items(self.doc, "AsteroidResources", "Name"),
+            commented_fn=self._commented_fn("AsteroidResources"),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=True,
             add_callback=lambda: self._add_resource("AsteroidResources"),
@@ -422,6 +581,8 @@ class PlayfieldEditWidget(QWidget):
         )
         space_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_space_resource_items(self.doc),
+            commented_fn=self._commented_fn("Resources"),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=True,
             add_callback=self._add_space_resource,
@@ -439,7 +600,9 @@ class PlayfieldEditWidget(QWidget):
         return tab
 
     def _build_readonly_params_tab(self, get_items_fn, name_column_label: str,
-                                    synthetic_columns: Optional[List[SyntheticColumn]] = None) -> QWidget:
+                                    synthetic_columns: Optional[List[SyntheticColumn]] = None,
+                                    filter_getter: Optional[Callable[[YamlEntry], str]] = None,
+                                    commented_fn: Optional[Callable[[], list]] = None) -> QWidget:
         """POI et Creatures : modification des entrees existantes uniquement, pas
         d'ajout (voir le commentaire de portee en tete de fichier)."""
         tab = QWidget()
@@ -454,6 +617,9 @@ class PlayfieldEditWidget(QWidget):
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
             synthetic_columns=synthetic_columns,
+            filter_getter=filter_getter,
+            commented_fn=commented_fn,
+            on_activate_commented=self._activate_commented_item,
         )
         layout.addWidget(table, 1)
         table.changed.connect(lambda: self._on_structured_change([table]))
@@ -477,6 +643,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.drone_stock_label')}</b>"))
         stock_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_drone_stock_items(self.doc),
+            commented_fn=self._commented_fn("DroneBaseSetup", ('Name', 'DroneSetupID')),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -486,6 +654,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.free_drones_label')}</b>"))
         free_drones_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_free_drones_items(self.doc),
+            commented_fn=self._commented_fn("DroneBaseSetup", ('Name',)),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -495,6 +665,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.space_vessels_label')}</b>"))
         vessels_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_space_vessels_items(self.doc),
+            commented_fn=self._commented_fn("DroneBaseSetup", ('Name',)),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -521,6 +693,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.drone_spawning_label')}</b>"))
         drone_spawning_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_drone_spawning_items(self.doc),
+            commented_fn=self._commented_fn("DroneSpawning", ('DronesMinMax', 'CenterX')),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_dronesminmax"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -530,6 +704,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.spawn_rate_zones_label')}</b>"))
         spawn_rate_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_spawn_rate_zones_items(self.doc),
+            commented_fn=self._commented_fn("SpawnRateZones", ('SpawnAt',)),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_spawnat"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -539,6 +715,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.spawn_zones_label')}</b>"))
         spawn_zones_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_spawn_zones_items(self.doc),
+            commented_fn=self._commented_fn("SpawnZones", ('SpawnAt',)),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_spawnat"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -563,6 +741,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.special_effects_local_label')}</b>"))
         local_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_special_effects_local_items(self.doc),
+            commented_fn=self._commented_fn("SpecialEffectsLocal", ('Name',)),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -572,6 +752,8 @@ class PlayfieldEditWidget(QWidget):
         layout.addWidget(QLabel(f"<b>{t('playfield.special_effects_global_label')}</b>"))
         global_table = PlayfieldSectionTable(
             get_items_fn=lambda: find_special_effects_global_items(self.doc),
+            commented_fn=self._commented_fn("SpecialEffectsGlobal", ('Name',)),
+            on_activate_commented=self._activate_commented_item,
             name_column_label=t("playfield.col_name"),
             allow_add_remove=False,
             before_edit_callback=self.raw_widget._snapshot_undo,
@@ -586,7 +768,12 @@ class PlayfieldEditWidget(QWidget):
     def _on_structured_change(self, tables_to_refresh: List[PlayfieldSectionTable]):
         """Appele apres toute edition de cellule reussie -- l'edition elle-meme a
         deja mute le document (voir PlayfieldSectionTable._on_cell_changed), il
-        reste a synchroniser l'etat modifie/undo de l'onglet YAML brut."""
+        reste a synchroniser l'etat modifie/undo de l'onglet YAML brut ET son
+        APERCU (YAML-014 : sans refresh_from_doc(), l'arbre de l'onglet "YAML
+        complet" affichait indéfiniment la valeur d'avant l'edition, alors que
+        le disque etait correct -- l'utilisateur croyait a une perte de
+        donnee)."""
+        self.raw_widget.refresh_from_doc()
         self.raw_widget._set_modified(True)
         self.modified_changed.emit(True)
 
@@ -690,8 +877,13 @@ class PlayfieldEditWidget(QWidget):
 
     def undo(self):
         self.raw_widget.undo()
-        self.doc = self.raw_widget.doc  # undo() reconstruit doc via reparse -- resynchronise la reference
+        # doc est desormais une propriete lisant raw_widget.doc en direct :
+        # plus aucune reference orpheline possible apres le re-parse.
         self._refresh_all_tables()
+        # Le canvas garde des entites extraites de l'ANCIEN document (apres
+        # re-parse, leurs source_item sont orphelins) : re-extraction.
+        if hasattr(self, 'canvas_widget'):
+            self.canvas_widget.refresh()
 
     def _refresh_all_tables(self):
         for i in range(self.tab_widget.count()):

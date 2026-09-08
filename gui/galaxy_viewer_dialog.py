@@ -27,11 +27,13 @@ from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QBrush, QPen, QColor, QPainter, QFont
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
-    QGraphicsEllipseItem, QGraphicsTextItem, QPushButton, QSlider,
+    QGraphicsEllipseItem, QGraphicsTextItem, QPushButton, QSlider, QCheckBox,
+    QMessageBox,
 )
 
 from core.i18n import t
 from core.galaxy_viewer import extract_solar_systems, classify_star_class
+from core.workspace_undo import FileStateUndo
 from gui.theme import icon, icon_size
 from gui.results_window_helpers import export_text_to_file
 
@@ -40,10 +42,16 @@ _SPECTRAL_COLOR = "#f9a825"
 
 
 class _SystemDot(QGraphicsEllipseItem):
-    def __init__(self, system, radius: float, on_selected):
+    def __init__(self, system, radius: float, on_selected, on_moved=None):
         super().__init__(-radius, -radius, radius * 2, radius * 2)
         self.system = system
         self._on_selected = on_selected
+        self._on_moved = on_moved
+        # MAP-009 : deplacable seulement en mode edition (case a cocher) ET si
+        # le systeme a des coordonnees ecritables.
+        if on_moved is not None and system.coordinates is not None and system.source_item is not None:
+            self.setFlag(QGraphicsEllipseItem.GraphicsItemFlag.ItemIsMovable, True)
+            self.setPen(QPen(QColor("#4a7dfc"), 1.5))
         self.setAcceptHoverEvents(True)
         kind = classify_star_class(system.star_class)
         color = QColor(_ROLE_COLOR if kind == "role" else _SPECTRAL_COLOR)
@@ -55,12 +63,27 @@ class _SystemDot(QGraphicsEllipseItem):
         super().mousePressEvent(event)
         self._on_selected(self.system)
 
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if self._on_moved is not None and (self.flags() & QGraphicsEllipseItem.GraphicsItemFlag.ItemIsMovable):
+            new_pos = self.scenePos()
+            if abs(new_pos.x() - self.system.coordinates[0]) > 0.5 or abs(new_pos.y() - self.system.coordinates[2]) > 0.5:
+                self._on_moved(self.system, new_pos.x(), new_pos.y())
+
 
 class GalaxyViewerDialog(QDialog):
-    def __init__(self, doc, parent=None):
+    def __init__(self, doc, parent=None, sectors_path=None, push_undo=None,
+                 is_path_modified=None, reload_path=None):
         super().__init__(parent)
         self.doc = doc
         self.systems = []
+        # MAP-009 : sans chemin de Sectors.yaml (ou sans callbacks), la carte
+        # reste en lecture seule -- meme comportement qu'avant.
+        self.sectors_path = sectors_path
+        self._push_undo = push_undo
+        self._is_path_modified = is_path_modified
+        self._reload_path = reload_path
+        self._move_enabled = False
         self.setWindowTitle(t("galaxy.title"))
         self.setMinimumSize(900, 650)
 
@@ -72,10 +95,18 @@ class GalaxyViewerDialog(QDialog):
         info_row.addWidget(self.info_label, 1)
         layout.addLayout(info_row)
 
+        if self.sectors_path is not None:
+            self.move_check = QCheckBox(t("galaxy.allow_move"))
+            self.move_check.toggled.connect(self._on_move_toggled)
+            layout.addWidget(self.move_check)
+
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        # RubberBandDrag (et non ScrollHandDrag) : sans lui le glisser gauche
+        # panne la carte et les systemes etaient inmoveables (meme cause que
+        # MAP-002 sur le canvas de playfield).
+        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.view.wheelEvent = self._wheel_zoom
         layout.addWidget(self.view, 1)
 
@@ -161,7 +192,8 @@ class GalaxyViewerDialog(QDialog):
                 continue
             screen_x, screen_y = self._project(*system.coordinates)
             radius = 4.0 + min(system.sector_count, 20) * 0.4
-            dot = _SystemDot(system, radius, self._on_system_selected)
+            on_moved = self._on_system_moved if self._move_enabled else None
+            dot = _SystemDot(system, radius, self._on_system_selected, on_moved=on_moved)
             dot.setPos(screen_x, screen_y)
             self.scene.addItem(dot)
 
@@ -175,6 +207,54 @@ class GalaxyViewerDialog(QDialog):
             rect = QRectF(*self._padded_rect())
             self.view.setSceneRect(rect)
             self.view.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+
+    def _on_move_toggled(self, checked: bool):
+        """MAP-009 : active/desactive le mode edition. En mode edition,
+        l'inclinaison est forcee a 0 et figee : la projection cavaliere melange
+        Y et Z a l'ecran, l'inverse serait ambigu -- vue de dessus pure, la
+        correspondance ecran->coordonnees reste exacte."""
+        self._move_enabled = checked
+        if checked:
+            self.tilt_slider.setValue(0)
+            self.tilt_slider.setEnabled(False)
+        else:
+            self.tilt_slider.setEnabled(True)
+        self._redraw()
+
+    def _on_system_moved(self, system, screen_x: float, screen_y: float):
+        """Ecrit la nouvelle position (X, Z) du systeme dans Sectors.yaml (Y
+        conserve). Garde-fous : onglet Sectors.yaml modifie -> refus ; apres
+        ecriture -> undo espace de travail + rechargement de l'onglet ouvert."""
+        if not self._move_enabled or self.sectors_path is None:
+            return
+        if self._is_path_modified and self._is_path_modified(self.sectors_path):
+            QMessageBox.warning(self, t("galaxy.title"), t("galaxy.move_locked", name=self.sectors_path.name))
+            self.refresh()
+            return
+        x, y, _ = system.coordinates
+        coords_prop = None
+        if system.source_item is not None:
+            coords_prop = next(
+                (c for c in system.source_item.children if getattr(c, 'key', None) == "Coordinates"),
+                None)
+        if coords_prop is None:
+            return
+        coords_prop.set_own_value(f"[ {screen_x:g}, {y:g}, {screen_y:g} ]")
+        try:
+            from pathlib import Path
+            from core.fsutil import atomic_write_text
+            path = Path(self.sectors_path)
+            prior = path.read_bytes() if path.exists() else None
+            atomic_write_text(path, self.doc.render())
+            if self._push_undo is not None:
+                self._push_undo(FileStateUndo(path, prior, t("galaxy.move_undo", name=system.name)))
+        except OSError as e:
+            QMessageBox.critical(self, t("galaxy.title"), f"{t('save.error_title')} :\n{e}")
+            return
+        system.coordinates = (screen_x, y, screen_y)
+        self._on_system_selected(system)
+        if self._reload_path is not None:
+            self._reload_path(self.sectors_path)
 
     def _on_system_selected(self, system):
         kind_label = t("galaxy.role") if classify_star_class(system.star_class) == "role" else t("galaxy.spectral")

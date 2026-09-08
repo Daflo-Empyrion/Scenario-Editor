@@ -68,7 +68,14 @@ def _sanitize_label(label: str) -> str:
 
 def create_backup(source: Path, backup_root: Path, label: Optional[str], kind: str) -> BackupRecord:
     """Copie integralement `source` dans un nouveau sous-dossier horodate de
-    `backup_root`. Leve une exception si `source` n'existe pas."""
+    `backup_root`. Leve une exception si `source` n'existe pas.
+
+    Copie d'abord dans un dossier tampon `<nom>.inprogress`, renomme SEULEMENT
+    quand la copie est integrale (SAUV-011 : un kill de l'application en plein
+    copytree de 500 Mo laissait une sauvegarde TRONQUEE en place ; desormais le
+    dossier final n'apparait que complet, le tampon etant ignore par
+    list_backups -- pas de _backup_info.json -- et nettoye a la tentative
+    suivante)."""
     source = Path(source)
     if not source.exists():
         raise FileNotFoundError(f"La source n'existe pas : {source}")
@@ -87,7 +94,11 @@ def create_backup(source: Path, backup_root: Path, label: Optional[str], kind: s
         n += 1
         backup_path = backup_root / f"{folder_name}_{n}"
 
-    content_path = backup_path / "content"
+    staging_path = backup_path.with_name(backup_path.name + '.inprogress')
+    if staging_path.exists():  # residu d'un crash precedent : incomplete par definition
+        shutil.rmtree(staging_path, ignore_errors=True)
+
+    content_path = staging_path / "content"
     shutil.copytree(source, content_path)
     clear_readonly(content_path)
 
@@ -102,11 +113,17 @@ def create_backup(source: Path, backup_root: Path, label: Optional[str], kind: s
         'label': record.label,
         'source_path': record.source_path,
         'created_at': record.created_at,
-        'kind': record.kind,
+        'kind': kind,
     }
     from .fsutil import atomic_write_text
-    atomic_write_text(backup_path / INFO_FILENAME,
+    atomic_write_text(staging_path / INFO_FILENAME,
                       json.dumps(info, ensure_ascii=False, indent=2))
+
+    # La copie est complete : publication du dossier final en un renommage.
+    try:
+        staging_path.rename(backup_path)
+    except OSError:
+        shutil.move(str(staging_path), str(backup_path))
 
     return record
 
@@ -170,10 +187,21 @@ def restore_backup(record: BackupRecord, destination: Path,
             label=f"avant_restauration_{record.label}", kind=record.kind
         )
 
+    # Jamais de rmtree AVANT que le nouveau contenu soit integral quelque part
+    # (SAUV-011) : copie dans un tampon voisin, puis remplacement rapide. Un
+    # kill pendant la copie laisse l'ANCIEN contenu intact ; la fenetre de
+    # vulnerabilite se reduit au renommage, quasi instantane.
+    staging_path = destination.with_name(destination.name + '.restore.tmp')
+    if staging_path.exists():
+        shutil.rmtree(staging_path, ignore_errors=True)
+    shutil.copytree(record.content_path(), staging_path)
+    clear_readonly(staging_path)
     if destination.exists():
         shutil.rmtree(destination)
-    shutil.copytree(record.content_path(), destination)
-    clear_readonly(destination)
+    try:
+        staging_path.rename(destination)
+    except OSError:
+        shutil.move(str(staging_path), str(destination))
 
     return safety_record
 

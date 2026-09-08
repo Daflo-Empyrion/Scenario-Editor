@@ -129,6 +129,7 @@ def create_templates(parent, main_window, templates_path: Path,
     existing_names = {b.get_property('Name') for b in templates_doc.iter_blocks()
                       if b.get_property('Name')}
     created = 0
+    created_names: List[str] = []
     for variant_name in variant_names:
         if variant_name in existing_names:
             continue
@@ -159,12 +160,17 @@ def create_templates(parent, main_window, templates_path: Path,
             remove_template_ingredient(new_template, ingredient_name)
         templates_doc.nodes.append(new_template)
         created += 1
+        created_names.append(variant_name)
 
     if created > 0:
         if hasattr(templates_edit, "_set_modified"):
             templates_edit._set_modified(True)
         if hasattr(templates_edit, "_populate_tree"):
             templates_edit._populate_tree()
+        # FUS-014 : positionner directement sur le dernier Template cree --
+        # sans cela l'utilisateur devait le chercher a la main dans l'arbre.
+        if created_names and hasattr(templates_edit, "select_block_by_identity"):
+            templates_edit.select_block_by_identity(created_names[-1])
     return created
 
 

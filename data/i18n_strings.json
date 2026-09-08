@@ -28,8 +28,8 @@
   "en": "&Verification"
  },
  "menu.verification.center": {
-  "fr": "&Centre de vérification",
-  "en": "&Verification center"
+  "fr": "&Centre de vérif.",
+  "en": "&Verification"
  },
  "menu.verification.check_refs": {
   "fr": "Verifier les references (Ref) de la copie de travail...",
@@ -158,6 +158,258 @@
  "galaxy.not_found": {
   "fr": "Aucun fichier Sectors.yaml trouve dans ce scenario.",
   "en": "No Sectors.yaml file found in this scenario."
+ },
+ "galaxy.allow_move": {
+  "fr": "Autoriser le deplacement des systemes (ecrit dans Sectors.yaml ; inclinaison figee a 0 en mode edition)",
+  "en": "Allow moving systems (writes to Sectors.yaml; tilt locked to 0 in edit mode)"
+ },
+ "galaxy.move_undo": {
+  "fr": "Deplacement du systeme {name} (Sectors.yaml)",
+  "en": "Move system {name} (Sectors.yaml)"
+ },
+ "galaxy.move_locked": {
+  "fr": "{name} est ouvert avec des modifications non enregistrees : enregistre-le (ou annule-les) avant de deplacer des systemes.",
+  "en": "{name} is open with unsaved changes: save it (or discard them) before moving systems."
+ },
+ "dup.name_status_free": {
+  "fr": "Nom '{name}' libre dans ce fichier : tu peux le garder tel quel.",
+  "en": "Name '{name}' is free in this file: you can keep it as is."
+ },
+ "dup.name_status_taken": {
+  "fr": "Nom '{name}' DEJA UTILISE dans ce fichier (causerait une erreur a l'enregistrement). Suggestion libre : {suggestion}",
+  "en": "Name '{name}' ALREADY USED in this file (would cause a save error). Free suggestion: {suggestion}"
+ },
+ "dup.name_status_empty": {
+  "fr": "Un nom est necessaire pour identifier le duplicata.",
+  "en": "A name is required to identify the duplicate."
+ },
+ "dup.name_use_suggestion": {
+  "fr": "Utiliser la suggestion",
+  "en": "Use suggestion"
+ },
+ "mergepreview.title": {
+  "fr": "Apercu de la fusion",
+  "en": "Merge preview"
+ },
+ "mergepreview.intro": {
+  "fr": "{n} difference(s) proposee(s) par la fusion depuis {source}. Decoche ce que tu ne veux PAS appliquer ; la colonne 'Apres' est modifiable librement (double-clic). La copie de travail reste prioritaire : les proprietes differentes ne passent que si tu les coches.",
+  "en": "{n} difference(s) proposed by the merge from {source}. Uncheck what you do NOT want to apply; the 'After' column is freely editable (double-click). The working copy keeps priority: differing properties only pass if you check them."
+ },
+ "mergepreview.col_type": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "mergepreview.col_block": {
+  "fr": "Bloc",
+  "en": "Block"
+ },
+ "mergepreview.col_key": {
+  "fr": "Propriete",
+  "en": "Property"
+ },
+ "mergepreview.col_before": {
+  "fr": "Avant (copie de travail)",
+  "en": "Before (working copy)"
+ },
+ "mergepreview.col_after": {
+  "fr": "Apres (fusion)",
+  "en": "After (merge)"
+ },
+ "mergepreview.type_added_block": {
+  "fr": "Bloc ajoute",
+  "en": "Added block"
+ },
+ "mergepreview.type_added_property": {
+  "fr": "Propriete ajoutee",
+  "en": "Added property"
+ },
+ "mergepreview.type_changed_property": {
+  "fr": "Valeur differente",
+  "en": "Differing value"
+ },
+ "mergepreview.note": {
+  "fr": "Decocher une propriete ajoutee la supprime de la fusion ; decocher une propriete differente conserve la valeur de la copie de travail ; decocher un bloc ajoute retire entierement le bloc.",
+  "en": "Unchecking an added property removes it from the merge; unchecking a differing property keeps the working copy value; unchecking an added block removes the whole block."
+ },
+ "mergepreview.id_conflicts": {
+  "fr": "Attention : {n} collision(s) d'Id detectee(s) -- les blocs concernes seront ajoutes DESACTIVES (commentes) pour revue manuelle.",
+  "en": "Warning: {n} Id collision(s) detected -- affected blocks will be added DISABLED (commented) for manual review."
+ },
+ "mergepreview.btn_apply": {
+  "fr": "Appliquer la fusion",
+  "en": "Apply merge"
+ },
+ "mergepreview.dest_modified": {
+  "fr": "{name} est ouvert avec des modifications non enregistrees : enregistre-le (ou annule-les) avant de fusionner, sinon la fusion ecraserait ces changements.",
+  "en": "{name} is open with unsaved changes: save it (or discard them) before merging, otherwise the merge would overwrite those changes."
+ },
+ "mergepreview.status_done": {
+  "fr": "Fusion appliquee dans {file} (apercu valide)",
+  "en": "Merge applied to {file} (preview validated)"
+ },
+ "preview.tab_suffix": {
+  "fr": " (apercu)",
+  "en": " (preview)"
+ },
+ "preview.image_info": {
+  "fr": "{name} -- {size} px (apercu lecture seule)",
+  "en": "{name} -- {size} px (read-only preview)"
+ },
+ "preview.image_error": {
+  "fr": "Impossible de charger l'image {name} (format non reconnu par Qt).",
+  "en": "Could not load image {name} (format not recognized by Qt)."
+ },
+ "preview.unsupported": {
+  "fr": "Aucun parseur ni visionneuse pour {name} : ce format ne peut pas etre affiche.",
+  "en": "No parser or viewer for {name}: this format cannot be displayed."
+ },
+ "addblock.ask_infocard_title": {
+  "fr": "Ouvrir la fiche d'info ?",
+  "en": "Open the info card?"
+ },
+ "addblock.ask_infocard_msg": {
+  "fr": "Le bloc '{name}' est cree. Ouvrir sa fiche d'information EDITABLE pour completer icone, description, masse, volume... ?",
+  "en": "Block '{name}' created. Open its EDITABLE info card to fill icon, description, mass, volume...?"
+ },
+ "techtree.preview_pick_banner": {
+  "fr": "Choix du parent en cours : clique le bloc parent souhaite (Echap pour annuler).",
+  "en": "Parent pick in progress: click the desired parent block (Esc to cancel)."
+ },
+ "block_info.description_label": {
+  "fr": "Descriptif",
+  "en": "Description"
+ },
+ "block_info.description_none": {
+  "fr": "(aucune description -- clique le crayon pour en creer une)",
+  "en": "(no description -- click the pen to create one)"
+ },
+ "block_info.desc_edit_tooltip": {
+  "fr": "Modifier le descriptif (Localization.csv, FR + EN)",
+  "en": "Edit the description (Localization.csv, FR + EN)"
+ },
+ "block_info.desc_edit_title": {
+  "fr": "Modifier le descriptif",
+  "en": "Edit description"
+ },
+ "block_info.desc_edit_key_label": {
+  "fr": "Cle de localisation : {key}",
+  "en": "Localization key: {key}"
+ },
+ "block_info.desc_edit_creating": {
+  "fr": "sera CREEE (le bloc n'avait pas de propriete Info:)",
+  "en": "will be CREATED (the block had no Info: property)"
+ },
+ "block_info.desc_edit_hint": {
+  "fr": "Texte BBCode brut (comme dans le fichier) : les balises [b]...[/b], [c][ Couleur]... sont conservees. FR et EN ecrits dans Localization.csv de la copie de travail.",
+  "en": "Raw BBCode text (as in the file): tags [b]...[/b], [c][ Color]... are kept. FR and EN are written to the working copy's Localization.csv."
+ },
+ "block_info.desc_edit_fr": {
+  "fr": "Français :",
+  "en": "Français:"
+ },
+ "block_info.desc_edit_en": {
+  "fr": "English :",
+  "en": "English:"
+ },
+ "block_info.desc_edit_undo": {
+  "fr": "Modification du descriptif {key}",
+  "en": "Description change {key}"
+ },
+ "block_info.desc_edit_done": {
+  "fr": "Descriptif mis a jour : {key} (Localization.csv)",
+  "en": "Description updated: {key} (Localization.csv)"
+ },
+ "block_info.bb_bold": {
+  "fr": "Gras ([b]...[/b])",
+  "en": "Bold ([b]...[/b])"
+ },
+ "block_info.bb_italic": {
+  "fr": "Italique ([i]...[/i])",
+  "en": "Italic ([i]...[/i])"
+ },
+ "block_info.bb_underline": {
+  "fr": "Souligne ([u]...[/u])",
+  "en": "Underline ([u]...[/u])"
+ },
+ "block_info.bb_color": {
+  "fr": "Couleur Empyrion ([c][hex]...[-][/c])",
+  "en": "Empyrion color ([c][hex]...[-][/c])"
+ },
+ "block_info.tr_fr_en": {
+  "fr": "FR -> EN",
+  "en": "FR -> EN"
+ },
+ "block_info.tr_en_fr": {
+  "fr": "EN -> FR",
+  "en": "EN -> FR"
+ },
+ "block_info.desc_no_name": {
+  "fr": "Le bloc n'a ni Info: ni Name : impossible de determiner la cle de localisation.",
+  "en": "The block has neither Info: nor Name: cannot determine the localization key."
+ },
+ "crossref.fix_title": {
+  "fr": "Reference de dialogue cassee",
+  "en": "Broken dialogue reference"
+ },
+ "crossref.fix_explain": {
+  "fr": "Le dialogue '{block}' ({file}) reference '{value}' via {key}, mais AUCUN bloc +Dialogue ne porte ce nom. Corrections possibles :",
+  "en": "Dialogue '{block}' ({file}) references '{value}' via {key}, but NO +Dialogue block has that name. Possible fixes:"
+ },
+ "crossref.fix_replace": {
+  "fr": "Remplacer par un dialogue existant :",
+  "en": "Replace with an existing dialogue:"
+ },
+ "crossref.fix_remove": {
+  "fr": "Supprimer la reference ({key})",
+  "en": "Remove the reference ({key})"
+ },
+ "crossref.fix_note": {
+  "fr": "Suggestion (nom le plus proche trouve) : {suggest}. La correction est ecrite sur disque, annulable via le bouton Annuler global.",
+  "en": "Suggestion (closest existing name): {suggest}. The fix is written to disk and can be undone with the global Undo button."
+ },
+ "crossref.fix_note_none": {
+  "fr": "Aucun nom existant ne ressemble a cette reference : la suppression est probablement la correction la plus sure.",
+  "en": "No existing name resembles this reference: removing it is probably the safest fix."
+ },
+ "crossref.fix_apply": {
+  "fr": "Appliquer la correction",
+  "en": "Apply the fix"
+ },
+ "crossref.fix_view": {
+  "fr": "Voir dans le fichier sans corriger",
+  "en": "View in file without fixing"
+ },
+ "crossref.fix_locked": {
+  "fr": "{name} est ouvert avec des modifications non enregistrees : enregistre-le (ou annule-les) avant de corriger.",
+  "en": "{name} is open with unsaved changes: save it (or discard them) before fixing."
+ },
+ "crossref.fix_empty": {
+  "fr": "Le nom de remplacement est vide.",
+  "en": "The replacement name is empty."
+ },
+ "crossref.fix_notfound": {
+  "fr": "Le bloc ou la reference n'a pas ete trouve (fichier change ?) -- relance la verification.",
+  "en": "Block or reference not found (file changed?) -- re-run the check."
+ },
+ "crossref.fix_undo": {
+  "fr": "Correction {key}: {value} (references croisees)",
+  "en": "Fix {key}: {value} (cross references)"
+ },
+ "crossref.fix_done": {
+  "fr": "Correction appliquee : {key} -> {value} n'est plus reference",
+  "en": "Fix applied: {key} -> {value} no longer referenced"
+ },
+ "ecf.native_commented_label": {
+  "fr": "(desactive) {label}",
+  "en": "(disabled) {label}"
+ },
+ "ecf.activate_native_action": {
+  "fr": "Activer ce bloc (de-commenter '{label}')",
+  "en": "Activate this block (uncomment '{label}')"
+ },
+ "ecf.create_template_action": {
+  "fr": "Creer un Template pour ce bloc",
+  "en": "Create a Template for this block"
  },
  "orphan.title": {
   "fr": "Jetons potentiellement non utilises",
@@ -810,6 +1062,26 @@
  "playfield.col_biome": {
   "fr": "Biome",
   "en": "Biome"
+ },
+ "playfield.filter_label": {
+  "fr": "Filtrer :",
+  "en": "Filter:"
+ },
+ "playfield.filter_all": {
+  "fr": "(tous)",
+  "en": "(all)"
+ },
+ "playfield.commented_prefix": {
+  "fr": "(desactive) {label}",
+  "en": "(disabled) {label}"
+ },
+ "playfield.commented_count": {
+  "fr": "{n} entree(s) desactivee(s) dans le fichier (clic droit pour reactiver)",
+  "en": "{n} disabled entry(ies) in the file (right-click to reactivate)"
+ },
+ "playfield.activate_commented": {
+  "fr": "Activer cette entree (de-commenter '{label}')",
+  "en": "Activate this entry (uncomment '{label}')"
  },
  "playfield.count_label": {
   "fr": "{n} entree(s)",
@@ -2023,6 +2295,22 @@
   "fr": "Selectionne un fichier modifie dans l'arbre pour voir le detail.",
   "en": "Select a modified file in the tree to see the detail."
  },
+ "about.license_lang_note": {
+  "fr": "Note : le texte de licence ci-dessous est en anglais par definition -- seule la version originale anglaise de la GPLv3 fait foi juridiquement (les traductions ne sont que indicatives).",
+  "en": "Note: the license text below is in English by design -- only the original English GPLv3 is legally authoritative (translations are informative only)."
+ },
+ "compare.preview_error": {
+  "fr": "Apercu impossible : {error}",
+  "en": "Preview unavailable: {error}"
+ },
+ "compare.side_added": {
+  "fr": "fichier AJOUTE (contenu)",
+  "en": "ADDED file (content)"
+ },
+ "compare.side_removed": {
+  "fr": "fichier SUPPRIME (contenu)",
+  "en": "REMOVED file (content)"
+ },
  "compare.no_detail": {
   "fr": "(pas de detail disponible pour ce type de fichier -- contenu binaire ou format non structure)",
   "en": "(no detail available for this file type -- binary content or unstructured format)"
@@ -2906,6 +3194,22 @@
  "copy.row_error": {
   "fr": "Impossible de copier cette ligne",
   "en": "Could not copy this row"
+ },
+ "verify.save_first_title": {
+  "fr": "Enregistrer avant l'analyse ?",
+  "en": "Save before analysis?"
+ },
+ "verify.save_first_msg": {
+  "fr": "{n} onglet(s) contienne(nt) des modifications non enregistrees.\nLes verifications lisent les FICHIERS SUR DISQUE : sans enregistrement, ces modifications seront invisibles dans les resultats.\nEnregistrer maintenant ?",
+  "en": "{n} tab(s) contain unsaved changes.\nChecks read the FILES ON DISK: without saving, those changes will be invisible in the results.\nSave now?"
+ },
+ "copy.row_unchanged_title": {
+  "fr": "Rien a copier",
+  "en": "Nothing to copy"
+ },
+ "copy.row_unchanged_msg": {
+  "fr": "La ligne '{key}' existe deja dans {file} et toutes ses cellules sont deja remplies.\nMode fusion : la copie de travail est prioritaire, rien n'a ete modifie.\nPour recuperer les valeurs de la source, modifie d'abord (ou vide) les cellules concernees dans la copie de travail.",
+  "en": "Row '{key}' already exists in {file} and all its cells are already filled.\nMerge mode: the working copy has priority, nothing was changed.\nTo take the source values, first edit (or empty) the relevant cells in the working copy."
  },
  "dup.key_required_title": {
   "fr": "Cle requise",
@@ -3950,5 +4254,1153 @@
  "wsundo.card_template_edit": {
   "fr": "Fiche : Template {name} modifié (ingrédients)",
   "en": "Card: edited template {name} (ingredients)"
+ },
+ "pda.action.check": {
+  "fr": "Type d'objectif (Check)",
+  "en": "Objective type (Check)"
+ },
+ "pda.activation.add": {
+  "fr": "+ Ajouter une activation",
+  "en": "+ Add an activation"
+ },
+ "pda.activation.check": {
+  "fr": "Check (optionnel)",
+  "en": "Check (optional)"
+ },
+ "pda.activation.check.tooltip": {
+  "fr": "Laisser vide pour une activation par proximité implicite (forme majoritaire des vrais fichiers)",
+  "en": "Leave empty for an implicit proximity activation (majority form in real files)"
+ },
+ "pda.activation.label": {
+  "fr": "Activations du chapitre (ChapterActivation)",
+  "en": "Chapter activations (ChapterActivation)"
+ },
+ "pda.activation.message_time": {
+  "fr": "Durée du message (s)",
+  "en": "Message duration (s)"
+ },
+ "pda.activation.notify_message": {
+  "fr": "Message de notification",
+  "en": "Notification message"
+ },
+ "pda.activation.popup_activates": {
+  "fr": "Fenêtre d'activation",
+  "en": "Activation window"
+ },
+ "pda.activation.remove": {
+  "fr": "Supprimer l'activation",
+  "en": "Remove activation"
+ },
+ "pda.chapter.activatable": {
+  "fr": "Activable",
+  "en": "Activatable"
+ },
+ "pda.chapter.activate_on_completion": {
+  "fr": "Chapitre activé à la complétion",
+  "en": "Chapter activated on completion"
+ },
+ "pda.chapter.activate_on_skip": {
+  "fr": "Chapitre activé au passage",
+  "en": "Chapter activated on skip"
+ },
+ "pda.chapter.auto_activate": {
+  "fr": "Auto-activation au démarrage",
+  "en": "Auto-activate on start"
+ },
+ "pda.chapter.category": {
+  "fr": "Catégorie",
+  "en": "Category"
+ },
+ "pda.chapter.completed_message": {
+  "fr": "Message de complétion",
+  "en": "Completion message"
+ },
+ "pda.chapter.description": {
+  "fr": "Description",
+  "en": "Description"
+ },
+ "pda.chapter.faction": {
+  "fr": "Faction",
+  "en": "Faction"
+ },
+ "pda.chapter.group": {
+  "fr": "Groupe",
+  "en": "Group"
+ },
+ "pda.chapter.hide_tasks": {
+  "fr": "Masquer les tâches",
+  "en": "Hide tasks"
+ },
+ "pda.chapter.noskip": {
+  "fr": "Non passable (NoSkip)",
+  "en": "No skip (NoSkip)"
+ },
+ "pda.chapter.picture": {
+  "fr": "Image (PictureFile)",
+  "en": "Picture (PictureFile)"
+ },
+ "pda.chapter.player_credits": {
+  "fr": "Crédits joueur",
+  "en": "Player credits"
+ },
+ "pda.chapter.player_level": {
+  "fr": "Niveau requis",
+  "en": "Required level"
+ },
+ "pda.chapter.properties": {
+  "fr": "Propriétés du chapitre",
+  "en": "Chapter properties"
+ },
+ "pda.chapter.repeat": {
+  "fr": "Répétition (RepeatConditions)",
+  "en": "Repeat (RepeatConditions)"
+ },
+ "pda.chapter.reputation_level": {
+  "fr": "Niveau de réputation",
+  "en": "Reputation level"
+ },
+ "pda.chapter.rewards": {
+  "fr": "Récompenses",
+  "en": "Rewards"
+ },
+ "pda.chapter.rewards_chain": {
+  "fr": "Chapitres activés une fois récompensé (RewardedChapters)",
+  "en": "Chapters activated once this one is rewarded (RewardedChapters)"
+ },
+ "pda.chapter.skip_message": {
+  "fr": "Message de passage",
+  "en": "Skip message"
+ },
+ "pda.chapter.start_message": {
+  "fr": "Message de début",
+  "en": "Start message"
+ },
+ "pda.chapter.visibility": {
+  "fr": "Visibilité",
+  "en": "Visibility"
+ },
+ "pda.check.biome_changed.desc": {
+  "fr": "Le joueur entre dans un biome (tempête, pluie…)",
+  "en": "Player enters a biome (storm, rain…)"
+ },
+ "pda.check.biome_changed.label": {
+  "fr": "Changement de biome",
+  "en": "Biome change"
+ },
+ "pda.check.block_destroyed.desc": {
+  "fr": "Détruire un nombre donné de blocs (structure, cœur, minage)",
+  "en": "Destroy a given number of blocks (structure, core, mining)"
+ },
+ "pda.check.block_destroyed.label": {
+  "fr": "Détruire / miner des blocs",
+  "en": "Destroy / mine blocks"
+ },
+ "pda.check.blocks_placed.desc": {
+  "fr": "Placer un nombre donné de blocs",
+  "en": "Place a given number of blocks"
+ },
+ "pda.check.blocks_placed.label": {
+  "fr": "Placer des blocs",
+  "en": "Place blocks"
+ },
+ "pda.check.blocks_removed.desc": {
+  "fr": "Retirer un nombre donné de blocs",
+  "en": "Remove a given number of blocks"
+ },
+ "pda.check.blocks_removed.label": {
+  "fr": "Retirer des blocs",
+  "en": "Remove blocks"
+ },
+ "pda.check.device_powered.desc": {
+  "fr": "Un appareil nommé est alimenté",
+  "en": "A named device is powered"
+ },
+ "pda.check.device_powered.label": {
+  "fr": "Appareil alimenté",
+  "en": "Device powered"
+ },
+ "pda.check.device_used.desc": {
+  "fr": "Interagir avec un appareil d'un POI",
+  "en": "Interact with a POI device"
+ },
+ "pda.check.device_used.label": {
+  "fr": "Utiliser un appareil",
+  "en": "Use device"
+ },
+ "pda.check.dialog_option.desc": {
+  "fr": "Choisir une option donnée d'un dialogue",
+  "en": "Pick a given dialog option"
+ },
+ "pda.check.dialog_option.label": {
+  "fr": "Option de dialogue",
+  "en": "Dialog option"
+ },
+ "pda.check.inventory_closed.desc": {
+  "fr": "Fermer un inventaire donné",
+  "en": "Close a given inventory"
+ },
+ "pda.check.inventory_closed.label": {
+  "fr": "Fermer un inventaire",
+  "en": "Close inventory"
+ },
+ "pda.check.inventory_closed_poi.desc": {
+  "fr": "Fermer l'inventaire d'un POI donné",
+  "en": "Close the inventory of a given POI"
+ },
+ "pda.check.inventory_closed_poi.label": {
+  "fr": "Fermer l'inventaire d'un POI",
+  "en": "Close POI inventory"
+ },
+ "pda.check.inventory_contains.desc": {
+  "fr": "Posséder des objets donnés dans l'inventaire",
+  "en": "Hold given items in inventory"
+ },
+ "pda.check.inventory_contains.label": {
+  "fr": "Posséder des objets",
+  "en": "Hold items"
+ },
+ "pda.check.inventory_count.desc": {
+  "fr": "Posséder un nombre donné d'objets donnés",
+  "en": "Hold a given number of given items"
+ },
+ "pda.check.inventory_count.label": {
+  "fr": "Quantité d'objets en inventaire",
+  "en": "Item count in inventory"
+ },
+ "pda.check.inventory_opened.desc": {
+  "fr": "Ouvrir un inventaire donné",
+  "en": "Open a given inventory"
+ },
+ "pda.check.inventory_opened.label": {
+  "fr": "Ouvrir un inventaire",
+  "en": "Open inventory"
+ },
+ "pda.check.inventory_opened_poi.desc": {
+  "fr": "Ouvrir l'inventaire d'un POI donné",
+  "en": "Open the inventory of a given POI"
+ },
+ "pda.check.inventory_opened_poi.label": {
+  "fr": "Ouvrir l'inventaire d'un POI",
+  "en": "Open POI inventory"
+ },
+ "pda.check.items_crafted.desc": {
+  "fr": "Fabriquer un nombre donné d'objets",
+  "en": "Craft a given number of items"
+ },
+ "pda.check.items_crafted.label": {
+  "fr": "Fabriquer des objets",
+  "en": "Craft items"
+ },
+ "pda.check.items_picked.desc": {
+  "fr": "Ramasser un nombre donné d'objets",
+  "en": "Pick up a given number of items"
+ },
+ "pda.check.items_picked.label": {
+  "fr": "Ramasser des objets",
+  "en": "Pick up items"
+ },
+ "pda.check.items_unlocked.desc": {
+  "fr": "Débloquer des objets (arbre technologique)",
+  "en": "Unlock items (tech tree)"
+ },
+ "pda.check.items_unlocked.label": {
+  "fr": "Débloquer des objets",
+  "en": "Unlock items"
+ },
+ "pda.check.main_power.desc": {
+  "fr": "Actionner l'interrupteur principal d'un POI",
+  "en": "Switch the main power of a POI"
+ },
+ "pda.check.main_power.label": {
+  "fr": "Interrupteur principal",
+  "en": "Main power switch"
+ },
+ "pda.check.near_poi.desc": {
+  "fr": "S'approcher d'un Point of Interest",
+  "en": "Get close to a Point of Interest"
+ },
+ "pda.check.near_poi.label": {
+  "fr": "Aller à un lieu (POI)",
+  "en": "Go to a POI"
+ },
+ "pda.check.near_resource.desc": {
+  "fr": "S'approcher d'un gisement",
+  "en": "Get close to a resource deposit"
+ },
+ "pda.check.near_resource.label": {
+  "fr": "Proche d'une ressource",
+  "en": "Near a resource"
+ },
+ "pda.check.near_unit.desc": {
+  "fr": "S'approcher d'une unité/PNJ/créature",
+  "en": "Get close to a unit/NPC/creature"
+ },
+ "pda.check.near_unit.label": {
+  "fr": "Aller vers une unité",
+  "en": "Go to a unit"
+ },
+ "pda.check.none.desc": {
+  "fr": "Ligne de texte informative, sans condition de validation",
+  "en": "Informative text line, with no completion condition"
+ },
+ "pda.check.none.label": {
+  "fr": "Sans objectif (texte seul)",
+  "en": "No objective (text only)"
+ },
+ "pda.check.pf_type_entered.desc": {
+  "fr": "Entrer dans un type de playfield (orbite, astéroïdes…)",
+  "en": "Enter a playfield type (orbit, asteroids…)"
+ },
+ "pda.check.pf_type_entered.label": {
+  "fr": "Entrer dans un type de zone",
+  "en": "Enter a zone type"
+ },
+ "pda.check.pf_type_left.desc": {
+  "fr": "Quitter un type de playfield",
+  "en": "Leave a playfield type"
+ },
+ "pda.check.pf_type_left.label": {
+  "fr": "Quitter un type de zone",
+  "en": "Leave a zone type"
+ },
+ "pda.check.plant_harvested.desc": {
+  "fr": "Récolter un nombre donné de plantes",
+  "en": "Harvest a given number of plants"
+ },
+ "pda.check.plant_harvested.label": {
+  "fr": "Récolter des plantes",
+  "en": "Harvest plants"
+ },
+ "pda.check.playfield_entered.desc": {
+  "fr": "Entrer dans un playfield donné",
+  "en": "Enter a given playfield"
+ },
+ "pda.check.playfield_entered.label": {
+  "fr": "Entrer dans une zone",
+  "en": "Enter a playfield"
+ },
+ "pda.check.playfield_left.desc": {
+  "fr": "Quitter un playfield donné",
+  "en": "Leave a given playfield"
+ },
+ "pda.check.playfield_left.label": {
+  "fr": "Quitter une zone",
+  "en": "Leave a playfield"
+ },
+ "pda.check.poi_discovered.desc": {
+  "fr": "Découvrir un POI",
+  "en": "Discover a POI"
+ },
+ "pda.check.poi_discovered.label": {
+  "fr": "Découvrir un lieu",
+  "en": "Discover a POI"
+ },
+ "pda.check.resource_discovered.desc": {
+  "fr": "Découvrir un type de ressource",
+  "en": "Discover a resource type"
+ },
+ "pda.check.resource_discovered.label": {
+  "fr": "Découvrir une ressource",
+  "en": "Discover a resource"
+ },
+ "pda.check.signal.desc": {
+  "fr": "Recevoir un signal logique de bloc",
+  "en": "Receive a block logic signal"
+ },
+ "pda.check.signal.label": {
+  "fr": "Signal",
+  "en": "Signal"
+ },
+ "pda.check.star_class.desc": {
+  "fr": "Entrer dans un système d'une classe stellaire donnée",
+  "en": "Enter a system of a given star class"
+ },
+ "pda.check.star_class.label": {
+  "fr": "Entrer dans une classe stellaire",
+  "en": "Enter a star class"
+ },
+ "pda.check.structure_spawned.desc": {
+  "fr": "Une structure nommée apparaît",
+  "en": "A named structure spawns"
+ },
+ "pda.check.structure_spawned.label": {
+  "fr": "Apparition d'une structure",
+  "en": "Structure spawn"
+ },
+ "pda.check.subject_killed.desc": {
+  "fr": "Éliminer un nombre donné d'entités nommées",
+  "en": "Kill a given number of named entities"
+ },
+ "pda.check.subject_killed.label": {
+  "fr": "Éliminer des cibles",
+  "en": "Kill targets"
+ },
+ "pda.check.toolbar_contains.desc": {
+  "fr": "Posséder un objet dans la barre d'outils",
+  "en": "Hold an item in the toolbar"
+ },
+ "pda.check.toolbar_contains.label": {
+  "fr": "Objet dans la barre d'outils",
+  "en": "Item in toolbar"
+ },
+ "pda.check.unknown.desc": {
+  "fr": "Type de Check inconnu du schéma — les propriétés existantes restent éditables",
+  "en": "Check type unknown to the schema — existing properties remain editable"
+ },
+ "pda.check.unknown.label": {
+  "fr": "Type inconnu",
+  "en": "Unknown type"
+ },
+ "pda.check.wait.desc": {
+  "fr": "Attendre un délai donné (secondes)",
+  "en": "Wait a given delay (seconds)"
+ },
+ "pda.check.wait.label": {
+  "fr": "Attendre",
+  "en": "Wait"
+ },
+ "pda.check.window_closed.desc": {
+  "fr": "Fermer une fenêtre d'interface donnée",
+  "en": "Close a given UI window"
+ },
+ "pda.check.window_closed.label": {
+  "fr": "Fermer une fenêtre",
+  "en": "Close window"
+ },
+ "pda.check.window_opened.desc": {
+  "fr": "Ouvrir une fenêtre d'interface donnée",
+  "en": "Open a given UI window"
+ },
+ "pda.check.window_opened.label": {
+  "fr": "Ouvrir une fenêtre",
+  "en": "Open window"
+ },
+ "pda.editor.title": {
+  "fr": "Éditeur PDA",
+  "en": "PDA Editor"
+ },
+ "pda.editor.welcome": {
+  "fr": "Sélectionnez un chapitre, une tâche ou une action dans l'arbre à gauche.",
+  "en": "Select a chapter, task or action in the tree on the left."
+ },
+ "pda.field.allow_manual": {
+  "fr": "Complétion manuelle autorisée",
+  "en": "Allow manual completion"
+ },
+ "pda.field.amount": {
+  "fr": "Quantité",
+  "en": "Amount"
+ },
+ "pda.field.amount_kills": {
+  "fr": "Nombre d'éliminations",
+  "en": "Kill count"
+ },
+ "pda.field.amount_seconds": {
+  "fr": "Durée (secondes)",
+  "en": "Duration (seconds)"
+ },
+ "pda.field.comment": {
+  "fr": "Commentaire (non visible en jeu)",
+  "en": "Comment (not shown in game)"
+ },
+ "pda.field.completed_message": {
+  "fr": "Message de complétion",
+  "en": "Completion message"
+ },
+ "pda.field.description": {
+  "fr": "Description",
+  "en": "Description"
+ },
+ "pda.field.guiding": {
+  "fr": "Guidage",
+  "en": "Guiding"
+ },
+ "pda.field.guiding_distance": {
+  "fr": "Distance de guidage",
+  "en": "Guiding distance"
+ },
+ "pda.field.is_optional": {
+  "fr": "Optionnel (IsOptional)",
+  "en": "Optional (IsOptional)"
+ },
+ "pda.field.is_optional.tooltip": {
+  "fr": "Ancienne écriture : l'action peut être ignorée. La nouvelle écriture est « Required ».",
+  "en": "Legacy writing: the action can be skipped. The current one is \"Required\"."
+ },
+ "pda.field.is_ordered": {
+  "fr": "Ordre imposé",
+  "en": "Ordered"
+ },
+ "pda.field.names_biome": {
+  "fr": "Biomes",
+  "en": "Biomes"
+ },
+ "pda.field.names_device": {
+  "fr": "Appareils",
+  "en": "Devices"
+ },
+ "pda.field.names_dialog": {
+  "fr": "Dialogues",
+  "en": "Dialogs"
+ },
+ "pda.field.names_item": {
+  "fr": "Objets",
+  "en": "Items"
+ },
+ "pda.field.names_optional": {
+  "fr": "Noms (optionnels)",
+  "en": "Names (optional)"
+ },
+ "pda.field.names_pf_type": {
+  "fr": "Types de zone",
+  "en": "Zone types"
+ },
+ "pda.field.names_playfield": {
+  "fr": "Playfields",
+  "en": "Playfields"
+ },
+ "pda.field.names_poi": {
+  "fr": "POI",
+  "en": "POIs"
+ },
+ "pda.field.names_required": {
+  "fr": "Noms obligatoires",
+  "en": "Names required"
+ },
+ "pda.field.names_signal": {
+  "fr": "Signaux",
+  "en": "Signals"
+ },
+ "pda.field.names_star_class": {
+  "fr": "Classes stellaires",
+  "en": "Star classes"
+ },
+ "pda.field.names_structure": {
+  "fr": "Structures",
+  "en": "Structures"
+ },
+ "pda.field.names_targets": {
+  "fr": "Cibles",
+  "en": "Targets"
+ },
+ "pda.field.names_unit": {
+  "fr": "Unités / PNJ",
+  "en": "Units / NPCs"
+ },
+ "pda.field.names_window": {
+  "fr": "Fenêtres",
+  "en": "Windows"
+ },
+ "pda.field.required": {
+  "fr": "Requis (Required)",
+  "en": "Required"
+ },
+ "pda.field.required.tooltip": {
+  "fr": "Nouvelle écriture : l'action ne peut pas être ignorée. Ancienne écriture : « IsOptional ».",
+  "en": "Current writing: the action cannot be skipped. Legacy: \"IsOptional\"."
+ },
+ "pda.field.trigger_distance": {
+  "fr": "Distance de déclenchement",
+  "en": "Trigger distance"
+ },
+ "pda.field.types_block": {
+  "fr": "Blocs",
+  "en": "Blocks"
+ },
+ "pda.field.types_item": {
+  "fr": "Objets",
+  "en": "Items"
+ },
+ "pda.field.types_plant": {
+  "fr": "Plantes",
+  "en": "Plants"
+ },
+ "pda.field.types_resource": {
+  "fr": "Ressources",
+  "en": "Resources"
+ },
+ "pda.field.value_option": {
+  "fr": "Index de l'option",
+  "en": "Option index"
+ },
+ "pda.list.add": {
+  "fr": "Ajouter",
+  "en": "Add"
+ },
+ "pda.list.down": {
+  "fr": "Descendre",
+  "en": "Move down"
+ },
+ "pda.list.remove": {
+  "fr": "Retirer",
+  "en": "Remove"
+ },
+ "pda.list.up": {
+  "fr": "Monter",
+  "en": "Move up"
+ },
+ "pda.multilang.title": {
+  "fr": "Traductions de {token}",
+  "en": "Translations of {token}"
+ },
+ "pda.repeat.delay": {
+  "fr": "Délai (Delay)",
+  "en": "Delay (Delay)"
+ },
+ "pda.repeat.delay_add": {
+  "fr": "Délai additionnel (DelayAdd)",
+  "en": "Additional delay (DelayAdd)"
+ },
+ "pda.repeat.delay_seconds": {
+  "fr": "Délai (secondes)",
+  "en": "Delay (seconds)"
+ },
+ "pda.repeat.no_reminder": {
+  "fr": "Pas de rappel",
+  "en": "No reminder"
+ },
+ "pda.repeat.num_repeats": {
+  "fr": "Nombre de répétitions",
+  "en": "Number of repeats"
+ },
+ "pda.rewards.add": {
+  "fr": "+ Ajouter une récompense",
+  "en": "+ Add a reward"
+ },
+ "pda.rewards.count": {
+  "fr": "Quantité",
+  "en": "Amount"
+ },
+ "pda.rewards.faction": {
+  "fr": "Faction",
+  "en": "Faction"
+ },
+ "pda.rewards.kind": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "pda.rewards.meta": {
+  "fr": "Méta",
+  "en": "Meta"
+ },
+ "pda.task.headline": {
+  "fr": "Titre de la tâche",
+  "en": "Task title"
+ },
+ "pda.task.only_visible_rewarded": {
+  "fr": "Visible seulement une fois récompensée",
+  "en": "Visible only once rewarded"
+ },
+ "pda.task.properties": {
+  "fr": "Propriétés de la tâche",
+  "en": "Task properties"
+ },
+ "pda.task.start_delay": {
+  "fr": "Délai de départ (s)",
+  "en": "Start delay (s)"
+ },
+ "pda.task.unique_items": {
+  "fr": "Objets uniques",
+  "en": "Unique items"
+ },
+ "pda.token_field.all_langs": {
+  "fr": "Éditer toutes les traductions",
+  "en": "Edit all translations"
+ },
+ "pda.token_field.placeholder": {
+  "fr": "Texte affiché au joueur…",
+  "en": "Text shown to the player…"
+ },
+ "pda.token_field.token_tooltip": {
+  "fr": "Jeton : {token}",
+  "en": "Token: {token}"
+ },
+ "pda.tree.add_action": {
+  "fr": "Ajouter une action",
+  "en": "Add action"
+ },
+ "pda.tree.add_chapter": {
+  "fr": "Nouveau chapitre",
+  "en": "New chapter"
+ },
+ "pda.tree.add_task": {
+  "fr": "Ajouter une tâche",
+  "en": "Add task"
+ },
+ "pda.tree.confirm_delete_action": {
+  "fr": "Supprimer cette action ?",
+  "en": "Delete this action?"
+ },
+ "pda.tree.confirm_delete_chapter": {
+  "fr": "Supprimer ce chapitre et tout son contenu ?",
+  "en": "Delete this chapter and all its content?"
+ },
+ "pda.tree.confirm_delete_task": {
+  "fr": "Supprimer cette tâche et toutes ses actions ?",
+  "en": "Delete this task and all its actions?"
+ },
+ "pda.tree.delete": {
+  "fr": "Supprimer",
+  "en": "Delete"
+ },
+ "pda.tree.down": {
+  "fr": "Descendre",
+  "en": "Move down"
+ },
+ "pda.tree.duplicate": {
+  "fr": "Dupliquer le chapitre",
+  "en": "Duplicate chapter"
+ },
+ "pda.tree.header": {
+  "fr": "Chapitres / Tâches / Actions",
+  "en": "Chapters / Tasks / Actions"
+ },
+ "pda.tree.untitled": {
+  "fr": "(sans titre)",
+  "en": "(untitled)"
+ },
+ "pda.tree.up": {
+  "fr": "Monter",
+  "en": "Move up"
+ },
+ "pda.wizard.actions_hint": {
+  "fr": "Ajoutez les objectifs de la première tâche. Le type peut être affiné ensuite dans l'éditeur.",
+  "en": "Add the objectives of the first task. The type can be refined later in the editor."
+ },
+ "pda.wizard.add_action": {
+  "fr": "+ Ajouter une action",
+  "en": "+ Add an action"
+ },
+ "pda.wizard.back": {
+  "fr": "← Retour",
+  "en": "← Back"
+ },
+ "pda.wizard.chapter_title": {
+  "fr": "Titre du chapitre",
+  "en": "Chapter title"
+ },
+ "pda.wizard.check": {
+  "fr": "Type d'objectif",
+  "en": "Objective type"
+ },
+ "pda.wizard.create": {
+  "fr": "Créer le chapitre",
+  "en": "Create chapter"
+ },
+ "pda.wizard.err_title": {
+  "fr": "Saisissez un titre de chapitre.",
+  "en": "Enter a chapter title."
+ },
+ "pda.wizard.next": {
+  "fr": "Suivant →",
+  "en": "Next →"
+ },
+ "pda.wizard.remove_action": {
+  "fr": "Retirer",
+  "en": "Remove"
+ },
+ "pda.wizard.step1": {
+  "fr": "Étape 1/3 — Caractéristiques du chapitre",
+  "en": "Step 1/3 — Chapter characteristics"
+ },
+ "pda.wizard.step2": {
+  "fr": "Étape 2/3 — Actions de la première tâche",
+  "en": "Step 2/3 — First task actions"
+ },
+ "pda.wizard.step3": {
+  "fr": "Étape 3/3 — Textes et récompenses",
+  "en": "Step 3/3 — Texts and rewards"
+ },
+ "pda.wizard.task_title": {
+  "fr": "Titre de la tâche",
+  "en": "Task title"
+ },
+ "pda.wizard.title": {
+  "fr": "Assistant de mission PDA",
+  "en": "PDA Mission Assistant"
+ },
+ "menu.tools.pda_editor": {
+  "fr": "Éditeur PDA (nouveau)",
+  "en": "PDA Editor (new)"
+ },
+ "menu.tools.pda_editor.tip": {
+  "fr": "Édition complète des chapitres, tâches et actions du PDA",
+  "en": "Full editing of PDA chapters, tasks and actions"
+ },
+ "pda.editor.btn_wizard": {
+  "fr": "Assistant de création…",
+  "en": "Creation assistant…"
+ },
+ "pda.editor.btn_wizard.tooltip": {
+  "fr": "Créer une mission guidée, puis l'affiner dans l'éditeur",
+  "en": "Create a mission guided, then refine it in the editor"
+ },
+ "menu.options.vanilla_content": {
+  "fr": "Dossier du jeu (vanille)...",
+  "en": "Game folder (vanilla)..."
+ },
+ "vanilla.title": {
+  "fr": "Dossier Content de l'installation du jeu",
+  "en": "Content folder of the game installation"
+ },
+ "vanilla.clear_confirm": {
+  "fr": "Effacer le dossier du jeu actuellement renseigné ?",
+  "en": "Clear the currently configured game folder?"
+ },
+ "vanilla.saved": {
+  "fr": "Dossier enregistré :\n{path}",
+  "en": "Folder saved:\n{path}"
+ },
+ "pda.editor.undo": {
+  "fr": "↩ Annuler",
+  "en": "↩ Undo"
+ },
+ "pda.editor.undo.tooltip": {
+  "fr": "Annuler la dernière modification dans l'éditeur (PDA.yaml et PDA.csv en mémoire)",
+  "en": "Undo the last change made in the editor (in-memory PDA.yaml and PDA.csv)"
+ },
+ "pda.history.banner": {
+  "fr": "<b>Rappel — dernières modifications PDA (sessions précédentes) :</b>",
+  "en": "<b>Reminder — last PDA changes (previous sessions):</b>"
+ },
+ "pda.history.more": {
+  "fr": "(+ {n} plus ancienne(s) — voir ~/.empyrion_editor/pda_history.json)",
+  "en": "(+ {n} older — see ~/.empyrion_editor/pda_history.json)"
+ },
+ "pda.log.added_chapter": {
+  "fr": "Ajout d'un chapitre",
+  "en": "Added a chapter"
+ },
+ "pda.log.added_task": {
+  "fr": "Ajout d'une tâche au chapitre « {target} »",
+  "en": "Added a task to chapter \"{target}\""
+ },
+ "pda.log.added_action": {
+  "fr": "Ajout d'une action à la tâche « {target} »",
+  "en": "Added an action to task \"{target}\""
+ },
+ "pda.log.duplicated": {
+  "fr": "Chapitre dupliqué : « {target} »",
+  "en": "Duplicated chapter: \"{target}\""
+ },
+ "pda.log.deleted": {
+  "fr": "Suppression : « {target} »",
+  "en": "Deleted: \"{target}\""
+ },
+ "pda.log.moved": {
+  "fr": "Déplacement : « {target} »",
+  "en": "Moved: \"{target}\""
+ },
+ "pda.log.added_activation": {
+  "fr": "Ajout d'une activation de chapitre",
+  "en": "Added a chapter activation"
+ },
+ "pda.log.removed_activation": {
+  "fr": "Suppression d'une activation de chapitre",
+  "en": "Removed a chapter activation"
+ },
+ "pda.log.wizard": {
+  "fr": "Mission créée via l'assistant : « {target} »",
+  "en": "Mission created via the assistant: \"{target}\""
+ },
+ "pda.log.modified": {
+  "fr": "Modifié « {target} » : {fields}",
+  "en": "Modified \"{target}\": {fields}"
+ },
+ "pda.log.undo": {
+  "fr": "(annulation)",
+  "en": "(undo)"
+ },
+ "pda.chapter.title": {
+  "fr": "Titre du chapitre",
+  "en": "Chapter title"
+ },
+ "pda.task.title": {
+  "fr": "Titre de la tâche",
+  "en": "Task title"
+ },
+ "pda.action.title": {
+  "fr": "Titre de l'action (ActionTitle)",
+  "en": "Action title (ActionTitle)"
+ },
+ "pda.advanced.readonly": {
+  "fr": "Avancé (lecture seule)",
+  "en": "Advanced (read-only)"
+ },
+ "pda.advanced.readonly.tooltip": {
+  "fr": "Sections du fichier au format complexe, non documentées : éditez-les via l'onglet YAML brut. Elles sont conservées telles quelles.",
+  "en": "Complex undocumented file sections: edit them via the raw YAML tab. They are preserved as-is."
+ },
+ "pda.advanced.subentries": {
+  "fr": "sous-entrées",
+  "en": "sub-entries"
+ },
+ "pda.task.rewarded_tasks": {
+  "fr": "Tâches activées une fois récompensée (RewardedTasks)",
+  "en": "Tasks activated once this one is rewarded (RewardedTasks)"
+ },
+ "pda.task.rewarded_chapters": {
+  "fr": "Chapitres activés une fois récompensée (RewardedChapters)",
+  "en": "Chapters activated once this task is rewarded (RewardedChapters)"
+ },
+ "pda.task.on_activate_signal": {
+  "fr": "Signal à l'activation",
+  "en": "Signal on activation"
+ },
+ "pda.task.on_complete_signal": {
+  "fr": "Signal à la complétion",
+  "en": "Signal on completion"
+ },
+ "pda.chapter.playfields": {
+  "fr": "Playfields (restriction)",
+  "en": "Playfields (restriction)"
+ },
+ "pda.chapter.playfield_types": {
+  "fr": "Types de playfield (restriction)",
+  "en": "Playfield types (restriction)"
+ },
+ "pda.chapter.visible_on_start": {
+  "fr": "Visible au démarrage sur playfields",
+  "en": "Visible on start on playfields"
+ },
+ "pda.chapter.visible_on_start_types": {
+  "fr": "Visible au démarrage sur types",
+  "en": "Visible on start on playfield types"
+ },
+ "runner.main_title": {
+  "fr": "Protocole de test — Empyrion Scenario Editor v{version}",
+  "en": "Test protocol — Empyrion Scenario Editor v{version}"
+ },
+ "runner.window_base": {
+  "fr": "Protocole de test",
+  "en": "Test protocol"
+ },
+ "runner.test_n_of": {
+  "fr": "Test {n} / {total}",
+  "en": "Test {n} / {total}"
+ },
+ "runner.category": {
+  "fr": "Catégorie",
+  "en": "Category"
+ },
+ "runner.preparation": {
+  "fr": "Préparation",
+  "en": "Preparation"
+ },
+ "runner.expected": {
+  "fr": "Résultat attendu",
+  "en": "Expected result"
+ },
+ "runner.steps_header": {
+  "fr": "Étapes à suivre :",
+  "en": "Steps to follow:"
+ },
+ "runner.progress_label": {
+  "fr": "Progression : <b>{done} / {total}</b>",
+  "en": "Progress: <b>{done} / {total}</b>"
+ },
+ "runner.session_label": {
+  "fr": "<b>Session de test</b> — v{version} — {name} — base : {base}",
+  "en": "<b>Test session</b> — v{version} — {name} — base: {base}"
+ },
+ "runner.session_base_none": {
+  "fr": "vierge",
+  "en": "blank"
+ },
+ "runner.session_created": {
+  "fr": "Session créée : {name}",
+  "en": "Session created: {name}"
+ },
+ "runner.export_written": {
+  "fr": "Export écrit : {path}",
+  "en": "Export written: {path}"
+ },
+ "runner.verdict_ok": {
+  "fr": "✔  BON",
+  "en": "✔  PASS"
+ },
+ "runner.verdict_ko": {
+  "fr": "✘  PAS BON",
+  "en": "✘  FAIL"
+ },
+ "runner.verdict_blocked": {
+  "fr": "⏸  BLOQUÉ",
+  "en": "⏸  BLOCKED"
+ },
+ "runner.verdict_na": {
+  "fr": "↷  NON APPLICABLE",
+  "en": "↷  NOT APPLICABLE"
+ },
+ "runner.status_ok": {
+  "fr": "BON",
+  "en": "PASS"
+ },
+ "runner.status_ko": {
+  "fr": "PAS BON",
+  "en": "FAIL"
+ },
+ "runner.status_blocked": {
+  "fr": "BLOQUE",
+  "en": "BLOCKED"
+ },
+ "runner.status_na": {
+  "fr": "N/A",
+  "en": "N/A"
+ },
+ "runner.status_untested": {
+  "fr": "non testé",
+  "en": "not tested"
+ },
+ "runner.copy_cmd": {
+  "fr": "Copier",
+  "en": "Copy"
+ },
+ "runner.copy_all_cmds": {
+  "fr": "Copier toutes les commandes de ce cas",
+  "en": "Copy all commands of this case"
+ },
+ "runner.copy_all_cmds_tip": {
+  "fr": "Colle les commandes (une par ligne) dans le presse-papiers",
+  "en": "Puts the commands (one per line) into the clipboard"
+ },
+ "runner.copied": {
+  "fr": "Copié !",
+  "en": "Copied!"
+ },
+ "runner.col_categories": {
+  "fr": "Catégories",
+  "en": "Categories"
+ },
+ "runner.col_done": {
+  "fr": "Fait",
+  "en": "Done"
+ },
+ "runner.col_id": {
+  "fr": "ID",
+  "en": "ID"
+ },
+ "runner.col_test": {
+  "fr": "Test",
+  "en": "Test"
+ },
+ "runner.col_status": {
+  "fr": "Statut",
+  "en": "Status"
+ },
+ "runner.col_info": {
+  "fr": "Info",
+  "en": "Info"
+ },
+ "runner.col_last": {
+  "fr": "Dernier test",
+  "en": "Last test"
+ },
+ "runner.col_annotation": {
+  "fr": "Annotation",
+  "en": "Annotation"
+ },
+ "runner.col_category": {
+  "fr": "catégorie",
+  "en": "category"
+ },
+ "runner.menu_open_step": {
+  "fr": "Ouvrir en pas-à-pas",
+  "en": "Open step by step"
+ },
+ "runner.menu_reset": {
+  "fr": "Réinitialiser ce test",
+  "en": "Reset this test"
+ },
+ "runner.menu_retest": {
+  "fr": "Marquer à retester",
+  "en": "Mark for retest"
+ },
+ "runner.flag_new": {
+  "fr": "NOUVEAU",
+  "en": "NEW"
+ },
+ "runner.flag_retest": {
+  "fr": "À RETESTER (rev {old} -> {new})",
+  "en": "TO RETEST (rev {old} -> {new})"
+ },
+ "runner.flag_retest_asked": {
+  "fr": "à retester (demandé)",
+  "en": "to retest (requested)"
+ },
+ "runner.chip_total": {
+  "fr": "tests au total",
+  "en": "tests total"
+ },
+ "runner.chip_blocked": {
+  "fr": "BLOQUÉS",
+  "en": "BLOCKED"
+ },
+ "runner.chip_not_tested": {
+  "fr": "non testés",
+  "en": "not tested"
+ },
+ "runner.chip_coverage": {
+  "fr": "couverture",
+  "en": "coverage"
+ },
+ "runner.bilan_header": {
+  "fr": "Bilan — session v{version} du {date}",
+  "en": "Summary — session v{version} of {date}"
+ },
+ "runner.export_bilan_title": {
+  "fr": "Exporter le bilan",
+  "en": "Export summary"
+ },
+ "runner.md_title": {
+  "fr": "Protocole de test — v{version}",
+  "en": "Test protocol — v{version}"
+ },
+ "runner.md_session_dates": {
+  "fr": "Session du {created} (dernière mise à jour {updated})",
+  "en": "Session of {created} (last updated {updated})"
+ },
+ "runner.md_failures": {
+  "fr": "Échecs",
+  "en": "Failures"
+ },
+ "runner.md_no_detail": {
+  "fr": "(sans détail)",
+  "en": "(no detail)"
+ },
+ "runner.ticket_title": {
+  "fr": "[Protocole] {n} échec(s) — v{version}",
+  "en": "[Protocol] {n} failure(s) — v{version}"
+ },
+ "runner.ticket_body_header": {
+  "fr": "Échecs du protocole de test manuel v",
+  "en": "Manual test protocol failures v"
+ },
+ "runner.ticket_generated_by": {
+  "fr": "Généré par le protocole de test embarqué",
+  "en": "Generated by the embedded test protocol"
+ },
+ "protocol.md_title": {
+  "fr": "Protocole de test manuel - Empyrion Scenario Editor",
+  "en": "Manual test protocol - Empyrion Scenario Editor"
+ },
+ "protocol.md_cases": {
+  "fr": "cas",
+  "en": "cases"
+ },
+ "protocol.md_generated": {
+  "fr": "généré automatiquement depuis core/test_protocol.py",
+  "en": "generated automatically from core/test_protocol.py"
+ },
+ "protocol.md_prereq": {
+  "fr": "Prérequis",
+  "en": "Prerequisite"
+ },
+ "protocol.md_step": {
+  "fr": "Étape",
+  "en": "Step"
+ },
+ "protocol.md_expected": {
+  "fr": "Résultat attendu",
+  "en": "Expected result"
  }
 }

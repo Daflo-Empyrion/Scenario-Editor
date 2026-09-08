@@ -22,6 +22,14 @@ from core.block_info_card import BlockInfoCard, InfoCardField, InfoCardIngredien
 from gui.block_info_card_widget import BlockInfoCardWidget
 
 
+@pytest.fixture(autouse=True)
+def _force_fr_labels(monkeypatch):
+    """Les libelles attendus dans ce fichier sont FR : forcer la langue
+    (la machine de test peut etre reglee EN)."""
+    import core.settings
+    monkeypatch.setattr(core.settings, "get_language", lambda: "fr")
+
+
 @pytest.fixture
 def sample_card():
     return BlockInfoCard(

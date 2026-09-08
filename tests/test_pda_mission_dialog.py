@@ -13,6 +13,14 @@ PDA_YAML = Path(__file__).parent / "fixtures" / "pda_scenario" / "PDA.yaml"
 PDA_CSV = Path(__file__).parent / "fixtures" / "pda_scenario" / "PDA.csv"
 
 
+@pytest.fixture(autouse=True)
+def _force_fr_labels(monkeypatch):
+    """Les libelles attendus dans ce fichier sont FR (ex : 'Palier 1') :
+    forcer la langue (la machine de test peut etre reglee EN)."""
+    import core.settings
+    monkeypatch.setattr(core.settings, "get_language", lambda: "fr")
+
+
 @pytest.fixture
 def dialog(qapp):
     from gui.theme import apply_theme

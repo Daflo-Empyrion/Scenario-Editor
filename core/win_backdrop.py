@@ -62,10 +62,23 @@ def acrylic_supported() -> bool:
         return False
 
 
+class _MARGINS(ctypes.Structure):
+    _fields_ = [("cxLeftWidth", ctypes.c_int), ("cxRightWidth", ctypes.c_int),
+                ("cyTopHeight", ctypes.c_int), ("cyBottomHeight", ctypes.c_int)]
+
+
 def enable_acrylic(widget) -> bool:
     """Active le flou acrylique DERRIERE la fenetre `widget`. Retourne True
     si (et seulement si) le systeme a confirme l'application -- l'appelant
-    ne doit activer la moindre translucence QUE sur cette valeur."""
+    ne doit activer la moindre translucence QUE sur cette valeur.
+
+    GUI-002 (corrige le 07/09/2026) : poser DWMWA_SYSTEMBACKDROP_TYPE seul
+    ne produit AUCUN effet visible (fond opaque, verifie par capture d'ecran
+    cote a cote) -- DWM ne peint le flou que dans le cadre ETENDU dans la
+    zone cliente. La recette complete est donc : attribut backdrop PUIS
+    DwmExtendFrameIntoClientArea(-1, -1, -1, -1). Les deux codes retour
+    doivent etre S_OK, sinon on declare l'echec (invariant : jamais
+    translucide sans flou)."""
     if not acrylic_supported():
         return False
     try:
@@ -74,6 +87,11 @@ def enable_acrylic(widget) -> bool:
         result = ctypes.windll.dwmapi.DwmSetWindowAttribute(
             hwnd, _DWMWA_SYSTEMBACKDROP_TYPE,
             ctypes.byref(backdrop), ctypes.sizeof(backdrop))
+        if result != 0:
+            return False
+        margins = _MARGINS(-1, -1, -1, -1)
+        result = ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(
+            hwnd, ctypes.byref(margins))
         return result == 0  # S_OK
     except (OSError, AttributeError, ValueError):
         return False

@@ -53,12 +53,18 @@ class DuplicateVariantsDialog(QDialog):
                  id_suggestions: List[str], numeric_fields: List[str],
                  parent=None, show_id_field: bool = True,
                  source_block: Optional[EcfBlock] = None,
-                 values_by_key: Optional[dict] = None):
+                 values_by_key: Optional[dict] = None,
+                 existing_names: Optional[set] = None):
         super().__init__(parent)
         self.setWindowTitle(t("dup.title"))
         self.setMinimumWidth(480)
         self._current_id = current_id
         self._current_name = current_name
+        # FUS-006/FUS-014 : noms deja pris dans le fichier destination --
+        # permet le controle EN DIRECT du champ nom (garder le nom original si
+        # libre, suggestion de nom ajuste sinon) au lieu de decouvrir le
+        # conflit au moment d'enregistrer.
+        self._existing_names = {n for n in (existing_names or ()) if n}
 
         layout = QVBoxLayout(self)
         none_placeholder = t("dup.none_placeholder")
@@ -94,6 +100,26 @@ class DuplicateVariantsDialog(QDialog):
         self.name_edit = QLineEdit(current_name or "")
         name_row.addWidget(self.name_edit)
         simple_layout.addLayout(name_row)
+
+        # Controle EN DIRECT du nom (FUS-006/FUS-014) : libre -> on peut
+        # garder le nom original ; deja pris -> suggestion de nom ajuste,
+        # appliquable en un clic. Absent si l'hote n'a pas fourni la liste.
+        self.name_status = None
+        self.btn_use_suggestion = None
+        if self._existing_names:
+            status_row = QHBoxLayout()
+            self.name_status = QLabel("")
+            self.name_status.setWordWrap(True)
+            status_row.addWidget(self.name_status, 1)
+            self.btn_use_suggestion = QPushButton(t("dup.name_use_suggestion"))
+            self.btn_use_suggestion.setObjectName("secondaryButton")
+            self.btn_use_suggestion.clicked.connect(self._use_suggestion)
+            self.btn_use_suggestion.hide()
+            status_row.addWidget(self.btn_use_suggestion)
+            simple_layout.addLayout(status_row)
+            self.name_edit.textChanged.connect(self._validate_name)
+            self._validate_name()
+            self._validate_name()
 
         self.remove_id_checkbox = None
         if show_id_field and current_id:
@@ -274,6 +300,40 @@ class DuplicateVariantsDialog(QDialog):
     def _on_mode_toggled(self, checked: bool):
         self.simple_group.setVisible(not checked)
         self.multi_group.setVisible(checked)
+
+    def _validate_name(self) -> None:
+        if self.name_status is None:
+            return
+        name = self.name_edit.text().strip()
+        self.btn_use_suggestion.hide()
+        if not name:
+            self.name_status.setText(t("dup.name_status_empty"))
+            self.name_status.setStyleSheet("color: gray; font-size: 11px;")
+        elif name in self._existing_names:
+            suggestion = self._free_name_suggestion(name)
+            self.name_status.setText(t("dup.name_status_taken", name=name, suggestion=suggestion))
+            self.name_status.setStyleSheet("color: #c62828; font-size: 11px;")
+            self._name_suggestion = suggestion
+            self.btn_use_suggestion.show()
+        else:
+            self.name_status.setText(t("dup.name_status_free", name=name))
+            self.name_status.setStyleSheet("color: green; font-size: 11px;")
+
+    def _free_name_suggestion(self, base: str) -> str:
+        """Premier nom libre de la forme base_2, base_3... (jamais impose :
+        la suggestion est appliquable en un clic via le bouton du statut)."""
+        candidate = f"{base}_2"
+        n = 2
+        while candidate in self._existing_names:
+            n += 1
+            candidate = f"{base}_{n}"
+        return candidate
+
+    def _use_suggestion(self) -> None:
+        """Applique la suggestion de nom (bouton du statut 'deja pris')."""
+        suggestion = getattr(self, '_name_suggestion', None)
+        if suggestion:
+            self.name_edit.setText(suggestion)
 
     @staticmethod
     def _add_manual_field_to(list_widget: QListWidget, line_edit: QLineEdit):

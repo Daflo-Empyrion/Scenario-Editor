@@ -133,6 +133,10 @@ class HealthCheckDialog(QDialog):
     def _refresh_all_checks(self):
         total_problems = 0
 
+        # VERIF-001/VERIF-009 : toutes ces verifications lisent le disque --
+        # proposer d'abord d'enregistrer les onglets modifies.
+        self.main_window.ensure_analysis_fresh_tabs()
+
         # --- References (les 4 verifications de cross_reference_check.py,
         # heritage Ref inclus -- meme regroupement que le bouton "Verifier les
         # references croisees", pour ne jamais compter deux fois la meme chose

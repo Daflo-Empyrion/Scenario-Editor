@@ -44,16 +44,19 @@ def scan_kind_frequency(doc: EcfDocument) -> Counter:
     return counts
 
 
-def scan_properties_for_kind(doc: EcfDocument, kind: str) -> Dict[str, Counter]:
+def scan_properties_for_kind(doc: EcfDocument, kind: Optional[str]) -> Dict[str, Counter]:
     """Pour un genre de bloc donne (ex: 'Block'), renvoie {cle_propriete:
     Counter(valeurs)} -- l'union des proprietes directes (pas les
     sous-structures comme Child Items/Child Inputs, non pertinentes pour une
     case a cocher simple) reellement utilisees par les blocs de ce genre dans
     le document, avec la frequence de chaque valeur (pour proposer la plus
-    courante comme point de depart)."""
+    courante comme point de depart). kind=None = TOUS les genres confondus
+    (pool global de repli pour les listes deroulantes, ECF-001)."""
     result: Dict[str, Counter] = {}
     for node in doc.nodes:
-        if not (isinstance(node, EcfBlock) and node.kind == kind):
+        if not isinstance(node, EcfBlock):
+            continue
+        if kind is not None and node.kind != kind:
             continue
         for child in node.children:
             if not isinstance(child, EcfProperty):

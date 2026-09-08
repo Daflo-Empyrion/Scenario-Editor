@@ -67,13 +67,16 @@ def test_ask_yes_no_buttons_are_application_translated(qapp, monkeypatch):
     assert sorted(seen) == sorted([t("btn.yes"), t("btn.no")])
 
 
-@pytest.mark.parametrize("label,expected", [
-    (t("btn.save_files"), "save"),
-    (t("btn.discard"), "discard"),
-    (t("btn.cancel"), "cancel"),
+@pytest.mark.parametrize("key,expected", [
+    ("btn.save_files", "save"),
+    ("btn.discard", "discard"),
+    ("btn.cancel", "cancel"),
 ])
-def test_ask_save_discard_cancel_routes_click(qapp, monkeypatch, label, expected):
-    monkeypatch.setattr(QMessageBox, "exec", _click_button(label))
+def test_ask_save_discard_cancel_routes_click(qapp, monkeypatch, key, expected):
+    # Le libelle est resolu DANS le test (pas a la collection) : sinon il
+    # est fige dans la langue de la machine au moment de la collecte et le
+    # clic par libelle rate les boutons des l'inversion FR/EN.
+    monkeypatch.setattr(QMessageBox, "exec", _click_button(t(key)))
     assert ask_save_discard_cancel(None, "titre", "texte") == expected
 
 

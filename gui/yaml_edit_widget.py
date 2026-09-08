@@ -23,6 +23,7 @@ en cellule.
 """
 from pathlib import Path
 from typing import Optional
+import re
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTextEdit,
@@ -105,8 +106,9 @@ class YamlEditWidget(QWidget):
             toolbar.addWidget(btn_save)
             toolbar.addStretch()
             layout.addLayout(toolbar, 0)
-            from PyQt6.QtGui import QKeySequence, QShortcut
-            QShortcut(QKeySequence.StandardKey.Undo, self, activated=self.undo)
+            # Ctrl+Z gere par le raccourci UNIQUE de la fenetre principale
+            # (main_window._global_undo) : un QShortcut ici aussi le rendrait
+            # ambigu (ECF-005).
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -177,6 +179,28 @@ class YamlEditWidget(QWidget):
             return self.doc.render()
         self._apply_value()
         return self.doc.render()
+
+    def refresh_from_doc(self):
+        """Reconstruit l'arbre depuis self.doc SANS relire le disque -- le
+        document a ete mute EN MEMOIRE par un autre module (editeur PDA :
+        core/pda/model.py mute les memes objets que les onglets partagent)."""
+        self._populate_tree()
+
+    def highlight_dirty_entries(self):
+        """Surligne les entrees modifiees depuis l'ouverture (dirty=True, pose
+        par le parseur-model yamllite a toute mutation) -- rend visible ce que
+        l'editeur PDA a touche dans PDA.yaml. Meme couleur que le surlignage
+        CSV (gui/csv_edit_widget.COLOR_MODIFIED_CELL) pour rester coherent
+        d'un onglet a l'autre."""
+        from gui.csv_edit_widget import mark_modified
+        it = QTreeWidgetItemIterator(self.tree)
+        while it.value() is not None:
+            item = it.value()
+            entry = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(entry, YamlEntry) and entry.dirty:
+                mark_modified(item, 0)
+                mark_modified(item, 1)
+            it += 1
 
     def _snapshot_undo(self):
         """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
@@ -286,6 +310,25 @@ class YamlEditWidget(QWidget):
                 return
             it += 1
 
+    _ANNO_SEG_RE = re.compile(r'\s*#\s*original:.*?--\s*Mod par [^#]*(?=#|$)')
+
+    @classmethod
+    def _build_annotation_comment(cls, existing_comment: str, old_value: str, author: str) -> str:
+        """Construit le commentaire d'annotation. REMPLACE la note precedente
+        au lieu de concatener (YAML-015 : apres plusieurs editions/annulations
+        la ligne arrivait a contenir une douzaine de '  # original: X -- Mod
+        par ...', et une valeur multi-lignes injectait un retour a la ligne
+        dans le commentaire -> le YAML se cassait, une fausse cle apparaissait).
+        La valeur annotee est nettoyee (une seule ligne, longueur bornee) pour
+        garantir qu'un commentaire reste sur SA ligne."""
+        one_line = ' '.join(old_value.split()) or '(vide)'
+        if len(one_line) > 120:
+            one_line = one_line[:117] + '...'
+        note = f"# original: {one_line} -- Mod par {author}"
+        base = existing_comment or ''
+        base = cls._ANNO_SEG_RE.sub('', base).rstrip()
+        return (base + '  ' + note) if base else note
+
     def _apply_value(self):
         if not self._current_entry:
             return
@@ -296,11 +339,8 @@ class YamlEditWidget(QWidget):
             self._current_entry.set_own_value(new_value)
             if settings.get_annotations_enabled():
                 author = settings.get_author()
-                note = f"# original: {old_value} -- Mod par {author}"
-                if self._current_entry.comment:
-                    self._current_entry.comment = self._current_entry.comment + "  " + note
-                else:
-                    self._current_entry.comment = note
+                self._current_entry.comment = self._build_annotation_comment(
+                    self._current_entry.comment, old_value, author)
                 self._current_entry.dirty = True
             self._set_modified(True)
             self._refresh_current_item_preview()

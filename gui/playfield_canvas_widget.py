@@ -75,7 +75,12 @@ class _EntityDot(QGraphicsEllipseItem):
         super().mouseReleaseEvent(event)
         if self.entity.pos_property_key is not None:
             new_pos = self.scenePos()
-            self._on_moved(self.entity, new_pos.x(), new_pos.y())
+            # Ne notifie un deplacement QUE si la position a reellement change
+            # -- un simple clic (selection sans glisser) ne doit pas marquer
+            # l'onglet modifie.
+            _, _, old_z = self.entity.position
+            if abs(new_pos.x() - self.entity.position[0]) > 0.5 or abs(new_pos.y() - old_z) > 0.5:
+                self._on_moved(self.entity, new_pos.x(), new_pos.y())
 
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
@@ -90,7 +95,11 @@ class PlayfieldCanvasWidget(QWidget):
 
     def __init__(self, doc, parent=None):
         super().__init__(parent)
-        self.doc = doc
+        # `doc` accepte aussi un callable (provider) : le document est RE-CREE
+        # par un undo de l'onglet hote (re-parse), une reference figee a l'init
+        # deviendrait orpheline -- les deplacements de POI se perdraient
+        # silencieusement (meme cause que YAML-014).
+        self._doc_provider = doc if callable(doc) else (lambda: doc)
         self.entities: List[CanvasEntity] = []
         self._dots: List[_EntityDot] = []
         self.selected_entity: Optional[CanvasEntity] = None
@@ -114,7 +123,12 @@ class PlayfieldCanvasWidget(QWidget):
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        # MAP-002 : ScrollHandDrag captait le glisser gauche pour PANNER la
+        # carte -- les POI etaient inmoveables. RubberBandDrag laisse le
+        # glisser aux ITEMS deplacables (POI Fixed/depart joueur) et ne sert
+        # que de rubber-band sur le fond ; le panoramique reste disponible via
+        # les barres de defilement et la molette (zoom).
+        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.view.wheelEvent = self._wheel_zoom
         layout.addWidget(self.view, 1)
 
@@ -147,7 +161,7 @@ class PlayfieldCanvasWidget(QWidget):
         """Ré-extrait les entités depuis le document (utile après une
         modification faite ailleurs, ex: dans l'onglet YAML complet) et
         redessine la scène."""
-        self.entities = extract_canvas_entities(self.doc)
+        self.entities = extract_canvas_entities(self._doc_provider())
         self._rebuild_filters()
         self._redraw()
 

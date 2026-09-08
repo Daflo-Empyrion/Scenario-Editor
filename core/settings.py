@@ -189,3 +189,17 @@ def get_theme() -> str:
 
 def set_theme(theme_id: str) -> None:
     _set('theme', theme_id)
+
+
+def get_vanilla_content_path() -> str:
+    """Dossier Content de l'installation Steam du jeu (ex:
+    C:/Program Files (x86)/Steam/steamapps/common/Empyrion - Galactic
+    Survival/Content) -- utilise par le module PDA pour completer les
+    suggestions contextuelles (POI, playfields, creatures...) avec les
+    valeurs vanille, sur le modele du repli localization_vanilla.pak. Vide =
+    non renseigne (suggestions scenario seules)."""
+    return _get('vanilla_content_path', '')
+
+
+def set_vanilla_content_path(path: str) -> None:
+    _set('vanilla_content_path', path)

@@ -38,7 +38,12 @@ def test_widget_only_draws_entities_with_position(qapp, akua_doc):
     apply_theme(qapp)
     widget = PlayfieldCanvasWidget(akua_doc)
     positioned_count = sum(1 for e in widget.entities if e.position is not None)
-    assert len(widget._dots) == positioned_count == 6
+    # MAP-001 (v1.6.1) : les POI aleatoires en CHAINE SpawnPOINear ont
+    # desormais une position approximative heritee de leur reference -- le
+    # compte de points affiches a augmente (6 -> 19 sur la fixture Akua).
+    # L'invariant reste : tout ce qui est affiche a une position.
+    assert len(widget._dots) == positioned_count
+    assert positioned_count >= 6  # au moins les POI fixes + depart joueur
 
 
 def test_selecting_entity_updates_info_label(qapp, akua_doc):

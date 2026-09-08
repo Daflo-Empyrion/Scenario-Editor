@@ -225,14 +225,35 @@ def test_editing_regen_after_updates_document(playfield_widget):
     assert "Value: 8640" in playfield_widget.doc.render()
 
 
-def test_biome_column_is_not_editable(playfield_widget):
+def test_biome_column_is_now_editable(playfield_widget):
+    """YAML-010 (v1.6.1) : la colonne Biome est desormais EDITABLE (liste
+    deroulante des biomes observes) -- remplace l'ancien comportement lecture
+    seule teste ici auparavant."""
     from PyQt6.QtCore import Qt
     creatures_tab = playfield_widget.tab_widget.widget(3)
     table = creatures_tab._playfield_tables[0]
     headers = [table.table.horizontalHeaderItem(c).text() for c in range(table.table.columnCount())]
     biome_col = headers.index("Biome")
     cell = table.table.item(0, biome_col)
-    assert not (cell.flags() & Qt.ItemFlag.ItemIsEditable)
+    assert cell.flags() & Qt.ItemFlag.ItemIsEditable
+
+
+def test_set_creature_biome_writes_zone(playfield_widget):
+    """YAML-010 : modifier le biome reecrit la ZONE ('- Biomes: [...]') ; le
+    nouveau biome apparait dans la valeur de la creature."""
+    from core.playfield_editor import (find_creature_items, get_creature_biome,
+                                        observed_creature_biomes, set_creature_biome)
+    doc = playfield_widget.doc
+    creatures = find_creature_items(doc)
+    assert creatures, "fixture sans creature ?"
+    biomes = observed_creature_biomes(doc)
+    assert biomes, "fixture sans biome ?"
+    current = (get_creature_biome(creatures[0]) or "")
+    target = next((b for b in biomes if b not in current), None)
+    if target is None:
+        return  # fixture mono-biome : rien a changer
+    assert set_creature_biome(creatures[0], target) is True
+    assert target in (get_creature_biome(creatures[0]) or "")
 
 
 SPACE_FIXTURE = Path(__file__).parent / "fixtures" / "space_scenario" / "space_dynamic.yaml"

@@ -23,3 +23,7 @@ itemicons/
 .empyrion_editor/
 CONTEXTE_REPRISE.md
 AGENTS.md
+
+# Documentation PDA du jeu (Doxygen Eleon.PdaScript) -- fichier du jeu, local
+# uniquement, jamais a versionner ni redistribuer.
+PdaScriptDoc/

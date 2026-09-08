@@ -63,8 +63,12 @@ def _find_tree_item(widget, block_name: str):
     return None
 
 
-def test_clicking_block_opens_info_card(widget_with_scenario):
+def test_clicking_block_opens_info_card(widget_with_scenario, monkeypatch):
     widget = widget_with_scenario
+    # Le titre attendu est celui de la colonne FR du Localization.csv du
+    # scenario : forcer la langue (la machine de test peut etre en EN).
+    import core.settings
+    monkeypatch.setattr(core.settings, "get_language", lambda: "fr")
     item = _find_tree_item(widget, "FuelTankMSLarge")
     assert item is not None
 
@@ -268,11 +272,15 @@ def test_double_click_does_not_expand_tree_node(widget_with_scenario):
     assert widget.tree.expandsOnDoubleClick() is False
 
 
-def test_created_template_card_shows_scalars_and_craft(widget_with_scenario):
+def test_created_template_card_shows_scalars_and_craft(widget_with_scenario, monkeypatch):
     """Retour utilisateur du 30/08/2026 : apres creation, la fiche d'un
     Template n'affichait que le nom et les ingredients. Sur un Template
     fraichement cree (proprietes sans attribut 'display'), la fiche doit
     desormais montrer CraftTime/Target/etc. ET la section craft."""
+    # Les libelles attendus sont FR : forcer la langue (machine de test
+    # eventuellement en EN).
+    import core.settings
+    monkeypatch.setattr(core.settings, "get_language", lambda: "fr")
     widget = widget_with_scenario
     templates_doc = widget._get_info_card_templates_doc()
     assert templates_doc is not None

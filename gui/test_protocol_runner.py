@@ -48,6 +48,7 @@ UTILISATION :
 """
 import argparse
 import csv as csv_module
+import html
 import io
 import json
 import os
@@ -61,15 +62,15 @@ from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QProgressBar,
-    QPushButton, QRadioButton, QSplitter, QTableWidget, QTableWidgetItem,
-    QTextEdit, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, QAbstractItemView,
-    QFrame,
+    QPushButton, QRadioButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
+    QTextEdit, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QFrame,
 )
 
 from core.fsutil import atomic_write_text
 from core.i18n import t
 from core.version import APP_VERSION, GITHUB_REPO
-from core.test_protocol import CASES, CATEGORIES, cases_by_category
+from core.test_protocol import CASES, CATEGORIES, cases_by_category, category_label, localized_case
 
 SESSION_DIR = Path.home() / ".empyrion_editor" / "test_sessions"
 SMOKE = False  # True pendant --smoke : pas de dialogue modal au demarrage
@@ -201,6 +202,17 @@ _STYLE_ATTENDU_HINT = ("background:#fdecea; border:1px solid #c62828; "
                        "color:#5c1310; border-radius:6px; padding:8px;")
 
 
+def _theme_icon(name: str):
+    """Icone qtawesome avec repli propre (QIcon vide si absente -- meme
+    discipline que gui/theme.icon, jamais de crash)."""
+    try:
+        from gui.theme import icon as _icon
+        return _icon(name)
+    except Exception:
+        from PyQt6.QtGui import QIcon
+        return QIcon()
+
+
 def _badge(statut: str) -> QLabel:
     lab = QLabel()
     lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -221,21 +233,29 @@ def _badge(statut: str) -> QLabel:
     return lab
 
 
-def _case_flag(case: dict, session: Session, base_resultats: dict) -> str:
-    """Colonne Info : NOUVEAU (cas absent de la session de base), A RETESTER
-    (rev du cas differente de celle testee dans la base), ou vide."""
+def statut_label(statut: str) -> str:
+    """Libelle affichable (localise) d'un statut stocke."""
+    keys = {BON: "runner.status_ok", PAS_BON: "runner.status_ko",
+            BLOQUE: "runner.status_blocked", NA: "runner.status_na"}
+    return t(keys.get(statut, "runner.status_untested"))
+
+
+def _case_flag(case: dict, session: Session, base_resultats: dict) -> tuple:
+    """Colonne Info : (code, texte localise). Codes : 'new' (cas absent de
+    la session de base), 'retest_rev' (rev du cas differente de celle
+    testee dans la base), 'retest_asked' (demande manuelle), '' (rien)."""
     if base_resultats is None:
-        return ""
+        return "", ""
     case_id = case["id"]
     if case_id not in base_resultats:
-        return "NOUVEAU"
+        return "new", t("runner.flag_new")
     old_rev = base_resultats[case_id].get("rev", 1)
     if old_rev != case.get("rev", 1):
-        return f"A RETESTER (rev {old_rev} -> {case.get('rev', 1)})"
+        return "retest_rev", t("runner.flag_retest", old=old_rev, new=case.get("rev", 1))
     r = session.result(case_id)
     if r and r.get("a_retester"):
-        return "a retester (demande)"
-    return ""
+        return "retest_asked", t("runner.flag_retest_asked")
+    return "", ""
 
 
 # ===========================================================================
@@ -288,11 +308,28 @@ class StepWindow(QMainWindow):
         self.lbl_pre.setVisible(False)
         root.addWidget(self.lbl_pre)
 
-        self.lbl_etapes = QLabel()
-        self.lbl_etapes.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_etapes.setWordWrap(True)
-        self.lbl_etapes.setAlignment(Qt.AlignmentFlag.AlignTop)
-        root.addWidget(self.lbl_etapes, 1)
+        root.addWidget(QLabel(t("runner.steps_header")))
+        # Etapes en zone DEFLANTE : les pas-a-pas detailles sont longs, et
+        # chaque etape copiable porte son bouton (commandes console/chemins).
+        self.steps_scroll = QScrollArea()
+        self.steps_scroll.setWidgetResizable(True)
+        self.steps_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.steps_container = QWidget()
+        self.steps_layout = QVBoxLayout(self.steps_container)
+        self.steps_layout.setContentsMargins(2, 4, 8, 4)
+        self.steps_layout.setSpacing(8)
+        self.steps_scroll.setWidget(self.steps_container)
+        root.addWidget(self.steps_scroll, 1)
+
+        cmds_bar = QHBoxLayout()
+        self.btn_copy_all = QPushButton(t("runner.copy_all_cmds"))
+        self.btn_copy_all.setIcon(_theme_icon("fa5s.copy"))
+        self.btn_copy_all.setToolTip(t("runner.copy_all_cmds_tip"))
+        self.btn_copy_all.clicked.connect(lambda: self._copy_text("\r\n".join(self._current_cmds)))
+        self.btn_copy_all.setVisible(False)
+        cmds_bar.addWidget(self.btn_copy_all)
+        cmds_bar.addStretch()
+        root.addLayout(cmds_bar)
 
         self.lbl_attendu = QLabel()
         self.lbl_attendu.setWordWrap(True)
@@ -320,10 +357,10 @@ class StepWindow(QMainWindow):
             QShortcut(QKeySequence(shortcut), self, activated=slot)
             verdicts.addWidget(b)
 
-        verdict_btn("✔  BON", "#1a7f37", "F1", lambda: self._verdict(BON))
-        verdict_btn("✘  PAS BON", "#c62828", "F2", lambda: self._verdict(PAS_BON))
-        verdict_btn("⏸  BLOQUE", "#ef6c00", "F3", lambda: self._verdict(BLOQUE))
-        verdict_btn("↷  NON APPLICABLE", "#607d8b", "F4", lambda: self._verdict(NA))
+        verdict_btn(t("runner.verdict_ok"), "#1a7f37", "F1", lambda: self._verdict(BON))
+        verdict_btn(t("runner.verdict_ko"), "#c62828", "F2", lambda: self._verdict(PAS_BON))
+        verdict_btn(t("runner.verdict_blocked"), "#ef6c00", "F3", lambda: self._verdict(BLOQUE))
+        verdict_btn(t("runner.verdict_na"), "#607d8b", "F4", lambda: self._verdict(NA))
         root.addLayout(verdicts)
 
         nav = QHBoxLayout()
@@ -343,30 +380,75 @@ class StepWindow(QMainWindow):
         QShortcut(QKeySequence("Escape"), self, activated=self.close)
         self.setCentralWidget(central)
 
+    # ------------------------------------------------------ copie commandes
+    def _copy_button(self, cmd: str) -> QPushButton:
+        b = QPushButton(t("runner.copy_cmd"))
+        b.setIcon(_theme_icon("fa5s.copy"))
+        b.setToolTip(cmd)
+        b.setStyleSheet("padding:2px 8px; font-size:11px;")
+        b.clicked.connect(lambda _checked=False, txt=cmd, btn=b: self._copy_text(txt, btn))
+        return b
+
+    def _copy_text(self, txt: str, btn=None):
+        QApplication.clipboard().setText(txt)
+        if btn is not None:
+            QToolTip.showText(btn.mapToGlobal(btn.rect().center()),
+                              t("runner.copied"), btn)
+
+    def _clear_steps(self):
+        while self.steps_layout.count():
+            item = self.steps_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+    def _fill_steps(self, case: dict):
+        self._clear_steps()
+        self._current_cmds = []
+        for i, row in enumerate(case["etapes"], 1):
+            line = QHBoxLayout()
+            line.setSpacing(6)
+            num = QLabel(f"<b>{i}.</b>")
+            num.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+            num.setFixedWidth(26)
+            line.addWidget(num)
+            txt = QLabel(html.escape(row["txt"]))
+            txt.setWordWrap(True)
+            txt.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            txt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            line.addWidget(txt, 1)
+            for cmd in row["cmds"]:
+                self._current_cmds.append(cmd)
+                line.addWidget(self._copy_button(cmd))
+            wrap = QWidget()
+            wrap.setLayout(line)
+            self.steps_layout.addWidget(wrap)
+        self.steps_layout.addStretch()
+        self.btn_copy_all.setVisible(bool(self._current_cmds))
+
     def _show_case(self, index: int):
         index = max(0, min(index, len(CASES) - 1))
         self.index = index
-        case = CASES[index]
-        self.lbl_pos.setText(f"<b>Test {index + 1} / {len(CASES)}</b>")
+        case = localized_case(CASES[index])
+        self.lbl_pos.setText(f"<b>{t('runner.test_n_of', n=index + 1, total=len(CASES))}</b>")
         self.bar.setValue(round(100 * index / max(len(CASES) - 1, 1)))
-        cat_label = dict(CATEGORIES).get(case["cat"], case["cat"])
-        self.lbl_cat.setText(f"<b>Catégorie :</b> {cat_label}")
-        self.setWindowTitle(f"{case['id']} — Protocole de test")
+        self.lbl_cat.setText(f"<b>{html.escape(t('runner.category'))} :</b> "
+                             f"{html.escape(category_label(case['cat']))}")
+        self.setWindowTitle(f"{case['id']} — {t('runner.window_base')}")
         self.lbl_titre.setText(f'<span style="font-size:20px; font-weight:800;">'
-                               f'{case["id"]} — {case["titre"]}</span>')
+                               f'{case["id"]} — {html.escape(case["titre"])}</span>')
         if case.get("pre"):
             self.lbl_pre.setVisible(True)
             # Texte sombre explicite sur le bandeau jaune clair -- meme bug
             # que la barre 'Resultat attendu' sur themes sombres.
             self.lbl_pre.setText(f'<div style="background:#fff7e0; border:1px solid #d9a800; '
-                                 f'color:#4a3a00; border-radius:6px; padding:6px;"><b>Preparation :</b> '
-                                 f'{case["pre"]}</div>')
+                                 f'color:#4a3a00; border-radius:6px; padding:6px;"><b>{html.escape(t("runner.preparation"))} :</b> '
+                                 f'{html.escape(case["pre"])}</div>')
         else:
             self.lbl_pre.setVisible(False)
-        steps_html = "<b>Etapes a suivre :</b><ol>" + "".join(
-            f"<li>{s}</li>" for s in case["etapes"]) + "</ol>"
-        self.lbl_etapes.setText(steps_html)
-        self.lbl_attendu.setText(f"<b>Resultat attendu :</b> {case['attendu']}")
+        self._fill_steps(case)
+        self.lbl_attendu.setText(f"<b>{html.escape(t('runner.expected'))} :</b> "
+                                 f"{html.escape(case['attendu'])}")
         r = self.session.result(case["id"])
         self.notes.setPlainText(r.get("annotation", "") if r else "")
 
@@ -408,19 +490,20 @@ class BilanDialog(QDialog):
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 12, 16, 12)
 
-        root.addWidget(QLabel("<span style='font-size:18px; font-weight:800;'>"
-                              f"Bilan — session v{session.data.get('version', '?')} du "
-                              f"{session.data.get('creee', '?')[:10]}</span>"))
+        header_txt = t("runner.bilan_header",
+                       version=session.data.get('version', '?'),
+                       date=session.data.get('creee', '?')[:10])
+        root.addWidget(QLabel(f"<span style='font-size:18px; font-weight:800;'>{header_txt}</span>"))
 
         stats = session.stats()
         chips = QHBoxLayout()
-        chips.addWidget(self._chip(str(stats["total"]), "tests au total", "#546e7a"))
-        chips.addWidget(self._chip(str(stats[BON]), "BON", "#1a7f37"))
-        chips.addWidget(self._chip(str(stats[PAS_BON]), "PAS BON", "#c62828"))
-        chips.addWidget(self._chip(str(stats[BLOQUE]), "BLOQUES", "#ef6c00"))
-        chips.addWidget(self._chip(str(stats[NA]), "N/A", "#607d8b"))
-        chips.addWidget(self._chip(str(stats[VIERGE]), "non testés", "#9aa3b2"))
-        chips.addWidget(self._chip(f"{stats['couverture']}%", "couverture", "#3f51b5"))
+        chips.addWidget(self._chip(str(stats["total"]), t("runner.chip_total"), "#546e7a"))
+        chips.addWidget(self._chip(str(stats[BON]), statut_label(BON), "#1a7f37"))
+        chips.addWidget(self._chip(str(stats[PAS_BON]), statut_label(PAS_BON), "#c62828"))
+        chips.addWidget(self._chip(str(stats[BLOQUE]), t("runner.chip_blocked"), "#ef6c00"))
+        chips.addWidget(self._chip(str(stats[NA]), statut_label(NA), "#607d8b"))
+        chips.addWidget(self._chip(str(stats[VIERGE]), t("runner.chip_not_tested"), "#9aa3b2"))
+        chips.addWidget(self._chip(f"{stats['couverture']}%", t("runner.chip_coverage"), "#3f51b5"))
         chips.addStretch()
         root.addLayout(chips)
 
@@ -428,12 +511,13 @@ class BilanDialog(QDialog):
         failures = [(c, session.result(c["id"])) for c in CASES
                     if (session.result(c["id"]) or {}).get("statut") in (PAS_BON, BLOQUE)]
         table = QTableWidget(len(failures), 3)
-        table.setHorizontalHeaderLabels(["ID", "Test", "Annotation"])
+        table.setHorizontalHeaderLabels([t("runner.col_id"), t("runner.col_test"),
+                                         t("runner.col_annotation")])
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         for r, (case, res) in enumerate(failures):
             table.setItem(r, 0, QTableWidgetItem(case["id"]))
-            table.setItem(r, 1, QTableWidgetItem(case["titre"]))
+            table.setItem(r, 1, QTableWidgetItem(localized_case(case)["titre"]))
             table.setItem(r, 2, QTableWidgetItem(res.get("annotation", "")))
         table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         table.setColumnWidth(0, 90)
@@ -466,7 +550,7 @@ class BilanDialog(QDialog):
 
     # ------------------------------------------------------------- exports
     def _export_path(self, default_name):
-        path, _ = QFileDialog.getSaveFileName(self, "Exporter le bilan", default_name)
+        path, _ = QFileDialog.getSaveFileName(self, t("runner.export_bilan_title"), default_name)
         return Path(path) if path else None
 
     def _export_markdown(self):
@@ -486,13 +570,14 @@ class BilanDialog(QDialog):
     def _ticket_github(self):
         failures = [(c, self.session.result(c["id"])) for c in CASES
                     if (self.session.result(c["id"]) or {}).get("statut") in (PAS_BON, BLOQUE)]
-        lines = [f"- **{c['id']}** — {c['titre']} : {res.get('annotation', '(sans detail)')}"
+        lines = [f"- **{c['id']}** — {localized_case(c)['titre']} : {res.get('annotation', '(sans detail)')}"
                  for c, res in failures]
-        body = ("Echecs du protocole de test manuel v" + APP_VERSION + " :\n\n"
+        body = (t("runner.ticket_body_header") + APP_VERSION + " :\n\n"
                 + "\n".join(lines)
-                + "\n\n---\nGenere par tools/protocole_test.py")
+                + "\n\n---\n"
+                + t("runner.ticket_generated_by"))
         params = urllib.parse.urlencode({
-            "title": f"[Protocole] {len(failures)} echec(s) — v{APP_VERSION}",
+            "title": t("runner.ticket_title", n=len(failures), version=APP_VERSION),
             "body": body,
         })
         from PyQt6.QtCore import QUrl
@@ -503,43 +588,42 @@ class BilanDialog(QDialog):
 # Rendus d'export (separes des widgets : utilises aussi par --smoke)
 # ===========================================================================
 
-STATUT_LABELS = {VIERGE: "non testé", BON: "BON", PAS_BON: "PAS BON",
-                 BLOQUE: "BLOQUE", NA: "N/A"}
-
-
 def render_markdown(session: Session) -> str:
     stats = session.stats()
     out = io.StringIO()
     w = out.write
-    w(f"# Protocole de test — v{session.data.get('version', '?')}\n\n")
-    w(f"Session du {session.data.get('creee', '?')} (derniere mise a jour "
-      f"{session.data.get('modifiee', '?')})\n\n")
-    w(f"| Total | BON | PAS BON | BLOQUES | N/A | Non testés | Couverture |\n")
-    w(f"|---|---|---|---|---|---|---|\n")
+    w(f"# {t('runner.md_title', version=session.data.get('version', '?'))}\n\n")
+    w(t("runner.md_session_dates", created=session.data.get('creee', '?'),
+        updated=session.data.get('modifiee', '?')) + "\n\n")
+    w(f"| {t('runner.chip_total')} | {statut_label(BON)} | {statut_label(PAS_BON)} "
+      f"| {t('runner.chip_blocked')} | {statut_label(NA)} | {t('runner.chip_not_tested')} "
+      f"| {t('runner.chip_coverage')} |\n")
+    w("|---|---|---|---|---|---|---|\n")
     w(f"| {stats['total']} | {stats[BON]} | {stats[PAS_BON]} | {stats[BLOQUE]} | "
       f"{stats[NA]} | {stats[VIERGE]} | {stats['couverture']}% |\n\n")
 
     failures = [(c, session.result(c["id"])) for c in CASES
                 if (session.result(c["id"]) or {}).get("statut") in (PAS_BON, BLOQUE)]
     if failures:
-        w("## Echecs\n\n")
+        w(f"## {t('runner.md_failures')}\n\n")
         for case, res in failures:
-            note = res.get("annotation", "") or "(sans detail)"
-            w(f"- **{case['id']}** — {case['titre']} : {note}\n")
+            note = res.get("annotation", "") or t("runner.md_no_detail")
+            w(f"- **{case['id']}** — {localized_case(case)['titre']} : {note}\n")
         w("\n")
 
     grouped = cases_by_category()
-    for code, label in CATEGORIES:
+    for code, _label in CATEGORIES:
         cases = grouped[code]
         done = sum(1 for c in cases
                    if (session.result(c["id"]) or {}).get("statut", VIERGE) != VIERGE)
-        w(f"## {label} ({done}/{len(cases)})\n\n")
-        w("| ID | Test | Statut | Annotation |\n|---|---|---|---|\n")
+        w(f"## {category_label(code)} ({done}/{len(cases)})\n\n")
+        w(f"| {t('runner.col_id')} | {t('runner.col_test')} | {t('runner.col_status')} "
+          f"| {t('runner.col_annotation')} |\n|---|---|---|---|\n")
         for case in cases:
             r = session.result(case["id"]) or {}
             note = (r.get("annotation", "") or "").replace("|", "\\|").replace("\n", " ")
-            w(f"| {case['id']} | {case['titre']} | {STATUT_LABELS[r.get('statut', VIERGE)]} "
-              f"| {note} |\n")
+            w(f"| {case['id']} | {localized_case(case)['titre']} "
+              f"| {statut_label(r.get('statut', VIERGE))} | {note} |\n")
         w("\n")
     return out.getvalue()
 
@@ -547,13 +631,16 @@ def render_markdown(session: Session) -> str:
 def render_csv(session: Session) -> str:
     out = io.StringIO()
     writer = csv_module.writer(out, lineterminator="\r\n")
-    writer.writerow(["id", "categorie", "titre", "statut", "annotation", "horodatage", "rev"])
+    # La colonne statut ecrit la valeur STOCKEE (BON/PAS BON...) : stable
+    # quelle que soit la langue de l'interface au moment de l'export.
+    writer.writerow(["id", t("runner.col_category"), t("runner.col_test"), "statut",
+                     t("runner.col_annotation"), t("runner.col_last"), "rev"])
     cat_labels = dict(CATEGORIES)
     for case in CASES:
         r = session.result(case["id"]) or {}
         writer.writerow([
-            case["id"], cat_labels[case["cat"]], case["titre"],
-            STATUT_LABELS[r.get("statut", VIERGE)],
+            case["id"], cat_labels[case["cat"]], localized_case(case)["titre"],
+            r.get("statut", VIERGE) or "",
             r.get("annotation", ""), r.get("horodatage", ""), case.get("rev", 1),
         ])
     return out.getvalue()
@@ -568,7 +655,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.session: Session | None = None
         self.base_resultats: dict | None = None  # resultats de la session de base (flags NOUVEAU/A RETESTER)
-        self.setWindowTitle(f"Protocole de test — Empyrion Scenario Editor v{APP_VERSION}")
+        self.setWindowTitle(t("runner.main_title", version=APP_VERSION))
         self.resize(1280, 800)
         self._build()
         if not SMOKE:
@@ -622,13 +709,15 @@ class MainWindow(QMainWindow):
 
         split = QHBoxLayout()
         self.cats = QTreeWidget()
-        self.cats.setHeaderLabels(["Categories", "Fait"])
+        self.cats.setHeaderLabels([t("runner.col_categories"), t("runner.col_done")])
         self.cats.setColumnWidth(0, 250)
         self.cats.itemSelectionChanged.connect(self._fill_table)
         split.addWidget(self.cats, 1)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["ID", "Test", "Statut", "Info", "Dernier test"])
+        self.table.setHorizontalHeaderLabels([
+            t("runner.col_id"), t("runner.col_test"), t("runner.col_status"),
+            t("runner.col_info"), t("runner.col_last")])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -701,7 +790,7 @@ class MainWindow(QMainWindow):
                                (base.data.get("resultats", {}) if base else None))
         self._refresh_all()
         self.statusBar().showMessage(
-            f"Session creee : {self.session.path.name}", 8000)
+            t("runner.session_created", name=self.session.path.name), 8000)
 
     def _refresh_all(self):
         s = self.session
@@ -709,19 +798,20 @@ class MainWindow(QMainWindow):
             return
         stats = s.stats()
         self.lbl_session.setText(
-            f"<b>Session de test</b> — v{s.data.get('version', '?')} — "
-            f"{s.path.stem} — base : {s.data.get('base') or 'vierge'}")
-        self.lbl_progress.setText(f"Progression : <b>{stats['total'] - stats[VIERGE]} / "
-                                  f"{stats['total']}</b>")
+            t("runner.session_label", version=s.data.get('version', '?'),
+              name=s.path.stem, base=s.data.get('base') or t('runner.session_base_none')))
+        self.lbl_progress.setText(t("runner.progress_label",
+                                    done=stats['total'] - stats[VIERGE],
+                                    total=stats['total']))
         self.bar.setValue(stats["couverture"])
         self.cats.blockSignals(True)
         self.cats.clear()
         grouped = cases_by_category()
-        for code, label in CATEGORIES:
+        for code, _label in CATEGORIES:
             cases = grouped[code]
             done = sum(1 for c in cases
                        if (s.result(c["id"]) or {}).get("statut", VIERGE) != VIERGE)
-            it = QTreeWidgetItem([label, f"{done}/{len(cases)}"])
+            it = QTreeWidgetItem([category_label(code), f"{done}/{len(cases)}"])
             it.setData(0, Qt.ItemDataRole.UserRole, code)
             it.setTextAlignment(1, Qt.AlignmentFlag.AlignRight)
             self.cats.addTopLevelItem(it)
@@ -742,21 +832,21 @@ class MainWindow(QMainWindow):
         rows = [c for c in CASES
                 if (cat is None or c["cat"] == cat)
                 and (not text or text in c["id"].lower()
-                     or text in c["titre"].lower()
-                     or text in STATUT_LABELS[(s.result(c["id"]) or {}).get("statut", VIERGE)].lower()
-                     or text in _case_flag(c, s, self.base_resultats).lower())]
+                     or text in localized_case(c)["titre"].lower()
+                     or text in statut_label((s.result(c["id"]) or {}).get("statut", VIERGE)).lower()
+                     or text in _case_flag(c, s, self.base_resultats)[1].lower())]
         self.table.setRowCount(len(rows))
         for r, case in enumerate(rows):
             res = s.result(case["id"]) or {}
             statut = res.get("statut", VIERGE)
             self.table.setItem(r, 0, QTableWidgetItem(case["id"]))
-            self.table.setItem(r, 1, QTableWidgetItem(case["titre"]))
+            self.table.setItem(r, 1, QTableWidgetItem(localized_case(case)["titre"]))
             self.table.setCellWidget(r, 2, _badge(statut))
-            flag = _case_flag(case, s, self.base_resultats)
-            item_flag = QTableWidgetItem(flag)
-            if flag.startswith("A RETESTER") or flag == "a retester (demande)":
+            flag_code, flag_text = _case_flag(case, s, self.base_resultats)
+            item_flag = QTableWidgetItem(flag_text)
+            if flag_code == "retest_rev" or flag_code == "retest_asked":
                 item_flag.setForeground(Qt.GlobalColor.red)
-            elif flag == "NOUVEAU":
+            elif flag_code == "new":
                 item_flag.setForeground(Qt.GlobalColor.darkGreen)
             self.table.setItem(r, 3, item_flag)
             self.table.setItem(r, 4, QTableWidgetItem(res.get("horodatage", "")[:16]
@@ -772,9 +862,9 @@ class MainWindow(QMainWindow):
             return
         case_id = self._case_id_at(row)
         menu = QMenu(self)
-        act_open = menu.addAction("Ouvrir en pas-a-pas")
-        act_reset = menu.addAction("Reinitialiser ce test")
-        act_retest = menu.addAction("Marquer a retester")
+        act_open = menu.addAction(t("runner.menu_open_step"))
+        act_reset = menu.addAction(t("runner.menu_reset"))
+        act_retest = menu.addAction(t("runner.menu_retest"))
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
         if chosen == act_open:
             self._open_step(case_id)
@@ -801,11 +891,11 @@ class MainWindow(QMainWindow):
     def _export(self, renderer, default_name):
         if self.session is None:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Exporter", default_name)
+        path, _ = QFileDialog.getSaveFileName(self, t("runner.export_title"), default_name)
         if not path:
             return
         atomic_write_text(Path(path), renderer(self.session))
-        self.statusBar().showMessage(f"Export ecrit : {path}", 8000)
+        self.statusBar().showMessage(t("runner.export_written", path=path), 8000)
 
     def _bilan(self):
         if self.session is None:
@@ -837,20 +927,24 @@ def run_smoke() -> int:
         s2 = Session.neuve(base=s1)
         assert s2.result(CASES[0]["id"])["statut"] == BON
         assert s2.result(CASES[1]["id"])["statut"] == PAS_BON
-        case = dict(_CASES_BY_ID[CASES[1]["id"]], rev=2)
-        CASES[1]["rev"] = 2
+        old_rev = CASES[1].get("rev")
+        CASES[1]["rev"] = (old_rev or 1) + 1
         s3 = Session.neuve(base=s1)
         assert s3.result(CASES[1]["id"]) is None, "cas modifie doit etre reinitialise"
         assert s3.result(CASES[0]["id"])["statut"] == BON
-        del CASES[1]["rev"]
+        if old_rev is None:
+            del CASES[1]["rev"]
+        else:
+            CASES[1]["rev"] = old_rev
         # 3. reinitialisation totale
         s4 = Session.neuve(base=s1, tout_reinitialiser=True)
         assert s4.result(CASES[0]["id"]) is None
-        # 4. exports
+        # 4. exports (independants de la langue de l'interface)
+        loc1 = localized_case(CASES[1])
         md = render_markdown(s1)
-        assert "PAS BON" in md and CASES[1]["titre"] in md
+        assert statut_label(PAS_BON) in md and loc1["titre"] in md
         cs = render_csv(s1)
-        assert CASES[0]["id"] in cs
+        assert CASES[0]["id"] in cs and loc1["titre"] in cs
         # 5. fenetres (creation/rendu sans interaction)
         from gui.theme import apply_theme
         apply_theme(app)

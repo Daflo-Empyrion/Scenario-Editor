@@ -58,7 +58,10 @@ def test_validation_dialog_opens_and_runs(window_with_workspace, monkeypatch):
 def test_validation_dialog_summary_reflects_real_issues(window_with_workspace):
     from gui.validation_dialog import ValidationDialog
     dialog = ValidationDialog(window_with_workspace, parent=window_with_workspace)
-    assert "erreur" in dialog.summary_label.text() or "avertissement" in dialog.summary_label.text()
+    # mots localises fr/en (la machine de test peut etre dans les deux langues)
+    text = dialog.summary_label.text().lower()
+    assert ("erreur" in text or "avertissement" in text
+            or "error" in text or "warning" in text)
 
 
 def test_double_click_opens_file_and_selects_block(window_with_workspace):

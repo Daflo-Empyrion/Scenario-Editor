@@ -48,7 +48,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from core.yamllite.model import YamlEntry, YamlDocument, create_entry, remove_entry
+from core.yamllite.model import YamlComment, YamlEntry, YamlDocument, create_entry, remove_entry
 from core.yamllite.parser import parse_yaml_file
 
 
@@ -192,19 +192,59 @@ def find_creature_items(doc: YamlDocument) -> List[YamlEntry]:
 
     found: List[YamlEntry] = []
 
-    def walk(nodes, biome: str):
+    def walk(nodes, biome: str, zone_entry=None):
         for node in nodes:
             if isinstance(node, YamlEntry):
                 if node.is_sequence_item and node.key == "Name":
                     node._biome = biome
+                    # YAML-010 : reference de la ZONE porteuse du biome (l'entree
+                    # '- Biomes: [...]'), necessaire pour ecrire une modification
+                    # du biome (le biome n'est PAS une propriete de la creature,
+                    # mais de sa zone de spawn).
+                    node._zone_entry = zone_entry
                     found.append(node)
-                walk(node.children, biome)
+                walk(node.children, biome, zone_entry)
 
     for child in section.children:
         if isinstance(child, YamlEntry) and child.key == "Biomes":
-            walk(child.children, child.value)
+            walk(child.children, child.value, zone_entry=child)
 
     return found
+
+
+def set_creature_biome(item: YamlEntry, new_value: str) -> bool:
+    """YAML-010 : modifie le biome d'une creature en reecrivant la valeur de
+    SA ZONE ('- Biomes: [...]') -- le biome n'existe pas sur la ligne de la
+    creature elle-meme. Une zone multi-biomes ('[A, B]') est remplacee par le
+    biome choisi (les zones multi-biomes restent editables via l'onglet YAML
+    complet). Retourne False si la zone est introuvable ou si rien ne change."""
+    from .parsers_utils import parse_bracketed_list
+    zone = getattr(item, "_zone_entry", None)
+    if zone is None:
+        return False
+    current = parse_bracketed_list(zone.value or "")
+    new_value = new_value.strip()
+    if new_value in current and len(current) == 1:
+        return False  # deja en place : ne marque pas le fichier modifie pour rien
+    zone.set_own_value(f"[ {new_value} ]")
+    item._biome = zone.value
+    return True
+
+
+def observed_creature_biomes(doc: YamlDocument) -> List[str]:
+    """YAML-010 : tous les noms de biomes observes dans les zones du fichier
+    (pool de la liste deroulante de la colonne Biome), tries et dedoublonnes.
+    Retourne aussi les biomes des zones multi-valeurs ('[A, B]' -> A, B)."""
+    from .parsers_utils import parse_bracketed_list
+    names: List[str] = []
+    for item in find_creature_items(doc):
+        zone = getattr(item, "_zone_entry", None)
+        if zone is None:
+            continue
+        for biome in parse_bracketed_list(zone.value or ""):
+            if biome and biome not in names:
+                names.append(biome)
+    return sorted(names)
 
 
 def get_creature_biome(item: YamlEntry) -> str:
@@ -602,3 +642,93 @@ def find_special_effects_global_items(doc: YamlDocument) -> List[YamlEntry]:
     d'entrees biome-specifiques (Biome/PlyDist/SpawnY) -- colonnes
     heterogenes, gerees normalement par l'union des cles existante."""
     return list_items(doc, "SpecialEffectsGlobal", "Name")
+
+
+# ============================================================================
+# Entrees DESACTIVEES NATIVEMENT (commentees dans le fichier) -- YAML-009
+# ============================================================================
+
+@dataclass
+class CommentedItem:
+    """Une entree DESACTIVEE nativement dans le fichier (lignes commentees par
+    l'auteur du scenario, PAS par l'application) : ex '# - GroupName: X' et
+    ses lignes de parametres commentees qui suivent."""
+    label: str                 # valeur de la cle d'item (ex: 'DroneBaseStarterRG')
+    key: str                   # cle d'item detectee (GroupName, Name, Type...)
+    nodes: list                # [YamlComment] a de-commenter pour reactiver
+
+
+_COMMENTED_ITEM_RE = re.compile(r'^-\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)$')
+
+
+def _strip_comment_marker(raw: str) -> str:
+    """Retire l'indentation + les '#' + UN espace d'une ligne commentee, en
+    PRESERVANT l'indentation d'origine (le re-calage relatif des parametres
+    sous '- Cle:' reste correct apres de-commentation)."""
+    stripped = raw.lstrip()
+    indent = raw[:len(raw) - len(stripped)]
+    body = stripped.lstrip('#')
+    if body.startswith(' '):
+        body = body[1:]
+    return indent + body
+
+
+def find_commented_items(doc: YamlDocument, section_key: str,
+                         item_keys: tuple = ('GroupName', 'Name', 'Type', 'Mode')) -> List[CommentedItem]:
+    """Trouve les entrees DESACTIVEES NATIVEMENT sous la section `section_key`
+    ( YAML-009 ) : des runs de lignes commentees dont la premiere ligne
+    commentee represente un item de liste ('# - GroupName: X' eventuellement
+    '## - Name: X'...). Les lignes commentees suivantes du meme run (jusqu'a
+    une ligne non-commentaire ou un nouveau '- Cle:') appartiennent a l'entree.
+
+    Retourne [] si la section est absente. Ne modifie RIEN -- voir
+    uncomment_commented_item() pour la reactivation."""
+    section = find_top_level_key(doc, section_key)
+    if section is None:
+        return []
+
+    found: List[CommentedItem] = []
+    current: List[YamlComment] = []  # YamlComment du run en cours
+
+    def _flush():
+        nonlocal current
+        if current:
+            first = _strip_comment_marker(current[0].raw).strip()
+            m = _COMMENTED_ITEM_RE.match(first)
+            if m and m.group(1) in item_keys:
+                found.append(CommentedItem(
+                    label=m.group(2).strip().strip('"'), key=m.group(1),
+                    nodes=list(current)))
+            current = []
+
+    def _comment_body(raw: str) -> str:
+        return _strip_comment_marker(raw).strip()
+
+    def walk(nodes):
+        nonlocal current
+        for node in nodes:
+            if isinstance(node, YamlComment):
+                body = _comment_body(node.raw)
+                if _COMMENTED_ITEM_RE.match(body):
+                    _flush()  # nouvelle entree commentee
+                    current.append(node)
+                elif current and body:
+                    current.append(node)  # parametre de l'entree en cours
+                else:
+                    _flush()  # commentaire decoratif ou vide : coupe le run
+            else:
+                _flush()
+                if isinstance(node, YamlEntry):
+                    walk(node.children)
+
+    walk(section.children)
+    _flush()
+    return found
+
+
+def uncomment_commented_item(item: CommentedItem) -> None:
+    """Reactiver une entree commentee : de-commente CHAQUE ligne du groupe
+    (indentation preservee) EN MEMOIRE. L'appelant doit ensuite re-parser le
+    document (render -> parse) et rafraichir ses vues."""
+    for node in item.nodes:
+        node.raw = _strip_comment_marker(node.raw)

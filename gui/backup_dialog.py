@@ -53,7 +53,16 @@ class BackupManagerDialog(QDialog):
         layout = QVBoxLayout(self)
 
         form = QFormLayout()
-        self.edit_source = QLineEdit()
+        # SAUV-002 : pre-remplir avec le dossier des parties du jeu quand il
+        # existe (au lieu d'un champ vide a deviner) -- chemin standard
+        # Windows 'Documents\Empyrion - Game Saves', modifiable bien sur.
+        default_source = ""
+        if kind == 'savegame':
+            from pathlib import Path as _P
+            candidate = _P.home() / "Documents" / "Empyrion - Game Saves"
+            if candidate.is_dir():
+                default_source = str(candidate)
+        self.edit_source = QLineEdit(default_source)
         btn_source = QPushButton(t("newproj.browse"))
         btn_source.clicked.connect(lambda: self._browse(self.edit_source))
         row_source = QHBoxLayout()

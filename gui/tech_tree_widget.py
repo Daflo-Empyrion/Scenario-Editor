@@ -297,17 +297,36 @@ class _TechNodeItem(QGraphicsPixmapItem):
             self.setCursor(Qt.CursorShape.OpenHandCursor)
             moved = (self.pos() - self._drag_start_pos).manhattanLength() > 4
             self._drag_start_pos = None
+            # TECH-007 : les emits ci-dessous peuvent ouvrir un dialogue MODAL
+            # (fiche editable, garde-fou d'ecriture refusee) qui reconstruit la
+            # scene -- scene.clear() DETRUIT cet item, et tout acces a self
+            # apres coup leve RuntimeError (wrapped C++). On capture donc les
+            # references inertes avant, on pose _press_button tout de suite,
+            # et on protege le code post-emit.
+            view = self._view
+            node_name = self.node.name
+            press_button = self._press_button
+            self._press_button = None
             if moved:
-                self._view.on_node_dropped(self)
+                view.on_node_dropped(self)
+                self._safe_super_release(event)
             else:
-                self._view.snap_item_to_position(self, self.node.unlock_level, self._row)
                 # Clic simple SANS deplacement = ouverture de la fiche
                 # d'information editable (demande du 31/08/2026) -- apres le
                 # snap, pour que la position soit deja correcte.
-                if self._press_button == Qt.MouseButton.LeftButton:
-                    self._view.node_activated.emit(self.node.name)
+                view.snap_item_to_position(self, self.node.unlock_level, self._row)
+                if press_button == Qt.MouseButton.LeftButton:
+                    view.node_activated.emit(node_name)
+                self._safe_super_release(event)
+            return
         self._press_button = None
         super().mouseReleaseEvent(event)
+
+    def _safe_super_release(self, event) -> None:
+        try:
+            super().mouseReleaseEvent(event)
+        except RuntimeError:
+            pass  # item detruit par la reconstruction de la scene (dialogue modal)
 
     def mouseDoubleClickEvent(self, event) -> None:
         if self._editable:
@@ -315,12 +334,30 @@ class _TechNodeItem(QGraphicsPixmapItem):
             # (le cout y est editable directement) ; l'ancienne boite de
             # saisie reste accessible via le menu contextuel.
             if event.button() == Qt.MouseButton.LeftButton:
-                self._view.node_activated.emit(self.node.name)
+                # Emit susceptible de detruit cet item (voir mouseReleaseEvent).
+                node_name = self.node.name
+                view = self._view
+                view.node_activated.emit(node_name)
+                try:
+                    super().mouseDoubleClickEvent(event)
+                except RuntimeError:
+                    return
+                return
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event) -> None:
         if self._editable:
-            self._view.show_node_context_menu(self.node.name, event.screenPos())
+            # Le menu peut declencher une ecriture + reconstruction de scene :
+            # cet item peut etre detruit au retour du exec() (voir
+            # mouseReleaseEvent).
+            view = self._view
+            node_name = self.node.name
+            try:
+                view.show_node_context_menu(node_name, event.screenPos())
+            except RuntimeError:
+                return
+            return
+        super().contextMenuEvent(event)
 
 
 class TechTreeCategoryView(QGraphicsView):

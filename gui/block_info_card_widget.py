@@ -47,10 +47,10 @@ Comportement (sessions du 29-31/08/2026) :
 from typing import Callable, Optional, Tuple
 
 from PyQt6.QtCore import Qt, QPoint, QSize, pyqtSignal
-from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen
+from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
-    QLineEdit, QComboBox, QMenu, QCheckBox,
+    QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QPlainTextEdit, QTextEdit,
 )
 
 from core.block_info_card import BlockInfoCard, InfoCardField, card_to_markdown
@@ -442,6 +442,7 @@ class BlockInfoCardWidget(QWidget):
 
     field_clicked = pyqtSignal(str, str, str)          # root_identity, source_key, source_raw_value (navigation)
     value_edit_requested = pyqtSignal(str, str, str, bool)  # source_key, old_value, new_value, from_template
+    description_edit_requested = pyqtSignal()  # VERIF fiche : modifier le descriptif (Localization.csv)
     property_add_requested = pyqtSignal(str, str)      # key, value
     property_remove_requested = pyqtSignal(str, str)   # source_key, old_value
     ingredient_add_requested = pyqtSignal(str, str)    # key, quantity
@@ -509,6 +510,23 @@ class BlockInfoCardWidget(QWidget):
         # Windows (retour utilisateur du 30/08/2026 : croix absente) --
         # icone qtawesome fa5s.times de l'application, rendue partout, comme
         # les autres boutons de l'interface.
+        # GUI descriptif (OPT fiche v1.6.1) : crayon dans la BARRE DE TITRE
+        # (position stable -- ne decale aucune range de contenu) ; visible
+        # seulement quand la fiche est editable.
+        self.btn_desc_edit = QPushButton()
+        self.btn_desc_edit.setFixedSize(22, 22)
+        self.btn_desc_edit.setIcon(icon("fa5s.pen", color=_CARD_TEXT))
+        self.btn_desc_edit.setIconSize(QSize(13, 13))
+        self.btn_desc_edit.setText("")
+        self.btn_desc_edit.setCursor(Qt.CursorShape.ArrowCursor)
+        self.btn_desc_edit.setToolTip(t("block_info.desc_edit_tooltip"))
+        self.btn_desc_edit.clicked.connect(self.description_edit_requested.emit)
+        self.btn_desc_edit.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none; "
+            f"border-radius: 4px; }}"
+            f"QPushButton:hover {{ background: #3a3a3a; }}"
+        )
+        self.btn_desc_edit.hide()
         self.btn_close = QPushButton()
         self.btn_close.setFixedSize(22, 22)
         self.btn_close.setIcon(icon("fa5s.times", color=_CARD_TEXT))
@@ -528,6 +546,7 @@ class BlockInfoCardWidget(QWidget):
             f"QPushButton:pressed {{ background: #4a4a4a; }}"
         )
         self.btn_close.clicked.connect(self.close_card)
+        header_row.addWidget(self.btn_desc_edit, 0, Qt.AlignmentFlag.AlignTop)
         header_row.addWidget(self.btn_close, 0, Qt.AlignmentFlag.AlignTop)
         # Export Markdown de la fiche (ajout suite a l'audit du 30/08/2026) :
         # meme rendu que la fiche affichee, deplace vers un fichier .md.
@@ -648,6 +667,7 @@ class BlockInfoCardWidget(QWidget):
         if ingredients_provider is not None:
             self._ingredients_provider = ingredients_provider
         self.editable = editable
+        self.btn_desc_edit.setVisible(self.editable)
         self.chk_game_view.setVisible(self._provider is not None)
 
         if icon_pixmap is not None and not icon_pixmap.isNull():
@@ -660,6 +680,13 @@ class BlockInfoCardWidget(QWidget):
 
         self._rebuild_content()
         self.show()
+        # FICHE-004 : restaurer l'emplacement de la precedente ouverture --
+        # sans cela la fiche revient a sa position par defaut a chaque
+        # bascule (deplacement perdu).
+        host = self.parent()
+        cached = getattr(host, '_info_card_geometry', None) if host is not None else None
+        if cached is not None:
+            self.restoreGeometry(cached)
         self.raise_()
         self._resize_grip.raise_()
 
@@ -680,6 +707,16 @@ class BlockInfoCardWidget(QWidget):
                 _ICON_SIZE, _ICON_SIZE, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.title_label.setText(card.title)
         self._rebuild_content()
+
+    def hideEvent(self, event):
+        # FICHE-004 : memoriser la geometry au moment ou la fiche se ferme
+        # (bascule, fermeture manuelle ou changement de bloc) -- sur le widget
+        # HOTE (un attribut par editeur), jamais partage globalement : deux
+        # fenetres de l'application doivent garder leurs emplacements
+        # respectifs.
+        if self.isVisible() and self.parent() is not None:
+            self.parent()._info_card_geometry = self.saveGeometry()
+        super().hideEvent(event)
 
     def close_card(self) -> None:
         self._current_block_name = None
@@ -848,3 +885,205 @@ class BlockInfoCardWidget(QWidget):
             card_to_markdown(self._current_card),
             title_key="block_info.export_title",
             file_filter="Markdown (*.md)")
+
+
+class DescriptionEditDialog(QDialog):
+    """Edition du DESCRIPTIF d'un bloc/item (fiche info) : le texte BBCode
+    BRUT de Localization.csv, cotes FR et EN -- ecrit via
+    write_scenario_localization_entries par l'hote (la fiche n'ecrit jamais
+    elle-meme). `info_key` : cle existante, ou la cle qui SERA CREEE
+    (convention '<Name>Desc') si le bloc n'avait pas de propriete Info.
+
+    Barre d'outils (demande utilisateur du 07/09/2026) :
+      - insertion BBCode (gras/italique/souligne/couleur) dans l'editeur
+        ACTIF, autour de la selection s'il y en a une ;
+      - traduction FR<->EN : clic droit sur un champ (mecanisme existant
+        install_translate_context_menu) OU boutons dedies qui transportent
+        le texte d'une colonne vers l'autre."""
+
+    def __init__(self, info_key: str, fr_text: str, en_text: str,
+                 creating: bool, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("block_info.desc_edit_title"))
+        self.setMinimumSize(760, 480)
+
+        layout = QVBoxLayout(self)
+        key_label = QLabel(t("block_info.desc_edit_key_label", key=info_key)
+                           + ("" if not creating else
+                              "  --  " + t("block_info.desc_edit_creating")))
+        key_label.setWordWrap(True)
+        key_label.setStyleSheet("color: gray;")
+        layout.addWidget(key_label)
+
+        # -- barre BBCode + traduction (agit sur l'editeur ACTIF) ----------
+        bar = QHBoxLayout()
+        self._make_bb_button(bar, "fa5s.bold", "block_info.bb_bold",
+                             "[b]", "[/b]")
+        self._make_bb_button(bar, "fa5s.italic", "block_info.bb_italic",
+                             "[i]", "[/i]")
+        self._make_bb_button(bar, "fa5s.underline", "block_info.bb_underline",
+                             "[u]", "[/u]")
+        self._make_color_button(bar)
+        bar.addStretch()
+        self.btn_fr_to_en = self._make_translate_button(
+            bar, "block_info.tr_fr_en", "fr", "en",
+            lambda: self.fr_edit, lambda: self.en_edit)
+        self.btn_en_to_fr = self._make_translate_button(
+            bar, "block_info.tr_en_fr", "en", "fr",
+            lambda: self.en_edit, lambda: self.fr_edit)
+        layout.addLayout(bar)
+
+        hint = QLabel(t("block_info.desc_edit_hint"))
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+
+        cols = QHBoxLayout()
+        fr_col = QVBoxLayout()
+        fr_col.addWidget(QLabel(t("block_info.desc_edit_fr")))
+        self.fr_edit = QTextEdit(fr_text)
+        self.fr_edit.setAcceptRichText(False)
+        from gui.translate_context_menu import install_translate_context_menu
+        install_translate_context_menu(self.fr_edit)
+        self.fr_edit.cursorPositionChanged.connect(
+            lambda: self._track_active_editor(self.fr_edit))
+        self.fr_edit.selectionChanged.connect(
+            lambda: self._track_active_editor(self.fr_edit))
+        self.fr_edit.installEventFilter(self)
+        fr_col.addWidget(self.fr_edit, 1)
+        cols.addLayout(fr_col, 1)
+        en_col = QVBoxLayout()
+        en_col.addWidget(QLabel(t("block_info.desc_edit_en")))
+        self.en_edit = QTextEdit(en_text)
+        self.en_edit.setAcceptRichText(False)
+        install_translate_context_menu(self.en_edit)
+        self.en_edit.cursorPositionChanged.connect(
+            lambda: self._track_active_editor(self.en_edit))
+        self.en_edit.selectionChanged.connect(
+            lambda: self._track_active_editor(self.en_edit))
+        self.en_edit.installEventFilter(self)
+        en_col.addWidget(self.en_edit, 1)
+        cols.addLayout(en_col, 1)
+        layout.addLayout(cols, 1)
+
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton(t("btn.ok"))
+        btn_ok.setObjectName("primaryButton")
+        btn_ok.clicked.connect(self.accept)
+        buttons.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(self.reject)
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+
+    # -- construction de la barre ------------------------------------------
+
+    def _active_editor(self):
+        """L'editeur (FR ou EN) actif : focus reel si present, sinon le
+        dernier editeur touche (curseur deplace) -- FR par defaut."""
+        w = QApplication.focusWidget()
+        if w in (self.fr_edit, self.en_edit):
+            return w
+        return self._last_focused or self.fr_edit
+
+    def _track_active_editor(self, editor, ev_type=None):
+        self._last_focused = editor
+
+    def _make_bb_button(self, bar, icon_name, tooltip_key, before, after):
+        from PyQt6.QtWidgets import QToolButton
+        btn = QToolButton()
+        btn.setIcon(icon(icon_name, color="#e0e0e0"))
+        btn.setToolTip(t(tooltip_key))
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # le focus reste dans l'editeur
+        btn.clicked.connect(lambda: self._insert_bbcode(before, after))
+        bar.addWidget(btn)
+        return btn
+
+    def _make_color_button(self, bar):
+        from PyQt6.QtWidgets import QToolButton, QColorDialog
+        btn = QToolButton()
+        btn.setIcon(icon("fa5s.palette", color="#e0e0e0"))
+        btn.setToolTip(t("block_info.bb_color"))
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        def _pick_color():
+            editor = self._active_editor()
+            color = QColorDialog.getColor(parent=self, title=t("block_info.bb_color"))
+            if not color.isValid():
+                return
+            hexcolor = color.name()[1:]  # 'rrggbb' sans le '#'
+            self._insert_bbcode(f"[c][{hexcolor}]", "[-][/c]")
+
+        btn.clicked.connect(_pick_color)
+        bar.addWidget(btn)
+        return btn
+
+    def _make_translate_button(self, bar, tooltip_key, source_lang, target_lang,
+                               get_source, get_target):
+        from PyQt6.QtWidgets import QToolButton
+        from core import translation
+        btn = QToolButton()
+        btn.setText(t(tooltip_key))
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        def _translate():
+            source_edit = get_source()
+            target_edit = get_target()
+            source_text = source_edit.toPlainText()
+            if not source_text.strip():
+                return
+            if not translation.is_available():
+                QMessageBox.warning(self, t("trans.unavailable_title"),
+                                    t("trans.unavailable_msg",
+                                      error=translation.get_import_error()))
+                return
+            try:
+                translated = translation.translate_text(
+                    source_text, target=target_lang, source=source_lang)
+            except Exception as e:
+                QMessageBox.critical(self, t("trans.error_title"),
+                                     t("trans.error_msg", error=e))
+                return
+            from gui.csv_edit_widget import TranslationResultDialog
+            dialog = TranslationResultDialog(source_text, translated, self)
+            if dialog.exec() == QDialog.DialogCode.Accepted and dialog.accepted_replace:
+                target_edit.setPlainText(dialog.result_text())
+
+        if not translation.is_available():
+            btn.setEnabled(False)
+            btn.setToolTip(t("trans.unavailable_msg",
+                             error=translation.get_import_error()))
+        else:
+            btn.setToolTip(t(tooltip_key))
+        btn.clicked.connect(_translate)
+        bar.addWidget(btn)
+        return btn
+
+    # -- insertion BBCode ---------------------------------------------------
+
+    def _insert_bbcode(self, before: str, after: str) -> None:
+        """Insere `before`+`after` dans l'editeur actif, AUTOUR de la
+        selection s'il y en a une (sinon curseur place entre les balises)."""
+        editor = self._active_editor()
+        cursor = editor.textCursor()
+        if cursor.hasSelection():
+            selected = cursor.selectedText().replace('\u2029', '\n')
+            cursor.insertText(before + selected + after)
+        else:
+            cursor.insertText(before + after)
+            cursor.movePosition(QTextCursor.MoveOperation.Left,
+                                QTextCursor.MoveMode.MoveAnchor,
+                                len(after))
+            editor.setTextCursor(cursor)
+        editor.setFocus()
+
+    def eventFilter(self, obj, event):
+        from PyQt6.QtCore import QEvent
+        if event.type() in (QEvent.Type.FocusIn, QEvent.Type.MouseButtonPress):
+            if obj in (self.fr_edit, self.en_edit):
+                self._track_active_editor(obj)
+        return super().eventFilter(obj, event)
+
+    def get_texts(self):
+        return self.fr_edit.toPlainText(), self.en_edit.toPlainText()
