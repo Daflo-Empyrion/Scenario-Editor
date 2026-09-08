@@ -384,7 +384,9 @@ class StepWindow(QMainWindow):
     def _copy_button(self, cmd: str) -> QPushButton:
         b = QPushButton(t("runner.copy_cmd"))
         b.setIcon(_theme_icon("fa5s.copy"))
-        b.setToolTip(cmd)
+        # echappe : l'infobulle est interpretee en HTML, un placeholder
+        # <fichier> y serait sinon avalé comme balise inconnue
+        b.setToolTip(html.escape(cmd))
         b.setStyleSheet("padding:2px 8px; font-size:11px;")
         b.clicked.connect(lambda _checked=False, txt=cmd, btn=b: self._copy_text(txt, btn))
         return b
@@ -413,6 +415,10 @@ class StepWindow(QMainWindow):
             num.setFixedWidth(26)
             line.addWidget(num)
             txt = QLabel(html.escape(row["txt"]))
+            # RichText FORCE : le texte echappe ne contient aucune balise, Qt
+            # ne le detecterait donc pas comme HTML et afficherait les
+            # entites (&#x27;, &gt;...) litteralement (retour utilisateur).
+            txt.setTextFormat(Qt.TextFormat.RichText)
             txt.setWordWrap(True)
             txt.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             txt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
