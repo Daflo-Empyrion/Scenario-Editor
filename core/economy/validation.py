@@ -6,13 +6,15 @@ TraderZone dans les playfields n'est pas une erreur en soi (les PNJ peuvent
 porter leur table dans leur blueprint) -- 'trader_unassigned' est un simple
 avertissement (regle YAML-009 : visible, jamais bloquant).
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+
 from core.economy.market_price import lookup_case_insensitive
 from core.economy.model import TOKEN_ITEM_RE
-from core.economy.trader_config import TraderItemRow
+from core.economy.trader_config import TraderConfigDoc, TraderItemRow
 
 
 @dataclass

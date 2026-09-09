@@ -295,3 +295,24 @@ def test_token_items_are_not_flagged_unknown():
     issues = validate_trader_doc(doc, {"CannedVegetables": 126.0,
                                        "HoverbikeHowler": 9000.0})
     assert issues == []
+
+
+def test_all_module_annotations_resolve():
+    """Regression v1.6.2 installee : une annotation de type referencant une
+    classe desimportee fait un NameError AU CHARGEMENT du module dans l'exe
+    PyInstaller (Python 3.14 evalue les annotations en differe en dev, mais
+    pas dans le bundle) -> on force la resolution de TOUTES les annotations
+    de tous les modules economie/catalogue."""
+    import importlib
+    import typing
+    modules = [
+        "core.economy.model", "core.economy.trader_config",
+        "core.economy.market_price", "core.economy.validation",
+        "core.economy.presets", "core.item_catalog",
+        "core.economy", "gui.economy_editor_dialog",
+        "gui.economy_check_dialog", "gui.item_catalog_dialog",
+    ]
+    for name in modules:
+        module = importlib.import_module(name)
+        hints = typing.get_type_hints(module)   # NameError si annotation cassée
+        assert isinstance(hints, dict)

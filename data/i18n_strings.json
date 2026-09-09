@@ -5842,5 +5842,9 @@
  "icat.refresh": {
   "fr": "Rafraîchir",
   "en": "Refresh"
+ },
+ "eco.open_error": {
+  "fr": "L'éditeur d'économie n'a pas pu s'ouvrir. Détail technique :",
+  "en": "The economy editor could not open. Technical detail:"
  }
 }

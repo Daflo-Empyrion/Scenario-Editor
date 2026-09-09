@@ -3,6 +3,8 @@ TraderNPCConfig.ecf de la copie de travail avec le catalogue (MarketPrice) et
 les TraderZone des playfields. Lecture seule -- les corrections se font dans
 l'editeur d'economie (menu Outils) ou l'editeur playfield.
 """
+from __future__ import annotations
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QDialog, QLabel, QListWidget, QListWidgetItem,
                              QPushButton, QVBoxLayout)

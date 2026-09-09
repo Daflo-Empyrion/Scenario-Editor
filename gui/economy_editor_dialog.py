@@ -6,6 +6,8 @@ round-trip byte-perfect pour toute ligne non touchee).
 Le dialogue reste testable hors MainWindow : les crochets on_before_mutate /
 on_mutate (snapshot undo + marquage modifie) sont passes par l'appelant.
 """
+from __future__ import annotations
+
 from typing import Callable, Dict, List, Optional, Tuple
 
 from PyQt6.QtCore import Qt, QTimer, QSize

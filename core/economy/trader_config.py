@@ -6,6 +6,8 @@ reste garanti pour chaque ligne non touchee. Les vues (TraderView) sont
 ephemeres : les re-deriver apres chaque undo/rechargement (jamais de reference
 figee a un document -- regle projet).
 """
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Optional
 

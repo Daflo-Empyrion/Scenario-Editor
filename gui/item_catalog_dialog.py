@@ -11,6 +11,8 @@ Contrat :
 Branche aujourd'hui dans l'editeur d'economie ; reutilisable partout ou l'on
 choisit un item/bloc (retrofits prelus apres validation).
 """
+from __future__ import annotations
+
 from typing import Callable, Dict, List, Optional
 
 from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal

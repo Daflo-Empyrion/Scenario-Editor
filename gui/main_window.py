@@ -1115,7 +1115,21 @@ class MainWindow(QMainWindow):
         travail est ouvert comme un VRAI onglet (undo, modified, enregistrement
         byte-perfect par l'onglet), le dialogue n'edite que le document partage.
         Fichier absent -> proposition de creation d'un fichier de depart minimal
-        (annulable via l'undo d'espace de travail)."""
+        (annulable via l'undo d'espace de travail).
+        Tout echec est AFFICHE en QMessageBox : dans l'exe installe (pas de
+        console), une exception silencieuse se voyait seulement par une
+        fenetre qui ne s'ouvrait pas, indiagnosticable (retour utilisateur
+        v1.6.2)."""
+        try:
+            self._open_economy_editor_impl()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, t("eco.title"),
+                                 t("eco.open_error") + "\n\n"
+                                 + traceback.format_exc()[-1500:])
+
+    def _open_economy_editor_impl(self):
         if not self.workspace:
             QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return

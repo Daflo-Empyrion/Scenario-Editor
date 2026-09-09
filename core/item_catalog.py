@@ -13,6 +13,8 @@ REGLES de deduplication (retour utilisateur 09/09/2026) :
   par l'appelant, copie de travail en PREMIER), l'entree de la copie de travail
   GAGNE et celle de la vanille est ignoree -- premiere occurrence prioritaire.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

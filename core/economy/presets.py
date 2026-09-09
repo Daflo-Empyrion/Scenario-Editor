@@ -8,6 +8,8 @@
 Toutes les operations mutent le document ECF in-place (round-trip byte-perfect
 pour les lignes non touchees) ; l'appelant gere snapshot undo + marque modifie.
 """
+from __future__ import annotations
+
 import json
 import re
 from dataclasses import dataclass

@@ -6,6 +6,8 @@ sont qu'un REPLI pour les items qu'elle ne surcharge pas (lecture seule, jamais
 ecrits -- regle projet). Index cache par mtime+taille (meme pattern que
 core/localization_lookup) ; pas de cache widget au-dessus.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 

@@ -5,6 +5,8 @@ Fidelite de rendu : les bornes sont conservees SOUS FORME DE CHAINES (ex: '100',
 chaine d'origine ; les conversions float ne servent qu'aux maths (presets,
 variantes) et a la validation (plage inversee).
 """
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Optional
 
