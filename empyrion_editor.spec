@@ -47,6 +47,12 @@ a = Analysis(
         # l'analyse statique de PyInstaller) -- a completer si une erreur
         # "ModuleNotFoundError" apparait au premier lancement de l'exe construit.
         'PyQt6.sip',
+        # Apercu PDF integre (gui/preview_widget.py) : imports fonction-level,
+        # declares explicitement pour garantir l'embarquement de QtPdf dans
+        # l'installeur (demande utilisateur -- QtPdf fait partie de la roue
+        # PyQt6 depuis la 6.11).
+        'PyQt6.QtPdf',
+        'PyQt6.QtPdfWidgets',
         *_dt_hiddenimports, *_bs4_hiddenimports, *_requests_hiddenimports,
         *_certifi_hiddenimports,
     ],

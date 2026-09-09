@@ -82,6 +82,7 @@ CATEGORIES = [
     ("BUILD", "17. Installateur / build"),
     ("GUI", "18. Interface, barre d'outils & theme"),
     ("PDA2", "19. Editeur PDA (nouveau module)"),
+    ("ECO", "20. Economie (marchands PNJ)"),
 ]
 
 CASES = [
@@ -331,14 +332,14 @@ CASES = [
         "attendu": "La documentation technique d'en-tête est affichée de façon lisible (texte sans les #) dans le panneau d'explication.",
     },
     {
-        "id": "OPEN-009", "cat": "OPEN", "rev": 3,
+        "id": "OPEN-009", "cat": "OPEN", "rev": 4,
         "titre": "Fichier non supporté : aperçu intégré ou message clair",
         "etapes": [
             "Dans la copie de travail, place (ou repère) une image (png/jpg) -- par exemple une texture d'icône -- puis double-clique dessus.",
-            "Recommence avec un PDF si tu en as un dans le scénario (module optionnel QtPdf : sans lui, un message l'explique).",
+            "Recommence avec un PDF (l'aperçu PDF est désormais EMBARQUÉ dans l'installeur : plus besoin du module optionnel QtPdf).",
             "Recommence avec un fichier sans parseur ni visionneuse (texture jeu .dds, modèle 3D...) : un message clair s'affiche, c'est voulu.",
         ],
-        "attendu": "Image ou PDF : un onglet APERÇU en lecture seule affiche le contenu. Formats sans parseur NI visionneuse : message explicite (pas de plantage, pas d'onglet vide).",
+        "attendu": "Image ou PDF : un onglet APERÇU en lecture seule affiche le contenu (PDF embarqué depuis v1.6.2 -- avant, module optionnel QtPdf requis). Formats sans parseur NI visionneuse : message explicite (pas de plantage, pas d'onglet vide).",
     },
     {
         "id": "OPEN-010", "cat": "OPEN", "rev": 2,
@@ -2376,7 +2377,7 @@ CASES = [
 
     # ---------------------------------------------------------------- BUILD
     {
-        "id": "BUILD-001", "cat": "BUILD", "rev": 2,
+        "id": "BUILD-001", "cat": "BUILD", "rev": 3,
         "titre": "Installeur : installation propre",
         "pre": "L'installeur de la release à tester (Setup-EmpyrionScenarioEditor-vX.Y.Z.exe).",
         "etapes": [
@@ -2384,7 +2385,7 @@ CASES = [
             "Suis l'assistant d'installation (Suivant, Installer, Terminer).",
             "Lance l'application depuis le raccourci créé (bureau ou menu Démarrer).",
         ],
-        "attendu": "Installation sans erreur ; l'application démarre, tout fonctionne (wikis, icônes, pack de localisation, protocole de test embarqué).",
+        "attendu": "Installation sans erreur ; l'application démarre, tout fonctionne (wikis, icônes, pack de localisation, protocole de test embarqué, aperçu PDF embarqué).",
     },
     {
         "id": "BUILD-002", "cat": "BUILD", "rev": 2,
@@ -2620,7 +2621,125 @@ CASES = [
         ],
         "attendu": "Tout est visible : scalaires et listes (Playfields, PlayfieldTypes, VisibleOnStart..., RewardedTasks/Chapters, signaux) dans le formulaire ; sections complexes (On*Ops) affichées en « Avancé (lecture seule) ». Le titre du chapitre saisi dans l'assistant EST appliqué à ChapterTitle. Édition du titre : jeton conservé, texte CSV mis à jour (pas de clé orpheline).",
     },
-
+    # ---------------------------------------------------------------- ECO
+    {
+        "id": "ECO-001", "cat": "ECO",
+        "titre": "Éditeur d'économie : ouverture et lecture du fichier",
+        "etapes": [
+            "Ouvre un scénario (copie de travail contenant un TraderNPCConfig.ecf).",
+            "Menu Outils > Éditeur d'économie (marchands PNJ)...",
+            "Clique sur quelques marchands dans la liste de gauche.",
+        ],
+        "attendu": "La liste affiche les marchands du fichier ; pour chacun : tableau des items (nom, prix/stocks vente et achat) et fiche (texte d'accueil, catégorie, remise). Un prix en facteur s'affiche tel quel (ex : mf=1.1-1.2).",
+    },
+    {
+        "id": "ECO-002", "cat": "ECO",
+        "titre": "Économie : création du fichier de départ quand absent",
+        "etapes": [
+            "Prends une copie de travail SANS TraderNPCConfig.ecf (ou renomme temporairement le fichier existant).",
+            "Menu Outils > Éditeur d'économie (marchands PNJ)...",
+            "Réponds Oui à la proposition de création.",
+        ],
+        "attendu": "Un TraderNPCConfig.ecf minimal est créé dans Content/Configuration de la copie de travail (marchand TraderDefault), l'éditeur s'ouvre dessus et l'annulation d'espace de travail (bouton flèche arrière) peut supprimer le fichier créé.",
+    },
+    {
+        "id": "ECO-003", "cat": "ECO", "rev": 2,
+        "titre": "Économie : ajout d'items depuis le catalogue",
+        "etapes": [
+            "Sélectionne un marchand, clique « Catalogue... » : une fenêtre s'ouvre avec 3 onglets (Par catégorie, A→Z, Tous) et une recherche qui filtre partout.",
+            "Onglet Par catégorie : Items > Medical, coche MedPack ; double-clique dessus pour l'ajout immédiat (la fenêtre reste ouverte).",
+            "Coche 2-3 items d'autres catégories, clique « Ajouter la sélection ».",
+            "Ajuste prix/stocks dans le tableau (prix et stocks absolus = ENTIERS ; formats : 100-150, 10, ou facteur mf=1.1-1.2).",
+            "Compare avec l'onglet brut TraderNPCConfig.ecf (ouvert derrière).",
+        ],
+        "attendu": "Le catalogue liste TOUT le scénario (items ET blocs, icônes réelles, noms lisibles, MarketPrice, filtre « Masquer ceux sans MarketPrice »). Chaque item ajouté arrive avec prix = MarketPrice en absolu (repli mf=1.1-1.2 si prix inconnu) et stock 10-50 ; la sélection multiple = UNE seule annulation. Valeur invalide : message + cellule réaffichée.",
+    },
+    {
+        "id": "ECO-004", "cat": "ECO", "rev": 2,
+        "titre": "Économie : bascule prix plage ⇄ facteur",
+        "etapes": [
+            "Sélectionne une ligne d'item dont le prix est une plage (ex : 100-150).",
+            "Clique « Convertir en facteur ».",
+            "Clique à nouveau « Convertir en prix ».",
+        ],
+        "attendu": "Le prix devient un facteur mf= calculé depuis le MarketPrice de l'item (ex : 100-150 avec MarketPrice 126 → mf=0.79-1.19) puis revient en prix absolu ENTIER (arrondi au chiffre supérieur ; ici exactement 100-150). RÈGLE : prix et stocks absolus sont toujours des entiers — seuls les facteurs mf= ont des décimales. Si l'item n'a pas de MarketPrice connu : message clair, rien n'est modifié.",
+    },
+    {
+        "id": "ECO-005", "cat": "ECO",
+        "titre": "Économie : achat / vente (partie achat optionnelle)",
+        "etapes": [
+            "Sur un item « Vend » seul, mets la liste déroulante Échange sur « Vend + rachète ».",
+            "Vérifie la ligne dans l'onglet brut, puis repasse sur « Vend ».",
+        ],
+        "attendu": "« Vend + rachète » ajoute prix d'achat (mf=0.4-0.5) et stock max d'achat (55-150) dans la chaîne ; « Vend » les retire. Les colonnes achat suivent la liste déroulante.",
+    },
+    {
+        "id": "ECO-006", "cat": "ECO",
+        "titre": "Économie : fiche du marchand (texte, catégorie, remise)",
+        "etapes": [
+            "Sélectionne un marchand, modifie son texte d'accueil (utilise Entrée pour un retour à la ligne), sa catégorie et sa remise (ex : 0.1).",
+            "Clique « Appliquer la fiche », puis vérifie l'onglet brut.",
+        ],
+        "attendu": "SellingText est réécrit avec \\n échappé, SellingGoods et Discount mis à jour. Le texte ne casse pas la ligne du fichier (guillemets conservés).",
+    },
+    {
+        "id": "ECO-007", "cat": "ECO",
+        "titre": "Économie : duplication, création, suppression de marchand",
+        "etapes": [
+            "Duplique un marchand (bouton Dupliquer) et donne un nouveau nom.",
+            "Crée un marchand vide, puis supprime-le (Supprimer, confirme).",
+            "Rouvre le fichier brut pour comparer.",
+        ],
+        "attendu": "La duplication recopie TOUS les items et la fiche à l'identique (seul le nom change, y compris les prix en facteur). Le nom est unique (refus sinon). La suppression retire le bloc entier ; le reste du fichier est inchangé octet pour octet.",
+    },
+    {
+        "id": "ECO-008", "cat": "ECO", "rev": 2,
+        "titre": "Économie : inflation et pénurie (presets rapides)",
+        "etapes": [
+            "Cocher ou non « Sur le marchand sélectionné seulement », clique « Inflation... » et saisis 10.",
+            "Clique « Pénurie... » et saisis 2.",
+        ],
+        "attendu": "Tous les prix (vente ET achat) sont multipliés par 1,1 (les stocks ne bougent pas) ; la pénurie DIVISE tous les stocks par 2 (les prix ne bougent pas). RÈGLE : les résultats absolus sont arrondis au chiffre ENTIER supérieur (stock 3 → 1,5 → 2 ; facteurs mf= inchangés, ils restent décimaux). Décoché : l'opération touche TOUS les marchands en une seule annulation.",
+    },
+    {
+        "id": "ECO-009", "cat": "ECO",
+        "titre": "Économie : variante régionale ×50 %",
+        "etapes": [
+            "Sélectionne un marchand, clique « Variante ×... », saisis 1.5.",
+            "Regarde la nouvelle entrée dans la liste et ses prix.",
+        ],
+        "attendu": "Une variante « Nom @+50% » est créée (prix multipliés, stocks identiques) ; l'original est intact. C'est la façon de faire payer plus cher une station précise (le jeu n'a pas de multiplicateur par station : on duplique).",
+    },
+    {
+        "id": "ECO-010", "cat": "ECO",
+        "titre": "Économie : profils types (militaire, agricole, personnels)",
+        "etapes": [
+            "Sélectionne un marchand, choisis « Militaire (embarqué) » puis « Appliquer au marchand ».",
+            "Enregistre un autre marchand comme profil type (« Enregistrer comme profil type... »), applique-le à un troisième.",
+            "Ferme et rouvre l'éditeur d'économie : le profil personnel est toujours dans la liste.",
+        ],
+        "attendu": "Le catalogue du marchand est remplacé par celui du profil (numérotation Item1..N regénérée, catégorie et remise mises à jour). Les profils personnels sont conservés au niveau de l'APPLICATION (réutilisables dans un autre scénario).",
+    },
+    {
+        "id": "ECO-011", "cat": "ECO",
+        "titre": "Économie : TraderZone dans l'éditeur playfield",
+        "etapes": [
+            "Ouvre un playfield de la copie de travail (onglet structuré).",
+            "En haut, choisis un marchand dans la liste « TraderZone ».",
+            "Onglet POI : sur la ligne d'un POI, mets la colonne « TraderZone (marchands) » à un marchand, puis sauvegarde (Ctrl+S).",
+            "Ouvre le yaml brut (bloc-notes ou onglet YAML complet).",
+        ],
+        "attendu": "La clé « TraderZone: <marchand> » est écrite en tête du playfield, et le POI gagne une section Properties avec Key: TraderZone / Value: <marchand>. Vider la cellule retire la section. En jeu, ces tables s'appliquent aux PNJ marchands réglés sur #ZONE#.",
+    },
+    {
+        "id": "ECO-012", "cat": "ECO",
+        "titre": "Économie : vérification (menu Vérification)",
+        "etapes": [
+            "Modifie une ligne Item pour référencer un item inexistant (ou crée une TraderZone vers un marchand supprimé), enregistre.",
+            "Menu Vérification > Vérification économie (marchands PNJ)...",
+        ],
+        "attendu": "La fenêtre liste chaque problème (ERR = item absent du catalogue, plage inversée, TraderZone vers un profil inexistant ; ATT = profil jamais assigné à une zone). Corrige dans l'éditeur d'économie puis relance : plus aucun problème.",
+    },
 ]
 
 

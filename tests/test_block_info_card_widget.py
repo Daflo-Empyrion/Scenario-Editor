@@ -16,7 +16,7 @@
 
 import pytest
 
-from PyQt6.QtWidgets import QPushButton
+from PyQt6.QtWidgets import QPushButton, QComboBox
 
 from core.block_info_card import BlockInfoCard, InfoCardField, InfoCardIngredient
 from gui.block_info_card_widget import BlockInfoCardWidget
@@ -615,3 +615,33 @@ def test_combo_editors_have_visible_popup_action(qapp):
     row.start_edit()
     assert isinstance(row._editor, QComboBox)
     assert len(row._editor.lineEdit().actions()) == 1  # l'action fleche
+
+
+def test_inline_combo_popup_survives_focus_steal(qapp):
+    """Bug v1.6.1 (retour utilisateur) : la liste deroulante de la fiche se
+    refermait au clic. Mecanisme : en s'activant (Windows), la popup vole le
+    focus au champ et editingFinished detuisait l'editeur PENDANT la popup.
+    Le vol de focus est simule ici par view().setFocus(), independamment de
+    la plateforme."""
+    w, row = _values_provider_case(qapp)
+    row.start_edit()
+    combo = row._editor
+    assert isinstance(combo, QComboBox)
+
+    combo.showPopup()
+    qapp.processEvents()
+    combo.view().setFocus()
+    qapp.processEvents()
+    # l'assertion ESSENTIELLE : l'editeur n'est pas detruit pendant la popup
+    # (la visibilite de la popup elle-meme depend de l'environnement de test)
+    assert row._editor is not None, "l'editeur ne doit pas etre detruit pendant la popup"
+
+    # selection d'un item = validation immediate (meme comportement que le
+    # tableau de proprietes)
+    received = []
+    w.value_edit_requested.connect(lambda k, o, n, t: received.append((k, o, n, t)))
+    combo.setCurrentIndex(1)
+    combo.activated.emit(1)
+    qapp.processEvents()
+    assert row._editor is None
+    assert received == [("HitPoints", "80", "120", False)]

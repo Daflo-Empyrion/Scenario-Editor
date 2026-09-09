@@ -52,7 +52,8 @@ from core.playfield_editor import (
     add_resource_item, remove_resource_item,
     get_creature_biome, set_creature_biome, observed_creature_biomes,
     find_commented_items, uncomment_commented_item,
-    get_properties_value, set_properties_value,
+    get_properties_value, set_properties_value, set_or_create_properties_value,
+    get_top_level_trader_zone, set_top_level_trader_zone,
     find_space_resource_items, get_space_resource_display_name,
     list_space_material_names, add_space_resource_item, remove_space_resource_item,
     find_drone_stock_items, find_free_drones_items, find_space_vessels_items,
@@ -401,6 +402,17 @@ class PlayfieldEditWidget(QWidget):
         self.modified_label = QLabel("")
         toolbar.addWidget(self.modified_label)
         toolbar.addStretch()
+        # TraderZone du playfield (economy) : tous les PNJ marchands de ce
+        # playfield regles sur #ZONE# utilisent la table choisie.
+        self._trader_names = self._load_trader_names()
+        toolbar.addWidget(QLabel(t("playfield.trader_zone_label")))
+        self.trader_zone_combo = QComboBox()
+        self.trader_zone_combo.setEditable(True)
+        self._trader_zone_choices = list(self._trader_names)
+        self.trader_zone_combo.addItems(self._trader_zone_choices)
+        self.trader_zone_combo.setFixedWidth(230)
+        self.trader_zone_combo.lineEdit().editingFinished.connect(self._on_trader_zone_changed)
+        toolbar.addWidget(self.trader_zone_combo)
         self.btn_save = QPushButton(t("playfield.btn_save"))
         self.btn_save.setObjectName("primaryButton")
         self.btn_save.clicked.connect(self.save)
@@ -435,9 +447,15 @@ class PlayfieldEditWidget(QWidget):
             getter=lambda item: get_properties_value(item, "RegenAfter"),
             setter=lambda item, value: set_properties_value(item, "RegenAfter", value),
         )
+        trader_zone_column = SyntheticColumn(
+            label=t("playfield.col_trader_zone"),
+            getter=lambda item: get_properties_value(item, "TraderZone"),
+            setter=lambda item, value: set_or_create_properties_value(item, "TraderZone", value),
+            choices_fn=lambda: self._trader_zone_choices,
+        )
         poi_tab_inner = self._build_readonly_params_tab(
             lambda: find_poi_items(self.doc), t("playfield.col_groupname"),
-            synthetic_columns=[poi_regen_column],
+            synthetic_columns=[poi_regen_column, trader_zone_column],
             commented_fn=self._commented_fn("POIs", ("GroupName",)))
         poi_tab = self._wrap_with_poi_inspector_button(poi_tab_inner)
 
@@ -472,6 +490,8 @@ class PlayfieldEditWidget(QWidget):
         # l'onglet YAML brut aurait modifie quelque chose entre-temps (edition
         # directe, undo...).
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
+        # valeur TraderZone deja presente dans le fichier -> affichee dans la combo
+        self._refresh_trader_zone_combo()
 
     @property
     def doc(self):
@@ -480,6 +500,40 @@ class PlayfieldEditWidget(QWidget):
         reference capturee a l'init deviendrait orpheline et les editions des
         tables structurees se perdraient silencieusement (YAML-014)."""
         return self.raw_widget.doc
+
+    def _load_trader_names(self):
+        """Noms des marchands du TraderNPCConfig.ecf du MEME scenario (pour les
+        listes deroulantes TraderZone) -- absent ou illisible : liste vide, la
+        saisie libre reste possible."""
+        from core.economy.trader_config import load_trader_names
+        try:
+            config_dir = self.path.parents[2] / "Configuration"  # .../Content/Configuration
+        except IndexError:
+            return []
+        return load_trader_names(config_dir / "TraderNPCConfig.ecf")
+
+    def _refresh_trader_zone_combo(self):
+        """Synchronise la combo top-level avec le document (edition manuelle du
+        YAML brut, undo...). Les choix = marchands du scenario + valeur actuelle."""
+        self._trader_zone_choices = list(dict.fromkeys(
+            self._trader_names + [self.trader_zone_combo.currentText().strip()]
+        )) if self.trader_zone_combo.currentText().strip() else list(self._trader_names)
+        value = get_top_level_trader_zone(self.doc) or ""
+        if value and value not in self._trader_zone_choices:
+            self._trader_zone_choices.insert(0, value)
+        self.trader_zone_combo.blockSignals(True)
+        self.trader_zone_combo.clear()
+        self.trader_zone_combo.addItems(self._trader_zone_choices)
+        self.trader_zone_combo.setCurrentText(value)
+        self.trader_zone_combo.blockSignals(False)
+
+    def _on_trader_zone_changed(self):
+        value = self.trader_zone_combo.currentText().strip()
+        if get_top_level_trader_zone(self.doc) == value:
+            return
+        self.raw_widget._snapshot_undo()          # capture l'etat AVANT ecriture
+        set_top_level_trader_zone(self.doc, value)
+        self._on_structured_change([])
 
     def _commented_fn(self, section_key: str, item_keys: tuple = ("Name",)):
         """YAML-009 : fournisseur des entrees commentees nativement pour UNE
@@ -503,6 +557,10 @@ class PlayfieldEditWidget(QWidget):
         if isinstance(widget, QWidget) and hasattr(widget, "_playfield_tables"):
             for table in widget._playfield_tables:
                 table.refresh()
+        if index == 0:
+            # retour sur le premier onglet (ou init) : la combo TraderZone
+            # resynchronise (edition YAML brut, undo... entre-temps).
+            self._refresh_trader_zone_combo()
 
     def _wrap_with_poi_inspector_button(self, poi_tab_inner: QWidget) -> QWidget:
         """Ajoute un bouton 'Inspecteur de POI...' au-dessus du tableau POI en
@@ -880,6 +938,8 @@ class PlayfieldEditWidget(QWidget):
         # doc est desormais une propriete lisant raw_widget.doc en direct :
         # plus aucune reference orpheline possible apres le re-parse.
         self._refresh_all_tables()
+        # combo TraderZone : resynchronisee avec le document re-parse.
+        self._refresh_trader_zone_combo()
         # Le canvas garde des entites extraites de l'ANCIEN document (apres
         # re-parse, leurs source_item sont orphelins) : re-extraction.
         if hasattr(self, 'canvas_widget'):

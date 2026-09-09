@@ -178,3 +178,65 @@ def resolve_icon_path(icon_index: Dict[str, IconRef], icon_key: str) -> Optional
     doit alors utiliser une icone generique de repli (voir
     gui/tech_tree_widget.py), jamais planter ni laisser une case vide."""
     return icon_index.get(icon_key.lower())
+
+
+# ------------------------------------------------------------ cache disque
+# Scanner le pak + itemicons/ (+ SharedData du scenario) a chaque session prend
+# plusieurs secondes ; le contenu change quasi jamais (retour utilisateur
+# 09/09/2026) -> index cache sur disque, invalide par signature des sources.
+# Un « Rafraichir » (refresh=True) force la relecture.
+
+import json  # noqa: E402
+
+
+def _icon_cache_path() -> Path:
+    try:
+        from core.settings import CONFIG_DIR
+        return Path(CONFIG_DIR) / "cache" / "icon_index.json"
+    except Exception:
+        return Path.home() / ".empyrion_editor" / "cache" / "icon_index.json"
+
+
+def _icon_sources_signature(working_root: Path) -> list:
+    sig = []
+
+    def _stat(p: Path):
+        try:
+            st = p.stat()
+            sig.append([str(p), st.st_mtime_ns, st.st_size])
+        except OSError:
+            sig.append([str(p), None, None])
+
+    _stat(icon_pack_path() or Path("nopak"))
+    _stat(bundled_icon_directory() or Path("nobundled"))
+    _stat(icon_directory(working_root) or (working_root or Path("noscenario")).joinpath(*ICON_SUBPATH))
+    return sig
+
+
+def build_icon_index_cached(working_root: Path, refresh: bool = False) -> Dict[str, IconRef]:
+    """build_icon_index + cache disque (voir ci-dessus). refresh=True ignore
+    le cache et le regenere."""
+    cache_file = _icon_cache_path()
+    sig = _icon_sources_signature(working_root)
+    if not refresh:
+        try:
+            if cache_file.is_file():
+                payload = json.loads(cache_file.read_text(encoding="utf-8"))
+                if payload.get("sig") == sig:
+                    return {k: IconRef(kind=v["kind"], path=Path(v["path"]),
+                                       member=v.get("member"))
+                            for k, v in payload["index"].items()}
+        except Exception:
+            pass
+    index = build_icon_index(working_root)
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_file, "w", encoding="utf-8") as fh:
+            json.dump({"sig": sig,
+                       "index": {k: {"kind": v.kind, "path": str(v.path),
+                                     "member": v.member}
+                                 for k, v in index.items()}},
+                      fh, ensure_ascii=False)
+    except OSError:
+        pass
+    return index

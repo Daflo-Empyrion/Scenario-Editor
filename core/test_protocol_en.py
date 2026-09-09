@@ -256,10 +256,10 @@ EN: dict = {
         "titre": "Unsupported file: built-in preview or clear message",
         "etapes": [
             "In the working copy, place (or find) an image (png/jpg) -- for example an icon texture -- then double-click it.",
-            "Repeat with a PDF if you have one in the scenario (optional QtPdf module: without it, a message explains).",
+            "Repeat with a PDF (the PDF preview is now EMBEDDED in the installer: no optional QtPdf module needed).",
             "Repeat with a file having neither parser nor viewer (game texture .dds, 3D model...): a clear message appears, this is intended.",
         ],
-        "attendu": "Image or PDF: a read-only PREVIEW tab shows the content. Formats with neither parser NOR viewer: explicit message (no crash, no empty tab).",
+        "attendu": "Image or PDF: a read-only PREVIEW tab shows the content (PDF embedded since v1.6.2 -- before, the optional QtPdf module was required). Formats with neither parser NOR viewer: explicit message (no crash, no empty tab).",
     },
     "OPEN-010": {
         "titre": ".txt file: simple reading",
@@ -2046,7 +2046,7 @@ EN: dict = {
             "Follow the installation wizard (Next, Install, Finish).",
             "Start the application from the created shortcut (desktop or Start menu).",
         ],
-        "attendu": "Installation without error; the application starts, everything works (wikis, icons, localization pack, embedded test protocol).",
+        "attendu": "Installation without error; the application starts, everything works (wikis, icons, localization pack, embedded test protocol, embedded PDF preview).",
     },
     "BUILD-002": {
         "titre": "Clean uninstallation",
@@ -2257,6 +2257,114 @@ EN: dict = {
         ],
         "attendu": "Everything visible: scalars and lists (Playfields, PlayfieldTypes, VisibleOnStart..., RewardedTasks/Chapters, signals) in the form; complex sections (On*Ops) shown as « Advanced (read-only) ». The chapter title typed in the wizard IS applied to ChapterTitle. Title editing: token kept, CSV text updated (no orphan key).",
     },
+    # ---------------------------------------------------------------- ECO
+    "ECO-001": {
+        "titre": "Economy editor: opening and reading the file",
+        "etapes": [
+            "Open a scenario (working copy containing a TraderNPCConfig.ecf).",
+            "Tools menu > Economy editor (NPC traders)...",
+            "Click a few traders in the left-hand list.",
+        ],
+        "attendu": "The list shows the traders from the file; for each one: item table (name, sell/buy prices and stocks) and card (greeting text, category, discount). A factor price is shown as-is (e.g. mf=1.1-1.2).",
+    },
+    "ECO-002": {
+        "titre": "Economy: starter file creation when missing",
+        "etapes": [
+            "Take a working copy WITHOUT a TraderNPCConfig.ecf (or temporarily rename the existing file).",
+            "Tools menu > Economy editor (NPC traders)...",
+            "Answer Yes to the creation proposal.",
+        ],
+        "attendu": "A minimal TraderNPCConfig.ecf is created in the working copy's Content/Configuration (trader TraderDefault), the editor opens on it, and the workspace undo (back arrow button) can delete the created file.",
+    },
+    "ECO-003": {
+        "titre": "Economy: adding items from the catalogue",
+        "etapes": [
+            "Select a trader, click \"Catalog...\": a window opens with 3 tabs (By category, A-Z, All) and a search box that filters everywhere.",
+            "By category tab: Items > Medical, check MedPack; double-click it for instant add (the window stays open).",
+            "Check 2-3 more items in other categories, click \"Add selection\".",
+            "Adjust prices/stocks in the table (absolute prices and stocks = whole NUMBERS; formats: 100-150, 10, or factor mf=1.1-1.2).",
+            "Compare with the raw TraderNPCConfig.ecf tab (open behind).",
+        ],
+        "attendu": "The catalogue lists the WHOLE scenario (items AND blocks, real icons, readable names, MarketPrice, \"Hide those without MarketPrice\" filter). Each added item comes with price = MarketPrice as absolute (fallback mf=1.1-1.2 when unknown) and stock 10-50; multi-selection = ONE undo step. Invalid value: message + cell reverted.",
+    },
+    "ECO-004": {
+        "titre": "Economy: price range <-> factor toggle",
+        "etapes": [
+            "Select an item row whose price is a range (e.g. 100-150).",
+            "Click \"Convert to factor\".",
+            "Click \"Convert to price\" again.",
+        ],
+        "attendu": "The price becomes an mf= factor computed from the item's MarketPrice (e.g. 100-150 with MarketPrice 126 -> mf=0.79-1.19) then returns to an absolute WHOLE number (rounded up; here exactly 100-150). RULE: absolute prices and stocks are always integers — only mf= factors have decimals. If the item has no known MarketPrice: clear message, nothing changes.",
+    },
+    "ECO-005": {
+        "titre": "Economy: buy / sell (optional buy part)",
+        "etapes": [
+            "On an item set to \"Sells\" only, switch the Trade dropdown to \"Sells + buys\".",
+            "Check the line in the raw tab, then switch back to \"Sells\".",
+        ],
+        "attendu": "\"Sells + buys\" adds a buy price (mf=0.4-0.5) and buy max stock (55-150) to the string; \"Sells\" removes them. The buy columns follow the dropdown.",
+    },
+    "ECO-006": {
+        "titre": "Economy: trader card (text, category, discount)",
+        "etapes": [
+            "Select a trader, edit its greeting text (use Enter for a line break), its category and its discount (e.g. 0.1).",
+            "Click \"Apply card\", then check the raw tab.",
+        ],
+        "attendu": "SellingText is rewritten with escaped \\n, SellingGoods and Discount updated. The text does not break the file line (quotes kept).",
+    },
+    "ECO-007": {
+        "titre": "Economy: trader duplication, creation, deletion",
+        "etapes": [
+            "Duplicate a trader (Duplicate button) and give a new name.",
+            "Create an empty trader, then delete it (Delete, confirm).",
+            "Reopen the raw file to compare.",
+        ],
+        "attendu": "Duplication copies ALL items and the card identically (only the name changes, including factor prices). The name is unique (refused otherwise). Deletion removes the whole block; the rest of the file is byte-for-byte unchanged.",
+    },
+    "ECO-008": {
+        "titre": "Economy: inflation and scarcity (quick presets)",
+        "etapes": [
+            "Check or uncheck \"On the selected trader only\", click \"Inflation...\" and enter 10.",
+            "Click \"Scarcity...\" and enter 2.",
+        ],
+        "attendu": "All prices (sell AND buy) are multiplied by 1.1 (stocks untouched); scarcity DIVIDES all stocks by 2 (prices untouched). RULE: absolute results are rounded UP to the next integer (stock 3 -> 1.5 -> 2; mf= factors unchanged, they stay decimal). Unchecked: the operation hits ALL traders in a single undo step.",
+    },
+    "ECO-009": {
+        "titre": "Economy: regional variant x50%",
+        "etapes": [
+            "Select a trader, click \"Variant x...\", enter 1.5.",
+            "Look at the new entry in the list and its prices.",
+        ],
+        "attendu": "A \"Name @+50%\" variant is created (prices multiplied, stocks identical); the original is intact. This is how you make one station charge more (the game has no per-station multiplier: we duplicate).",
+    },
+    "ECO-010": {
+        "titre": "Economy: type profiles (military, agricultural, personal)",
+        "etapes": [
+            "Select a trader, choose \"Military (built-in)\" then \"Apply to trader\".",
+            "Save another trader as a type profile (\"Save as type profile...\"), apply it to a third one.",
+            "Close and reopen the economy editor: the personal profile is still in the list.",
+        ],
+        "attendu": "The trader's catalogue is replaced by the profile's one (Item1..N numbering regenerated, category and discount updated). Personal profiles are stored at the APPLICATION level (reusable in another scenario).",
+    },
+    "ECO-011": {
+        "titre": "Economy: TraderZone in the playfield editor",
+        "etapes": [
+            "Open a playfield from the working copy (structured tab).",
+            "At the top, pick a trader in the \"Trader zone\" dropdown.",
+            "POI tab: on a POI row, set the \"Trader zone (traders)\" column to a trader, then save (Ctrl+S).",
+            "Open the raw yaml (Notepad or the Full YAML tab).",
+        ],
+        "attendu": "The key \"TraderZone: <trader>\" is written at the top of the playfield, and the POI gains a Properties section with Key: TraderZone / Value: <trader>. Emptying the cell removes the section. In game, these tables apply to NPC traders set to #ZONE#.",
+    },
+    "ECO-012": {
+        "titre": "Economy: check (Verification menu)",
+        "etapes": [
+            "Edit an Item line to reference a non-existing item (or create a TraderZone pointing to a deleted trader), save.",
+            "Verification menu > Economy check (NPC traders)...",
+        ],
+        "attendu": "The window lists each issue (ERR = item missing from the catalogue, inverted range, TraderZone to a missing profile; ATT = profile never assigned to a zone). Fix in the economy editor then re-run: no issue left.",
+    },
+
 }
 
 
@@ -2280,4 +2388,5 @@ CATEGORY_LABELS_EN = {
     "BUILD": "17. Installer / build",
     "GUI": "18. Interface, toolbar & theme",
     "PDA2": "19. PDA editor (new module)",
+    "ECO": "20. Economy (NPC traders)",
 }

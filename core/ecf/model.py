@@ -189,6 +189,36 @@ class EcfBlock:
 EcfNode = Union[EcfBlank, EcfComment, EcfProperty, EcfBlock]
 
 
+# Sous-blocs "liste d'ingredients" : convention RE2 EVO (et variantes) -- une
+# ligne par ingredient avec le NOM DE L'ITEM comme cle et la quantite comme
+# valeur ('RockDust: 25'), sans numerotation Name_N ni parametres. C'est une
+# convention de contenu DIFFERENTE du motif vanilla 'Name_0: Fiber, param1: 20'
+# (detecte par detect_repeating_items) -- les deux modes coexistent.
+INGREDIENT_KINDS = {"child inputs", "child input", "child items", "child item",
+                    "inputs", "input", "ingredients", "ingredient"}
+
+
+def detect_ingredient_pairs(block: "EcfBlock") -> Optional[List[Tuple["EcfProperty", str]]]:
+    """Detecte un sous-bloc d'ingredients au format 'ItemName: quantite' :
+    toutes les lignes enfants sont des paires SIMPLES (une seule paire, cle
+    non vide). Retourne la liste (noeud, cle) ou None si le genre du bloc n'est
+    pas une liste d'ingredients ou si une ligne a une structure plus complexe
+    (les Child Items vanilla a motifs Name_N/param1 retombent alors sur
+    detect_repeating_items). Un bloc du bon genre mais VIDE retourne [] : le
+    mode est actif, le catalogue peut remplir."""
+    kind = block.kind.lstrip('+-').strip().lower()
+    if kind not in INGREDIENT_KINDS:
+        return None
+    rows: List[Tuple["EcfProperty", str]] = []
+    for child in block.children:
+        if not isinstance(child, EcfProperty):
+            continue
+        if len(child.pairs) != 1 or child.pairs[0][0] is None:
+            return None
+        rows.append((child, child.pairs[0][0]))
+    return rows
+
+
 def block_identity(block: EcfBlock) -> Optional[str]:
     """Identite d'un bloc, dans l'ordre de priorite IDENTITY_KEYS (Id, puis Name, puis Ref).
     Utilisee par le diff et l'editeur pour reperer un bloc de maniere stable."""

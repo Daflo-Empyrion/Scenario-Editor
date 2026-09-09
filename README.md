@@ -1,5 +1,9 @@
 # Empyrion Scenario Editor
 
+<p align="center">
+  <img src="assets/icon_512.png" width="220" alt="Empyrion Scenario Editor">
+</p>
+
 [![License: GPLv3](assets/gplv3_badge.png)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 Editeur graphique (PyQt6) pour la creation et modification de scenarios

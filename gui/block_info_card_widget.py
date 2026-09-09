@@ -46,7 +46,7 @@ Comportement (sessions du 29-31/08/2026) :
 """
 from typing import Callable, Optional, Tuple
 
-from PyQt6.QtCore import Qt, QPoint, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QSize, QEvent, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
@@ -250,8 +250,14 @@ class _InlineValueRow(QWidget):
                 f"QLineEdit {{ background: #000000; color: {_CARD_TEXT}; "
                 f"border: none; padding: 1px 3px; }}")
             # editingFinished couvre Entree ET perte de focus (comportement
-            # standard des tableaux Qt) ; Escape seul annule (eventFilter).
-            editor.lineEdit().editingFinished.connect(self._commit)
+            # standard des tableaux Qt) MAIS il fire aussi quand la popup de
+            # la combo s'active et vole le focus au champ (Windows) -- voir
+            # _commit_if_popup_closed. Escape seul annule (eventFilter).
+            editor.lineEdit().editingFinished.connect(self._commit_if_popup_closed)
+            # selection d'un item de la liste = validation immediate (meme
+            # comportement que le tableau de proprietes)
+            editor.activated.connect(self._commit)
+            editor.view().installEventFilter(self)
             editor.installEventFilter(self)
             editor.lineEdit().installEventFilter(self)
             _attach_popup_button(editor)
@@ -273,13 +279,59 @@ class _InlineValueRow(QWidget):
             editor.selectAll()
 
     def eventFilter(self, obj, event) -> bool:
-        if event.type() == event.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
-            line_edit = getattr(self._editor, "lineEdit", None)
-            targets = {self._editor, line_edit() if callable(line_edit) else None}
-            if obj in targets:
-                self._cancel()
-                return True
+        try:
+            if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+                line_edit = getattr(self._editor, "lineEdit", None)
+                targets = {self._editor, line_edit() if callable(line_edit) else None}
+                if obj in targets:
+                    self._cancel()
+                    return True
+            ed = self._editor
+            if isinstance(ed, QComboBox):
+                if event.type() == QEvent.Type.FocusOut and obj in (ed, ed.lineEdit()):
+                    # perte de focus PENDANT la popup (activation Windows) :
+                    # l'edition continue, rien a valider ; perte de focus vers
+                    # un widget exterieur popup fermee : valider. focus=None
+                    # (churn d'activation) : ne rien faire.
+                    if not ed.view().isVisible():
+                        fw = QApplication.focusWidget()
+                        if fw is not None and fw not in (ed, ed.lineEdit(), ed.view()):
+                            self._commit()
+                elif obj is ed.view() and event.type() == QEvent.Type.Hide:
+                    # popup refermee sans selection : si le focus n'est pas
+                    # revenu dans le champ (clic a l'exterieur), valider
+                    QTimer.singleShot(0, self._commit_if_focus_left)
+        except RuntimeError:
+            # editeur deja detruit (commit par activated) : evenements tardifs
+            return super().eventFilter(obj, event)
         return super().eventFilter(obj, event)
+
+    def _commit_if_popup_closed(self) -> None:
+        """editingFinished du champ : a ignorer si la popup de la combo est
+        visible -- son activation vole le focus au champ (Windows) et ce vol
+        ne signifie PAS la fin de l'edition (bug v1.6.1 : la liste se
+        refermait au clic, editor detruit pendant la popup)."""
+        ed = self._editor
+        if isinstance(ed, QComboBox) and ed.view().isVisible():
+            return
+        self._commit()
+
+    def _commit_if_focus_left(self) -> None:
+        """Popup refermee : valider seulement si le focus est alle vers un
+        AUTRE widget. focus=None (churn d'activation Windows pendant
+        l'ouverture de la popup) ne doit PAS valider -- sinon l'editeur est
+        detruit pendant les alternances Show/Hide et la liste se referme
+        au clic (bug v1.6.1)."""
+        try:
+            ed = self._editor
+            if not isinstance(ed, QComboBox):
+                return
+            fw = QApplication.focusWidget()
+            if fw is None or fw in (ed, ed.lineEdit(), ed.view()):
+                return
+            self._commit()
+        except RuntimeError:
+            pass
 
     def _commit(self) -> None:
         if self._editor is None:

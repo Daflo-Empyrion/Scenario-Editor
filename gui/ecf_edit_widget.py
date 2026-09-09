@@ -36,16 +36,17 @@ from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
     QStyledItemDelegate,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
-from PyQt6.QtGui import QColor, QBrush, QPixmap
+from PyQt6.QtGui import QColor, QBrush, QPixmap, QIcon
+from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
 
 from core.ecf.parser import parse_ecf_file, parse_ecf_text
 from core.ecf.transform import TransformRule, preview_transform, format_block_label
 from core.ecf.model import (
     EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
     add_property_line, remove_property_line, remove_block, create_block, annotate_property,
-    add_repeating_item_row, detect_repeating_items, _ITEM_KEY_RE,
+    add_repeating_item_row, detect_repeating_items, detect_ingredient_pairs, _ITEM_KEY_RE,
     find_first_inline_comment_for_key, duplicate_block,
 )
 from core.ecf_header_glossary import find_term_explanation
@@ -963,6 +964,7 @@ class EcfEditWidget(QWidget):
         self._modified = False
         self._current_block: Optional[EcfBlock] = None
         self._table_mode = False
+        self._ingredient_mode = False
         self._edited_prop_nodes = set()  # ids Python des EcfProperty touches cette session
         # Chemins des autres fichiers .ecf du meme scenario (Content/Configuration) --
         # utilise par le dialogue de creation guidee pour localiser Templates.ecf/
@@ -1026,9 +1028,17 @@ class EcfEditWidget(QWidget):
         self.btn_add_row = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_row_table"))
         self.btn_add_row.setIconSize(icon_size())
         self.btn_add_row.setToolTip(t("ecf.tooltip_add_row"))
-        self.btn_add_row.clicked.connect(self._add_table_row_dialog)
+        self.btn_add_row.clicked.connect(self._on_add_row_clicked)
         self.btn_add_row.setVisible(False)
         toolbar.addWidget(self.btn_add_row)
+        # Catalogue (demande utilisateur 09/09/2026) : choisir des items/blocs
+        # du scenario et les inserer dans le bloc courant (Child Inputs RE2,
+        # structures Name_N vanilla...) au lieu de taper les noms a la main.
+        self.btn_catalog = QPushButton(icon("fa5s.book-open", "#ffffff"), t("eco.btn.catalog"))
+        self.btn_catalog.setIconSize(icon_size())
+        self.btn_catalog.setObjectName("secondaryButton")
+        self.btn_catalog.clicked.connect(self._open_ecf_item_catalog)
+        toolbar.addWidget(self.btn_catalog)
         btn_filter = QPushButton(icon("fa5s.filter", "#4a7dfc"), t("btn.filter_by_property"))
         btn_filter.setIconSize(icon_size())
         btn_filter.setObjectName("secondaryButton")
@@ -1083,10 +1093,17 @@ class EcfEditWidget(QWidget):
         self.tree.itemDoubleClicked.connect(self._on_tree_item_double_clicked_for_info_card)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
+        # PAS d'icones dans l'arbre : trop long a charger sur les gros fichiers
+        # (retour utilisateur 09/09/2026) -- les icones sont dans la fiche info,
+        # le catalogue, le tableau economie et les tables d'ingredients.
         splitter.addWidget(self.tree)
 
         self.props_table = QTableWidget(0, 2)
         self.props_table.setHorizontalHeaderLabels(["Propriete", "Valeur"])
+        # bande noire non themee (retour utilisateur 09/09/2026, theme
+        # acrylique W11) : les numeros de ligne n'apportent rien, on masque
+        # l'en-tete vertical.
+        self.props_table.verticalHeader().setVisible(False)
         self.props_table.setItemDelegate(NeonItemDelegate(self.props_table))
         self.props_table.horizontalHeader().setStretchLastSection(True)
         self.props_table.itemChanged.connect(self._on_cell_changed)
@@ -1133,10 +1150,49 @@ class EcfEditWidget(QWidget):
         chemin critique d'enregistrement reel."""
         return self.doc.render()
 
+    def _tree_index_path(self) -> tuple:
+        """Chemin d'indices (top-level, enfants...) de l'item courant de l'arbre.
+        Complement de l'identite Id/Name pour les blocs SANS identite (ex:
+        '+Child Items') -- ECF-005."""
+        item = self.tree.currentItem()
+        if item is None:
+            return ()
+        path = []
+        while item is not None:
+            parent = item.parent()
+            path.append(parent.indexOfChild(item) if parent is not None
+                        else self.tree.indexOfTopLevelItem(item))
+            item = parent
+        return tuple(reversed(path))
+
+    def _select_by_index_path(self, path: tuple) -> bool:
+        """Re-selectionne l'item situe au chemin d'indices donne (True si trouve).
+        Structure d'arbre a priori identique apres un undo (meme texte moins la
+        derniere modification) ; refuse tout item qui ne serait pas un bloc."""
+        if not path:
+            return False
+        item = self.tree.topLevelItem(path[0])
+        for idx in path[1:]:
+            if item is None:
+                return False
+            item = item.child(idx)
+        if item is None or not isinstance(item.data(0, Qt.ItemDataRole.UserRole), EcfBlock):
+            return False
+        self.tree.setCurrentItem(item)
+        self.tree.scrollToItem(item)
+        self._on_block_selected(item, 0)
+        return True
+
     def _snapshot_undo(self):
         """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
-        (texte serialise ; fidelite deja prouvee par le parser) pour pouvoir l'annuler."""
-        self._undo_stack.append(self.doc.render())
+        (texte serialise ; fidelite deja prouvee par le parser) PLUS l'endroit ou
+        l'utilisateur se trouve (identite Id/Name + chemin d'indices), pour pouvoir
+        l'annuler sans le ramener en haut de l'arbre (ECF-005). L'identite est
+        captee AVANT la modification : editer la propriete Id elle-meme change
+        l'identite APRES coup, et la reperer a l'undo serait trop tard."""
+        current = self._current_block
+        identity = block_identity(current) if current else None
+        self._undo_stack.append((self.doc.render(), identity, self._tree_index_path()))
         if len(self._undo_stack) > self._undo_max:
             self._undo_stack.pop(0)
         self.btn_undo.setEnabled(True)
@@ -1144,17 +1200,23 @@ class EcfEditWidget(QWidget):
     def undo(self):
         if not self._undo_stack:
             return
-        # ECF-017 : conserver l'endroit ou l'utilisateur se trouvait -- apres
-        # reconstruction de l'arbre, on re-selectionne le bloc courant (par
-        # identite Id/Name) au lieu de laisser la selection en haut de l'arbre.
-        previous_identity = block_identity(self._current_block) if self._current_block else None
-        previous_text = self._undo_stack.pop()
+        # ECF-017/ECF-005 : rester OU L'UTILISATEUR SE TROUVE apres
+        # reconstruction de l'arbre. Dans l'ordre : la selection ACTUELLE
+        # (cliquee ailleurs entre la modification et le Ctrl+Z -> on n'y
+        # touche pas), l'identite captee au moment de la modification, puis
+        # le chemin d'indices (blocs sans Id/Name/Ref).
+        current_identity = block_identity(self._current_block) if self._current_block else None
+        previous_text, snapshot_identity, snapshot_path = self._undo_stack.pop()
         self.doc = parse_ecf_text(previous_text)
         self._current_block = None
         self.props_table.setRowCount(0)
         self._populate_tree()
-        if previous_identity is None or not self.select_block_by_identity(previous_identity):
-            self._refresh_props_table()
+        for ident in (current_identity, snapshot_identity):
+            if ident is not None and self.select_block_by_identity(ident):
+                break
+        else:
+            if not self._select_by_index_path(snapshot_path):
+                self._refresh_props_table()
         self._set_modified(True)
         if not self._undo_stack:
             self.btn_undo.setEnabled(False)
@@ -1915,16 +1977,72 @@ class EcfEditWidget(QWidget):
 
         detected = self._detect_repeating_items(block)
         self._table_mode = detected is not None
-        self.btn_add_row.setVisible(self._table_mode)
-        self.btn_add_prop.setVisible(not self._table_mode)
+        self._ingredient_mode = False
+        ingredient_rows = None
+        if not self._table_mode:
+            ingredient_rows = detect_ingredient_pairs(block)
+            self._ingredient_mode = ingredient_rows is not None
+        self.btn_add_row.setVisible(self._table_mode or self._ingredient_mode)
+        self.btn_add_prop.setVisible(not (self._table_mode or self._ingredient_mode))
 
         if self._table_mode:
             param_columns, prefixes = detected
             self._refresh_props_table_grid(block, param_columns)
+        elif self._ingredient_mode:
+            self._refresh_props_table_ingredients(block, ingredient_rows)
         else:
             self._refresh_props_table_flat(block)
 
         self.props_table.blockSignals(False)
+
+    def _refresh_props_table_ingredients(self, block: EcfBlock, rows):
+        """Mode ingredients (convention RE2 EVO : 'ItemName: quantite') -- deux
+        colonnes editables (renommer l'item / changer la quantite), icone du
+        jeu devant le nom (demande utilisateur 09/09/2026), insertion depuis
+        le catalogue via le bouton dedie."""
+        self.props_table.setColumnCount(2)
+        self.props_table.setHorizontalHeaderLabels([t("ecf.col.ingredient"),
+                                                    t("ecf.col.quantity")])
+        self.props_table.setIconSize(QSize(32, 32))
+        self.props_table.setRowCount(len(rows))
+        for i, (prop_node, key) in enumerate(rows):
+            item_k = QTableWidgetItem(key)
+            pixmap = self._child_icon_pixmap(key)
+            if pixmap is not None:
+                item_k.setIcon(QIcon(pixmap))
+            item_k.setData(Qt.ItemDataRole.UserRole, (prop_node, key))
+            self.props_table.setItem(i, 0, item_k)
+            value = prop_node.get(key) or ""
+            item_v = QTableWidgetItem(value)
+            item_v.setData(Qt.ItemDataRole.UserRole, (prop_node, key))
+            self.props_table.setItem(i, 1, item_v)
+
+    def _child_icon_pixmap(self, name: str):
+        """Icône d'un ingredient pour la table (cache par nom, meme resolution
+        que la fiche info ; la cle respecte 'CustomIcon' via le catalogue).
+        Peu de lignes par bloc -> chargement synchrone acceptable."""
+        if not hasattr(self, "_child_icon_cache"):
+            self._child_icon_cache: dict = {}
+        if name in self._child_icon_cache:
+            return self._child_icon_cache[name]
+        pixmap = None
+        try:
+            if not hasattr(self, "_icon_key_by_name"):
+                self._icon_key_by_name: dict = {}
+                for e in (self._get_ecf_catalog_entries() or []):
+                    self._icon_key_by_name.setdefault(e.name, e.icon_key)
+            index = self._get_info_card_icon_index()
+            ref = resolve_icon_path(index, self._icon_key_by_name.get(name, name))
+            if ref is not None:
+                data = load_icon_bytes(ref)
+                if data:
+                    pixmap = QPixmap()
+                    if not (pixmap.loadFromData(data) and not pixmap.isNull()):
+                        pixmap = None
+        except Exception:
+            pixmap = None
+        self._child_icon_cache[name] = pixmap
+        return pixmap
 
     def _refresh_props_table_flat(self, block: EcfBlock):
         """Affichage classique : une ligne par paire cle/valeur (utilise pour la
@@ -1989,6 +2107,9 @@ class EcfEditWidget(QWidget):
         columns = [t("ecf.col_type"), t("ecf.col_item_value")] + param_columns
         self.props_table.setColumnCount(len(columns))
         self.props_table.setHorizontalHeaderLabels(columns)
+        # Icone du jeu devant la valeur (nom d'item/bloc) -- Containers.ecf
+        # (Child Items), LootGroups.ecf (Item_N) etc. (demande 09/09/2026).
+        self.props_table.setIconSize(QSize(32, 32))
         # Mode tableau (structures repetitives) : pas de liste deroulante de
         # valeurs observees ici (la colonne 1 est un nom d'entree Name_N, pas
         # une propriete unique) -- retire le delegate du mode plat.
@@ -2025,6 +2146,9 @@ class EcfEditWidget(QWidget):
                 mark_modified(item_type)
                 mark_modified(item_value)
             self.props_table.setItem(row, 0, item_type)
+            pixmap = self._child_icon_pixmap(first_value.strip().strip('"'))
+            if pixmap is not None:
+                item_value.setIcon(QIcon(pixmap))
             self.props_table.setItem(row, 1, item_value)
 
             pairs_by_key = {k: v for k, v in prop.pairs[1:] if k}
@@ -2041,6 +2165,24 @@ class EcfEditWidget(QWidget):
             return
         prop_node, pair_key = data
         new_value = item.text()
+
+        # Mode ingredients (convention RE2 : 'ItemName: quantite') -- colonne 0
+        # = renommer l'item (la cle EST le nom), colonne 1 = quantite.
+        if getattr(self, "_ingredient_mode", False) and isinstance(prop_node, EcfProperty):
+            text = new_value.strip()
+            if not text:
+                self._refresh_props_table()
+                return
+            self._snapshot_undo()
+            if item.column() == 0:
+                if text != pair_key:
+                    prop_node.pairs[0] = (text, prop_node.pairs[0][1])
+                    prop_node.dirty = True
+            else:
+                prop_node.set(pair_key, text)
+            self._edited_prop_nodes.add(id(prop_node))
+            self._set_modified(True)
+            return
 
         if isinstance(prop_node, EcfBlock):
             old_value = prop_node.get(pair_key)
@@ -2337,6 +2479,112 @@ class EcfEditWidget(QWidget):
         # ECF-008 : surlignage immediat de l'ajout (tableau de droite), comme
         # pour toute autre edition.
         self._edited_prop_nodes.add(id(new_prop))
+        self._set_modified(True)
+        self._refresh_props_table()
+
+    def _on_add_row_clicked(self):
+        """'+ Ligne (tableau)' : structure vanilla Name_N -> dialogue existant ;
+        mode ingredients RE2 ('ItemName: quantite') -> le catalogue est le
+        chemin d'ajout (choisir l'item, quantite editable ensuite)."""
+        if self._ingredient_mode:
+            self._open_ecf_item_catalog()
+            return
+        self._add_table_row_dialog()
+
+    def _get_ecf_catalog_entries(self):
+        """Catalogue du scenario (ItemsConfig + BlocksConfig de la copie de
+        travail) pour l'insertion dans le bloc courant ; cache disque
+        (load_catalog), paths conserves pour le bouton Rafraichir."""
+        if not hasattr(self, "_catalog_entries_cache"):
+            self._catalog_entries_cache = None
+            self._catalog_paths = []
+            paths = []
+            if self.sibling_ecf_files:
+                from core.ecf.block_creation import find_file_by_name
+                for name in ("ItemsConfig.ecf", "BlocksConfig.ecf"):
+                    p = find_file_by_name(self.sibling_ecf_files, name)
+                    if p is not None:
+                        paths.append(p)
+            elif self.path.parent.name == "Configuration":
+                # fichier isole ouvert depuis un dossier Configuration
+                paths = [self.path.parent / "ItemsConfig.ecf",
+                         self.path.parent / "BlocksConfig.ecf"]
+            if paths:
+                from core.item_catalog import load_catalog
+                self._catalog_paths = paths
+                self._catalog_entries_cache = load_catalog(paths)
+        return self._catalog_entries_cache
+
+    def _refresh_ecf_catalog_entries(self):
+        """Rafraichir : reconstruit le catalogue en ignorant les caches disque
+        et invalide les icones de la table ingredients."""
+        if not getattr(self, "_catalog_paths", None):
+            return None
+        from core.item_catalog import load_catalog
+        self._catalog_entries_cache = load_catalog(self._catalog_paths, refresh=True)
+        self._child_icon_cache = {}
+        if hasattr(self, "_icon_key_by_name"):
+            del self._icon_key_by_name
+        return self._catalog_entries_cache
+
+    def _open_ecf_item_catalog(self):
+        if not self._current_block:
+            QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
+            return
+        entries = self._get_ecf_catalog_entries()
+        if not entries:
+            QMessageBox.information(self, t("eco.btn.catalog"), t("ecf.catalog_unavailable"))
+            return
+        from gui.item_catalog_dialog import ItemCatalogDialog
+        catalog = ItemCatalogDialog(
+            entries, parent=self,
+            icon_loader=self._ecf_catalog_icon_loader,
+            display_name=self._ecf_catalog_display_name,
+            refresh_callback=self._refresh_ecf_catalog_entries)
+        catalog.SELECTION_ACCEPTED.connect(self._insert_catalog_items)
+        catalog.exec()
+
+    def _ecf_catalog_icon_loader(self, entry):
+        try:
+            index = self._get_info_card_icon_index()
+            ref = resolve_icon_path(index, entry.icon_key)
+            if ref is None:
+                return None
+            data = load_icon_bytes(ref)
+            if not data:
+                return None
+            pixmap = QPixmap()
+            return pixmap if pixmap.loadFromData(data) and not pixmap.isNull() else None
+        except Exception:
+            return None
+
+    def _ecf_catalog_display_name(self, entry):
+        try:
+            from core.i18n import get_language
+            return self._get_info_card_localization_index().get(entry.name, get_language())
+        except Exception:
+            return None
+
+    def _insert_catalog_items(self, entries):
+        """Insertion des items choisis dans le bloc courant : ligne
+        'ItemName: 1' en mode ingredients, 'Name_<n>: <item>' en structure
+        vanilla Name_N. Un seul snapshot undo pour toute la selection."""
+        if not self._current_block or not entries:
+            return
+        if not (self._table_mode or self._ingredient_mode):
+            QMessageBox.information(self, t("eco.btn.catalog"), t("ecf.catalog_needs_list"))
+            return
+        block = self._current_block
+        self._snapshot_undo()
+        if self._ingredient_mode:
+            for e in entries:
+                add_property_line(block, [(e.name, "1")])
+        else:
+            detected = self._detect_repeating_items(block)
+            prefixes = detected[1] if detected else ["Name"]
+            item_type = "Name" if "Name" in prefixes else (prefixes[0] if prefixes else "Name")
+            for e in entries:
+                add_repeating_item_row(block, item_type, e.name, [])
         self._set_modified(True)
         self._refresh_props_table()
 

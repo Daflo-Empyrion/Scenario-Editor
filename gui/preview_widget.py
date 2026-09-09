@@ -24,7 +24,7 @@ formats sans parseur ni visionneuse (binaires du jeu, .dds textures, modeles
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QPainter, QColor
+from PyQt6.QtGui import QPixmap, QPainter
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QSizePolicy,
 )
@@ -67,7 +67,10 @@ class ImagePreviewWidget(QWidget):
         scroll = QScrollArea()
         scroll.setWidget(self.label)
         scroll.setWidgetResizable(False)
-        scroll.setBackgroundRole(QColor("#2b2b2b"))
+        # fond sombre du canevas : setBackgroundRole attend un
+        # QPalette.ColorRole (un QColor levait une TypeError a l'ouverture
+        # de toute image, retour OPEN-009) -- stylesheet sur le viewport
+        scroll.viewport().setStyleSheet("background: #2b2b2b;")
         layout.addWidget(scroll)
         size_text = (f"{pixmap.width()} x {pixmap.height()}" if not pixmap.isNull() else "?")
         info = QLabel(t("preview.image_info", name=path.name, size=size_text))
@@ -87,6 +90,13 @@ class PdfPreviewWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self._doc = QPdfDocument(self)
         self._error = self._doc.load(str(path))
+        if self._error != QPdfDocument.Error.None_:
+            # PDF corrompu/illisible : message clair au lieu d'une vue vide
+            label = QLabel(t("preview.pdf_error", name=path.name))
+            label.setWordWrap(True)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(label)
+            return
         view = QPdfView(self)
         view.setDocument(self._doc)
         view.setPageMode(QPdfView.PageMode.MultiPage)

@@ -207,6 +207,8 @@ class MainWindow(QMainWindow):
         self.action_pda_editor = self.menu_tools.addAction(t("menu.tools.pda_editor"))
         self.action_pda_editor.setToolTip(t("menu.tools.pda_editor.tip"))
         self.action_pda_editor.triggered.connect(self._open_pda_editor)
+        self.action_economy_editor = self.menu_tools.addAction(t("menu.tools.economy"))
+        self.action_economy_editor.triggered.connect(self._open_economy_editor)
         self.menu_tools.addSeparator()
         self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
@@ -219,6 +221,8 @@ class MainWindow(QMainWindow):
         self.action_pending.triggered.connect(self.check_pending_conflicts_dialog)
         self.action_cross_refs = self.menu_check.addAction(t("menu.verification.cross_refs"))
         self.action_cross_refs.triggered.connect(self.check_cross_references_dialog)
+        self.action_economy_check = self.menu_check.addAction(t("menu.verification.check_economy"))
+        self.action_economy_check.triggered.connect(self.check_economy_dialog)
 
         self.action_validate = self.menu_check.addAction(t("validation.menu_action"))
         self.action_validate.triggered.connect(self.validate_scenario_dialog)
@@ -1105,6 +1109,101 @@ class MainWindow(QMainWindow):
         if hasattr(csv_widget, "highlight_touched_rows"):
             csv_widget.highlight_touched_rows(model.take_touched_csv_tokens())
 
+    def _open_economy_editor(self):
+        """Module economie (core/economy/ + gui/economy_editor_dialog.py) --
+        meme contrat que l'editeur PDA : le TraderNPCConfig.ecf de la copie de
+        travail est ouvert comme un VRAI onglet (undo, modified, enregistrement
+        byte-perfect par l'onglet), le dialogue n'edite que le document partage.
+        Fichier absent -> proposition de creation d'un fichier de depart minimal
+        (annulable via l'undo d'espace de travail)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        trader_path = next((f.path for f in self.workspace.working.configuration
+                            if f.path.name == "TraderNPCConfig.ecf"), None)
+        if trader_path is None:
+            ret = QMessageBox.question(self, t("eco.create_title"), t("eco.create_question"))
+            if ret != QMessageBox.StandardButton.Yes:
+                return
+            trader_path = self._create_starter_trader_config()
+            if trader_path is None:
+                return
+            self.statusBar().showMessage(t("eco.create_done"), 8000)
+
+        with busy_guard(self):
+            tab_widget = self.open_working_file_tab(trader_path)
+        if tab_widget is None:
+            return
+        edit_widget = getattr(tab_widget, "edit_widget", tab_widget)
+
+        # Catalogue MarketPrice : copie de travail d'abord, vanille en repli
+        # (lecture seule, jamais ecrite -- regle projet).
+        from pathlib import Path as _Path
+        index_paths = [f.path for f in self.workspace.working.configuration
+                       if f.path.name in ("ItemsConfig.ecf", "BlocksConfig.ecf")]
+        try:
+            from core.settings import get_vanilla_content_path
+            vanilla = get_vanilla_content_path()
+            if vanilla and _Path(vanilla).is_dir():
+                for name in ("ItemsConfig.ecf", "BlocksConfig.ecf"):
+                    p = _Path(vanilla) / "Configuration" / name
+                    if p.is_file() and all(p != q for q in index_paths):
+                        index_paths.append(p)
+        except Exception:
+            pass
+        from core.economy.market_price import build_index
+        from core.economy.trader_config import TraderConfigDoc
+        from gui.economy_editor_dialog import EconomyEditorDialog
+
+        from core.item_catalog import load_catalog
+        catalog_entries = load_catalog(index_paths)
+        config = TraderConfigDoc(edit_widget.doc)
+        index = build_index(index_paths)
+        dialog = EconomyEditorDialog(
+            config, index, parent=self,
+            on_before_mutate=edit_widget._snapshot_undo,
+            on_mutated=lambda: edit_widget._set_modified(True),
+            undo_target=edit_widget,
+            catalog_entries=catalog_entries,
+            working_root=self.workspace.working_root,
+            catalog_paths=index_paths)
+        dialog.exec()
+        # Reflet des mutations dans l'onglet ECF (meme principe que la fermeture
+        # de l'editeur PDA) : marque modifie + arbre/proprietes re-affiches.
+        edit_widget._set_modified(True)
+        edit_widget._populate_tree()
+        edit_widget._refresh_props_table()
+
+    def _create_starter_trader_config(self):
+        """Cree un TraderNPCConfig.ecf minimal dans la copie de travail (marchand
+        'TraderDefault' vide, CRLF/UTF-8 sans BOM). Undo d'espace de travail :
+        l'annulation supprimera le fichier (prior_bytes = None)."""
+        from core.workspace_undo import FileStateUndo, capture_file
+        config_dir = self.workspace.working_root / "Content" / "Configuration"
+        path = config_dir / "TraderNPCConfig.ecf"
+        if path.exists():
+            return path
+        try:
+            config_dir.mkdir(parents=True, exist_ok=True)
+            prior = capture_file(path)
+            starter = (
+                "# TraderNPCConfig.ecf -- cree par Empyrion Scenario Editor\n"
+                "# Format : { Trader Name: X } + lignes Item<N>: \"Nom, prixVente, stockVente,"
+                " [prixAchat, stockAchatMax]\"\n"
+                "# Prix = plage absolue ('100-150') ou facteur sur le MarketPrice ('mf=1.1-1.2').\n"
+                "{ Trader Name: TraderDefault\n"
+                "  SellingText: \"Hi, I am trader <NAME>\\nI am selling <GOODS>.\\nYou can pay with <PAYMENT>.\"\n"
+                "  SellingGoods: \"trwFood\"\n"
+                "}\n")
+            path.write_bytes(starter.replace("\n", "\r\n").encode("utf-8"))
+            self._push_workspace_undo(FileStateUndo(path, prior, t("eco.create_undo")))
+            self.workspace.rescan_working()
+            self._populate_tree(self.tree_working, self.workspace.working)
+            return path
+        except OSError:
+            QMessageBox.warning(self, t("eco.create_title"), t("eco.create_failed"))
+            return None
+
     def _set_theme(self, theme_id: str):
         """Bascule le theme visuel a l'execution -- appelle apply_theme sur
         l'instance QApplication (jamais None dans l'app reelle : main()
@@ -1285,6 +1384,55 @@ class MainWindow(QMainWindow):
         from gui.cross_reference_dialog import CrossReferenceDialog
         self._cross_ref_dialog = CrossReferenceDialog(self.workspace, self, parent=self)
         self._cross_ref_dialog.show()
+
+    def check_economy_dialog(self):
+        """Verification economie (lecture seule, fenetre non modale -- meme
+        raisonnement que check_cross_references_dialog) : regles ECO de
+        core/economy/validation.py -- items inconnus du catalogue, plages
+        inversees, TraderZone vers un profil inexistant, profils jamais
+        assignes. Lit le TraderNPCConfig.ecf ENREGISTRE (la fenetre ne voit
+        pas les modifications non enregistrees de l'editeur)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        from core.economy.validation import (extract_zone_assignments,
+                                             validate_assignments,
+                                             validate_trader_doc)
+        from gui.economy_check_dialog import EconomyCheckDialog
+
+        trader_path = next((f.path for f in self.workspace.working.configuration
+                            if f.path.name == "TraderNPCConfig.ecf"), None)
+        assignments = extract_zone_assignments(self.workspace.working_root)
+        if trader_path is None and not assignments:
+            QMessageBox.information(self, t("ecocheck.title"), t("ecocheck.no_trader_file"))
+            return
+        issues = []
+        known_names = set()
+        if trader_path is not None:
+            from core.economy.market_price import build_index
+            from core.economy.trader_config import TraderConfigDoc
+            index_paths = [f.path for f in self.workspace.working.configuration
+                           if f.path.name in ("ItemsConfig.ecf", "BlocksConfig.ecf")]
+            try:
+                from core.settings import get_vanilla_content_path
+                vanilla = get_vanilla_content_path()
+                if vanilla and Path(vanilla).is_dir():
+                    for name in ("ItemsConfig.ecf", "BlocksConfig.ecf"):
+                        p = Path(vanilla) / "Configuration" / name
+                        if p.is_file() and all(p != q for q in index_paths):
+                            index_paths.append(p)
+            except Exception:
+                pass
+            try:
+                config = TraderConfigDoc(parse_ecf_file(trader_path))
+            except Exception:
+                QMessageBox.warning(self, t("ecocheck.title"), t("ecocheck.unreadable"))
+                return
+            known_names = set(config.names())
+            issues.extend(validate_trader_doc(config, build_index(index_paths)))
+        issues.extend(validate_assignments(known_names, assignments))
+        self._economy_check_dialog = EconomyCheckDialog(issues, parent=self)
+        self._economy_check_dialog.show()
 
     def validate_scenario_dialog(self):
         """Verification des regles metier/valeurs (limite d'Id, VolumeCapacite
@@ -3183,6 +3331,16 @@ def main():
     app = QApplication(sys.argv)
     from gui.theme import apply_theme
     apply_theme(app)
+
+    # Icone de l'application (barre de titre + barre des taches) : meme .ico
+    # que l'exe et l'installeur (voir empyrion_editor.spec et installer.iss).
+    if getattr(sys, "frozen", False):
+        _icone = Path(sys._MEIPASS) / "assets" / "icon.ico"
+    else:
+        _icone = Path(__file__).resolve().parent.parent / "assets" / "icon.ico"
+    if _icone.exists():
+        from PyQt6.QtGui import QIcon
+        app.setWindowIcon(QIcon(str(_icone)))
 
     # AVANT toute construction de fenetre : une exception dans un slot PyQt6
     # avec le hook Python par defaut terminerait l'application par qFatal()

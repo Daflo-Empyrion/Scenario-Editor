@@ -363,6 +363,101 @@ def set_properties_value(item: YamlEntry, prop_key: str, new_value: str) -> bool
     return False
 
 
+def set_or_create_properties_value(item: YamlEntry, prop_key: str, new_value: str) -> bool:
+    """Comme set_properties_value, mais CREE la structure absente
+    ('Properties: > - Key: X > Value: Y') -- necessaire pour TraderZone : la
+    plupart des POIs n'en ont pas encore. Valeur vide = suppression de la paire
+    (et du bloc Properties s'il devient vide). Retourne True si le document a
+    ete modifie."""
+    props_entry = None
+    prop_entry = None
+    for child in item.children:
+        if isinstance(child, YamlEntry) and child.key == "Properties":
+            props_entry = child
+            for pe in child.children:
+                if isinstance(pe, YamlEntry) and pe.key == "Key" and pe.value == prop_key:
+                    prop_entry = pe
+                    break
+            break
+
+    new_value = (new_value or "").strip()
+    if not new_value:
+        if prop_entry is None:
+            return False
+        remove_entry(props_entry.children, prop_entry)
+        if not any(isinstance(c, YamlEntry) for c in props_entry.children):
+            remove_entry(item.children, props_entry)
+        return True
+
+    if prop_entry is not None:
+        value_entry = next((s for s in prop_entry.children
+                            if isinstance(s, YamlEntry) and s.key == "Value"), None)
+        if value_entry is not None:
+            value_entry.set_own_value(new_value)
+            return True
+        prop_entry.children.append(create_entry("Value", new_value,
+                                                indent=prop_entry.indent + "  ",
+                                                eol=item.eol))
+        return True
+
+    key_indent = item.indent + "    "  # cas creation complete : Properties -> "- Key"
+    if props_entry is not None:
+        # meme indent que les entrees Key EXISTANTES (sinon la nouvelle ligne
+        # sort du bloc Properties au rendu et le re-parse la perd)
+        first = next((c for c in props_entry.children if isinstance(c, YamlEntry)), None)
+        key_indent = first.indent if first is not None else props_entry.indent + "  "
+    created = create_entry("Key", prop_key, indent=key_indent,
+                           is_sequence_item=True, eol=item.eol)
+    created.children.append(create_entry("Value", new_value,
+                                         indent=key_indent + "  ", eol=item.eol))
+    if props_entry is None:
+        props_entry = create_entry("Properties", "", indent=item.indent + "  ", eol=item.eol)
+        item.children.append(props_entry)
+    props_entry.children.append(created)
+    return True
+
+
+def get_top_level_trader_zone(doc: YamlDocument) -> Optional[str]:
+    """Valeur de la cle 'TraderZone' de premier niveau (assignation des PNJ
+    #ZONE# du playfield entier a une table de TraderNPCConfig.ecf)."""
+    for node in doc.nodes:
+        if isinstance(node, YamlEntry) and node.key == "TraderZone":
+            return node.value
+    return None
+
+
+def set_top_level_trader_zone(doc: YamlDocument, value: str) -> bool:
+    """Modifie / cree / supprime (valeur vide) la cle 'TraderZone' top-level.
+    Une cle creee est inseree juste apres la premiere entree du document (la
+    place conventionnelle dans les fichiers vanilla, autour de 'Playfield:').
+    Retourne True si le document a ete modifie."""
+    value = (value or "").strip()
+    for node in doc.nodes:
+        if isinstance(node, YamlEntry) and node.key == "TraderZone":
+            if node.value.strip() == value:
+                return False
+            if value:
+                node.set_own_value(value)
+            else:
+                remove_entry(doc.nodes, node)
+            return True
+    if not value:
+        return False
+    eol = "\r\n"
+    for node in doc.nodes:
+        if isinstance(node, YamlEntry):
+            eol = node.eol or eol
+            break
+    new_entry = create_entry("TraderZone", value, indent="", eol=eol)
+    insert_at = 0
+    for i, node in enumerate(doc.nodes):
+        if isinstance(node, YamlEntry):
+            insert_at = i + 1
+            break
+    doc.nodes.insert(insert_at, new_entry)
+    return True
+
+
 # ============================================================================
 # Ajout/suppression d'une ressource (RandomResources / AsteroidResources
 # uniquement -- seule section ou l'ajout est propose, voir le commentaire de

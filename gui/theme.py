@@ -262,6 +262,13 @@ QTableWidget, QTreeWidget, QListWidget {{
     selection-background-color: {PRIMARY};
     selection-color: {TEXT_ON_PRIMARY};
 }}
+/* Le VIEWPORT des vues repeint par-dessus la bordure arrondie en carre
+   (fond noir aux coins, retour utilisateur 09/09/2026, theme acrylique W11)
+   -- meme rayon sur le viewport pour des coins reellement arrondis. */
+QTableWidget::viewport, QTreeWidget::viewport, QListWidget::viewport {{
+    background-color: {CARD_BG};
+    border-radius: 10px;
+}}
 QHeaderView::section {{
     background-color: {BG};
     color: {TEXT_GRAY};

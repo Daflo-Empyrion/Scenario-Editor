@@ -5402,5 +5402,445 @@
  "protocol.md_expected": {
   "fr": "Résultat attendu",
   "en": "Expected result"
+ },
+ "preview.pdf_error": {
+  "fr": "Impossible d'afficher {name} : fichier PDF illisible ou corrompu.",
+  "en": "Cannot display {name}: unreadable or corrupted PDF file."
+ },
+ "eco.action.buy_sell": {
+  "fr": "Vend + rachète",
+  "en": "Sells + buys"
+ },
+ "eco.action.sell": {
+  "fr": "Vend",
+  "en": "Sells"
+ },
+ "eco.btn.add": {
+  "fr": "Ajouter",
+  "en": "Add"
+ },
+ "eco.btn.apply_card": {
+  "fr": "Appliquer la fiche",
+  "en": "Apply card"
+ },
+ "eco.btn.check": {
+  "fr": "Vérifier",
+  "en": "Check"
+ },
+ "eco.btn.delete": {
+  "fr": "Supprimer",
+  "en": "Delete"
+ },
+ "eco.btn.delete_item": {
+  "fr": "Retirer l'item",
+  "en": "Remove item"
+ },
+ "eco.btn.duplicate": {
+  "fr": "Dupliquer",
+  "en": "Duplicate"
+ },
+ "eco.btn.to_absolute": {
+  "fr": "Convertir en prix",
+  "en": "Convert to price"
+ },
+ "eco.btn.to_factor": {
+  "fr": "Convertir en facteur",
+  "en": "Convert to factor"
+ },
+ "eco.card.discount": {
+  "fr": "Remise :",
+  "en": "Discount:"
+ },
+ "eco.card.goods": {
+  "fr": "Catégorie :",
+  "en": "Category:"
+ },
+ "eco.card.text": {
+  "fr": "Texte d'accueil (\n pour un retour à la ligne, balises <NAME> <GOODS> <PAYMENT> <DISCOUNTTEXT>)",
+  "en": "Greeting text (\n for a line break, tags <NAME> <GOODS> <PAYMENT> <DISCOUNTTEXT>)"
+ },
+ "eco.card.title": {
+  "fr": "Fiche du marchand",
+  "en": "Trader card"
+ },
+ "eco.catalog.drop_hint": {
+  "fr": "Double-clic ou glisser-déposer un item pour l'ajouter au marchand.",
+  "en": "Double-click or drag & drop an item to add it to the trader."
+ },
+ "eco.catalog.search": {
+  "fr": "Rechercher un item...",
+  "en": "Search an item..."
+ },
+ "eco.catalog.title": {
+  "fr": "Catalogue du scénario (MarketPrice)",
+  "en": "Scenario catalogue (MarketPrice)"
+ },
+ "eco.col.action": {
+  "fr": "Échange",
+  "en": "Trade"
+ },
+ "eco.col.buy_max": {
+  "fr": "Stock max achat",
+  "en": "Buy max stock"
+ },
+ "eco.col.buy_price": {
+  "fr": "Prix achat",
+  "en": "Buy price"
+ },
+ "eco.col.item": {
+  "fr": "Item",
+  "en": "Item"
+ },
+ "eco.col.sell_price": {
+  "fr": "Prix vente",
+  "en": "Sell price"
+ },
+ "eco.col.sell_stock": {
+  "fr": "Stock vente",
+  "en": "Sell stock"
+ },
+ "eco.create_done": {
+  "fr": "TraderNPCConfig.ecf minimal créé dans la copie de travail.",
+  "en": "Minimal TraderNPCConfig.ecf created in the working copy."
+ },
+ "eco.create_question": {
+  "fr": "La copie de travail ne contient pas de TraderNPCConfig.ecf.\nCréer un fichier de départ minimal (un marchand « TraderDefault » vide) ?",
+  "en": "The working copy has no TraderNPCConfig.ecf.\nCreate a minimal starter file (one empty \"TraderDefault\" trader)?"
+ },
+ "eco.create_title": {
+  "fr": "TraderNPCConfig.ecf absent",
+  "en": "TraderNPCConfig.ecf missing"
+ },
+ "eco.create_undo": {
+  "fr": "Création de TraderNPCConfig.ecf",
+  "en": "TraderNPCConfig.ecf creation"
+ },
+ "eco.dialog.confirm_delete": {
+  "fr": "Supprimer le marchand « {name} » ?",
+  "en": "Delete trader \"{name}\"?"
+ },
+ "eco.dialog.new_name": {
+  "fr": "Nom unique du marchand :",
+  "en": "Unique trader name:"
+ },
+ "eco.err.no_market_price": {
+  "fr": "Pas de MarketPrice pour « {name} » : conversion impossible (ajoute-le au catalogue ou corrige l'orthographe).",
+  "en": "No MarketPrice for \"{name}\": conversion impossible (add it to the catalogue or fix the spelling)."
+ },
+ "eco.issues.none": {
+  "fr": "Aucun problème détecté dans les profils de marchands.",
+  "en": "No problem detected in trader profiles."
+ },
+ "eco.issues.title": {
+  "fr": "Vérification économie",
+  "en": "Economy check"
+ },
+ "eco.item_unknown": {
+  "fr": "item absent du catalogue du scénario : {name}",
+  "en": "item missing from the scenario catalogue: {name}"
+ },
+ "eco.item_unreadable": {
+  "fr": "ligne illisible (non modifiée) : {raw}",
+  "en": "unreadable line (untouched): {raw}"
+ },
+ "eco.price_inverted": {
+  "fr": "plage inversée {value} ({kind})",
+  "en": "inverted range {value} ({kind})"
+ },
+ "eco.profiles.title": {
+  "fr": "Marchands (profils)",
+  "en": "Traders (profiles)"
+ },
+ "eco.status.card_applied": {
+  "fr": "Fiche appliquée à {name}.",
+  "en": "Card applied to {name}."
+ },
+ "eco.status.converted": {
+  "fr": "Prix convertis pour {name}.",
+  "en": "Prices converted for {name}."
+ },
+ "eco.status.invalid_value": {
+  "fr": "Valeur refusée : « {value} » (formats : 100-150, 10, mf=1.1-1.2 — prix et stocks absolus = nombres ENTIERS, arrondis au supérieur par les presets).",
+  "en": "Rejected value: \"{value}\" (formats: 100-150, 10, mf=1.1-1.2 — absolute prices and stocks = whole NUMBERS, rounded up by presets)."
+ },
+ "eco.status.item_added": {
+  "fr": "Item ajouté : {name} (prix et stocks à ajuster)",
+  "en": "Item added: {name} (adjust price and stock)"
+ },
+ "eco.status.item_deleted": {
+  "fr": "Item retiré.",
+  "en": "Item removed."
+ },
+ "eco.status.item_saved": {
+  "fr": "Item mis à jour.",
+  "en": "Item updated."
+ },
+ "eco.status.name_exists": {
+  "fr": "Un marchand porte déjà ce nom : {name}",
+  "en": "A trader already has this name: {name}"
+ },
+ "eco.status.no_selection": {
+  "fr": "Sélectionne d'abord un marchand / une ligne.",
+  "en": "Select a trader / a row first."
+ },
+ "eco.status.trader_added": {
+  "fr": "Marchand ajouté : {name}",
+  "en": "Trader added: {name}"
+ },
+ "eco.status.trader_deleted": {
+  "fr": "Marchand supprimé : {name}",
+  "en": "Trader deleted: {name}"
+ },
+ "eco.status.trader_duplicated": {
+  "fr": "Marchand dupliqué : {name}",
+  "en": "Trader duplicated: {name}"
+ },
+ "eco.title": {
+  "fr": "Économie — marchands PNJ (TraderNPCConfig.ecf)",
+  "en": "Economy — NPC traders (TraderNPCConfig.ecf)"
+ },
+ "eco.create_failed": {
+  "fr": "Impossible de créer le fichier dans la copie de travail.",
+  "en": "Cannot create the file in the working copy."
+ },
+ "eco.trader_unassigned": {
+  "fr": "marchand jamais assigné à une zone : {trader}",
+  "en": "trader never assigned to a zone: {trader}"
+ },
+ "eco.zone_unknown_trader": {
+  "fr": "TraderZone vers un profil inexistant : {trader} ({playfield}{poi})",
+  "en": "TraderZone pointing to a missing profile: {trader} ({playfield}{poi})"
+ },
+ "menu.tools.economy": {
+  "fr": "Éditeur d'économie (marchands PNJ)...",
+  "en": "Economy editor (NPC traders)..."
+ },
+ "playfield.trader_zone_label": {
+  "fr": "TraderZone :",
+  "en": "Trader zone:"
+ },
+ "playfield.col_trader_zone": {
+  "fr": "TraderZone (marchands)",
+  "en": "Trader zone (traders)"
+ },
+ "eco.preset.title": {
+  "fr": "Presets & variantes",
+  "en": "Presets & variants"
+ },
+ "eco.preset.inflation": {
+  "fr": "Inflation...",
+  "en": "Inflation..."
+ },
+ "eco.preset.scarcity": {
+  "fr": "Pénurie...",
+  "en": "Scarcity..."
+ },
+ "eco.preset.only_selected": {
+  "fr": "Sur le marchand sélectionné seulement",
+  "en": "On the selected trader only"
+ },
+ "eco.preset.variant": {
+  "fr": "Variante ×...",
+  "en": "Variant ×..."
+ },
+ "eco.preset.dialog_inflation": {
+  "fr": "Pourcentage d'inflation appliqué aux prix (+10 = +10 %) :",
+  "en": "Inflation percentage applied to prices (+10 = +10%):"
+ },
+ "eco.preset.dialog_scarcity": {
+  "fr": "Diviser les stocks par :",
+  "en": "Divide stocks by:"
+ },
+ "eco.preset.dialog_multiplier": {
+  "fr": "Multiplicateur de prix de la variante (1.5 = +50 %) :",
+  "en": "Price multiplier of the variant (1.5 = +50%):"
+ },
+ "eco.preset.type_label": {
+  "fr": "Profil type :",
+  "en": "Type profile:"
+ },
+ "eco.preset.apply_type": {
+  "fr": "Appliquer au marchand",
+  "en": "Apply to trader"
+ },
+ "eco.preset.save_type": {
+  "fr": "Enregistrer comme profil type...",
+  "en": "Save as type profile..."
+ },
+ "eco.preset.delete_type": {
+  "fr": "Supprimer le profil type",
+  "en": "Delete type profile"
+ },
+ "eco.preset.builtin_military": {
+  "fr": "Militaire (embarqué)",
+  "en": "Military (built-in)"
+ },
+ "eco.preset.builtin_agricultural": {
+  "fr": "Agricole (embarqué)",
+  "en": "Agricultural (built-in)"
+ },
+ "eco.preset.name_prompt": {
+  "fr": "Nom du profil type :",
+  "en": "Type profile name:"
+ },
+ "eco.status.preset_applied": {
+  "fr": "Preset appliqué à : {targets}",
+  "en": "Preset applied to: {targets}"
+ },
+ "eco.status.variant_created": {
+  "fr": "Variante créée : {name} (pense à l'assigner dans les playfields)",
+  "en": "Variant created: {name} (assign it in the playfields)"
+ },
+ "eco.status.preset_saved": {
+  "fr": "Profil type enregistré : {name}",
+  "en": "Type profile saved: {name}"
+ },
+ "eco.status.preset_deleted": {
+  "fr": "Profil type supprimé : {name}",
+  "en": "Type profile deleted: {name}"
+ },
+ "eco.status.no_type_selected": {
+  "fr": "Sélectionne d'abord un profil type.",
+  "en": "Select a type profile first."
+ },
+ "menu.verification.check_economy": {
+  "fr": "Vérification économie (marchands PNJ)...",
+  "en": "Economy check (NPC traders)..."
+ },
+ "ecocheck.title": {
+  "fr": "Vérification économie",
+  "en": "Economy check"
+ },
+ "ecocheck.intro": {
+  "fr": "Vérifie le TraderNPCConfig.ecf ENREGISTRÉ de la copie de travail contre le catalogue du scénario et les TraderZone des playfields. Corrections dans : menu Outils > Éditeur d'économie.",
+  "en": "Checks the SAVED TraderNPCConfig.ecf of the working copy against the scenario catalogue and the playfield TraderZones. Fix in: Tools menu > Economy editor."
+ },
+ "ecocheck.count": {
+  "fr": "{n} problème(s) détecté(s). ERR = erreur bloquante probable, ATT = avertissement.",
+  "en": "{n} issue(s) found. ERR = likely blocking error, ATT = warning."
+ },
+ "ecocheck.none_found": {
+  "fr": "Aucun problème détecté.",
+  "en": "No issue found."
+ },
+ "ecocheck.no_trader_file": {
+  "fr": "Aucun TraderNPCConfig.ecf dans la copie de travail et aucune TraderZone dans les playfields : rien à vérifier.",
+  "en": "No TraderNPCConfig.ecf in the working copy and no TraderZone in the playfields: nothing to check."
+ },
+ "ecocheck.unreadable": {
+  "fr": "TraderNPCConfig.ecf illisible (fichier corrompu ?).",
+  "en": "Unreadable TraderNPCConfig.ecf (corrupted file?)."
+ },
+ "eco.status.preset_applied_many": {
+  "fr": "Preset appliqué à {n} marchands.",
+  "en": "Preset applied to {n} traders."
+ },
+ "eco.btn.catalog": {
+  "fr": "Catalogue...",
+  "en": "Catalog..."
+ },
+ "eco.status.items_added": {
+  "fr": "{n} items ajoutés (prix = MarketPrice par défaut).",
+  "en": "{n} items added (price = MarketPrice by default)."
+ },
+ "eco.status.catalog_unavailable": {
+  "fr": "Catalogue indisponible (ItemsConfig/BlocksConfig absents de la copie de travail).",
+  "en": "Catalog unavailable (ItemsConfig/BlocksConfig missing from the working copy)."
+ },
+ "icat.title": {
+  "fr": "Catalogue d'items et blocs",
+  "en": "Item & block catalogue"
+ },
+ "icat.search": {
+  "fr": "Rechercher (nom ou libellé)...",
+  "en": "Search (name or label)..."
+ },
+ "icat.hide_no_price": {
+  "fr": "Masquer ceux sans MarketPrice",
+  "en": "Hide those without MarketPrice"
+ },
+ "icat.tab_categories": {
+  "fr": "Par catégorie",
+  "en": "By category"
+ },
+ "icat.tab_az": {
+  "fr": "A → Z",
+  "en": "A → Z"
+ },
+ "icat.tab_all": {
+  "fr": "Tous",
+  "en": "All"
+ },
+ "icat.col_item": {
+  "fr": "Item",
+  "en": "Item"
+ },
+ "icat.col_source": {
+  "fr": "Source",
+  "en": "Source"
+ },
+ "icat.col_price": {
+  "fr": "MarketPrice",
+  "en": "MarketPrice"
+ },
+ "icat.group_items": {
+  "fr": "Items (ItemsConfig.ecf)",
+  "en": "Items (ItemsConfig.ecf)"
+ },
+ "icat.group_blocks": {
+  "fr": "Blocs (BlocksConfig.ecf)",
+  "en": "Blocks (BlocksConfig.ecf)"
+ },
+ "icat.no_category": {
+  "fr": "Sans catégorie",
+  "en": "No category"
+ },
+ "icat.source_item": {
+  "fr": "Item",
+  "en": "Item"
+ },
+ "icat.source_block": {
+  "fr": "Bloc",
+  "en": "Block"
+ },
+ "icat.selected_count": {
+  "fr": "{n} sélectionné(s)",
+  "en": "{n} selected"
+ },
+ "icat.add_selection": {
+  "fr": "Ajouter la sélection ({n})",
+  "en": "Add selection ({n})"
+ },
+ "icat.icons_status": {
+  "fr": "Icônes : {ok}/{n} trouvées",
+  "en": "Icons: {ok}/{n} found"
+ },
+ "eco.col.icon": {
+  "fr": "Icône",
+  "en": "Icon"
+ },
+ "ecf.col.ingredient": {
+  "fr": "Item",
+  "en": "Item"
+ },
+ "ecf.col.quantity": {
+  "fr": "Quantité",
+  "en": "Quantity"
+ },
+ "ecf.catalog_unavailable": {
+  "fr": "Catalogue indisponible : ItemsConfig.ecf/BlocksConfig.ecf introuvables à côté de ce fichier.",
+  "en": "Catalog unavailable: ItemsConfig.ecf/BlocksConfig.ecf not found next to this file."
+ },
+ "ecf.catalog_needs_list": {
+  "fr": "Sélectionne d'abord un bloc de type liste d'items (Child Inputs, Child Items, structure Name_N...).",
+  "en": "Select a list-type block first (Child Inputs, Child Items, Name_N structure...)."
+ },
+ "ecf.catalog_inserted": {
+  "fr": "{n} item(s) inséré(s).",
+  "en": "{n} item(s) inserted."
+ },
+ "icat.refresh": {
+  "fr": "Rafraîchir",
+  "en": "Refresh"
  }
 }
