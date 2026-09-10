@@ -274,6 +274,18 @@ class MainWindow(QMainWindow):
         self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
         self.action_extra_icons = self.menu_options.addAction(t("menu.options.extra_icons"))
         self.action_extra_icons.triggered.connect(self._set_extra_icons_dialog)
+        self.action_argos = self.menu_options.addAction(t("menu.options.argos"))
+        self.action_argos.triggered.connect(self._open_argos_setup)
+        # Meme geste que "Traduction en ligne (Google)" : une case cochee
+        # DANS le menu pour basculer le moteur (retour utilisateur du
+        # 10/09/2026 : l'activation n'etait que dans l'assistant). Grisee
+        # tant qu'aucun modele Argos n'est installe (test sur disque, sans
+        # importer la bibliotheque lourde).
+        self.action_argos_engine = self.menu_options.addAction(t("menu.options.argos_engine"))
+        self.action_argos_engine.setCheckable(True)
+        self.action_argos_engine.setToolTip(t("menu.options.argos_engine.tip"))
+        self.action_argos_engine.toggled.connect(self._toggle_argos_engine)
+        self._refresh_argos_menu_action()
 
         # Pilote PyQt-Fluent-Widgets (decision 09/09/2026) : chrome de la
         # fenetre principale en widgets Fluent, le reste de l'app inchange.
@@ -1428,6 +1440,37 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, t("author.title"), t("author.label"), text=current)
         if ok and name.strip():
             settings.set_author(name.strip())
+
+    def _refresh_argos_menu_action(self):
+        """Synchronise la case « Traduction hors ligne (Argos) » du menu
+        Options avec les modeles installes et le moteur choisi. Appele a la
+        construction et par l'assistant Argos apres ses installations."""
+        from core import argos_provider
+        from core.settings import get_translation_engine
+        has_models = argos_provider.packages_on_disk() > 0
+        self.action_argos_engine.setEnabled(has_models)
+        self.action_argos_engine.setToolTip(
+            t("menu.options.argos_engine.tip") if has_models
+            else t("menu.options.argos_engine.tip_none"))
+        self.action_argos_engine.blockSignals(True)
+        self.action_argos_engine.setChecked(
+            has_models and get_translation_engine() == "argos")
+        self.action_argos_engine.blockSignals(False)
+
+    def _toggle_argos_engine(self, checked: bool):
+        from core.settings import set_translation_engine
+        set_translation_engine("argos" if checked else "google")
+        self.statusBar().showMessage(
+            t("argos.engine_switched",
+              engine=t("argos.engine_name_argos" if checked
+                       else "argos.engine_name_google")), 8000)
+
+    def _open_argos_setup(self):
+        """Assistant de traduction hors ligne Argos (moteur + modeles) --
+        demande du 10/09/2026 ; ouvre aussi le choix du moteur prefere."""
+        from gui.argos_setup_dialog import ArgosSetupDialog
+        self._argos_dialog = ArgosSetupDialog(self)
+        self._argos_dialog.show()
 
     def _set_extra_icons_dialog(self):
         """Dossier d'icones supplementaires (icones de MODS, ex RE2) : fusionne

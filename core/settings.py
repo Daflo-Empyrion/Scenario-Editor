@@ -213,6 +213,18 @@ def set_extra_icons_dir(path: str) -> None:
     _set('extra_icons_dir', path)
 
 
+def get_translation_engine() -> str:
+    """Moteur de traduction prefere : 'google' (en ligne, defaut) ou 'argos'
+    (hors ligne, voir core/argos_provider.py -- requiert le moteur + une
+    paire de langues installes)."""
+    return _get('translation_engine', 'google')
+
+
+def set_translation_engine(engine: str) -> None:
+    if engine in ('google', 'argos'):
+        _set('translation_engine', engine)
+
+
 def get_vanilla_content_path() -> str:
     """Dossier Content de l'installation Steam du jeu (ex:
     C:/Program Files (x86)/Steam/steamapps/common/Empyrion - Galactic

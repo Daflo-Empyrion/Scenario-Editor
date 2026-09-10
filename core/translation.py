@@ -193,6 +193,21 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
     if not text or not text.strip():
         return text
 
+    # Moteur HORS LIGNE prefere (Options > Moteur de traduction) : si Argos
+    # est installe avec la paire demandee, on traduit localement -- aucune
+    # donnee ne quitte le poste, aucun appel Google. Si la paire manque, on
+    # retombe en ligne SEULEMENT si la traduction en ligne est permise ; sinon
+    # le message combine les DEUX causes (retour utilisateur 10/09/2026 : le
+    # message "Google non active" apparaissait a tort sur un echec Argos).
+    from . import settings as _settings
+    _offline_error: Optional[str] = None
+    if _settings.get_translation_engine() == "argos":
+        try:
+            from . import argos_provider
+            return argos_provider.translate_offline(text, source, target)
+        except Exception as e:
+            _offline_error = str(e) or "moteur Argos ou paire de langues absente"
+
     from . import translation_memory
     cached = translation_memory.get_cached(text, source, target)
     if cached is not None:
@@ -204,6 +219,13 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
     # Voir core/settings.py:get_online_translation_enabled() et PRIVACY.md.
     from . import settings
     if not settings.get_online_translation_enabled():
+        if _offline_error:
+            raise RuntimeError(
+                f"Traduction hors ligne impossible ({_offline_error}) -- "
+                f"ajoute la langue manquante dans Options > Traduction hors "
+                f"ligne (Argos) -- ET la traduction en ligne est desactivee "
+                f"(voir Options). Au moins un des deux moteurs est requis."
+            )
         raise RuntimeError(
             "Traduction en ligne desactivee (Options > Traduction en ligne "
             "(Google Translate)). Cette fonctionnalite envoie le texte a "
@@ -235,6 +257,18 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
         raise result['error']
 
     translated = result['value']
+    # deep-translator peut RENVOYER la page d'erreur HTML de Google comme si
+    # c'etait la traduction (observe en reel : "Error 500 (Server Error)!!1")
+    # -- jamais afficher ce garbage dans un fichier de jeu (retour du
+    # 10/09/2026).
+    lowered = (translated or "").lower()
+    if not translated or "that's an error" in lowered or "error 5" in lowered \
+            or "google.com" in lowered or "<html" in lowered:
+        raise RuntimeError(
+            "Le service de traduction en ligne a renvoye une page d'erreur "
+            "(limitation Google). Reessaie plus tard, ou bascule sur le "
+            "moteur hors ligne Argos (Options > Traduction hors ligne "
+            "(Argos)...).")
     if segments:
         translated = restore_segments(translated, segments)
 

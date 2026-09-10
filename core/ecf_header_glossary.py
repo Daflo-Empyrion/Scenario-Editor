@@ -127,10 +127,18 @@ def glossary_by_file_for_current_language() -> dict:
     if get_language() == "en":
         en = _english_data()
         if en:
-            # fusionne : les glossaires/entrees non traduites retombent sur le FR
+            # le fichier EN est indexe par NOM DE GLOSSAIRE (BLOCKS_CONFIG_
+            # GLOSSARY...), pas par nom de fichier : on retrouve la cle EN de
+            # chaque glossaire par identite d'objet avec _GLOSSARY_DATA
+            en_key_by_object = {}
+            for name, gl in _GLOSSARY_DATA.items():
+                en_key_by_object[id(gl)] = name
             merged = {}
             for filename, glossary in GLOSSARY_BY_FILE.items():
-                en_glossary = en.get(filename) or glossary
+                en_key = en_key_by_object.get(id(glossary))
+                en_glossary = en.get(en_key) if en_key else None
+                if not en_glossary:
+                    en_glossary = en.get(filename) or glossary
                 merged_sections = []
                 for fi, (title, entries) in enumerate(en_glossary):
                     try:

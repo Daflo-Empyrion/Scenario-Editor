@@ -5059,6 +5059,10 @@
   "fr": "Dossier d'icônes supplémentaire...",
   "en": "Extra icons folder..."
  },
+ "menu.options.argos": {
+  "fr": "Traduction hors ligne (Argos)...",
+  "en": "Offline translation (Argos)..."
+ },
  "menu.options.fluent_pilot": {
   "fr": "Interface Fluent (pilote)",
   "en": "Fluent interface (pilot)"
@@ -6038,5 +6042,125 @@
  "search.replace_undo": {
   "fr": "Remplacement multi-fichiers ({file})",
   "en": "Multi-file replacement ({file})"
+ },
+ "argos.title": {
+  "fr": "Traduction hors ligne — Argos Translate",
+  "en": "Offline translation — Argos Translate"
+ },
+ "argos.engine_missing": {
+  "fr": "Le moteur Argos Translate n'est pas installé. Son installation est automatique : taille de téléchargement ci-dessous, puis les modèles de langues à l'étape suivante.",
+  "en": "The Argos Translate engine is not installed. Installation is automatic: download size below, then language models at the next step."
+ },
+ "argos.engine_size": {
+  "fr": "Taille de téléchargement du moteur (dépendances comprises) : ~{mb} Mo. Installation locale : ~1,5 Go. Aucun contenu de vos scénarios n'est envoyé en ligne.",
+  "en": "Engine download size (dependencies included): ~{mb} MB. Installed locally: ~1.5 GB. None of your scenario content is sent online."
+ },
+ "argos.install_engine": {
+  "fr": "Installer le moteur automatiquement",
+  "en": "Install engine automatically"
+ },
+ "argos.installing": {
+  "fr": "Installation en cours (plusieurs minutes selon la connexion)...",
+  "en": "Installing (several minutes depending on connection)..."
+ },
+ "argos.engine_failed": {
+  "fr": "Échec de l'installation automatique. Copie la commande ci-dessous dans une console, puis clique « Vérifier ».",
+  "en": "Automatic installation failed. Copy the command below into a console, then click \"Check\"."
+ },
+ "argos.verify": {
+  "fr": "J'ai installé — Vérifier",
+  "en": "I installed it — Check"
+ },
+ "argos.log": {
+  "fr": "Journal d'installation...",
+  "en": "Installation log..."
+ },
+ "argos.pick_models": {
+  "fr": "Modèles de langues (coche ceux que tu veux, la taille réelle est affichée) :",
+  "en": "Language models (check the ones you want, real size shown):"
+ },
+ "argos.pick_models_hint": {
+  "fr": "Français↔Anglais suffit pour le glossaire et le traducteur intégré.",
+  "en": "French↔English is enough for the glossary and the built-in translator."
+ },
+ "argos.download_install": {
+  "fr": "Télécharger et installer les modèles cochés",
+  "en": "Download and install checked models"
+ },
+ "argos.import_model": {
+  "fr": "Importer un .argosmodel local...",
+  "en": "Import a local .argosmodel..."
+ },
+ "argos.installed": {
+  "fr": "déjà installé",
+  "en": "already installed"
+ },
+ "argos.models_done": {
+  "fr": "{n} paire(s) installée(s). Active la traduction hors ligne via la case « Traduction hors ligne (Argos) » du menu Options (ou la case ci-dessous).",
+  "en": "{n} pair(s) installed. Enable offline translation via the \"Offline translation (Argos)\" box in the Options menu (or the box below)."
+ },
+ "argos.import_ok": {
+  "fr": "Modèle importé : {name}",
+  "en": "Model imported: {name}"
+ },
+ "argos.import_failed": {
+  "fr": "Échec de l'installation du modèle local.",
+  "en": "Local model installation failed."
+ },
+ "argos.index_error": {
+  "fr": "Index des modèles inaccessible (connexion ?). Réessaie avec Actualiser.",
+  "en": "Model index unreachable (connection?). Try again later."
+ },
+ "argos.size_pending": {
+  "fr": "taille en cours...",
+  "en": "size loading..."
+ },
+ "argos.loading_models": {
+  "fr": "Chargement de la liste des langues...",
+  "en": "Loading the language list..."
+ },
+ "argos.use_as_engine": {
+  "fr": "Utiliser Argos comme moteur de traduction (hors ligne)",
+  "en": "Use Argos as the translation engine (offline)"
+ },
+ "argos.use_as_engine_tip": {
+  "fr": "Toutes les traductions de l'application (glossaire, traducteur intégré) passeront en local : rien ne sera envoyé en ligne.",
+  "en": "All app translations (glossary, built-in translator) will run locally: nothing is sent online."
+ },
+ "argos.engine_state_none": {
+  "fr": "Aucun modèle installé : coche et télécharge au moins une langue pour activer la case.",
+  "en": "No model installed: check and download at least one language to enable the box."
+ },
+ "argos.engine_state_argos": {
+  "fr": "Moteur actif : Argos (hors ligne). Décoche pour revenir à Google (en ligne).",
+  "en": "Active engine: Argos (offline). Uncheck to go back to Google (online)."
+ },
+ "argos.engine_state_google": {
+  "fr": "Moteur actif : Google (en ligne). Coche la case pour basculer sur Argos (hors ligne).",
+  "en": "Active engine: Google (online). Check the box to switch to Argos (offline)."
+ },
+ "argos.engine_switched": {
+  "fr": "Moteur de traduction : {engine}.",
+  "en": "Translation engine: {engine}."
+ },
+ "argos.engine_name_argos": {
+  "fr": "Argos (hors ligne)",
+  "en": "Argos (offline)"
+ },
+ "argos.engine_name_google": {
+  "fr": "Google (en ligne)",
+  "en": "Google (online)"
+ },
+ "menu.options.argos_engine": {
+  "fr": "Traduction hors ligne (Argos)",
+  "en": "Offline translation (Argos)"
+ },
+ "menu.options.argos_engine.tip": {
+  "fr": "Toutes les traductions de l'application passent en local (Argos). Décoche pour revenir à Google (en ligne).",
+  "en": "All app translations run locally (Argos). Uncheck to go back to Google (online)."
+ },
+ "menu.options.argos_engine.tip_none": {
+  "fr": "Aucun modèle Argos installé : ouvre « Traduction hors ligne (Argos)... » pour choisir une langue.",
+  "en": "No Argos model installed: open \"Offline translation (Argos)...\" to pick a language."
  }
 }

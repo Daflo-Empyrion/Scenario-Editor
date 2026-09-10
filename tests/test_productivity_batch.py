@@ -232,17 +232,39 @@ def test_versioned_backup_missing_source_noop(tmp_path, monkeypatch):
 # Glossaire EN (OPT-006) : repli transparent sans fichier traduit
 # ---------------------------------------------------------------------------
 
-def test_glossary_falls_back_to_french_without_en_file():
+def test_glossary_falls_back_to_french_when_en_absent(monkeypatch, tmp_path):
+    """Fichier EN absent/illisible : repli FR INTEGRAL, quel que soit l'etat
+    de l'explication recherchee (jamais de fiche vide)."""
     from core import ecf_header_glossary as g
     from core.i18n import set_language, get_language
+    import core.settings as settings
+    monkeypatch.setattr(settings, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(g, "_english_data", lambda: {})  # simule l'absence
     old = get_language()
     try:
         set_language("fr")
         assert g.glossary_by_file_for_current_language() == g.GLOSSARY_BY_FILE
         set_language("en")
-        # pas de fichier EN genere -> repli FR integral
         assert g.glossary_by_file_for_current_language() == g.GLOSSARY_BY_FILE
-        # et la recherche de terme continue de fonctionner
-        assert g.find_term_explanation("BlocksConfig.ecf", "Id") is not None or True
+    finally:
+        set_language(old)
+
+
+def test_glossary_english_used_when_file_present(monkeypatch, tmp_path):
+    """Fichier EN genere (OPT-006) : interface en anglais -> le glossaire
+    sert les explications anglaises ; interface en francais -> FR."""
+    from core import ecf_header_glossary as g
+    from core.i18n import set_language, get_language
+    import core.settings as settings
+    monkeypatch.setattr(settings, "SETTINGS_FILE", tmp_path / "settings.json")
+    old = get_language()
+    try:
+        set_language("en")
+        expl_en = g.find_term_explanation("BlocksConfig.ecf", "AllowPlacingAt")
+        assert expl_en is not None
+        assert "structure" in expl_en.lower()  # explication anglaise
+        set_language("fr")
+        expl_fr = g.find_term_explanation("BlocksConfig.ecf", "AllowPlacingAt")
+        assert expl_fr is not None and expl_fr != expl_en  # explication francaise
     finally:
         set_language(old)

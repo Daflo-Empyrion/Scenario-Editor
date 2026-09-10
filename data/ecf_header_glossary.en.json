@@ -1,0 +1,1306 @@
+{
+ "BLOCKS_CONFIG_GLOSSARY": [
+  [
+   "Identifiers (ID)",
+   [
+    [
+     "Id jusqu'a 8192",
+     "Blocks identified by a numero (Id) must remain below this limit (confirmed via the official update notes Eleon v1.17 -- 2048 and then 4096 are historical values of now perimes)."
+    ],
+    [
+     "Au-dela de 8192",
+     "To add a block to this limit, do not put any Id at all -- only uses 'Block Name: MyBloc' (identifies by name, not by number)."
+    ],
+    [
+     "Id 0 a 255 \"reserves au terrain\"",
+     "Affirmation frequently repeated in the community, but not confirmed despite search -- possible confusion with BlockColor, which actually uses a range 0-255 (RGB values). Treat with caution."
+    ]
+   ]
+  ],
+  [
+   "Block mass",
+   [
+    [
+     "Regle generale",
+     "The indicated mass corresponds to a block of 1 metre. The game then automatically adjusts it according to the real size of the block:"
+    ],
+    [
+     "Petite grille (HV, SV)",
+     "Real mass = indicated value x 0.125 (block 0.5m)"
+    ],
+    [
+     "Grande grille (BA, CV)",
+     "Real mass = value indicated x 8 (block of 2m)"
+    ]
+   ]
+  ],
+  [
+   "Common properties",
+   [
+    [
+     "AllowPlacingAt",
+     "On which types of structure this block can be laid (Base, MS, SS, GV, Terrain)."
+    ],
+    [
+     "Collide",
+     "What types of objects collide with this block (movement, bullets, rockets, body, target). Remove 'movement' for example makes the block traversable on foot while remaining touchable by the weapons."
+    ],
+    [
+     "EnergyIn / EnergyOut",
+     "Energy consumption/production, expressed in kW."
+    ],
+    [
+     "Texture",
+     "List of 6 texture numeros, in order: above, below, north, south, west, east."
+    ]
+   ]
+  ],
+  [
+   "Explosion codes",
+   [
+    [
+     "1",
+     "Large air explosion"
+    ],
+    [
+     "2 a 4",
+     "Small explosion on the ground"
+    ],
+    [
+     "5 a 6",
+     "Small air explosion"
+    ],
+    [
+     "7",
+     "Electric explosion"
+    ],
+    [
+     "8 a 9",
+     "Large air explosion"
+    ],
+    [
+     "10",
+     "Electric explosion"
+    ]
+   ]
+  ],
+  [
+   "The rule of the Ref (heritage)",
+   [
+    [
+     "Regle d'ordre",
+     "A block can only herit (Ref) from a DEJA DEFINI block higher in the file (Id or smaller position) -- never from a lower block."
+    ]
+   ]
+  ],
+  [
+   "Advanced properties",
+   [
+    [
+     "CustomIcon",
+     "Reuse an existing icon for the display in play (e.g. 'CustomIcon: DetectorSVT1')."
+    ],
+    [
+     "PickupTarget",
+     "Item that will be automatically placed in the player's inventory when collecting this block/device. Only works on the PARENT block, never on a sub-block ('child')."
+    ],
+    [
+     "TemplateRoot",
+     "Indicates which craft recipe (Templates.ecf) to use for this sub-group -- useful for the UPLOAD function. The parent block does not need it (it always uses the recipe with its own name). CAUTION: Never make a Ref to a block that IS even the target of TemplateRoot in the same entry -- it makes the blueprint library crash."
+    ],
+    [
+     "UpgradeTo",
+     "Defines to which block/device this block turns in case of upgrade. If you put this on a subgroup, this subgroup needs its own TemplateRoot, otherwise the upgrade will be free (bug). May be 'null' to avoid a loop."
+    ],
+    [
+     "DowngradeTo",
+     "Same principle as UpgradeTo, but in the other direction (back to back)."
+    ],
+    [
+     "Place: NoRotation",
+     "The block can't be turned at pose."
+    ],
+    [
+     "Place: Face",
+     "The block is automatically oriented according to the target surface (paste/orientate correctly), but only rotation around an axis is possible."
+    ],
+    [
+     "Place: Free",
+     "Set free, all possible rotations, but without automatic alignment (less practical, often requires manual rotations)."
+    ],
+    [
+     "RemoveOnSI",
+     "If active (true), this block disappears immediately when the structure collapses (loss of integritis)."
+    ],
+    [
+     "IsPhysicsColliders",
+     "Enables/deactivates fine physical collisions (sometimes on too thin ramps)."
+    ],
+    [
+     "OccupySizeInBlocks",
+     "The block occupies its entire volume even if it is not 'voxelise' (useful for blocks with animation or special shader)."
+    ],
+    [
+     "BlockSizeScale",
+     "2 for SV/HV, 8 for CV/BA -- used to scale the mass and life points according to the number of voxels."
+    ],
+    [
+     "Voxelize",
+     "Determines whether the block is cut into small cubes rather than occupy a whole voxel at once (true by default)."
+    ],
+    [
+     "IsActivateable",
+     "The block can be switched on/off by the player."
+    ],
+    [
+     "IsActivateableInCP",
+     "Accessible via the Control Panel (tower, tank, safe...)."
+    ],
+    [
+     "IsActivatedOnPlace",
+     "The block is already lit as soon as it is laid."
+    ],
+    [
+     "IsDuplicateable",
+     "The block can be used with drawing tools in plan/line."
+    ],
+    [
+     "ForceMaxCount",
+     "Force the MaxCount limit even if the difficulty level had deactivated it (useful for Core, Warp Drive... but not for weapons)."
+    ],
+    [
+     "IsAntiInfantryWeapon",
+     "The degats/PV of this aircraft only count against the infantry and entites, not facing the artillery."
+    ],
+    [
+     "IsKeepContainers",
+     "Reserve at Cores (PNJ only): Preplace content is saved with blueprint and becomes loot."
+    ],
+    [
+     "VolumeCapacity",
+     "Container capacity, in litres (SU)."
+    ],
+    [
+     "ShieldMultiplier",
+     "Only for Class:ShieldGenerator -- a free text that can be used in the Multiplier Damage of a weapon (ItemsConfig.ecf)."
+    ],
+    [
+     "RepairToTemplate",
+     "Put false to exclude a special/rare block from automatic repair via recipe (avoid abuse)."
+    ],
+    [
+     "DropOnDeath",
+     "Put a 'False' so that an important object of history is never lost at the death of the player (true by default)."
+    ],
+    [
+     "RepFac",
+     "Reputation multiplier wins/loses by destroying this block (e.g. 0.1 to reduce impact)."
+    ],
+    [
+     "DropMeshfile",
+     "3D model of bag/container displays on the floor when this block is lacquered (variants: small, large, event...)."
+    ],
+    [
+     "DropInventoryEntity",
+     "What variant of container appears when a spoil container is destroyed."
+    ],
+    [
+     "ShieldHitCooldown",
+     "Delai in seconds before the shield starts reloading after a stroke (5s per default)."
+    ]
+   ]
+  ],
+  [
+   "Special dialogues",
+   [
+    [
+     "ExecuteOnActivate",
+     "Start a state of dialogue (Dialogues.ecf) when the player looks at the block and presses F."
+    ],
+    [
+     "ExecuteOnCollide",
+     "Same thing, but touching/pushing against the block rather than pressing F."
+    ],
+    [
+     "DialogueSingleUserAccess",
+     "Only one player can interact with this dialogue."
+    ],
+    [
+     "DialogueState",
+     "Force a precise dialogue; also allows to place this block on a player-owned basis (decended via F)."
+    ],
+    [
+     "OmitCone",
+     "Hide the yellow cone of dialogue over the NPC (useful if the NPC only barks without real interaction)."
+    ]
+   ]
+  ],
+  [
+   "Special skills",
+   [
+    [
+     "Player.Skills[...]",
+     "Use in Dialogues.ecf to define a skill entry. Values can change: degats, zone degats, dispersion, reloading delay, recoil, carrier..."
+    ],
+    [
+     "Mod.ReloadDelay exemple",
+     "Example syntax: Mod.ReloadDelay: \"ReloadDelay + Player.Skill['name']\""
+    ]
+   ]
+  ],
+  [
+   "Container classes",
+   [
+    [
+     "Class: Container",
+     "Cargo, safe, fridge... needs VolumeCapacity."
+    ],
+    [
+     "Class: ContainerPersonal",
+     "Need VolumeCapacity."
+    ],
+    [
+     "Class: ContainerController",
+     "Need VolumeCapacity."
+    ],
+    [
+     "Class: ContainerExtension",
+     "Need VolumeCapacity."
+    ],
+    [
+     "Class: ArmorLocker",
+     "Need VolumeCapacity."
+    ],
+    [
+     "Class: Constructor",
+     "All manufacturers, including the food processor."
+    ],
+    [
+     "Class: WarpDriveTank",
+     "Need VolumeCapacity."
+    ],
+    [
+     "Class: RepairStation",
+     "Need VolumeCapacity."
+    ]
+   ]
+  ],
+  [
+   "Types of Symmetry (SymType)",
+   [
+    [
+     "SymType 1",
+     "Symmetric shape quarter round type (by default)."
+    ],
+    [
+     "SymType 2",
+     "Symmetric shape type corner."
+    ],
+    [
+     "SymType 3",
+     "Symmetrical shape type wall incline."
+    ],
+    [
+     "SymType 4",
+     "Shape type bevel corner, but with incorrect default rotation (orthogonal to Z axis)."
+    ],
+    [
+     "MirrorTo",
+     "Block uses when it is mirrored."
+    ]
+   ]
+  ],
+  [
+   "Shader Modes",
+   [
+    [
+     "Device",
+     "Classic colouring (builders, etc.)."
+    ],
+    [
+     "NoSI",
+     "Decor objects without structural integrite (the same as Device but without SI)."
+    ],
+    [
+     "NPC",
+     "Coloring by material, for NPCs."
+    ],
+    [
+     "Cutout",
+     "Like Device, transparently cut."
+    ],
+    [
+     "DeviceEmissiveOn",
+     "Like Device, but with a constant luminous effect (e.g. solar panels)."
+    ],
+    [
+     "DeviceNewColoring",
+     "New coloring method for Device blocks."
+    ],
+    [
+     "NoSINewColoring",
+     "New coloring method for decorative objects."
+    ]
+   ]
+  ],
+  [
+   "Export properties",
+   [
+    [
+     "IsAccessible",
+     "Appeared in Control Panel."
+    ],
+    [
+     "O2Accept",
+     "List of objects that can be used to fill a bottle of oxygen (the first one on the list is used as a priority)."
+    ],
+    [
+     "FuelAccept",
+     "List of objects that can be used as fuel (the first item on the list is used as a priority)."
+    ]
+   ]
+  ]
+ ],
+ "GALAXY_CONFIG_GLOSSARY": [
+  [
+   "Number limits",
+   [
+    [
+     "Regions",
+     "From StarRegion 1 to StarRegion 99 maximum."
+    ],
+    [
+     "Territoires",
+     "From Territory 1 to Territory 20 maximum, each may have 1 to 10 additional 'Other ' factions (Other 1 to Other 10)."
+    ],
+    [
+     "Types d'etoiles (suntypes)",
+     "Unlimited."
+    ]
+   ]
+  ],
+  [
+   "Two star systems",
+   [
+    [
+     "CompanionStarClass",
+     "Adds a 2nd decorative foil (no gameplay) to a StarClass -- the value must be a StarClass already defined in that file."
+    ]
+   ]
+  ],
+  [
+   "Advanced Configuration",
+   [
+    [
+     "SolarSystemConfigSuffix",
+     "Force the use of a SolarSystemConfig file<suffixe>.yaml particular instead of the type of star by default."
+    ],
+    [
+     "Modeles d'etoile disponibles",
+     "SunBlueGiant, SunWhiteDwarf, SunYellowWhite, SunYellow, SunRedGiant, SunRedDwarf, SunNeutron, BlackHole, SunGeneric. Only the visual model is limited to this list -- all other parameters (StarClass, color...) remain customizable."
+    ],
+    [
+     "Systeme de depart",
+     "If the scenario does not use fixed sectors.yaml with starting planets, a departure system can be defined in general settings. A sectors.yaml with departure planets is priority on this entry if both exist."
+    ]
+   ]
+  ],
+  [
+   "Internal measuring units",
+   [
+    [
+     "1 annee-lumiere (LJ)",
+     "= 10,000 AU = 100,000 sectors (simplified value for readability, not true astronomical measurement)."
+    ],
+    [
+     "1 UA",
+     "= 10 sectors."
+    ],
+    [
+     "Coordonnees en annees-lumiere",
+     "Territories, position of a star (sectors.yaml), galactic spawn radius, galaxy radius."
+    ],
+    [
+     "Coordonnees en secteurs",
+     "Areas around a star (e.g. HabitableCold), position of a planet/moon/station in sectors.yaml or SolarSystemConfig -- NOT in AU."
+    ]
+   ]
+  ],
+  [
+   "Territories",
+   [
+    [
+     "Factions disponibles",
+     "Zirax, Talon, Polaris, Kriel, Pirates, Trader, UCH, Civilian, Alien."
+    ],
+    [
+     "Chevauchement",
+     "Several territories may exist for the same faction, even with overlapping coordinates/spheres."
+    ],
+    [
+     "Faction du territoire",
+     "Only its own POI is placed in the territory by default; To authorize others, use 'Other ' with a numero, defining the probability from the centre to the edge."
+    ]
+   ]
+  ],
+  [
+   "Labels on the map (StarRegion)",
+   [
+    [
+     "LabelName",
+     "Text of the label to this position."
+    ],
+    [
+     "LabelColor",
+     "Colour, e.g. \"0,1,0.67\" or with transparency \"1.0,0.0,0.0.0.2\"."
+    ],
+    [
+     "LabelSize",
+     "Label size."
+    ],
+    [
+     "LabelLYDistance",
+     "Distance (in light years) from which the label is hidden."
+    ]
+   ]
+  ],
+  [
+   "Nebula",
+   [
+    [
+     "NebulaSpawnCount",
+     "If defined in a StarRegion, activate the aleatory nebulas -- only those of regions using this property appear."
+    ],
+    [
+     "NebulaColorIndex",
+     "Chooses the colour of the nebula in the corresponding NebulaColor degrade (up to 30 possible degrades)."
+    ]
+   ]
+  ],
+  [
+   "Seeing changes without restarting",
+   [
+    [
+     "Astuce",
+     "Loads a backup part, edits its Galaxyconfig.efc in the backup folder, then reloads with the 'galaxy' console command."
+    ]
+   ]
+  ],
+  [
+   "Hide a solar system",
+   [
+    [
+     "HideFromMap",
+     "Mask the galactic map system."
+    ],
+    [
+     "HideFromSearch",
+     "The system remains visible on the map but no longer appears in the search."
+    ]
+   ]
+  ],
+  [
+   "Adjustments of a star (full example)",
+   [
+    [
+     "Name",
+     "Star name -- customizable, or generic '<StarClass> Type Star'."
+    ],
+    [
+     "StarClass",
+     "Star class, 3-4 letters/figures."
+    ],
+    [
+     "Model",
+     "Visual model (by default SunGeneric)."
+    ],
+    [
+     "Probability",
+     "0 a 1 -- overall probability that this class exists in the galaxy (never set 0)."
+    ],
+    [
+     "SizeClass",
+     "1 a 12 -- size of star and its icon, influences the distance of warp areas for large stars."
+    ],
+    [
+     "Color / LightColor / ModelColor / ModelColor2",
+     "Star colours (map, appearance in play, inner color, crown)."
+    ],
+    [
+     "ModelBrightness",
+     "0.1 a 1.5 -- global crown luminosite (SunGeneric only)."
+    ],
+    [
+     "SurfaceTemperature / Mass / Radius / Luminosity / Age",
+     "Purely informative, no effect on the game."
+    ],
+    [
+     "InnerSystem / HabitableHot / HabitableTemperate / HabitableCold / OuterSystem",
+     "Distance ranges (in AU) defining each area of the system -- then used in sectors.yaml to place planets."
+    ],
+    [
+     "GalaxySpawnRadius",
+     "Min/max distance (in light years) from the centre for this star to appear."
+    ],
+    [
+     "GalaxySpawnAmount",
+     "Number of stars of this type placed in the galaxy -- put 0 only if gere via the REGIONS."
+    ],
+    [
+     "ClusterProb / ClusterRange",
+     "Likelihood (0-1) and position (0=board, 1=centre) of clustering."
+    ],
+    [
+     "Description",
+     "Short scientific/narrative description for the map."
+    ]
+   ]
+  ]
+ ],
+ "ITEMS_CONFIG_GLOSSARY": [
+  [
+   "General property",
+   [
+    [
+     "CustomIcon",
+     "Reuse an existing icon for the display in play."
+    ],
+    [
+     "AllowAt",
+     "Restricted use, e.g. 'AllowAt: NoPvP' and 'AllowAt: NoPvE' to prohibit an object according to the game mode."
+    ],
+    [
+     "MarketPrice",
+     "Unit price for POI 'StationInterface'. If several objects fill the same role (e.g. 3 types of batteries for fuel), the lowest cost is used automatically."
+    ],
+    [
+     "LifetimeOnDrop",
+     "Duree in seconds before a floor-wash object disappears (200s per default). Increasing only if absolutely necessary -- too many ground objects degrades performance."
+    ],
+    [
+     "DropOnDeath",
+     "Put a 'False' so that an important object of history is never lost at the death of the player (true by default)."
+    ]
+   ]
+  ],
+  [
+   "Effects (Buffs/Debuffs)",
+   [
+    [
+     "BuffMod",
+     "Syntax: \"StatusID, FactorDuree, FactorIntensite, CancelAExpiration(optional)\". The duration/intensite factor modifies the time/force of the effect (0 = no change)."
+    ],
+    [
+     "Annuler a expiration",
+     "Boolean that prevents the end-of-status effects so true -- e.g., a medicine that prevents an infected injury from unfolding in sepsis."
+    ]
+   ]
+  ],
+  [
+   "Weapons and boosters",
+   [
+    [
+     "SlotItems",
+     "Maximum 15 entries per armor. Please note: changing this list changes the boosters already active in existing parts (storage by INDEX in this list)."
+    ],
+    [
+     "Armor",
+     "Additional living points."
+    ],
+    [
+     "Oxygen",
+     "Volume of additional oxygen."
+    ],
+    [
+     "Radiation / Heat / Cold",
+     "Protection to this value."
+    ],
+    [
+     "PowerFac / SpeedFac / StaminaFac / JetpackFac / JumpFac / FoodFac",
+     "Multiplier for energy, speed, endurance, jetpack, jump, food consumption."
+    ]
+   ]
+  ],
+  [
+   "Types of weapons and damage",
+   [
+    [
+     "Class: Ranged",
+     "The damage is defined on the weapon itself; the type of munition carries only stats (mass, volume, cost...)."
+    ],
+    [
+     "Class: LauncherSS",
+     "Degats AND degats of zone (optional) defined on the type of ammunition (sub-entry 'Class: Projectile')."
+    ],
+    [
+     "Degats de zone (Blast)",
+     "ADD to the base data for the central block button. Approximate formula: (Degats + DegatsZone) - (DegatsZone / RayonZone)."
+    ],
+    [
+     "Materiaux disponibles pour multiplicateurs",
+     "head, body, dirt, stone, rock, metallight, metal, metalhard, woodsoft, woodhard, concrete, hull, hullarmored, hullcombat, shield."
+    ],
+    [
+     "ShieldDamagePenFac / BlastShieldDamagePenFac",
+     "Percentage (0.0-1.0) of normal degats/area across the shield."
+    ],
+    [
+     "BlastRadius / BlastDamage / BlastParticleIndex",
+     "Radius and intensity of zone degas, and what visual effect to use (1-16)."
+    ],
+    [
+     "Boucliers : cas particulier",
+     "Zone damage does NOT apply to a shield -- only base damage counts."
+    ],
+    [
+     "ShieldMultiplier",
+     "On a Class:ShieldGenerator (BlocksConfig.ecf), free value reusable in a DamageMultiplier to specifically target this type of shield."
+    ]
+   ]
+  ],
+  [
+   "Categories",
+   [
+    [
+     "Ingredients",
+     "Raw matter without recipe (remasses in the world)."
+    ],
+    [
+     "Components",
+     "Materiel transforms, with a recipe (Templates.ecf)."
+    ]
+   ]
+  ],
+  [
+   "Types of grip (HoldType)",
+   [
+    [
+     "0",
+     "Not specified."
+    ],
+    [
+     "14",
+     "Gun."
+    ],
+    [
+     "15",
+     "Fusil."
+    ],
+    [
+     "16",
+     "Fuse with lower shooting animation (survival tool, multi-tool, drill)."
+    ],
+    [
+     "17",
+     "Arc."
+    ],
+    [
+     "20",
+     "Body to body."
+    ]
+   ]
+  ],
+  [
+   "Miscellaneous",
+   [
+    [
+     "AllowRemote",
+     "Allows/prohibits the use of drone player (real by default)."
+    ],
+    [
+     "AmmoCapacity",
+     "Maximum 500 for all turrets/arms mounted."
+    ],
+    [
+     "Durability",
+     "Maximum 5000 for handheld weapons/tools."
+    ],
+    [
+     "AutoReload",
+     "Automatic reloading (true by default)."
+    ]
+   ]
+  ]
+ ],
+ "GLOBALDEFS_CONFIG_GLOSSARY": [
+  [
+   "Principle",
+   [
+    [
+     "Objectif",
+     "Defining common values (e.g., degass of a weapon, life points of a drone) A ONLY LEFT here, and then reusing them in any other ECF file -- changing the value here is enough to change it anywhere."
+    ],
+    [
+     "Utilisation",
+     "In another file (e.g., ItemsConfig.ecf), use 'GlobalRef: Defname' to refer to this value."
+    ],
+    [
+     "Plusieurs References",
+     "A same block can use multiple GlobalDef via GlobalRef 1 up to GlobalRef 5."
+    ]
+   ]
+  ]
+ ],
+ "LOOT_GROUPS_GLOSSARY": [
+  [
+   "Line Format",
+   [
+    [
+     "Syntaxe",
+     "Item x: name, data: quantite[-plage], xdata: probabilities (x increments for each line; use quotes if quantite is a beach)."
+    ]
+   ]
+  ]
+ ],
+ "MATERIAL_CONFIG_GLOSSARY": [
+  [
+   "General notes",
+   [
+    [
+     "hullarmored / hullcombat",
+     "Can't be destroyed by most hand-held weapons."
+    ],
+    [
+     "Integrite structurelle (SI)",
+     "Maximum current length of a horizontal beam = 12 blocks."
+    ],
+    [
+     "stability_glue / mass",
+     "Determines the maximum number of aline blocks that will not detach due to loss of structural integritis."
+    ]
+   ]
+  ]
+ ],
+ "STATUS_EFFECTS_GLOSSARY": [
+  [
+   "General notes",
+   [
+    [
+     "Blessures basiques",
+     "Consolidate everything an enemy routinely inflicts."
+    ],
+    [
+     "Exemple : saignement standard",
+     "Warms alone without treatment, in 240 life points."
+    ]
+   ]
+  ]
+ ],
+ "TEMPLATES_GLOSSARY": [
+  [
+   "Manufacturer's abbreviations and time factor",
+   [
+    [
+     "SuitC",
+     "Survival Builder -- factor 1.8 (the slowest)."
+    ],
+    [
+     "SurvC",
+     "Portable constructor -- factor 1.6."
+    ],
+    [
+     "SmallC",
+     "SV constructor -- factor 1.4."
+    ],
+    [
+     "HoverC",
+     "Manufacturer HV -- factor 1.4."
+    ],
+    [
+     "BaseC",
+     "Manufacturer T0 -- factor 1.2."
+    ],
+    [
+     "LargeC",
+     "Manufacturer T1V2 -- factor 1 (reference)."
+    ],
+    [
+     "AdvC",
+     "Manufacturer T2 -- factor 0.5 (the fastest)."
+    ],
+    [
+     "FoodP",
+     "Food Transformer V2 -- Factor 1."
+    ],
+    [
+     "Furn",
+     "Furnace -- factor 0.2."
+    ],
+    [
+     "(sans balise)",
+     "Deconstructor -- factor 0.5."
+    ]
+   ]
+  ],
+  [
+   "Tips for recipe",
+   [
+    [
+     "Objet gratuit",
+     "Put ALL lines in Child Inputs a 0 -- never delete the entire section."
+    ],
+    [
+     "BaseItem: true",
+     "Defines the basic level for the blueprints factory, and serves as reference for R2T repair."
+    ],
+    [
+     "Deconstructeur",
+     "Decomposes an object until it gets only basic brands. Ex: Iron ore (BaseItem) will never be recreated from iron ingot."
+    ],
+    [
+     "DeconOverride: Continue",
+     "Authorizes the deconstructor to decompose the object an additional step."
+    ],
+    [
+     "DeconOverride: Stop",
+     "Prevents any deconstruction of this object."
+    ],
+    [
+     "Limitation T1 vers T2",
+     "Using a T1 device as an ingredient of a T2 device only works for unique devices (e.g. Builder), not for block groups (e.g. Cockpits) -- do not use the T1 ingredient in this case."
+    ]
+   ]
+  ]
+ ],
+ "TOKEN_CONFIG_GLOSSARY": [
+  [
+   "Principle",
+   [
+    [
+     "Definition",
+     "A token (Token) is an instance of the 'GenericToken' item that takes its meaning into play -- e.g. the code of a locked door, or a PDA quete/mission requiring this token to finish."
+    ],
+    [
+     "RemoveOnUse",
+     "True, remove the token from the player's inventory as it is used."
+    ],
+    [
+     "Facultatif",
+     "No need to define each token here, but if defined, its name and description will display correctly."
+    ]
+   ]
+  ],
+  [
+   "Use cases",
+   [
+    [
+     "1. Placer un jeton dans un conteneur",
+     "Console: 'give item Token 0001', then place it in a container and save the POI (only works with a core admin currently)."
+    ],
+    [
+     "2. Donner via PDA",
+     "Use 'Token:0001' as a reward or inventory operation in a PDA mission."
+    ],
+    [
+     "3. Donner via dialogue",
+     "AddItem function, ex: AddItem('KeyCardBlack', 3, 1234) gives 3 cards with Meta 1234."
+    ],
+    [
+     "4. Vente par un marchand",
+     "Add the item to the TraderNPCCongig.efc using 'Token:0001' as the item name."
+    ],
+    [
+     "5. Dans une table de butin",
+     "Same principle, use 'Token:0001' in the LootGroups.ecf."
+    ]
+   ]
+  ],
+  [
+   "Important",
+   [
+    [
+     "Item 'Token' (Id 1305)",
+     "Only this item can receive a 4-digit Meta. No other 'keycard' or similar object can have Meta attach."
+    ],
+    [
+     "Rechargement a chaud",
+     "The console command 'token reload' applies changes to this file without restarting the game."
+    ]
+   ]
+  ]
+ ],
+ "TRADER_NPC_CONFIG_GLOSSARY": [
+  [
+   "Format of an item",
+   [
+    [
+     "Syntaxe generale",
+     "Name of item, sale price range, stock range available[, purchase price range, maximum stock range]."
+    ],
+    [
+     "Section achat optionnelle",
+     "If omitted, the merchant does not purchase this item."
+    ],
+    [
+     "Calcul du prix",
+     "If the merchant buys the item (maximum stock defined), the reference price corresponds to a current stock equal to half the stock max. More stock = lower price, less stock = higher price."
+    ],
+    [
+     "Vente seule",
+     "If the merchant only sells the item, the price does not depend on the stock."
+    ],
+    [
+     "Chevauchement autorise",
+     "The purchase price can overlap the sale price -- the game guarantees when even a margin of at least 5% for the merchant."
+    ],
+    [
+     "Facteur de marche (mf=)",
+     "Allows to apply a factor to the basic walking price."
+    ],
+    [
+     "Exemple",
+     "Item 1: \"AutoMinerCore, mf=2.5-3.2, 10-50, mf=1.2-2.3, 55-150\""
+    ]
+   ]
+  ],
+  [
+   "Attention",
+   [
+    [
+     "Marchand par defaut",
+     "Do not change the name of the merchant provided by default."
+    ]
+   ]
+  ]
+ ],
+ "BLOCK_GROUPS_CONFIG_GLOSSARY": [
+  [
+   "Principle",
+   [
+    [
+     "Objectif",
+     "Define a group of individualized blocks sharing a common limit -- useful for balancing, for example, the total number of turrets."
+    ],
+    [
+     "Limite individuelle conservee",
+     "The blocks of the group respect both the limit of the group AND their own individual limit (defined in BlocksConfig.ecf)."
+    ],
+    [
+     "Fonctionne uniquement",
+     "On blocks with an index (a digital Id)."
+    ],
+    [
+     "Informer le joueur",
+     "Add a corresponding line in Localization.csv (ex: 'SVWeapons,Total SV Weapons {0},...') to display the limit in the interface -- nothing else to add in BlocksConfig.ecf."
+    ]
+   ]
+  ],
+  [
+   "Example",
+   [
+    [
+     "BlockGroup Name / MaxCount / Blocks",
+     "Name of the group, total limit, and list of relevant blocks separated by commas."
+    ]
+   ]
+  ]
+ ],
+ "CONTAINERS_GLOSSARY": [
+  [
+   "Line Format",
+   [
+    [
+     "Syntaxe",
+     "\"Group\" (x is incremented), data: \"probability\" [, xdata=\"quantity range\"] (by default 1,1)."
+    ],
+    [
+     "Colonnes",
+     "Always use 8 columns currently (first number of the line 'Size')."
+    ],
+    [
+     "Total disponible",
+     "1023 Id maximum."
+    ]
+   ]
+  ],
+  [
+   "Let's throw into a spoil table",
+   [
+    [
+     "Syntaxe",
+     "Name 0: Token, param1: 1, param2: \"meta=9992\" -- the meta comes from TokenConfig.ecf."
+    ]
+   ]
+  ],
+  [
+   "Tables for PNJ spawners",
+   [
+    [
+     "Usage",
+     "Enter the Id number of the container (ex: 255) in the drop-down menu next to the spawn-entity."
+    ]
+   ]
+  ],
+  [
+   "Crops (garden player)",
+   [
+    [
+     "Fruit",
+     "AlienPalmTreeStage1, PearthingStage1"
+    ],
+    [
+     "Legumes",
+     "AlienPlantTube2Stage1, BulbShroomYoungStage1, DurianRoot, PumpkinStage1, TomatoStage1"
+    ],
+    [
+     "Edulcorant naturel",
+     "AlienplantWormStage1"
+    ],
+    [
+     "Bourgeons",
+     "BigFlowerStage1"
+    ],
+    [
+     "Epice",
+     "CobraLeavesPlantStage1"
+    ],
+    [
+     "Stimulant naturel",
+     "CoffeePlantStage1"
+    ],
+    [
+     "Cereales",
+     "CornStage1, WheatStage1"
+    ],
+    [
+     "Minerai de Pentaxid",
+     "CrystalsPyramidBlueStage1, CrystalsPyramidOrangeStage1, CrystalStraightStage1"
+    ],
+    [
+     "Feuilles medicinales",
+     "DesertPlant20Stage1"
+    ],
+    [
+     "Baies",
+     "ElderberryStage1"
+    ],
+    [
+     "Champignon brun",
+     "MushroomBellBrown01Stage1"
+    ],
+    [
+     "Fibre",
+     "SnakeweedStage1"
+    ]
+   ]
+  ]
+ ],
+ "DAMAGE_MULTIPLIER_CONFIG_GLOSSARY": [
+  [
+   "Principle",
+   [
+    [
+     "Objectif",
+     "Define groups of degat multipliers reusable from ItemsConfig.ecf via 'DamageMultiplier Group: Name ofGroup'."
+    ],
+    [
+     "Une seule methode a la fois",
+     "In ItemsConfig.ecf, use either DamageMultiplier x RIGHT DamageMultiplier Group, not both."
+    ],
+    [
+     "Groupe de groupes",
+     "One 'Collection' combines several groups -- but one group cannot refer to another."
+    ]
+   ]
+  ],
+  [
+   "Example: Pistol",
+   [
+    [
+     "DamageMultiplier_1: 5, param1: head",
+     "x5 of damage to the head."
+    ],
+    [
+     "DamageMultiplier_2: 0, param1: dirt|stone|...",
+     "No damage on these soil/wall materials."
+    ],
+    [
+     "DamageMultiplier_3: 0, param1: shield",
+     "No damage to the shields."
+    ]
+   ]
+  ]
+ ],
+ "DEF_REPUTATION_GLOSSARY": [
+  [
+   "Principle",
+   [
+    [
+     "Objectif",
+     "Replaces reputation by default of all factions of origin (Origin) towards PNJ factions."
+    ]
+   ]
+  ]
+ ],
+ "EGROUPS_CONFIG_GLOSSARY": [
+  [
+   "Principle",
+   [
+    [
+     "Factions",
+     "Creature factions are defined in EClassConfig.ecf, not here."
+    ],
+    [
+     "Groupes de bataille (Battle Groups)",
+     "Appear together and interact as a team (behavioral AI)."
+    ]
+   ]
+  ]
+ ],
+ "FACTIONS_GLOSSARY": [
+  [
+   "Mandatory values",
+   [
+    [
+     "Id",
+     "Must be unique, uses in backups -- changing it breaks existing parts. Must be < 100, otherwise a FACT JEWELL is created instead. Holes in the numbering are allowed."
+    ],
+    [
+     "FactionName",
+     "Without special spaces or characteristics -- usable in localization. A reference for playfields, POI, etc."
+    ],
+    [
+     "Abbrev",
+     "3 letters maximum, avoid special characters."
+    ],
+    [
+     "Color",
+     "\"R,G,B\" -- divide the RGB value by 255 to obtain the expected float."
+    ],
+    [
+     "Description",
+     "Displays at the top of the list for NPC factions."
+    ]
+   ]
+  ],
+  [
+   "Static activities",
+   [
+    [
+     "Definition",
+     "Factions like Legacy or Alien -- impossible to improve its reputation with them."
+    ],
+    [
+     "Friendly: true",
+     "Always friendly -- DefReputation.ecf ignores, do not combine with 'Reputation: true'."
+    ],
+    [
+     "Unfriendly: true",
+     "Still hostile -- same rule."
+    ],
+    [
+     "Ni l'un ni l'autre",
+     "The faction is default neutral."
+    ]
+   ]
+  ],
+  [
+   "Dynamic activities",
+   [
+    [
+     "Definition",
+     "Factions like the Zirax -- reputation, own territory, improvement/degradation possible."
+    ],
+    [
+     "Reputation: true",
+     "Enables the Reputation Matrix of DefReputation.ecf. Otherwise, the faction is hostile static (unless FriendlyToPlayers is active)."
+    ],
+    [
+     "ClaimTerritory: true",
+     "The faction can have a visual territory on the planets (without connection to the galactic territories, geres in galaxy.ecf)."
+    ]
+   ]
+  ],
+  [
+   "Other adjustments",
+   [
+    [
+     "OmitMapLegend",
+     "Hide the faction of the map legend."
+    ],
+    [
+     "HideAbbrev",
+     "Hides the abstraction of the faction in the interface (HUD)."
+    ],
+    [
+     "Discovery",
+     "The faction becomes discoverable as one of its POI is discovered. Debug via the console command 'faction discover <faction>'."
+    ],
+    [
+     "AttackNPC",
+     "This faction attacks other PNJ factions with this active option."
+    ],
+    [
+     "ForceAttack",
+     "List of specifically attacked factions (may be asymetric) -- crushes AttackNPC's behavior."
+    ]
+   ]
+  ],
+  [
+   "To be known",
+   [
+    [
+     "Ne pas melanger",
+     "A faction is either static or dynamic -- never both."
+    ],
+    [
+     "Factions protegees",
+     "Zirax, Talon, Alien, Polaris, Prey, Predator and Admin are managed internally (references/values per default) and are not customizable."
+    ]
+   ]
+  ],
+  [
+   "Faction war (resume)",
+   [
+    [
+     "Civilisation galactique (alliee)",
+     "Zirax, Polaris, Trader, Colonists, Eden Defender."
+    ],
+    [
+     "Ennemis de tous",
+     "Warlord, Alien, TheLegacy, Kriel, Eden Drone, Eden DroneHome, Pirates."
+    ],
+    [
+     "Ressources minables",
+     "Eden Resource, Prey."
+    ],
+    [
+     "Factions codees en dur",
+     "Never modify them (except color) -- must be defined before any other faction in the file."
+    ]
+   ]
+  ]
+ ],
+ "FACTION_WARFARE_GLOSSARY": [
+  [
+   "Space Base Defense (SBD)",
+   [
+    [
+     "Portee",
+     "Global for a whole faction on a given POI -- impossible to configure a specific ship for a specified POI via SBD."
+    ],
+    [
+     "Exclure un POI de la SBD",
+     "In the yaml playfield, use SpaceDefenseOverrideDefaults: True with SpaceDefenseProbability: 1.0 and SpaceDefensePriceMinMax: [30, 60] -- or fix a probability specified (0-1) otherwise managed by AI."
+    ]
+   ]
+  ],
+  [
+   "Zirax base attack (Survival)",
+   [
+    [
+     "FactionSettings",
+     "Converts a level number to attack wave price."
+    ],
+    [
+     "Unit",
+     "Defines an individual unit usable in an attack scenario, stored in a category (e.g. several drone forces minigun depending on the difficulty)."
+    ],
+    [
+     "Scenario",
+     "Defines the complete composition of an attack -- automatically usable by the basic attack system, or manually via a PDA mission."
+    ]
+   ]
+  ]
+ ]
+}
