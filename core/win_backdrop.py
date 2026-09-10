@@ -39,9 +39,12 @@ import sys
 
 # DWMWA_SYSTEMBACKDROP_TYPE (documente a partir de Win11 22H2)
 _DWMWA_SYSTEMBACKDROP_TYPE = 38
-# DWMSBT_TRANSIENTWINDOW : flou acrylique prononce (le "verre depoli" de la
-# maquette validée ; DWMSBT_MAINWINDOW = Mica, plus discret).
+# Materiaux systeme (valeurs DWMWA_SYSTEMBACKDROP_TYPE) :
+#   2 = DWMSBT_MAINWINDOW  -> Mica (discret, teinte par le fond d'ecran)
+#   3 = DWMSBT_ACRYLIC     -> flou acrylique prononce (verre depoli)
+_DWMSBT_MAINWINDOW = 2
 _DWMSBT_ACRYLIC = 3
+_BACKDROP_CONSTANTS = {"mica": _DWMSBT_MAINWINDOW, "acrylic": _DWMSBT_ACRYLIC}
 
 _WIN11_22H2_BUILD = 22621
 
@@ -67,23 +70,27 @@ class _MARGINS(ctypes.Structure):
                 ("cyTopHeight", ctypes.c_int), ("cyBottomHeight", ctypes.c_int)]
 
 
-def enable_acrylic(widget) -> bool:
-    """Active le flou acrylique DERRIERE la fenetre `widget`. Retourne True
-    si (et seulement si) le systeme a confirme l'application -- l'appelant
-    ne doit activer la moindre translucence QUE sur cette valeur.
+def enable_backdrop(widget, kind: str = "acrylic") -> bool:
+    """Active un materiau de fond Windows 11 DERRIERE la fenetre `widget`
+    ("mica" ou "acrylic"). Retourne True si (et seulement si) le systeme a
+    confirme l'application -- l'appelant ne doit activer la moindre
+    translucence QUE sur cette valeur.
 
     GUI-002 (corrige le 07/09/2026) : poser DWMWA_SYSTEMBACKDROP_TYPE seul
     ne produit AUCUN effet visible (fond opaque, verifie par capture d'ecran
-    cote a cote) -- DWM ne peint le flou que dans le cadre ETENDU dans la
-    zone cliente. La recette complete est donc : attribut backdrop PUIS
+    cote a cote) -- DWM ne peint le materiau que dans le cadre ETENDU dans
+    la zone cliente. La recette complete est donc : attribut backdrop PUIS
     DwmExtendFrameIntoClientArea(-1, -1, -1, -1). Les deux codes retour
     doivent etre S_OK, sinon on declare l'echec (invariant : jamais
-    translucide sans flou)."""
+    translucide sans materiau)."""
+    constant = _BACKDROP_CONSTANTS.get(kind)
+    if constant is None:
+        return False
     if not acrylic_supported():
         return False
     try:
         hwnd = int(widget.winId())
-        backdrop = ctypes.c_int(_DWMSBT_ACRYLIC)
+        backdrop = ctypes.c_int(constant)
         result = ctypes.windll.dwmapi.DwmSetWindowAttribute(
             hwnd, _DWMWA_SYSTEMBACKDROP_TYPE,
             ctypes.byref(backdrop), ctypes.sizeof(backdrop))
@@ -95,3 +102,9 @@ def enable_acrylic(widget) -> bool:
         return result == 0  # S_OK
     except (OSError, AttributeError, ValueError):
         return False
+
+
+def enable_acrylic(widget) -> bool:
+    """Active le flou acrylique DERRIERE la fenetre `widget` (theme
+    Verriere). Wrapper historique de enable_backdrop(widget, "acrylic")."""
+    return enable_backdrop(widget, "acrylic")

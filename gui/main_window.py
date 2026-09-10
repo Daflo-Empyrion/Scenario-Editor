@@ -211,6 +211,13 @@ class MainWindow(QMainWindow):
         self.action_pda_editor = self.menu_tools.addAction(t("menu.tools.pda_editor"))
         self.action_pda_editor.setToolTip(t("menu.tools.pda_editor.tip"))
         self.action_pda_editor.triggered.connect(self._open_pda_editor)
+        self.menu_tools.addSeparator()
+        self.action_block_library = self.menu_tools.addAction(t("menu.tools.block_library"))
+        self.action_block_library.triggered.connect(self._open_block_library)
+        self.action_modified_files = self.menu_tools.addAction(t("menu.tools.modified_files"))
+        self.action_modified_files.triggered.connect(self._open_modified_files)
+        self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
+        self.action_dashboard.triggered.connect(self._open_dashboard)
         self.action_economy_editor = self.menu_tools.addAction(t("menu.tools.economy"))
         self.action_economy_editor.triggered.connect(self._open_economy_editor)
         self.menu_tools.addSeparator()
@@ -265,6 +272,8 @@ class MainWindow(QMainWindow):
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
         self.action_vanilla_content = self.menu_options.addAction(t("menu.options.vanilla_content"))
         self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
+        self.action_extra_icons = self.menu_options.addAction(t("menu.options.extra_icons"))
+        self.action_extra_icons.triggered.connect(self._set_extra_icons_dialog)
 
         # Pilote PyQt-Fluent-Widgets (decision 09/09/2026) : chrome de la
         # fenetre principale en widgets Fluent, le reste de l'app inchange.
@@ -817,6 +826,19 @@ class MainWindow(QMainWindow):
         widget = self.tabs.currentWidget()
         if widget and hasattr(widget, 'save'):
             widget.save()
+            # Sauvegarde VERSIONNEE (demande du 10/09/2026) : copie l'etat
+            # enregistre dans les backups hororlates du scenario, avec
+            # rotation. Silencieuse en cas d'echec disque (l'enregistrement
+            # lui-meme a deja reussi) ; l'onglet peut exposer un fichier hors
+            # copie de travail (comparaison...) -> filtre sur le workspace.
+            if self.workspace:
+                try:
+                    from core.versioned_backup import snapshot_file
+                    path = self.tabs.tabToolTip(self.tabs.currentIndex())
+                    if path and Path(path).exists():
+                        snapshot_file(self.workspace.working_root, Path(path))
+                except Exception:
+                    pass
         else:
             self.statusBar().showMessage(t("status.nothing_to_save"))
 
@@ -1379,18 +1401,22 @@ class MainWindow(QMainWindow):
         self._apply_theme_backdrop()
 
     def _apply_theme_backdrop(self):
-        """Applique (ou retire) le flou acrylique Windows 11 selon que le
-        theme courant le demande -- appele au demarrage ET a chaque changement
-        de theme."""
+        """Applique (ou retire) le materiau de fond Windows 11 demande par le
+        theme (acrylique pour Verriere, Mica pour Nuit Mica) -- appele au
+        demarrage ET a chaque changement de theme. La teinte de verre posee
+        sur la fenetre vient de la palette ("glass_qss") ; sans cette cle,
+        c'est la teinte historique de Verriere qui sert (comportement
+        strictement conserve pour les themes existants)."""
         from PyQt6.QtCore import Qt as _Qt
         palette = _theme.get_palette(_theme.CURRENT_THEME_ID)
         wants = bool(palette.get("acrylic")) and win_backdrop.acrylic_supported()
         if wants:
             self.setAttribute(_Qt.WidgetAttribute.WA_TranslucentBackground, True)
-            if win_backdrop.enable_acrylic(self):
-                self.setStyleSheet(
+            if win_backdrop.enable_backdrop(self, palette.get("backdrop", "acrylic")):
+                self.setStyleSheet(palette.get(
+                    "glass_qss",
                     "QMainWindow { background-color: rgba(4, 8, 16, 186); }"
-                    " .QWidget { background-color: rgba(4, 8, 16, 186); }")
+                    " .QWidget { background-color: rgba(4, 8, 16, 186); }"))
                 return True
             self.setAttribute(_Qt.WidgetAttribute.WA_TranslucentBackground, False)
         else:
@@ -1402,6 +1428,42 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, t("author.title"), t("author.label"), text=current)
         if ok and name.strip():
             settings.set_author(name.strip())
+
+    def _set_extra_icons_dialog(self):
+        """Dossier d'icones supplementaires (icones de MODS, ex RE2) : fusionne
+        en priorite maximale dans l'index d'icones (catalogue, tableaux, arbre
+        technologique). Vide (annulation) = conserve le reglage existant ; le
+        bouton de la boite de dialogue sert aussi de remise a zero via la
+        suppression du dossier dans le gestionnaire de fichiers."""
+        current = settings.get_extra_icons_dir()
+        folder = QFileDialog.getExistingDirectory(self, t("menu.options.extra_icons"),
+                                                  current or "")
+        if not folder:
+            return
+        settings.set_extra_icons_dir(folder)
+        # la signature du cache d'icones inclut ce dossier : l'index se
+        # recalcule seul au prochain usage (voir tech_tree_icons)
+        self.statusBar().showMessage(
+            t("status.extra_icons_set", folder=folder), 8000)
+
+    def _open_block_library(self):
+        """Bibliotheque de blocs reutilisables (demande du 10/09/2026) --
+        dialogue NON MODAL, consultable pendant l'edition."""
+        from gui.block_library_dialog import BlockLibraryDialog
+        self._block_library_dialog = BlockLibraryDialog(self)
+        self._block_library_dialog.show()
+
+    def _open_modified_files(self):
+        """Vue des fichiers de la copie de travail differs du scenario A."""
+        from gui.modified_files_dialog import ModifiedFilesDialog
+        self._modified_files_dialog = ModifiedFilesDialog(self)
+        self._modified_files_dialog.show()
+
+    def _open_dashboard(self):
+        """Tableau de bord du scenario (stats + bilan regles metiers)."""
+        from gui.dashboard_dialog import DashboardDialog
+        self._dashboard_dialog = DashboardDialog(self)
+        self._dashboard_dialog.show()
 
     def _set_vanilla_content_dialog(self):
         """Dossier Content de l'installation Steam du jeu -- sert au nouveau
@@ -2380,6 +2442,24 @@ class MainWindow(QMainWindow):
         if status == 'exists':
             QMessageBox.warning(self, t("dup.already_used_title"), t("dup.already_used_msg", file=dest.name))
             return
+        # Reecriture des Ref INTERNES du clone (demande du 10/09/2026) : les
+        # sous-blocs du clone qui heritaient de l'original via 'Ref: <ancien
+        # Id>' doivent pointer vers le nouveau Id, sinon le clone reste
+        # accroche a l'original. Toujours actif quand un nouvel Id est pose ;
+        # conservatif (Ref exactes uniquement), 0 reecriture = aucun ecrit.
+        old_id = source_block.get('Id')
+        if status == 'added' and dialog.result_new_id and old_id \
+                and old_id != dialog.result_new_id:
+            from core.ecf.ref_rewrite import rewrite_internal_refs
+            from core.ecf.parser import parse_ecf_file as _parse
+            from core.fsutil import atomic_write_text as _atomic
+            try:
+                wdoc = _parse(dest)
+                n_refs = rewrite_internal_refs(wdoc.nodes, old_id, dialog.result_new_id)
+                if n_refs:
+                    _atomic(dest, wdoc.render())
+            except Exception:
+                pass  # la duplication reste valide sans la reecriture
         self._push_workspace_undo(FileStateUndo(dest, prior, t("wsundo.duplicate_block", name=dest.name)))
         for i in range(self.tabs.count()):
             if self.tabs.tabToolTip(i) == str(dest):

@@ -39,20 +39,29 @@ def test_verriere_palette_has_optional_keys():
 
 
 def test_other_themes_have_no_optional_glass_keys():
-    # Les cles optionnelles (extra_qss/neon_selection/acrylic) restent
-    # reservees aux themes qui les DECLARENT explicitement ("h" Verriere,
-    # "i" Nuit Fluent qui reutilise le mecanisme acrylique) -- aucune fuite
-    # vers les autres themes.
-    themes_with_optional = {"h", "i"}
+    # Les cles optionnelles (extra_qss/neon_selection/acrylic/backdrop/
+    # glass_qss) restent reservees aux themes qui les DECLARENT explicitement
+    # ("h" Verriere acrylique, "i" Nuit Fluent grilles estompees, "j" Nuit
+    # Mica) -- aucune fuite vers les autres themes.
+    themes_with_optional = {"h", "i", "j"}
     for theme_id, palette in THEMES.items():
         if theme_id not in themes_with_optional:
             assert "extra_qss" not in palette
             assert "neon_selection" not in palette
             assert "acrylic" not in palette
+            assert "backdrop" not in palette
+            assert "glass_qss" not in palette
     # Verriere garde son identite neon exclusive
     for theme_id, palette in THEMES.items():
         if theme_id != "h":
             assert "neon_selection" not in palette
+
+
+def test_verriere_keeps_historical_glass_tint_fallback():
+    # "h" ne definit PAS glass_qss : _apply_theme_backdrop doit retomber sur
+    # sa teinte historique codee en dur (comportement strictement conserve).
+    assert "glass_qss" not in THEMES["h"]
+    assert THEMES["j"].get("backdrop") == "mica"
 
 
 def test_build_stylesheet_appends_extra_qss_only_for_verriere():
@@ -185,8 +194,8 @@ def test_main_window_enables_acrylic_only_when_supported(qapp, monkeypatch, tmp_
     apply_theme(qapp, "h")  # theme demandant l'acrylic
     monkeypatch.setattr(win_backdrop, "acrylic_supported", lambda: False)
     enabled = []
-    monkeypatch.setattr(win_backdrop, "enable_acrylic",
-                        lambda w: enabled.append(1) or False)
+    monkeypatch.setattr(win_backdrop, "enable_backdrop",
+                        lambda w, kind="acrylic": enabled.append(1) or False)
     win = MainWindow()
     assert enabled == []  # support absent : pas meme tenté
     win.close()
@@ -203,16 +212,34 @@ def test_main_window_applies_translucency_only_after_confirmation(
     apply_theme(qapp, "h")
     attempts = []
 
-    def _fake_enable(widget):
-        attempts.append(widget)
+    def _fake_enable(widget, kind="acrylic"):
+        attempts.append((widget, kind))
         return False  # le systeme refuse malgre le support (ex: RDP)
 
     monkeypatch.setattr(win_backdrop, "acrylic_supported", lambda: True)
-    monkeypatch.setattr(win_backdrop, "enable_acrylic", _fake_enable)
+    monkeypatch.setattr(win_backdrop, "enable_backdrop", _fake_enable)
     from PyQt6.QtCore import Qt as _Qt
     win = MainWindow()
     assert len(attempts) == 1
+    assert attempts[0][1] == "acrylic"  # Verriere demande l'acrylique
     assert win.testAttribute(_Qt.WidgetAttribute.WA_TranslucentBackground) is False
+    win.close()
+
+
+def test_main_window_requests_mica_for_nuit_mica_theme(qapp, monkeypatch):
+    """Theme 'j' (Nuit Mica) : le materiau demande au DWM est bien Mica et
+    la teinte de verre posee est celle du theme (et non celle de Verriere)."""
+    from core import win_backdrop
+    from gui.theme import apply_theme
+    from gui.main_window import MainWindow
+
+    apply_theme(qapp, "j")
+    requests = []
+    monkeypatch.setattr(win_backdrop, "acrylic_supported", lambda: True)
+    monkeypatch.setattr(win_backdrop, "enable_backdrop",
+                        lambda w, kind="acrylic": requests.append(kind) or False)
+    win = MainWindow()
+    assert requests == ["mica"]
     win.close()
 
 

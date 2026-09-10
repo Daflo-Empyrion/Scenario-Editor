@@ -5027,6 +5027,18 @@
   "fr": "Éditeur PDA (nouveau)",
   "en": "PDA Editor (new)"
  },
+ "menu.tools.block_library": {
+  "fr": "Bibliothèque de blocs",
+  "en": "Block library"
+ },
+ "menu.tools.modified_files": {
+  "fr": "Fichiers modifiés",
+  "en": "Modified files"
+ },
+ "menu.tools.dashboard": {
+  "fr": "Tableau de bord du scénario",
+  "en": "Scenario dashboard"
+ },
  "menu.tools.pda_editor.tip": {
   "fr": "Édition complète des chapitres, tâches et actions du PDA",
   "en": "Full editing of PDA chapters, tasks and actions"
@@ -5042,6 +5054,10 @@
  "menu.options.vanilla_content": {
   "fr": "Dossier du jeu (vanille)...",
   "en": "Game folder (vanilla)..."
+ },
+ "menu.options.extra_icons": {
+  "fr": "Dossier d'icônes supplémentaire...",
+  "en": "Extra icons folder..."
  },
  "menu.options.fluent_pilot": {
   "fr": "Interface Fluent (pilote)",
@@ -5858,5 +5874,169 @@
  "eco.open_error": {
   "fr": "L'éditeur d'économie n'a pas pu s'ouvrir. Détail technique :",
   "en": "The economy editor could not open. Technical detail:"
+ },
+ "status.extra_icons_set": {
+  "fr": "Dossier d'icônes supplémentaire : {folder}. Pris en compte au prochain chargement des icônes.",
+  "en": "Extra icons folder: {folder}. Applied at the next icon load."
+ },
+ "status.refs_rewritten": {
+  "fr": "Duplication : {n} référence(s) interne(s) réécrite(s) vers le nouvel Id.",
+  "en": "Duplication: {n} internal reference(s) rewritten to the new Id."
+ },
+ "lib.title": {
+  "fr": "Bibliothèque de blocs",
+  "en": "Block library"
+ },
+ "lib.hint": {
+  "fr": "Blocs réutilisables exportés depuis vos scénarios. « Insérer » ajoute le bloc sélectionné dans l'onglet ECF actif de la copie de travail.",
+  "en": "Reusable blocks exported from your scenarios. \"Insert\" adds the selected block into the active ECF tab of the working copy."
+ },
+ "lib.insert": {
+  "fr": "Insérer dans l'onglet actif",
+  "en": "Insert into active tab"
+ },
+ "lib.delete": {
+  "fr": "Supprimer",
+  "en": "Delete"
+ },
+ "lib.export": {
+  "fr": "Exporter un bloc...",
+  "en": "Export a block..."
+ },
+ "lib.refresh": {
+  "fr": "Actualiser",
+  "en": "Refresh"
+ },
+ "lib.confirm_delete": {
+  "fr": "Supprimer le snippet « {name} » ?",
+  "en": "Delete snippet \"{name}\"?"
+ },
+ "lib.pick_file": {
+  "fr": "Fichier ECF de la copie de travail :",
+  "en": "ECF file of the working copy:"
+ },
+ "lib.pick_block": {
+  "fr": "Bloc à exporter :",
+  "en": "Block to export:"
+ },
+ "lib.no_ecf": {
+  "fr": "Aucun fichier ECF dans la copie de travail.",
+  "en": "No ECF file in the working copy."
+ },
+ "lib.no_block": {
+  "fr": "Aucun bloc trouvé dans ce snippet/fichier.",
+  "en": "No block found in this snippet/file."
+ },
+ "lib.no_tab": {
+  "fr": "Ouvre d'abord un fichier ECF de la copie de travail dans un onglet.",
+  "en": "Open an ECF file of the working copy in a tab first."
+ },
+ "lib.not_ecf": {
+  "fr": "L'onglet actif n'est pas un fichier ECF.",
+  "en": "The active tab is not an ECF file."
+ },
+ "lib.already_exists": {
+  "fr": "Un bloc de même identité existe déjà à cet endroit.",
+  "en": "A block with the same identity already exists there."
+ },
+ "lib.parent_missing": {
+  "fr": "Le parent du bloc n'a pas été trouvé dans la copie de travail.",
+  "en": "The block parent was not found in the working copy."
+ },
+ "lib.insert_ok": {
+  "fr": "Bloc « {name} » inséré dans {file}.",
+  "en": "Block \"{name}\" inserted into {file}."
+ },
+ "lib.saved": {
+  "fr": "Bloc exporté vers la bibliothèque.",
+  "en": "Block exported to the library."
+ },
+ "wsundo.insert_block": {
+  "fr": "Insertion du bloc « {name} »",
+  "en": "Insert block \"{name}\""
+ },
+ "dash.title": {
+  "fr": "Tableau de bord du scénario",
+  "en": "Scenario dashboard"
+ },
+ "dash.refresh": {
+  "fr": "Actualiser",
+  "en": "Refresh"
+ },
+ "dash.stat_ecf": {
+  "fr": "Fichiers ECF",
+  "en": "ECF files"
+ },
+ "dash.stat_blocks": {
+  "fr": "Blocs ECF",
+  "en": "ECF blocks"
+ },
+ "dash.stat_yaml": {
+  "fr": "Fichiers YAML",
+  "en": "YAML files"
+ },
+ "dash.stat_csv": {
+  "fr": "Fichiers CSV",
+  "en": "CSV files"
+ },
+ "dash.stat_traders": {
+  "fr": "Marchands (PNJ)",
+  "en": "Traders (NPC)"
+ },
+ "dash.stat_modified": {
+  "fr": "Onglets modifiés",
+  "en": "Modified tabs"
+ },
+ "dash.validation_summary": {
+  "fr": "Règles métiers : {errors} erreur(s), {warnings} avertissement(s) (validation ECF + TraderZone).",
+  "en": "Business rules: {errors} error(s), {warnings} warning(s) (ECF validation + TraderZone)."
+ },
+ "modfiles.title": {
+  "fr": "Fichiers modifiés",
+  "en": "Modified files"
+ },
+ "modfiles.summary": {
+  "fr": "{n} fichier(s) différent(s) du scénario A d'origine.",
+  "en": "{n} file(s) differing from the original scenario A."
+ },
+ "modfiles.open": {
+  "fr": "Ouvrir",
+  "en": "Open"
+ },
+ "modfiles.state_added": {
+  "fr": "ajouté",
+  "en": "added"
+ },
+ "modfiles.state_modified": {
+  "fr": "modifié",
+  "en": "modified"
+ },
+ "search.replace_by": {
+  "fr": "Remplacer par :",
+  "en": "Replace with:"
+ },
+ "search.replace_placeholder": {
+  "fr": "Texte de remplacement (vide = suppression)",
+  "en": "Replacement text (empty = deletion)"
+ },
+ "search.replace_btn": {
+  "fr": "Remplacer dans les fichiers cochés",
+  "en": "Replace in checked files"
+ },
+ "search.replace_confirm": {
+  "fr": "Remplacer toutes les occurrences de « {query} » par « {replacement} » dans {files} fichier(s) de la copie de travail ?\n\nUn Ctrl+Z annule fichier par fichier.",
+  "en": "Replace every occurrence of \"{query}\" with \"{replacement}\" in {files} working-copy file(s)?\n\nCtrl+Z undoes file by file."
+ },
+ "search.no_checked_file": {
+  "fr": "Coche au moins un résultat (fichier concerné).",
+  "en": "Check at least one result (affected file)."
+ },
+ "search.replaced_summary": {
+  "fr": "{n} remplacement(s) dans {files} fichier(s).",
+  "en": "{n} replacement(s) in {files} file(s)."
+ },
+ "search.replace_undo": {
+  "fr": "Remplacement multi-fichiers ({file})",
+  "en": "Multi-file replacement ({file})"
  }
 }

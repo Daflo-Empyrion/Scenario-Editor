@@ -298,9 +298,68 @@ QToolTip {{
         # paraissait a nouveau noir au lieu du gris desature voulu. Le theme
         # reste 100% opaque : la palette ci-dessus est rendue telle quelle.
     },
+    "j": {
+        # Theme "Nuit Mica" (10/09/2026) : la palette du theme "i" avec le
+        # VRAI materiau Mica de Windows 11 (DWMSBT_MAINWINDOW, teinte par le
+        # fond d'ecran -- plus discret que l'acrylique de Verriere). Les
+        # surfaces sont repeintes semi-transparentes dans extra_qss pour
+        # laisser deviner le materiau, et la teinte de verre de la fenetre
+        # est fournie par "glass_qss" (voir MainWindow._apply_theme_backdrop
+        # -- celle de Verriere est historique et reste codee en dur).
+        "label": "J — Nuit Mica",
+        "bg": "#1e1e24", "surface": "#26262e", "surface_alt": "#2d2d34",
+        "border": "#3a3a42", "border_strong": "#4a4a55",
+        "text_primary": "#e3e3e3", "text_muted": "#a1a1a1", "text_on_primary": "#10141a",
+        "accent": "#60cdff", "accent_hover": "#7ed8ff", "accent_pressed": "#48b3e6",
+        "accent_bg_tint": "#14384a",
+        "nav_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                         "stop:0 rgba(26,26,32,215), stop:1 rgba(35,35,48,215))",
+        "nav_text": "#e3e3e3",
+        "success": "#5FD98A", "warning": "#F5A623", "danger": "#E8555A", "danger_dark": "#C23B40",
+        "font_family": "Segoe UI",
+        "acrylic": True,      # veut un materiau DWM (degrade gracieux sans support)
+        "backdrop": "mica",   # lequel : Mica, pas le verre depoli
+        "extra_qss": """
+/* --- Theme Nuit Mica : grilles estompees + surfaces semi-transparentes --- */
+QTableWidget {{
+    gridline-color: {GRID_LINE};
+    alternate-background-color: rgba(45, 45, 52, 160);
+}}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {{
+    border: none;
+}}
+QTableWidget::viewport, QTreeWidget::viewport, QListWidget::viewport {{
+    background-color: rgba(38, 38, 46, 165);
+    border-radius: 10px;
+}}
+QHeaderView::section {{
+    background-color: rgba(45, 45, 52, 165);
+    color: {TEXT_MUTED};
+    border: none;
+    border-bottom: 1px solid {GRID_LINE};
+}}
+QTabWidget::pane {{
+    background-color: rgba(38, 38, 46, 165);
+}}
+QToolTip {{
+    background: rgba(38, 38, 46, 235);
+    color: {TEXT_PRIMARY};
+    border: 1px solid {BORDER};
+}}
+""".format(GRID_LINE="#33333c", TEXT_MUTED="#a1a1a1", TEXT_PRIMARY="#e3e3e3", BORDER="#3a3a42"),
+        # Teinte de verre posee par _apply_theme_backdrop sur la fenetre :
+        # le gris du theme "i" en semi-transparence (alpha 170 apres retour
+        # utilisateur "plus de transparence" du 10/09/2026 -- les tooltips
+        # restent opaques pour la lisibilité), pour laisser deviner le Mica
+        # sans jamais sombrer au noir.
+        "glass_qss": (
+            "QMainWindow { background-color: rgba(30, 30, 36, 170); }"
+            " .QWidget { background-color: rgba(30, 30, 36, 170); }"
+        ),
+    },
 }
 
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i"]
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 DEFAULT_THEME_ID = "classic"
 
 

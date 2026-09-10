@@ -27,7 +27,9 @@ def test_theme_registry_has_all_expected_ids():
     assert set(THEME_ORDER) == set(THEMES.keys())
     # "i" = Nuit Fluent (audit rendu du 09/09/2026 : palette longues
     # sessions desaturee, s'articule avec le pilote gui/fluent_pilot.py)
-    assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i"]
+    # "j" = Nuit Mica (10/09/2026 : meme palette + materiau Mica Windows 11)
+    assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e",
+                           "f", "g", "h", "i", "j"]
 
 
 REQUIRED_PALETTE_KEYS = {

@@ -82,7 +82,7 @@ def find_term_explanation(filename: str, term: str) -> "str | None":
     l'un des deux membres separes par '/'). Retourne None si aucune
     correspondance -- l'appelant doit alors se rabattre sur d'autres
     sources (commentaire du fichier lui-meme, ou aucune infobulle)."""
-    glossary = GLOSSARY_BY_FILE.get(filename)
+    glossary = glossary_by_file_for_current_language().get(filename)
     if not glossary:
         return None
     term_lower = term.strip().lower()
@@ -94,3 +94,63 @@ def find_term_explanation(filename: str, term: str) -> "str | None":
             if term_lower in candidates:
                 return explanation
     return None
+
+
+# ---------------------------------------------------------------------------
+# OPT-006 (demande du 10/09/2026) : explications en ANGLAIS. Le fichier
+# data/ecf_header_glossary.en.json (meme structure, genere par
+# tools/translate_glossary.py) est utilise quand la langue de l'interface
+# est 'en' ; absent ou incomplet -> repli transparent sur le FR (jamais de
+# fiche vide). Les termes de recherche restent les cles reelles des fichiers
+# (AllowPlacingAt...) : seuls titres et explications sont traduits.
+# ---------------------------------------------------------------------------
+
+_EN_DATA = None  # cache paresseux : {} = fichier EN absent (evite relecture)
+
+
+def _english_data() -> dict:
+    global _EN_DATA
+    if _EN_DATA is None:
+        try:
+            _EN_DATA = load_json_data("ecf_header_glossary.en.json")
+        except Exception:
+            _EN_DATA = {}
+    return _EN_DATA
+
+
+def glossary_by_file_for_current_language() -> dict:
+    """GLOSSARY_BY_FILE dans la langue de l'interface : EN si disponible,
+    sinon FR (repli transparent). Les consommateurs directs de
+    GLOSSARY_BY_FILE (panneau d'explications de la fiche) doivent passer par
+    cette fonction pour etre traduits."""
+    from core.i18n import get_language
+    if get_language() == "en":
+        en = _english_data()
+        if en:
+            # fusionne : les glossaires/entrees non traduites retombent sur le FR
+            merged = {}
+            for filename, glossary in GLOSSARY_BY_FILE.items():
+                en_glossary = en.get(filename) or glossary
+                merged_sections = []
+                for fi, (title, entries) in enumerate(en_glossary):
+                    try:
+                        fr_title, fr_entries = glossary[fi]
+                    except (IndexError, TypeError):
+                        continue
+                    merged_entries = []
+                    for ei, (term, explanation) in enumerate(entries):
+                        try:
+                            fr_term, fr_explanation = fr_entries[ei]
+                        except (IndexError, TypeError):
+                            continue
+                        merged_entries.append((
+                            fr_term,
+                            explanation if (explanation or "").strip() else fr_explanation,
+                        ))
+                    merged_sections.append((
+                        title if (title or "").strip() else fr_title,
+                        merged_entries,
+                    ))
+                merged[filename] = merged_sections
+            return merged
+    return GLOSSARY_BY_FILE

@@ -169,6 +169,19 @@ def build_icon_index(working_root: Path) -> Dict[str, IconRef]:
     if scenario_dir is not None:
         index.update(_scan_directory(scenario_dir))
 
+    # Dossier d'icones supplementaires (icones de MODS, ex RE2 -- demande du
+    # 10/09/2026, reglage Options) : PRIORITE MAXIMALE, fusionne en dernier
+    # (ses icones ecrasent toutes les autres sources).
+    try:
+        from core.settings import get_extra_icons_dir
+        extra = get_extra_icons_dir()
+    except Exception:
+        extra = ""
+    if extra:
+        extra_dir = Path(extra)
+        if extra_dir.is_dir():
+            index.update(_scan_directory(extra_dir))
+
     return index
 
 
@@ -210,6 +223,14 @@ def _icon_sources_signature(working_root: Path) -> list:
     _stat(icon_pack_path() or Path("nopak"))
     _stat(bundled_icon_directory() or Path("nobundled"))
     _stat(icon_directory(working_root) or (working_root or Path("noscenario")).joinpath(*ICON_SUBPATH))
+    # le dossier supplementaire participe au contenu de l'index : il doit
+    # aussi participer a la signature du cache
+    try:
+        from core.settings import get_extra_icons_dir
+        extra = get_extra_icons_dir()
+    except Exception:
+        extra = ""
+    _stat(Path(extra) if extra else Path("noextra"))
     return sig
 
 

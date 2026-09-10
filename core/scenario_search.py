@@ -27,7 +27,7 @@ exacte (limitation connue, documentee plutot que masquee).
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .ecf.parser import parse_ecf_file
 from .ecf.model import block_identity
@@ -170,3 +170,46 @@ def search_scenario(ecf_files: List[Path], yaml_files: List[Path], csv_files: Li
     results.extend(search_yaml_files(yaml_files, query, case_sensitive, use_regex))
     results.extend(search_csv_files(csv_files, query, case_sensitive, use_regex))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Remplacement multi-fichiers (demande du 10/09/2026) : s'applique AUX
+# FICHIERS DE LA COPIE DE TRAVAIL uniquement (l'appelant ne passe que ceux-
+# ci). Remplacement textuel de TOUTES les occurrences de la requete dans
+# chaque fichier coche, octet-presque-presque : lecture/écriture en bytes
+# decodees utf-8 pour preserver BOM et CRLF (seule la partie remplacee
+# change, comme pour le round-trip du parseur).
+# ---------------------------------------------------------------------------
+
+def replace_in_files(files: List[Path], query: str, replacement: str,
+                     case_sensitive: bool = False,
+                     use_regex: bool = False) -> "Dict[Path, int]":
+    """Remplace toutes les occurrences de `query` dans chaque fichier et
+    retourne le nombre de remplacements par fichier (fichiers sans
+    correspondance absents du resultat). En mode regex, `query` est un motif
+    et `replacement` un template re.sub (groupes \1...). Leve re.error si
+    le motif est invalide."""
+    if not query:
+        return {}
+    flags = 0 if case_sensitive else re.IGNORECASE
+    pattern = re.compile(query if use_regex else re.escape(query), flags)
+    replaced: Dict[Path, int] = {}
+    for path in files:
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            continue
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if use_regex:
+            new_text, count = pattern.subn(replacement, text)
+        else:
+            # mode litteral : les backslashes du remplacement ne doivent pas
+            # etre interpretes comme des references de groupe re.sub
+            new_text, count = pattern.subn(replacement.replace("\\", "\\\\"), text)
+        if count:
+            path.write_bytes(new_text.encode("utf-8"))
+            replaced[path] = count
+    return replaced

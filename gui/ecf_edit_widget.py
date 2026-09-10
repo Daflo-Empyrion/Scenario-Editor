@@ -755,9 +755,11 @@ class EcfHeaderExplanationPanel(QWidget):
 
     def __init__(self, doc: EcfDocument, filename: str, parent=None):
         super().__init__(parent)
-        from core.ecf_header_glossary import GLOSSARY_BY_FILE
+        from core.ecf_header_glossary import glossary_by_file_for_current_language
         self._header_text = doc.extract_header_comment()
-        self._glossary = GLOSSARY_BY_FILE.get(filename)
+        # OPT-006 : glossaire dans la langue de l'interface (EN si le fichier
+        # traduit existe, repli transparent FR sinon)
+        self._glossary = glossary_by_file_for_current_language().get(filename)
         self._has_glossary = self._glossary is not None
         self._showing_raw = False
         self._translated_cache: Optional[str] = None

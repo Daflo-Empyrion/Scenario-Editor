@@ -120,6 +120,15 @@ class ValidationDialog(QDialog):
         # sur un gros scenario -- curseur + boite "en cours" immediates.
         with busy_guard(self):
             self.issues_by_file = validate_scenario(self.scenario_root)
+            # Regle trans-fichiers (demande du 10/09/2026) : TraderZone d'un
+            # Playfield.yaml vers les marchands de TraderNPCConfig.ecf. Les
+            # playfields YAML ne passent pas dans validate_scenario (ECF).
+            try:
+                from core.trader_zone_check import check_trader_zone_references
+                for issue in check_trader_zone_references(self.scenario_root):
+                    self.issues_by_file.setdefault(issue.file_path, []).append(issue)
+            except Exception:
+                pass  # la validation ECF reste valable sans cette regle
             self._populate_tree()
             self._update_summary()
 

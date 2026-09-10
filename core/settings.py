@@ -202,6 +202,17 @@ def set_fluent_pilot_enabled(enabled: bool) -> None:
     _set('fluent_pilot_enabled', enabled)
 
 
+def get_extra_icons_dir() -> str:
+    """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
+    PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,
+    voir core.tech_tree_icons.build_icon_index). Vide = desactive."""
+    return _get('extra_icons_dir', "")
+
+
+def set_extra_icons_dir(path: str) -> None:
+    _set('extra_icons_dir', path)
+
+
 def get_vanilla_content_path() -> str:
     """Dossier Content de l'installation Steam du jeu (ex:
     C:/Program Files (x86)/Steam/steamapps/common/Empyrion - Galactic

@@ -35,6 +35,7 @@ from PyQt6.QtWidgets import (
 from core.i18n import t
 from gui.busy import busy_guard
 from core.scenario_search import search_scenario, SearchResult
+from core.workspace_undo import FileStateUndo, capture_file
 
 
 class ScenarioSearchDialog(QDialog):
@@ -71,6 +72,22 @@ class ScenarioSearchDialog(QDialog):
         self.results_list = QListWidget()
         self.results_list.itemDoubleClicked.connect(self._navigate_to_result)
         layout.addWidget(self.results_list, 1)
+
+        # Remplacement multi-fichiers (demande du 10/09/2026) : champ
+        # "remplacer par" + application aux FICHIERS des resultats coches.
+        # La copie de travail uniquement (les resultats proviennent deja des
+        # seuls fichiers de la copie), undo par fichier apres confirmation.
+        replace_row = QHBoxLayout()
+        replace_label = QLabel(t("search.replace_by"))
+        replace_row.addWidget(replace_label)
+        self.replace_edit = QLineEdit()
+        self.replace_edit.setPlaceholderText(t("search.replace_placeholder"))
+        replace_row.addWidget(self.replace_edit, 1)
+        self.btn_replace = QPushButton(t("search.replace_btn"))
+        self.btn_replace.setObjectName("secondaryButton")
+        self.btn_replace.clicked.connect(self._apply_replace)
+        replace_row.addWidget(self.btn_replace)
+        layout.addLayout(replace_row)
 
         bottom_row = QHBoxLayout()
         self.summary_label = QLabel("")
@@ -119,8 +136,62 @@ class ScenarioSearchDialog(QDialog):
         for r in results:
             item = QListWidgetItem(f"[{r.file_kind.upper()}] {r.file_path.name} -- {r.match_context}")
             item.setData(Qt.ItemDataRole.UserRole, r)
+            # cochenable : le remplacement s'applique aux FICHIERS des
+            # resultats coches (coche par defaut)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
             self.results_list.addItem(item)
         self.summary_label.setText(t("search.n_results", n=len(results)))
+
+    def _checked_files(self):
+        """Fichiers distincts des resultats coches (ordre stable)."""
+        files = []
+        for i in range(self.results_list.count()):
+            item = self.results_list.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                path = item.data(Qt.ItemDataRole.UserRole).file_path
+                if path not in files:
+                    files.append(path)
+        return files
+
+    def _apply_replace(self):
+        query = self.query_edit.text()
+        if not query.strip():
+            return
+        files = self._checked_files()
+        if not files:
+            QMessageBox.information(self, t("search.title"), t("search.no_checked_file"))
+            return
+        answer = QMessageBox.question(
+            self, t("search.replace_btn"),
+            t("search.replace_confirm", files=len(files),
+              query=query, replacement=self.replace_edit.text()),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        from core.scenario_search import replace_in_files
+        undos = []
+        for path in files:
+            undos.append(FileStateUndo(path, capture_file(path),
+                                       t("search.replace_undo", file=path.name)))
+        try:
+            with busy_guard(self):
+                replaced = replace_in_files(
+                    files, query, self.replace_edit.text(),
+                    case_sensitive=self.case_sensitive_check.isChecked(),
+                    use_regex=self.regex_check.isChecked())
+        except re.error as e:
+            QMessageBox.warning(self, t("search.title"),
+                                t("search.invalid_regex", error=str(e)))
+            return
+        for undo in undos:
+            if undo.path in replaced:
+                self.main_window._push_workspace_undo(undo)
+        self.main_window.workspace.rescan_working()
+        total = sum(replaced.values())
+        self.main_window.statusBar().showMessage(
+            t("search.replaced_summary", n=total, files=len(replaced)), 8000)
+        self._run_search()
 
     def _navigate_to_result(self, item: QListWidgetItem):
         result: SearchResult = item.data(Qt.ItemDataRole.UserRole)
