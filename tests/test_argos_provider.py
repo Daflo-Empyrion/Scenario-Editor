@@ -15,6 +15,7 @@
 # sont simules (fakes urlopen/HEAD).
 
 import json
+import sys
 from pathlib import Path
 
 import core.settings as settings
@@ -35,6 +36,129 @@ def test_console_command_targets_app_dir():
     assert "pip" in cmd and "argostranslate" in cmd
     assert "--target" in cmd
     assert str(argos_provider.engine_target_dir()) in cmd
+
+
+def test_console_command_frozen_uses_system_python(monkeypatch):
+    """Version installee : le repli console vise le Python du SYSTEME (py),
+    pas l'exe -- `EmpyrionScenarioEditor.exe -m pip` ne veut rien dire."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert argos_provider.pip_console_command().startswith("py -m pip")
+
+
+def test_pip_output_splits_lines_and_captures():
+    w = argos_provider._PipOutput(capture=True)
+    w.write("ligne1\nlign")
+    w.write("e2\n")
+    assert w.getvalue() == "ligne1\nligne2\n"
+
+
+def test_pip_output_forwards_clean_lines():
+    got = []
+    w = argos_provider._PipOutput(line_cb=got.append)
+    w.write("  a \n b \n")
+    w.write("sans retour")
+    w.flush()
+    assert got == ["a", "b", "sans retour"]
+
+
+def test_pip_output_no_cb_is_harmless():
+    w = argos_provider._PipOutput()  # ni callback ni capture
+    w.write("x\n")
+    w.flush()
+    assert w.getvalue() == ""
+
+
+def test_pip_inprocess_handles_system_exit(monkeypatch):
+    """pip >= 26 : main() se termine par sys.exit (vecu avec --version).
+    None = succes, int = code, texte = echec."""
+    import pip._internal.cli.main as pip_main_module
+
+    def fake_main(args):
+        raise SystemExit(None)
+
+    monkeypatch.setattr(pip_main_module, "main", fake_main)
+    code, _ = argos_provider._pip_inprocess(["x"])
+    assert code == 0
+
+    def fake_main_fail(args):
+        raise SystemExit("message d'erreur")
+
+    monkeypatch.setattr(pip_main_module, "main", fake_main_fail)
+    code, _ = argos_provider._pip_inprocess(["x"])
+    assert code == 1
+
+    monkeypatch.setattr(pip_main_module, "main", lambda args: 0)
+    code, _ = argos_provider._pip_inprocess(["x"])
+    assert code == 0
+
+
+def test_install_engine_frozen_uses_inprocess_pip(monkeypatch, tmp_path):
+    """Frozen : l'installation DOIT passer par pip in-process (un
+    sous-processus `exe -m pip` relancerait l'application) avec --target
+    vers le dossier de l'app."""
+    site = tmp_path / "site"
+    monkeypatch.setattr(argos_provider, "ARGOS_SITE_DIR", site)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(argos_provider, "is_engine_available", lambda: True)
+    seen = {}
+
+    def fake_pip(args, progress_cb=None, capture_stdout=False):
+        seen["args"] = args
+        assert "--target" in args and str(site) in args
+        # roues uniquement : une compilation relancerait l'exe (build isolation)
+        assert "--only-binary=:all:" in args
+        return 0, ""
+
+    monkeypatch.setattr(argos_provider, "_pip_inprocess", fake_pip)
+    assert argos_provider.install_engine(progress_cb=lambda m: None)
+    assert seen["args"][0] == "install"
+
+
+def test_install_engine_frozen_failure_returns_false(monkeypatch, tmp_path):
+    monkeypatch.setattr(argos_provider, "ARGOS_SITE_DIR", tmp_path / "site")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(argos_provider, "_pip_inprocess",
+                        lambda *a, **k: (1, ""))
+    assert not argos_provider.install_engine(progress_cb=lambda m: None)
+
+
+def test_estimate_frozen_uses_inprocess_dry_run(monkeypatch):
+    """Frozen : l'estimation pilote le pip embarque (dry-run --report -),
+    jamais `sys.executable -m pip`."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    report = json.dumps({"install": [
+        {"download_info": {"url": "https://x/roue.whl"}}]})
+
+    class FakeHead:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b""
+
+        @property
+        def headers(self):
+            return {"Content-Length": "42"}
+
+    monkeypatch.setattr(argos_provider.urllib.request, "urlopen",
+                        lambda req, timeout=30: FakeHead())
+
+    def fake_pip(args, progress_cb=None, capture_stdout=False):
+        assert capture_stdout and "--dry-run" in args and "--report" in args
+        return 0, report
+
+    monkeypatch.setattr(argos_provider, "_pip_inprocess", fake_pip)
+    assert argos_provider.estimate_engine_download_bytes() == 42
+
+
+def test_estimate_frozen_pip_failure_returns_none(monkeypatch):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(argos_provider, "_pip_inprocess",
+                        lambda *a, **k: (1, ""))
+    assert argos_provider.estimate_engine_download_bytes() is None
 
 
 def test_available_pairs_parses_official_index(monkeypatch):

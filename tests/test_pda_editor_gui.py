@@ -455,7 +455,10 @@ def test_every_key_of_rich_file_is_visible(qapp):
     from gui.pda.editor_dialog import PdaEditorDialog
     apply_theme(qapp)
     ydoc = parse_yaml_text(RICH_YAML)
-    from tests.test_pda_model import MINI_CSV
+    # Import direct du module voisin (pas `tests.test_pda_model`) : la roue
+    # argostranslate installe un package `tests` TOP-LEVEL en site-packages
+    # qui masquerait le dossier tests/ du projet.
+    from test_pda_model import MINI_CSV
     m = PdaModel(ydoc, parse_csv_text(MINI_CSV))
     dlg = PdaEditorDialog(m, PdaSuggestions(m))
 

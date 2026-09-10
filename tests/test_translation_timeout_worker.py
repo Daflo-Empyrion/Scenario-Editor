@@ -30,12 +30,16 @@ from core import translation, translation_memory
 def offline_env(tmp_path, monkeypatch):
     """Isolation complete : memoire de traduction en temporaire, opt-out
     confidentialite force a True (autorisé), pour ne JAMAIS toucher a la vraie
-    memoire de l'utilisateur ni au reseau."""
+    memoire de l'utilisateur ni au reseau. Le moteur est force a google :
+    sinon ces tests partiraient sur le chemin Argos quand la machine de dev
+    a translation_engine=argos (vecu le 10/09/2026 : la vraie traduction
+    repondait au lieu du double Google)."""
     monkeypatch.setattr(translation_memory, 'CONFIG_DIR', tmp_path)
     monkeypatch.setattr(translation_memory, 'MEMORY_FILE', tmp_path / 'memory.json')
     monkeypatch.setattr(translation_memory, '_cache', None)
     monkeypatch.setattr(translation_memory, '_cache_for_path', None)
     monkeypatch.setattr('core.settings.get_online_translation_enabled', lambda: True)
+    monkeypatch.setattr('core.settings.get_translation_engine', lambda: 'google')
 
 
 class _FakeTranslator:

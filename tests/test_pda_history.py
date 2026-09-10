@@ -24,7 +24,10 @@ from core.pda import history
 from core.pda.model import PdaModel
 from core.yamllite.parser import parse_yaml_text
 
-from tests.test_pda_model import MINI_CSV, MINI_YAML
+# Import direct du module voisin (pas `tests.test_pda_model`) :
+# la roue argostranslate installe un package `tests` TOP-LEVEL en
+# site-packages qui masquerait le dossier tests/ du projet.
+from test_pda_model import MINI_CSV, MINI_YAML
 
 
 @pytest.fixture

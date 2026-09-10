@@ -178,6 +178,48 @@ where python
 Le chemin affiche doit pointer vers `...\venv\Scripts\python.exe`, jamais vers
 `AppData\Local\Programs\Python\...`.
 
+### Cas particulier : traduction hors ligne Argos dans l'exe (v1.6.6)
+
+Depuis la v1.6.6, `argostranslate` N'EST PAS embarque (plus de 1 Go installe) ;
+en revanche **pip est embarque** dans l'exe (`collect_all('pip')` du spec) et
+l'installation du moteur se fait DEPUIS l'application, via pip IN-PROCESS
+(`core/argos_provider._pip_inprocess`) :
+
+- `sys.executable` etant l'exe lui-meme, un sous-processus `exe -m pip`
+  relancerait l'application -- d'ou le pip pilote dans le processus, avec
+  `sys.stdout`/`sys.stderr` remplaces (valeur `None` dans un exe fenetre) et
+  chaque ligne streamEe vers le journal de l'assistant ;
+- `--only-binary=:all:` interdit toute compilation : le build isolation de pip
+  relancerait `sys.executable`, c'est-a-dire l'exe ;
+- `--ignore-installed --target ~/.empyrion_editor/argos_site` : l'arbre
+  complet est installe dans un dossier autonome, ajoute a `sys.path` (+
+  `os.add_dll_directory` pour les DLL de ctranslate2/torch) au moment de
+  l'import ;
+- au passage, la stdlib COMPLETE (hors GUI lourd/autotests) est embarquee
+  dans l'exe (`collect_submodules` du spec) : argostranslate et sa suite,
+  installes hors analyse PyInstaller, importent des modules stdlib que
+  l'appli n'utilise pas elle-meme (vecu : `timeit`, puis
+  `unittest.mock` -- `unittest/__init__` ne charge pas `mock` par defaut) ;
+- pip 26 peut logger une DEPRECATION "Unexpected import of 'argostranslate'
+  after pip install started" : c'est le test d'import d'APRES installation
+  (is_engine_available), sans consequence -- a surveiller a l'arrivee de
+  pip 26.3 qui durcit ce comportement.
+
+**Diagnostic en reel** (utile si un utilisateur signale un probleme) : lancer
+l'exe installe avec la variable d'environnement `ESE_ARGOS_SELFTEST` pointant
+vers un fichier de journal :
+
+```bat
+set ESE_ARGOS_SELFTEST=%TEMP%\ese_argos.log
+"C:\Program Files\EmpyrionScenarioEditor\EmpyrionScenarioEditor.exe"
+type %TEMP%\ese_argos.log
+```
+
+Sans interface graphique, l'appli enchaine alors : detection du moteur,
+estimation pip (dry-run), installation complete via pip embarque, puis
+TRADUCTION REELLE si une paire en<->fr est deja sur disque ; code de sortie 0
+si tout fonctionne, 1 sinon. Sans cette variable, l'appli demarre normalement.
+
 ---
 
 ## 7. Faux positifs antivirus (VirusTotal et autres)

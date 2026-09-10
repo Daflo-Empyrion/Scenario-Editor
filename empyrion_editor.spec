@@ -33,11 +33,85 @@ _certifi_datas, _certifi_binaries, _certifi_hiddenimports = collect_all('certifi
 # qframelesswindow est la dependance fenetre sans bordure de qfluentwidgets.
 _qfw_datas, _qfw_binaries, _qfw_hiddenimports = collect_all('qfluentwidgets')
 _qfwl_datas, _qfwl_binaries, _qfwl_hiddenimports = collect_all('qframelesswindow')
+# Traduction hors ligne Argos (v1.6.6) : pip embarque pour installer
+# argostranslate DEPUIS l'exe -- en frozen, `sys.executable -m pip`
+# relancerait l'application, donc le moteur s'installe via pip IN-PROCESS
+# (core/argos_provider._pip_inprocess).
+# IMPORTANT : pip ne doit PAS partir dans la PYZ. pip._vendor.distlib scanne
+# ses propres fichiers (gabarits .exe) a l'import via importlib.resources,
+# ce qui echoue depuis l'archive (DistlibException "Unable to locate finder",
+# vecu en v1.6.6). Solution : pip copie en VRAIS FICHIERS dans _internal/pip
+# + exclu de l'analyse (sinon la PYZ, consultee d'abord, masquerait le
+# dossier) ; le dist-info reste colle pour la detection de version.
+import pip as _pip
+from PyInstaller.utils.hooks import copy_metadata
+_pip_datas = [(str(Path(_pip.__file__).parent), 'pip')] + copy_metadata('pip')
+_pip_binaries = []
+# Modules stdlib que pip importe (parfois dynamiquement) : pip etant exclu de
+# l'analyse PyInstaller (fichiers reels, voir ci-dessus), ses dependances
+# stdlib ne sont pas vues par le graphe d'imports -- celles que l'appli
+# elle-meme n'utilise pas manqueraient a l'execution (vecu v1.6.6 : "No
+# module named 'logging.handlers'"). On recense donc TOUT ce que pip importe
+# dans ses sources (vendored compris) et on croise avec la stdlib.
+import re as _re
+import sys as _sys
+_seen = set()
+for _p in Path(_pip.__file__).parent.rglob('*.py'):
+    for _m in _re.finditer(
+            r'^\s*(?:import|from)\s+([a-zA-Z_][a-zA-Z0-9_.]*)',
+            _p.read_text(encoding='utf-8', errors='ignore'), _re.M):
+        _seen.add(_m.group(1))
+_pip_hiddenimports = sorted(
+    _m for _m in _seen
+    if _m.split('.')[0] in _sys.stdlib_module_names
+    and _m.split('.')[0] not in _sys.builtin_module_names
+    and not _m.startswith('_frozen')
+    and _m != '__future__'
+) + ['pydoc', 'pydoc_data', 'pydoc_data.topics']  # __import__("pydoc") dynamique
+# STDLIB COMPLETE (top-level + TOUS les sous-modules des packages) :
+# argostranslate et sa suite (stanza, torch...) installes a la volee dans
+# argos_site ne sont pas analyses par PyInstaller -- la moindre import
+# stdlib absent casserait l'execution vecu v1.6.6 : "No module named
+# 'timeit'" (module top-level) PUIS "No module named 'unittest.mock'"
+# (sous-module, unittest/__init__ ne chargeant PAS mock par defaut).
+# Exclus : GUI lourd / outils de dev / inexistant sur la plateforme.
+import importlib.util as _ilu
+from PyInstaller.utils.hooks import collect_submodules
+_STDLIB_EXCLUDED = {
+    '__future__', 'ensurepip',  # embarquerait un DEUXIEME pip dans l'exe
+    'tkinter', 'turtle', 'turtledemo', 'idlelib', 'lib2to3', 'pip',
+    'pydoc_data',  # deja ajoute ci-dessus si pydoc present
+    'test',  # autotests de CPython, tres gros, jamais utiles a l'execution
+}
+_stdlib_hiddenimports = []
+for _m in sorted(_sys.stdlib_module_names):
+    if _m in _STDLIB_EXCLUDED or _m in _sys.builtin_module_names \
+            or _m.startswith(('_', 'xx')):
+        continue
+    _spec = _ilu.find_spec(_m)
+    if _spec is None:
+        continue  # inexistant sur cette plateforme (curses, readline...)
+    if _spec.submodule_search_locations:
+        try:
+            _stdlib_hiddenimports += collect_submodules(_m)
+        except Exception:
+            _stdlib_hiddenimports.append(_m)
+    else:
+        _stdlib_hiddenimports.append(_m)
+_pip_hiddenimports = sorted(set(_pip_hiddenimports) | set(_stdlib_hiddenimports))
+# argostranslate et sa suite (torch, spacy...) ne doivent JAMAIS etre
+# embarques : installes a la volee dans ~/.empyrion_editor/argos_site par le
+# pip embarque (v1.6.6). Sans excludes, le simple fait d'avoir
+# argostranslate dans l'environnement de construction gonflerait l'exe de
+# plus d'un Go (imports fonction-level vises par l'analyse statique).
+_ARGOS_EXCLUDES = ['argostranslate', 'stanza', 'spacy', 'torch', 'ctranslate2',
+                   'sentencepiece', 'onnxruntime', 'sacremoses']
 
 a = Analysis(
     ['run_gui.py'],
     pathex=[str(project_root)],
-    binaries=[*_dt_binaries, *_bs4_binaries, *_requests_binaries, *_certifi_binaries],
+    binaries=[*_dt_binaries, *_bs4_binaries, *_requests_binaries, *_certifi_binaries,
+              *_pip_binaries],
     datas=[
         # Les wikis et autres fichiers markdown doivent etre embarques tels quels --
         # lus a l'execution via un chemin relatif au dossier du projet, pas importes
@@ -47,7 +121,7 @@ a = Analysis(
         (str(project_root / 'assets'), 'assets'),
         (str(project_root / 'data'), 'data'),
         *_dt_datas, *_bs4_datas, *_requests_datas, *_certifi_datas,
-        *_qfw_datas, *_qfwl_datas,
+        *_qfw_datas, *_qfwl_datas, *_pip_datas,
     ],
     hiddenimports=[
         # PyQt6 charge certains sous-modules dynamiquement (non detectes par
@@ -62,11 +136,12 @@ a = Analysis(
         'PyQt6.QtPdfWidgets',
         *_dt_hiddenimports, *_bs4_hiddenimports, *_requests_hiddenimports,
         *_certifi_hiddenimports, *_qfw_hiddenimports, *_qfwl_hiddenimports,
+        *_pip_hiddenimports,
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=_ARGOS_EXCLUDES + ['pip'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -135,7 +210,7 @@ cli_a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PyQt6', 'qtawesome'],
+    excludes=['PyQt6', 'qtawesome'] + _ARGOS_EXCLUDES,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

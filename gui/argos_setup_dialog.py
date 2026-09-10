@@ -30,7 +30,6 @@
   3. IMPORT      : .argosmodel local (ex bundle torrent) installable ici.
 """
 import queue
-import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
@@ -48,6 +47,7 @@ class _Signals(QObject):
     models_ready = pyqtSignal(list, set)      # paires (taille 0), installees
     model_size = pyqtSignal(str, int)         # lien, octets
     engine_done = pyqtSignal(bool)
+    engine_size = pyqtSignal(int)             # octets (0 = estimation echouee)
     models_done = pyqtSignal(int)
 
 
@@ -61,6 +61,7 @@ class ArgosSetupDialog(QDialog):
         self.signals.models_ready.connect(self._fill_models)
         self.signals.model_size.connect(self._update_model_size)
         self.signals.engine_done.connect(self._after_engine_install)
+        self.signals.engine_size.connect(self._show_engine_size)
         self.signals.models_done.connect(self._after_models)
         self._log_queue = queue.Queue()
         self._timer = QTimer(self)
@@ -178,21 +179,23 @@ class ArgosSetupDialog(QDialog):
             self._load_models()
             return
         self.stack.setCurrentIndex(0)
-        if getattr(sys, "frozen", False):
-            # Version installee : pip n'existe pas dans un exe gelee et la
-            # bibliotheque n'y est pas embarquee (decision a) -- l'option
-            # hors ligne est disponible dans la version sources.
-            self.engine_status.setText(t("argos.frozen_msg"))
-            self.btn_install_engine.setVisible(False)
-            return
         self.engine_status.setText(t("argos.engine_missing"))
         if auto:
             from threading import Thread
             def probe():
-                size = argos_provider.estimate_engine_download_bytes()
-                if size:
-                    self._log(t("argos.engine_size", mb=size // (1024 * 1024)))
+                # dry-run pip (embarque en version installee) en tache de
+                # fond ; le resultat passe par un SIGNAL, jamais par un
+                # widget depuis ce thread
+                self.signals.engine_size.emit(
+                    argos_provider.estimate_engine_download_bytes() or 0)
             Thread(target=probe, daemon=True).start()
+
+    def _show_engine_size(self, size: int):
+        key = "argos.engine_size" if size else "argos.engine_size_approx"
+        mb = (size if size else argos_provider.ENGINE_APPROX_MB * 1024 * 1024) \
+            // (1024 * 1024)
+        self.engine_size_label.setText(t(key, mb=mb))
+        self._log(t(key, mb=mb))
 
     def _install_engine(self):
         self.btn_install_engine.setEnabled(False)
