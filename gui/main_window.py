@@ -83,6 +83,7 @@ from gui.txt_edit_widget import TxtEditWidget
 from gui.wiki_viewer import open_wiki
 from gui.theme import icon, icon_size
 from gui import theme as _theme
+from gui import fluent_pilot
 from gui.neon_delegate import NeonItemDelegate
 from gui.busy import busy_guard
 from gui.msgboxes import ask_save_discard_cancel, ask_yes_no
@@ -98,7 +99,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         from core.version import APP_VERSION
         self.setWindowTitle(f"Empyrion Scenario Editor — v{APP_VERSION}")
-        self.resize(1500, 800)
+        # Taille par defaut : elargie quand le pilote Fluent est actif (la
+        # barre d'outils y demande ~100 px de plus qu'en vanilla), voir
+        # gui/fluent_pilot.default_window_size.
+        self.resize(*fluent_pilot.default_window_size())
         self.workspace_undo = WorkspaceUndoStack()
 
         self.workspace: Optional[Workspace] = None
@@ -262,6 +266,17 @@ class MainWindow(QMainWindow):
         self.action_vanilla_content = self.menu_options.addAction(t("menu.options.vanilla_content"))
         self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
 
+        # Pilote PyQt-Fluent-Widgets (decision 09/09/2026) : chrome de la
+        # fenetre principale en widgets Fluent, le reste de l'app inchange.
+        # Pris en compte au PROCHAIN lancement (les widgets de la barre
+        # d'outils sont deja construits) ; grisee si qfluentwidgets n'est
+        # pas importable (build sans la dependance -- degrade gracieux).
+        self.action_fluent_pilot = self.menu_options.addAction(t("menu.options.fluent_pilot"))
+        self.action_fluent_pilot.setCheckable(True)
+        self.action_fluent_pilot.setChecked(settings.get_fluent_pilot_enabled())
+        self.action_fluent_pilot.setEnabled(fluent_pilot.is_available())
+        self.action_fluent_pilot.toggled.connect(self._toggle_fluent_pilot)
+
         self.menu_theme = self.menu_options.addMenu(t("menu.options.theme"))
         self._theme_actions = {}
         from core.themes import THEMES, THEME_ORDER
@@ -272,6 +287,13 @@ class MainWindow(QMainWindow):
             theme_action.setChecked(theme_id == current_theme_id)
             theme_action.triggered.connect(lambda checked, tid=theme_id: self._set_theme(tid))
             self._theme_actions[theme_id] = theme_action
+
+    def _toggle_fluent_pilot(self, checked: bool):
+        """Persiste l'option du pilote Fluent -- pris en compte au prochain
+        lancement (le chrome actuel est deja construit), signale dans la barre
+        d'etat comme pour un message ephemere."""
+        fluent_pilot.set_enabled(checked)
+        self.statusBar().showMessage(t("menu.options.fluent_pilot.restart"), 8000)
 
     def _build_menu_help(self):
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
@@ -550,6 +572,11 @@ class MainWindow(QMainWindow):
         self.btn_language.setToolTip(t("menu.options.language"))
         self.btn_workspace_undo.setText(t("wsundo.button"))
         self._refresh_workspace_undo_button()
+        # Les libelles changent de longueur selon la langue : re-mesure et
+        # re-choix du mode de la barre adaptative (voir _build_toolbar).
+        if getattr(self, "_toolbar_adaptive", None):
+            self._recompute_toolbar_hints()
+            self._update_toolbar_adaptivity()
 
     def _build_toolbar(self):
         """Barre d'outils PRINCIPALE (P2 -- audit du 30/08/2026) : les actions
@@ -563,9 +590,17 @@ class MainWindow(QMainWindow):
         illisibles, un bouton auto-peint reste lisible partout."""
         toolbar = self.addToolBar("Principal")
         toolbar.setMovable(False)
+        self.toolbar = toolbar
 
-        def _add_tool_button(icon_name, text_key, slot):
-            btn = QPushButton(icon(icon_name, "#ffffff"), t(text_key))
+        def _add_tool_button(icon_name, text_key, slot, accent=False):
+            # Pilote Fluent (09/09/2026) : bouton fabrique par fluent_pilot
+            # (PrimaryPushButton/PushButton qfluentwidgets si le pilote est
+            # actif, QPushButton sinon) -- Enregistrer seul garde le fond
+            # accent (PrimaryPushButton), les autres passent au style Fluent
+            # standard ; icone de couleur adaptee au type de bouton.
+            btn = fluent_pilot.make_toolbar_button(
+                icon(icon_name, fluent_pilot.icon_color(accent)), t(text_key),
+                accent=accent)
             btn.setIconSize(icon_size())
             btn.setToolTip(t(text_key))
             btn.setProperty("text_key", text_key)  # re-texte au changement de langue
@@ -574,7 +609,7 @@ class MainWindow(QMainWindow):
             return btn
 
         self.btn_toolbar_save = _add_tool_button(
-            "fa5s.save", "menu.file.save", self._save_current_tab)
+            "fa5s.save", "menu.file.save", self._save_current_tab, accent=True)
         self.btn_toolbar_search = _add_tool_button(
             "fa5s.search", "menu.file.search_scenario", self._open_search_dialog)
         self.btn_toolbar_tech_tree = _add_tool_button(
@@ -586,7 +621,8 @@ class MainWindow(QMainWindow):
         self.btn_toolbar_center = _add_tool_button(
             "fa5s.clipboard-check", "menu.verification.center", self._open_health_check_dialog)
         toolbar.addSeparator()
-        self.btn_workspace_undo = QPushButton(icon("fa5s.undo", "#ffffff"), t("wsundo.button"))
+        self.btn_workspace_undo = fluent_pilot.make_toolbar_button(
+            icon("fa5s.undo", fluent_pilot.icon_color()), t("wsundo.button"))
         self.btn_workspace_undo.setIconSize(icon_size())
         self.btn_workspace_undo.setToolTip(t("wsundo.tooltip_empty"))
         self.btn_workspace_undo.setEnabled(False)
@@ -599,7 +635,8 @@ class MainWindow(QMainWindow):
         # ECF-028, CSV-010 : le bouton Annuler marchait, pas le clavier).
         QShortcut(QKeySequence.StandardKey.Undo, self, activated=self._global_undo)
 
-        self.btn_language = QPushButton(icon("fa5s.globe", "#ffffff"), i18n.get_language().upper())
+        self.btn_language = fluent_pilot.make_toolbar_button(
+            icon("fa5s.globe", fluent_pilot.icon_color()), i18n.get_language().upper())
         self.btn_language.setIconSize(icon_size())
         self.btn_language.setFixedWidth(75)
         self.btn_language.setToolTip(t("menu.options.language"))
@@ -608,7 +645,8 @@ class MainWindow(QMainWindow):
 
         # Bouton "Signaler un bug" -- plus visible ici que dans le menu Aide, pour
         # quelque chose qu'on veut pouvoir declencher rapidement en cas de souci.
-        self.btn_report_issue = QPushButton(icon("fa5s.bug", "#ffffff"), t("toolbar.report_issue"))
+        self.btn_report_issue = fluent_pilot.make_toolbar_button(
+            icon("fa5s.bug", fluent_pilot.icon_color()), t("toolbar.report_issue"))
         self.btn_report_issue.setIconSize(icon_size())
         self.btn_report_issue.setToolTip(t("menu.help.report_issue"))
         self.btn_report_issue.clicked.connect(self._open_report_issue_dialog)
@@ -633,6 +671,86 @@ class MainWindow(QMainWindow):
         self.btn_gpl_badge.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl("https://www.gnu.org/licenses/gpl-3.0.html")))
         toolbar.addWidget(self.btn_gpl_badge)
+
+        # ---- Barre d'outils ADAPTATIVE (retour utilisateur du 09/09/2026 :
+        # textes tronques bizaremment quand on retrecit la fenetre -- le layout
+        # de QToolBar comprime les boutons sous leur taille conseillee au lieu
+        # de basculer en chevron). Trois modes de degradation : 0 = tous les
+        # textes, 1 = seul "Enregistrer" garde son texte (action primaire),
+        # 2 = tout en icones seuls (tooltips conserves). Voir
+        # _recompute_toolbar_hints / _update_toolbar_adaptivity / resizeEvent.
+        self._toolbar_adaptive = [
+            [self.btn_toolbar_save, lambda: t("menu.file.save"), 0, 0, 0],
+            [self.btn_toolbar_search, lambda: t("menu.file.search_scenario"), 1, 0, 0],
+            [self.btn_toolbar_tech_tree, lambda: t("menu.tools.tech_tree"), 1, 0, 0],
+            [self.btn_toolbar_galaxy, lambda: t("menu.tools.galaxy_viewer"), 1, 0, 0],
+            [self.btn_toolbar_pda, lambda: t("menu.tools.pda_mission"), 1, 0, 0],
+            [self.btn_toolbar_center, lambda: t("menu.verification.center"), 1, 0, 0],
+            [self.btn_workspace_undo, lambda: t("wsundo.button"), 1, 0, 0],
+            [self.btn_report_issue, lambda: t("toolbar.report_issue"), 1, 0, 0],
+            [self.btn_language, lambda: i18n.get_language().upper(), 1, 0, 0],
+        ]
+        self._toolbar_text_mode = 0
+        self._recompute_toolbar_hints()
+        self._update_toolbar_adaptivity()
+
+    # Marge fixe de la barre (marges internes + 2 separateurs + espacements),
+    # et hysteresis (px) evitant le clignotement au passage de seuil.
+    _TOOLBAR_FIXED_PX = 16
+    _TOOLBAR_HYSTERESIS_PX = 24
+
+    def _recompute_toolbar_hints(self):
+        """(Re)mesure la largeur conseillee de chaque bouton de la barre
+        principale AVEC texte puis EN MODE ICONE SEULE -- appelle a la
+        construction et au changement de langue (les libelles changent de
+        longueur). Mesure avant affichage : aucun clignotement visible."""
+        for entry in self._toolbar_adaptive:
+            btn, text_fn = entry[0], entry[1]
+            btn.ensurePolished()
+            entry[3] = btn.sizeHint().width()
+            btn.setText("")
+            entry[4] = btn.sizeHint().width()
+            btn.setText(text_fn())
+
+    def _toolbar_needed_width(self, mode: int) -> int:
+        """Largeur totale demandee par la barre dans le mode de texte donne.
+        Un bouton est en mode icone seule quand rang + mode >= 2 : rang 1
+        (secondaires) perd son texte en mode 1, rang 0 (Enregistrer) au
+        mode 2 seulement."""
+        total = self._TOOLBAR_FIXED_PX + self.btn_gpl_badge.sizeHint().width()
+        for entry in self._toolbar_adaptive:
+            total += entry[4] if entry[2] + mode >= 2 else entry[3]
+        return total
+
+    def _update_toolbar_adaptivity(self):
+        """Choisit le mode de texte de la barre d'outils selon la largeur
+        disponible et l'applique. Compression immediate des qu'on manque de
+        place ; retour au mode riche AVEC hysteresis pour ne pas clignoter
+        quand on flirte avec le seuil."""
+        avail = max(self.width() - 8, 0)
+        while self._toolbar_text_mode < 2 and \
+                self._toolbar_needed_width(self._toolbar_text_mode) > avail:
+            self._toolbar_text_mode += 1
+        while self._toolbar_text_mode > 0 and \
+                self._toolbar_needed_width(self._toolbar_text_mode - 1) \
+                + self._TOOLBAR_HYSTERESIS_PX < avail:
+            self._toolbar_text_mode -= 1
+        for entry in self._toolbar_adaptive:
+            btn, text_fn, rank = entry[0], entry[1], entry[2]
+            wanted = "" if rank + self._toolbar_text_mode >= 2 else text_fn()
+            if btn.text() != wanted:
+                btn.setText(wanted)
+        lay = self.toolbar.layout()
+        if lay is not None:
+            lay.invalidate()
+            lay.activate()
+
+    def resizeEvent(self, event):
+        """Fenetre redimensionnee : re-choisit le mode de texte de la barre
+        d'outils (texte complet -> icone seule), voir _build_toolbar."""
+        super().resizeEvent(event)
+        if getattr(self, "_toolbar_adaptive", None):
+            self._update_toolbar_adaptivity()
 
     def _push_workspace_undo(self, action):
         self.workspace_undo.push(action)
@@ -1242,6 +1360,10 @@ class MainWindow(QMainWindow):
                     frozen.append(w)
             try:
                 apply_theme(app, theme_id)
+                # Pilote Fluent : la palette du theme choisi pilote aussi le
+                # clair/sombre et la couleur d'accent du moteur Fluent (sans
+                # effet sur les widgets non-Fluent).
+                fluent_pilot.sync_theme()
             finally:
                 for w in frozen:
                     w.setUpdatesEnabled(True)
@@ -1501,10 +1623,17 @@ class MainWindow(QMainWindow):
         # -- Bas : bande de navigation A | copie de travail | B --
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
 
+        # Champ de filtrage au-dessus de chaque arbre (audit rendu du
+        # 09/09/2026 : SearchLineEdit "juste au-dessus des listes qu'ils
+        # filtrent, sans fioritures"). Le filtre cache les items ne
+        # correspondant pas, garde les parents d'un resultat, et se
+        # re-attache apres chaque repeuplage (voir _populate_tree).
+        self._tree_search_boxes = {}
+
         self.panel_a = QWidget()
         layout_a = QVBoxLayout(self.panel_a)
         layout_a.setContentsMargins(4, 2, 4, 2)
-        self.label_a = QLabel(t("panel.scenario_a"))
+        self.label_a = fluent_pilot.make_panel_label(t("panel.scenario_a"))
         self.label_a.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.tree_a = QTreeWidget()
         self.tree_a.setHeaderLabels(["Scenario A"])
@@ -1514,13 +1643,14 @@ class MainWindow(QMainWindow):
         self.tree_a.customContextMenuRequested.connect(
             lambda pos: self._show_source_context_menu(self.tree_a, pos, self._root_a))
         layout_a.addWidget(self.label_a)
+        self._attach_tree_filter(self.tree_a, layout_a)
         layout_a.addWidget(self.tree_a)
         bottom_splitter.addWidget(self.panel_a)
 
         self.panel_working = QWidget()
         layout_w = QVBoxLayout(self.panel_working)
         layout_w.setContentsMargins(4, 2, 4, 2)
-        self.label_working = QLabel(t("panel.working_copy"))
+        self.label_working = fluent_pilot.make_panel_label(t("panel.working_copy"))
         self.label_working.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY_DARK};")
         self.tree_working = QTreeWidget()
         self.tree_working.setHeaderLabels(["Copie de travail"])
@@ -1529,13 +1659,14 @@ class MainWindow(QMainWindow):
         self.tree_working.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_working.customContextMenuRequested.connect(self._show_working_context_menu)
         layout_w.addWidget(self.label_working)
+        self._attach_tree_filter(self.tree_working, layout_w)
         layout_w.addWidget(self.tree_working)
         bottom_splitter.addWidget(self.panel_working)
 
         self.panel_b = QWidget()
         layout_b = QVBoxLayout(self.panel_b)
         layout_b.setContentsMargins(4, 2, 4, 2)
-        self.label_b = QLabel(t("panel.scenario_b"))
+        self.label_b = fluent_pilot.make_panel_label(t("panel.scenario_b"))
         self.label_b.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.tree_b = QTreeWidget()
         self.tree_b.setHeaderLabels(["Scenario B"])
@@ -1545,12 +1676,22 @@ class MainWindow(QMainWindow):
         self.tree_b.customContextMenuRequested.connect(
             lambda pos: self._show_source_context_menu(self.tree_b, pos, self._root_b))
         layout_b.addWidget(self.label_b)
+        self._attach_tree_filter(self.tree_b, layout_b)
         layout_b.addWidget(self.tree_b)
         bottom_splitter.addWidget(self.panel_b)
         self.panel_b.setVisible(False)
 
         bottom_splitter.setSizes([320, 320, 320])
         self.main_splitter.addWidget(bottom_splitter)
+
+        # Les conteneurs des trois panneaux restent TRANSPARENTS : la regle
+        # generale "QWidget { background-color: BG }" peignait sinon un
+        # rectangle CARRE derriere chaque carte arrondie (rayon 10 px des
+        # vues) -- effet "arrondis superposes sur angles droits" signale par
+        # l'utilisateur le 09/09/2026. La carte flotte desormais directement
+        # sur le fond de la fenetre, dans tous les themes.
+        for _panel in (self.panel_a, self.panel_working, self.panel_b):
+            _panel.setStyleSheet("background: transparent;")
 
         # Le haut (onglets) prend la grande majorite de la hauteur ; le bas reste une
         # bande de navigation compacte, redimensionnable a la souris si besoin.
@@ -1685,11 +1826,85 @@ class MainWindow(QMainWindow):
         facile a comparer visuellement entre Scenario A, B et la copie de travail,
         puisque les trois montrent la meme structure que sur le disque."""
         tree.clear()
+        # le repeuplage detruit les items references par la sauvegarde
+        # d'expansion du filtre : on repart propre
+        tree._filter_expansion_backup = None
         root_item = QTreeWidgetItem([scenario.root_path.name])
         root_item.setData(0, Qt.ItemDataRole.UserRole, ("folder", scenario.root_path))
         tree.addTopLevelItem(root_item)
         self._build_real_tree(root_item, scenario.root_path)
         root_item.setExpanded(True)
+        # re-attache le filtre actif au nouvel arbre (champ de recherche
+        # encore renseigne -> l'utilisateur ne perd pas sa recherche)
+        search = self._tree_search_boxes.get(tree)
+        if search is not None and search.text().strip():
+            self._filter_tree(tree, search.text())
+
+    def _attach_tree_filter(self, tree: QTreeWidget, layout: QVBoxLayout):
+        """Insere un champ de filtrage au-dessus d'un arbre et le branche au
+        filtre en direct (textChanged -> _filter_tree)."""
+        search = fluent_pilot.make_search_box()
+        search.setPlaceholderText(t("panel.filter_files"))
+        search.setToolTip(t("panel.filter_files"))
+        search.setClearButtonEnabled(True)
+        search.textChanged.connect(lambda text, tr=tree: self._filter_tree(tr, text))
+        layout.addWidget(search)
+        self._tree_search_boxes[tree] = search
+        tree._filter_search_box = search
+
+    def _filter_tree(self, tree: QTreeWidget, text: str):
+        """Filtre en direct d'un arbre de fichiers : un item reste visible si
+        LUI-MEME ou un de ses descendants correspond a la requete (casse
+        insensible) ; les parents d'un resultat sont deployes. Le retour a
+        une requete vide restaure la visibilite ET l'expansion d'avant
+        filtrage (sauvegardee au premier caractere, perdue si l'arbre est
+        repeuple entre-temps -- les items sauvegardes n'existent plus)."""
+        query = text.strip().lower()
+
+        def apply(item: QTreeWidgetItem) -> bool:
+            child_match = False
+            for i in range(item.childCount()):
+                if apply(item.child(i)):
+                    child_match = True
+            visible = not query or child_match or query in item.text(0).lower()
+            item.setHidden(not visible)
+            if query and child_match:
+                item.setExpanded(True)
+            return visible
+
+        backup = getattr(tree, "_filter_expansion_backup", None)
+        if query:
+            if backup is None:
+                # QTreeWidgetItem est NON-HACHABLE en PyQt6 : la cle de la
+                # sauvegarde est id(item), la valeur conserve la reference de
+                # l'item (le maintient en vie) ET son etat d'expansion.
+                backup = {}
+                it = QTreeWidgetItemIterator(tree)
+                while it.value() is not None:
+                    item = it.value()
+                    backup[id(item)] = (item, item.isExpanded())
+                    it += 1
+                tree._filter_expansion_backup = backup
+            for i in range(tree.topLevelItemCount()):
+                apply(tree.topLevelItem(i))
+            return
+        # Requete vide : tout re-montrer et restituer l'expansion sauvegardee
+        if backup is not None:
+            for item, expanded in backup.values():
+                try:
+                    item.setHidden(False)
+                    item.setExpanded(expanded)
+                except RuntimeError:
+                    pass  # item detruit par un repeuplage entre-temps
+            tree._filter_expansion_backup = None
+
+        def show(item: QTreeWidgetItem):
+            item.setHidden(False)
+            for i in range(item.childCount()):
+                show(item.child(i))
+
+        for i in range(tree.topLevelItemCount()):
+            show(tree.topLevelItem(i))
 
     def _build_real_tree(self, parent_item: QTreeWidgetItem, folder: Path):
         try:
@@ -3345,6 +3560,10 @@ def main():
     app = QApplication(sys.argv)
     from gui.theme import apply_theme
     apply_theme(app)
+    # Pilote Fluent (09/09/2026) : aligne le moteur Fluent sur le theme
+    # courant (clair/sombre + accent) juste apres la feuille de style QSS.
+    from gui import fluent_pilot
+    fluent_pilot.sync_theme()
 
     # Icone de l'application (barre de titre + barre des taches) : meme .ico
     # que l'exe et l'installeur (voir empyrion_editor.spec et installer.iss).

@@ -25,7 +25,9 @@ import pytest
 def test_theme_registry_has_all_expected_ids():
     from core.themes import THEMES, THEME_ORDER
     assert set(THEME_ORDER) == set(THEMES.keys())
-    assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e", "f", "g", "h"]
+    # "i" = Nuit Fluent (audit rendu du 09/09/2026 : palette longues
+    # sessions desaturee, s'articule avec le pilote gui/fluent_pilot.py)
+    assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i"]
 
 
 REQUIRED_PALETTE_KEYS = {
@@ -62,6 +64,26 @@ def test_build_stylesheet_contains_palette_colors(qapp):
     assert palette["accent"] in css
     assert palette["bg"] in css
     assert palette["text_primary"] in css
+
+
+def test_theme_nuit_fluent_palette_and_fluent_alignment(qapp):
+    """Theme 'i' (Nuit Fluent, audit rendu du 09/09/2026) : palette longue
+    session desaturee + QSS additionnel equilibre + articulation automatique
+    avec le pilote Fluent (fond sombre -> Theme.DARK, accent turquoise)."""
+    from core.themes import THEMES, get_palette
+    from gui.theme import build_stylesheet
+    from gui.fluent_pilot import _is_dark_bg
+    palette = THEMES["i"]
+    assert palette["bg"] == "#1e1e24"          # gris-bleu desature, PAS de noir pur
+    assert palette["text_primary"] == "#e3e3e3"  # blanc casse, PAS de blanc pur
+    extra = palette.get("extra_qss")
+    assert extra.count("{") == extra.count("}") > 0
+    # La feuille COMPLETE (generale + extra) doit rester equilibree
+    css = build_stylesheet(palette)
+    assert css.count("{") == css.count("}")
+    # Le moteur Fluent doit basculer en sombre avec l'accent du theme
+    assert _is_dark_bg(palette["bg"]) is True
+    assert _is_dark_bg(THEMES["b"]["bg"]) is False
 
 
 def test_apply_theme_updates_live_module_attributes(qapp):

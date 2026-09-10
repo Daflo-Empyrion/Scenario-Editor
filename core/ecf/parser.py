@@ -84,14 +84,42 @@ def _find_unquoted(s: str, chars: str, start: int = 0) -> int:
     return -1
 
 
+def _find_inline_block_comment_start(s: str) -> int:
+    """Trouve le debut d'un commentaire /* ... */ hors guillemets, ou -1."""
+    in_quotes = False
+    i, n = 0, len(s)
+    while i < n:
+        c = s[i]
+        if c == '"':
+            in_quotes = not in_quotes
+        elif not in_quotes and c == '/' and i + 1 < n and s[i + 1] == '*':
+            return i
+        i += 1
+    return -1
+
+
 def _split_top_level_comment(s: str) -> Tuple[str, Optional[str]]:
-    """Sépare le code du commentaire de fin de ligne (premier '#' hors guillemets)."""
-    idx = _find_unquoted(s, '#')
-    if idx == -1:
-        return s, None
-    code = s[:idx].rstrip()
-    comment = s[idx:].rstrip()
-    return code, comment
+    """Sépare le code du commentaire de fin de ligne.
+
+    Deux syntaxes de commentaire existent dans les vrais fichiers du jeu :
+      - '# commentaire' ;
+      - '/* commentaire */' -- sur sa propre ligne OU EN FIN d'une ligne de
+        propriete/bloc : 'SpawnInSameDirection: false /* if true,animals
+        will spawn ... */'. Ce second cas n'etait pas reconnu : le
+        commentaire restait dans la valeur, et la moindre virgule qu'il
+        contenait (ex 'true,animals') etait comprise comme un eclatement de
+        valeur -> fausses alertes E004 et paires polluees (signale le
+        10/09/2026 sur RE2 EVO / FactionWarfare.ecf).
+    Le marqueur hors guillemets le plus a gauche gagne ; un /* non ferme en
+    fin de ligne ouvre un commentaire multi-lignes (gere par l'appelant via
+    in_block_comment)."""
+    idx_hash = _find_unquoted(s, '#')
+    idx_block = _find_inline_block_comment_start(s)
+    if idx_block != -1 and (idx_hash == -1 or idx_block < idx_hash):
+        return s[:idx_block].rstrip(), s[idx_block:].rstrip()
+    if idx_hash != -1:
+        return s[:idx_hash].rstrip(), s[idx_hash:].rstrip()
+    return s, None
 
 
 def _split_top_level_commas(s: str) -> List[str]:
@@ -219,6 +247,10 @@ def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[Ecf
         if _OPEN_RE.match(stripped):
             after_brace = stripped[1:]
             code, comment = _split_top_level_comment(after_brace)
+            # /* non ferme en fin de ligne d'entete : la suite du fichier est
+            # commentaire jusqu'au */ (meme semantique que les proprietes).
+            if comment is not None and comment.startswith('/*') and '*/' not in comment:
+                in_block_comment = True
             kind, pairs = _split_block_header(code)
 
             children, next_i, closed = _parse_nodes(lines, i + 1, depth + 1)
@@ -241,6 +273,10 @@ def _parse_nodes(lines: List[str], start_idx: int, depth: int) -> Tuple[List[Ecf
 
         # Ligne de propriété classique
         code, comment = _split_top_level_comment(stripped)
+        # /* non ferme en fin de ligne : le commentaire continue sur les
+        # lignes suivantes jusqu'au */ (les vrais fichiers du jeu en ont).
+        if comment is not None and comment.startswith('/*') and '*/' not in comment:
+            in_block_comment = True
         pairs = _parse_pairs(code)
         nodes.append(EcfProperty(
             raw=raw,

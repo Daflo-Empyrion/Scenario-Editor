@@ -249,9 +249,58 @@ QToolTip {{
         # indisponible -- voir core/win_backdrop.py)
         "acrylic": True,
     },
+    "i": {
+        # Theme "nuit Fluent" (audit rendu du 09/09/2026, proposition
+        # "longues sessions" : fond profond DESATURE -- jamais de noir pur --
+        # cartes a peine plus claires, texte blanc CASSE, accent turquoise
+        # Fluent reserve aux elements actifs). S'articule avec le pilote
+        # PyQt-Fluent-Widgets : fluent_pilot.sync_theme bascule le moteur
+        # Fluent en Theme.DARK avec l'accent ci-dessous.
+        "label": "I — Nuit Fluent",
+        "bg": "#1e1e24", "surface": "#26262e", "surface_alt": "#2d2d34",
+        "border": "#3a3a42", "border_strong": "#4a4a55",
+        "text_primary": "#e3e3e3", "text_muted": "#a1a1a1", "text_on_primary": "#10141a",
+        "accent": "#60cdff", "accent_hover": "#7ed8ff", "accent_pressed": "#48b3e6",
+        "accent_bg_tint": "#14384a",
+        "nav_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                         "stop:0 #1a1a20, stop:1 #232330)",
+        "nav_text": "#e3e3e3",
+        "success": "#5FD98A", "warning": "#F5A623", "danger": "#E8555A", "danger_dark": "#C23B40",
+        "font_family": "Segoe UI",
+        # QSS additionnel (meme mecanisme que Verriere, ajoute en fin de
+        # feuille) : lignes de grille tres estompees (secret des grilles de
+        # code modernes type VS Code), filets horizontaux doux, tooltips
+        # sobres -- pas de bordures dures entre zones.
+        "extra_qss": """
+/* --- Theme Nuit Fluent : grilles estompees, filets doux --- */
+QTableWidget {{
+    gridline-color: {GRID_LINE};
+    alternate-background-color: {SURFACE};
+}}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {{
+    border: none;
+}}
+QHeaderView::section {{
+    background-color: {SURFACE_ALT};
+    color: {TEXT_MUTED};
+    border: none;
+    border-bottom: 1px solid {GRID_LINE};
+}}
+QToolTip {{
+    background: {SURFACE};
+    color: {TEXT_PRIMARY};
+    border: 1px solid {BORDER};
+}}
+""".format(GRID_LINE="#33333c", SURFACE="#26262e", SURFACE_ALT="#2d2d34",
+           TEXT_MUTED="#a1a1a1", TEXT_PRIMARY="#e3e3e3", BORDER="#3a3a42"),
+        # PAS d'acrylique volontairement (retour utilisateur 09/09/2026) :
+        # la translucidite DWM assombrissait les zones peu peintes -> le fond
+        # paraissait a nouveau noir au lieu du gris desature voulu. Le theme
+        # reste 100% opaque : la palette ci-dessus est rendue telle quelle.
+    },
 }
 
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h"]
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i"]
 DEFAULT_THEME_ID = "classic"
 
 

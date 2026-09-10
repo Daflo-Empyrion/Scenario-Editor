@@ -39,11 +39,20 @@ def test_verriere_palette_has_optional_keys():
 
 
 def test_other_themes_have_no_optional_glass_keys():
+    # Les cles optionnelles (extra_qss/neon_selection/acrylic) restent
+    # reservees aux themes qui les DECLARENT explicitement ("h" Verriere,
+    # "i" Nuit Fluent qui reutilise le mecanisme acrylique) -- aucune fuite
+    # vers les autres themes.
+    themes_with_optional = {"h", "i"}
     for theme_id, palette in THEMES.items():
-        if theme_id != "h":
+        if theme_id not in themes_with_optional:
             assert "extra_qss" not in palette
             assert "neon_selection" not in palette
             assert "acrylic" not in palette
+    # Verriere garde son identite neon exclusive
+    for theme_id, palette in THEMES.items():
+        if theme_id != "h":
+            assert "neon_selection" not in palette
 
 
 def test_build_stylesheet_appends_extra_qss_only_for_verriere():

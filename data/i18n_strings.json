@@ -3075,6 +3075,10 @@
   "fr": "Scenario A (lecture seule)",
   "en": "Scenario A (read-only)"
  },
+ "panel.filter_files": {
+  "fr": "Filtrer les fichiers...",
+  "en": "Filter files..."
+ },
  "panel.working_copy": {
   "fr": "Copie de travail (modifiable)",
   "en": "Working copy (editable)"
@@ -5038,6 +5042,14 @@
  "menu.options.vanilla_content": {
   "fr": "Dossier du jeu (vanille)...",
   "en": "Game folder (vanilla)..."
+ },
+ "menu.options.fluent_pilot": {
+  "fr": "Interface Fluent (pilote)",
+  "en": "Fluent interface (pilot)"
+ },
+ "menu.options.fluent_pilot.restart": {
+  "fr": "Option enregistree : relancez l'application pour changer de style d'interface.",
+  "en": "Setting saved: restart the application to switch the interface style."
  },
  "vanilla.title": {
   "fr": "Dossier Content de l'installation du jeu",

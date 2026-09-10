@@ -27,6 +27,12 @@ _dt_datas, _dt_binaries, _dt_hiddenimports = collect_all('deep_translator')
 _bs4_datas, _bs4_binaries, _bs4_hiddenimports = collect_all('bs4')
 _requests_datas, _requests_binaries, _requests_hiddenimports = collect_all('requests')
 _certifi_datas, _certifi_binaries, _certifi_hiddenimports = collect_all('certifi')
+# Pilote Fluent (09/09/2026) : qfluentwidgets embarque ses qss/images comme
+# DONNEES et importe des sous-modules dynamiquement -- collect_all obligatoire,
+# sinon le pilote retombe en mode degrade (boutons vanilla) dans l'exe.
+# qframelesswindow est la dependance fenetre sans bordure de qfluentwidgets.
+_qfw_datas, _qfw_binaries, _qfw_hiddenimports = collect_all('qfluentwidgets')
+_qfwl_datas, _qfwl_binaries, _qfwl_hiddenimports = collect_all('qframelesswindow')
 
 a = Analysis(
     ['run_gui.py'],
@@ -41,6 +47,7 @@ a = Analysis(
         (str(project_root / 'assets'), 'assets'),
         (str(project_root / 'data'), 'data'),
         *_dt_datas, *_bs4_datas, *_requests_datas, *_certifi_datas,
+        *_qfw_datas, *_qfwl_datas,
     ],
     hiddenimports=[
         # PyQt6 charge certains sous-modules dynamiquement (non detectes par
@@ -54,7 +61,7 @@ a = Analysis(
         'PyQt6.QtPdf',
         'PyQt6.QtPdfWidgets',
         *_dt_hiddenimports, *_bs4_hiddenimports, *_requests_hiddenimports,
-        *_certifi_hiddenimports,
+        *_certifi_hiddenimports, *_qfw_hiddenimports, *_qfwl_hiddenimports,
     ],
     hookspath=[],
     hooksconfig={},

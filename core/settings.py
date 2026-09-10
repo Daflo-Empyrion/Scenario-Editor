@@ -191,6 +191,17 @@ def set_theme(theme_id: str) -> None:
     _set('theme', theme_id)
 
 
+def get_fluent_pilot_enabled() -> bool:
+    """Pilote PyQt-Fluent-Widgets sur la fenetre principale (decision du
+    09/09/2026) : True par defaut pour que le pilote soit visible des la
+    premiere relance ; reactivable/desactivable dans Options."""
+    return _get('fluent_pilot_enabled', True)
+
+
+def set_fluent_pilot_enabled(enabled: bool) -> None:
+    _set('fluent_pilot_enabled', enabled)
+
+
 def get_vanilla_content_path() -> str:
     """Dossier Content de l'installation Steam du jeu (ex:
     C:/Program Files (x86)/Steam/steamapps/common/Empyrion - Galactic
