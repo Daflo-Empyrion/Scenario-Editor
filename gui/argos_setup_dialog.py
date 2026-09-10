@@ -30,6 +30,7 @@
   3. IMPORT      : .argosmodel local (ex bundle torrent) installable ici.
 """
 import queue
+import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
@@ -177,6 +178,13 @@ class ArgosSetupDialog(QDialog):
             self._load_models()
             return
         self.stack.setCurrentIndex(0)
+        if getattr(sys, "frozen", False):
+            # Version installee : pip n'existe pas dans un exe gelee et la
+            # bibliotheque n'y est pas embarquee (decision a) -- l'option
+            # hors ligne est disponible dans la version sources.
+            self.engine_status.setText(t("argos.frozen_msg"))
+            self.btn_install_engine.setVisible(False)
+            return
         self.engine_status.setText(t("argos.engine_missing"))
         if auto:
             from threading import Thread

@@ -6162,5 +6162,9 @@
  "menu.options.argos_engine.tip_none": {
   "fr": "Aucun modèle Argos installé : ouvre « Traduction hors ligne (Argos)... » pour choisir une langue.",
   "en": "No Argos model installed: open \"Offline translation (Argos)...\" to pick a language."
+ },
+ "argos.frozen_msg": {
+  "fr": "La traduction hors ligne (Argos) nécessite la bibliothèque argostranslate, non embarquée dans la version installée : elle est disponible en lançant l'éditeur depuis Python (voir le dépôt). La traduction en ligne reste disponible.",
+  "en": "Offline translation (Argos) requires the argostranslate library, not bundled in the installed build: it is available when running the editor from Python (see the repository). Online translation remains available."
  }
 }
