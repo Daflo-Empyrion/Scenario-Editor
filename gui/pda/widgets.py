@@ -35,6 +35,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
 
 from core.i18n import t
 
+
 _TAG_RE = re.compile(r"\[/?.{1,32}?\]")
 
 TAG_COLORS = ("#00ffff", "#0088ff", "#ff0000", "#ffffff", "#00ff00", "#ffee00")
@@ -337,6 +338,11 @@ class RewardsEditor(QWidget):
                               "ReputationTarget", "LevelTarget", "LevelIncrease"])
         name_w = SearchCombo(self.item_suggestions)
         count_w = QSpinBox()
+        # Pas de plafond "999" : la taille de pile depend des items du
+        # SCENARIO (MaxCount, souvent bien superieur a 999) et le jeu
+        # DECOMPOSE automatiquement les recompenses en plusieurs piles
+        # (retour utilisateur du 12/09/2026 : MoneyCard pile 50000,
+        # recompense 100000 -> deux piles de 50000).
         count_w.setRange(1, 999999)
         count_w.setValue(1)
         faction_w = SearchCombo(self.faction_suggestions)
@@ -361,6 +367,7 @@ class RewardsEditor(QWidget):
             name_w.set_suggestions(self.item_suggestions if is_item else [])
             name_w.setCurrentText(reward.name if reward else "")
             faction_w.setVisible(text in ("Reputation", "ReputationTarget"))
+
         kind_w.currentTextChanged.connect(on_kind)
         if reward:
             kind_w.setCurrentText("Item" if reward.kind == "Item" else reward.name

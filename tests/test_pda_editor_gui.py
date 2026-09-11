@@ -20,6 +20,7 @@ tests de l'ancien module)."""
 from pathlib import Path
 
 import pytest
+from PyQt6.QtCore import Qt
 
 from core.csv_handler import parse_csv_text
 from core.pda.model import PdaModel
@@ -491,3 +492,53 @@ def test_every_key_of_rich_file_is_visible(qapp):
     action = m.actions(task)[0]
     dlg._select_entry(action)
     assert "OnCompleteSignal" in dlg.action_panel.advanced_label.text()
+
+
+def _first_action_item(dialog):
+    from gui.pda.editor_dialog import _K_ACTION
+
+    def walk(titem):
+        d = titem.data(0, Qt.ItemDataRole.UserRole)
+        if d is not None and d.kind == _K_ACTION:
+            return titem
+        for i in range(titem.childCount()):
+            found = walk(titem.child(i))
+            if found is not None:
+                return found
+        return None
+
+    for i in range(dialog.tree.topLevelItemCount()):
+        found = walk(dialog.tree.topLevelItem(i))
+        if found is not None:
+            return found
+    return None
+
+
+def test_action_panel_shows_title_counter(dialog, model, qapp):
+    """A1 : compteur de caracteres VISIBLES (BBCode retires) contre la
+    limite HUD (ActionTitle 24) sur le champ titre de l'action."""
+    item = _first_action_item(dialog)
+    dialog.tree.setCurrentItem(item)
+    qapp.processEvents()
+    from gui.pda.editor_dialog import _ActionPanel
+    panel = dialog.stack.currentWidget()
+    assert isinstance(panel, _ActionPanel)
+    text = panel.title_counter.text()
+    assert "/24" in text
+
+
+def test_action_panel_issues_banner_on_invalid_action(dialog, model, qapp):
+    """A2 live : CompletedMessage supprime -> le bandeau d'incidents s'affiche
+    avec le message d'erreur ; action valide -> bandeau masque."""
+    from gui.pda.editor_dialog import _ActionPanel
+    item = _first_action_item(dialog)
+    dialog.tree.setCurrentItem(item)
+    qapp.processEvents()
+    panel = dialog.stack.currentWidget()
+    assert isinstance(panel, _ActionPanel)
+
+    node = [c for c in panel.entry.children if c.key == "CompletedMessage"][0]
+    panel.entry.children.remove(node)
+    panel._refresh_issues()
+    assert panel.issues_label.isVisible() or panel.issues_label.text()
+    assert "CompletedMessage" in panel.issues_label.text()

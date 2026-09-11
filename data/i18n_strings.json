@@ -6458,5 +6458,105 @@
  "pda.repeat.no_reminder.tooltip": {
   "fr": "Coché : pas de rappel à l'écran pour cette entrée.",
   "en": "Checked: no on-screen reminder for this entry."
+ },
+ "pda.val.no_completed_message": {
+  "fr": "CompletedMessage manquant : le guide le conseille ($ = message par défaut du jeu). La vanille fonctionne souvent sans — à votre appréciation.",
+  "en": "Missing CompletedMessage: the guide recommends it ($ = game default message). Vanilla often works without it — your call."
+ },
+ "pda.val.multiple_checks": {
+  "fr": "Plusieurs clés Check sur la même action : le jeu n'en lit qu'une (une seule condition par action).",
+  "en": "Several Check keys on the same action: the game reads only one (one condition per action)."
+ },
+ "pda.val.needs_names_or_types": {
+  "fr": "Le Check {check} exige au moins un NAMES (où) ou un TYPES (quoi).",
+  "en": "The {check} check requires at least one NAMES (where) or TYPES (what)."
+ },
+ "pda.val.needs_names": {
+  "fr": "Le Check {check} exige au moins un NAMES (où / sur quoi).",
+  "en": "The {check} check requires at least one NAMES (where / what)."
+ },
+ "pda.val.needs_types": {
+  "fr": "Le Check {check} exige au moins un TYPES (quoi).",
+  "en": "The {check} check requires at least one TYPES (what)."
+ },
+ "pda.val.unused_names_field": {
+  "fr": "Names renseigné mais le Check {check} ne l'utilise pas : le jeu l'ignorera (résidu d'édition ?).",
+  "en": "Names is filled but the {check} check ignores it: the game will not use it (editing leftover?)."
+ },
+ "pda.val.unused_types_field": {
+  "fr": "Types renseigné mais le Check {check} ne l'utilise pas : le jeu l'ignorera (résidu d'édition ?).",
+  "en": "Types is filled but the {check} check ignores it: the game will not use it (editing leftover?)."
+ },
+ "pda.val.when_rewarded_first": {
+  "fr": "Visibility: WhenRewarded sur le PREMIER chapitre : aucun chapitre précédent à terminer, il ne sera jamais visible.",
+  "en": "Visibility: WhenRewarded on the FIRST chapter: there is no previous chapter to complete, it will never show."
+ },
+ "pda.val.chain_target_missing": {
+  "fr": "{key} : le chapitre cible « {target} » n'existe pas (titre de chapitre introuvable dans ce PDA.yaml).",
+  "en": "{key}: target chapter \"{target}\" does not exist (chapter title not found in this PDA.yaml)."
+ },
+ "pda.val.token_missing": {
+  "fr": "Jeton absent du PDA.csv : {token}",
+  "en": "Token missing from PDA.csv: {token}"
+ },
+ "pda.val.token_orphan": {
+  "fr": "Jeton orphelin dans le PDA.csv (plus référencé par le YAML) : {token}",
+  "en": "Orphan token in PDA.csv (no longer referenced by the YAML): {token}"
+ },
+ "pda.val.reward_count_over": {
+  "fr": "Récompense « {item} » : quantité {count} > pile maximale du jeu ({max}). Le guide : ajouter une ligne de récompense supplémentaire.",
+  "en": "Reward \"{item}\": count {count} > game max stack ({max}). The guide: add another reward line."
+ },
+ "pda.val.title_over": {
+  "fr": "{key} : {n} caractères (max {max}) — le HUD passera à la ligne. Limite Visible après retrait des balises BBCode.",
+  "en": "{key}: {n} characters (max {max}) — the HUD will wrap the line. Limit applies to visible text after BBCode removal."
+ },
+ "pda.val.counter": {
+  "fr": "{n}/{max} caractères",
+  "en": "{n}/{max} characters"
+ },
+ "pda.val.counter.tip": {
+  "fr": "Longueur du texte VISIBLE (balises BBCode retirées). Au-delà de la limite, le HUD du jeu passe à la ligne.",
+  "en": "VISIBLE text length (BBCode tags removed). Beyond the limit, the in-game HUD wraps the line."
+ },
+ "pda.rewards.count.tooltip": {
+  "fr": "Quantité. Récompense Item : maximum = taille de pile de l'item (999 pour la plupart) — au-delà, ajouter une ligne supplémentaire.",
+  "en": "Amount. Item reward: max = the item's stack size (999 for most) — beyond that, add another reward line."
+ },
+ "pda.validation.button": {
+  "fr": "Vérifier le PDA",
+  "en": "Check the PDA"
+ },
+ "pda.validation.button.tooltip": {
+  "fr": "Vérifie tout le PDA : messages obligatoires, NAMES/TYPES requis par chaque Check, cibles de chaînage, jetons du PDA.csv, longueurs de titres, piles de récompenses.",
+  "en": "Checks the whole PDA: required messages, NAMES/TYPES required by each Check, chaining targets, PDA.csv tokens, title lengths, reward stacks."
+ },
+ "pda.validation.title": {
+  "fr": "Vérification du PDA",
+  "en": "PDA check"
+ },
+ "pda.validation.none": {
+  "fr": "Aucun problème détecté : le PDA est cohérent avec les règles du guide officiel.",
+  "en": "No issue found: the PDA is consistent with the official guide rules."
+ },
+ "pda.validation.n_issues": {
+  "fr": "{n} problème(s) détecté(s) — double-clic pour aller à l'élément :",
+  "en": "{n} issue(s) found — double-click to jump to the item:"
+ },
+ "pda.validation.hint": {
+  "fr": "Rouge = erreur (bloque ou casse la mission). Orange = avertissement (le jeu l'ignorera / à vérifier).",
+  "en": "Red = error (breaks or blocks the mission). Orange = warning (the game will ignore it / worth checking)."
+ },
+ "pda.val.no_completed_message.many": {
+  "fr": "{n} actions sans CompletedMessage (informationnel : la vanille aussi ; le $ du guide est optionnel en pratique).",
+  "en": "{n} actions without CompletedMessage (informational: vanilla too; the guide's $ is optional in practice)."
+ },
+ "pda.val.tokens_missing_many": {
+  "fr": "{n} jeton(s) du YAML absents du PDA.csv (peuvent référencer une autre localisation).",
+  "en": "{n} YAML token(s) missing from PDA.csv (they may reference another localization file)."
+ },
+ "pda.val.tokens_orphan_many": {
+  "fr": "{n} jeton(s) orphelin(s) dans le PDA.csv (plus référencés par le YAML).",
+  "en": "{n} orphan token(s) in PDA.csv (no longer referenced by the YAML)."
  }
 }

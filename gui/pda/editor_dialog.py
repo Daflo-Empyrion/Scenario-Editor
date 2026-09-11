@@ -30,10 +30,12 @@ meme flux que l'ancien module."""
 import re
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
-                             QMessageBox, QPushButton, QScrollArea,
-                             QSplitter, QStackedWidget, QTreeWidget,
-                             QVBoxLayout, QWidget, QTreeWidgetItem)
+                             QListWidget, QListWidgetItem, QMessageBox,
+                             QPushButton, QScrollArea, QSplitter,
+                             QStackedWidget, QTreeWidget, QVBoxLayout,
+                             QWidget, QTreeWidgetItem)
 
 from core.i18n import t
 from core.pda import schema
@@ -43,6 +45,8 @@ from core.pda.schema import (ACTIVATION_FIELDS, ACTION_COMMON_FIELDS,
                              CHAPTER_FIELDS, CHAPTER_STRUCTURE_KEYS,
                              TASK_FIELDS, TASK_STRUCTURE_KEYS, action_fields,
                              check_spec)
+from core.pda.validation import (TITLE_LIMITS, validate_action,
+                                 validate_model, visible_len)
 from gui.msgboxes import ask_yes_no
 from gui.pda.form import SpecForm
 from gui.pda.widgets import NameListEditor, RewardsEditor, SearchCombo
@@ -182,6 +186,13 @@ class PdaEditorDialog(QDialog):
         btn_wizard.setToolTip(t("pda.editor.btn_wizard.tooltip"))
         btn_wizard.clicked.connect(self._open_wizard)
         close_row.addWidget(btn_wizard)
+        # A1-A7 (12/09/2026) : passe de validation complete du PDA
+        # (core/pda/validation.py), resultats navigables par double-clic.
+        btn_verify = QPushButton(t("pda.validation.button"))
+        btn_verify.setObjectName("secondaryButton")
+        btn_verify.setToolTip(t("pda.validation.button.tooltip"))
+        btn_verify.clicked.connect(self._run_validation)
+        close_row.addWidget(btn_verify)
         close_row.addStretch()
         btn_close = QPushButton(t("btn.close"))
         btn_close.setObjectName("primaryButton")
@@ -200,6 +211,51 @@ class PdaEditorDialog(QDialog):
         if wizard.exec() == QDialog.DialogCode.Accepted and wizard.created_chapter is not None:
             self._reload_tree()
             self._select_entry(wizard.created_chapter)
+
+    def _run_validation(self):
+        """A1-A7 : passe de validation complete (core/pda/validation.py).
+        Resultats dans une fenetre ; double-clic = navigation vers l'element
+        concerne dans l'arbre."""
+        self._save_current_panel()
+        issues = validate_model(self.model)
+        if not issues:
+            QMessageBox.information(self, t("pda.validation.title"),
+                                    t("pda.validation.none"))
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(t("pda.validation.title"))
+        dlg.resize(780, 520)
+        lay = QVBoxLayout(dlg)
+        count_label = QLabel(t("pda.validation.n_issues", n=len(issues)))
+        count_label.setObjectName("mutedLabel")
+        lay.addWidget(count_label)
+        lst = QListWidget()
+        for issue in issues:
+            item = QListWidgetItem(
+                f"[{issue.code}] {issue.path} — {issue.message}")
+            item.setData(Qt.ItemDataRole.UserRole, issue.entry)
+            item.setForeground(QColor("#E8555A" if issue.severity == "error"
+                                      else "#F5A623"))
+            lst.addItem(item)
+        def _goto(item):
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if entry is not None:
+                dlg.accept()
+                self._select_entry(entry)
+        lst.itemDoubleClicked.connect(_goto)
+        lst.setToolTip(t("pda.validation.hint"))
+        lay.addWidget(lst, 1)
+        hint = QLabel(t("pda.validation.hint"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: gray; font-size: 11px;")
+        lay.addWidget(hint)
+        row = QHBoxLayout()
+        row.addStretch()
+        btn_close = QPushButton(t("btn.close"))
+        btn_close.clicked.connect(dlg.reject)
+        row.addWidget(btn_close)
+        lay.addLayout(row)
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Arbre
@@ -574,6 +630,7 @@ class _BasePanel(QScrollArea):
     jamais proposé)."""
 
     title_key = "Title"          # nom de cle pour le journal (ChapterTitle...)
+    title_limit = None           # A1 : limite HUD de caracteres (26/24)
 
     def __init__(self, model, suggestions, parent=None):
         super().__init__(parent)
@@ -592,11 +649,29 @@ class _BasePanel(QScrollArea):
         self.title_field = TokenTextField(self.model)
         self.title_field.edit.textEdited.connect(self._on_title_edited)
         layout.addWidget(self.title_field)
+        # A1 (12/09/2026) : compteur de caracteres VISIBLES (BBCode retires)
+        # contre la limite HUD du jeu (TaskTitle 26, ActionTitle 24).
+        self.title_counter = QLabel("")
+        self.title_counter.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(self.title_counter)
+        self._update_title_counter()
+
+    def _update_title_counter(self):
+        if self.title_limit is None:
+            return
+        n = visible_len(self.title_field.edit.text())
+        over = n > self.title_limit
+        self.title_counter.setText(t("pda.val.counter", n=n, max=self.title_limit))
+        self.title_counter.setStyleSheet(
+            f"color: {'#E8555A' if over else 'gray'}; font-size: 11px;"
+            + (" font-weight: bold;" if over else ""))
+        self.title_counter.setToolTip(t("pda.val.counter.tip"))
 
     def _load_title(self, entry):
         self._loading = True
         self.title_field.set_token(entry.value or "")
         self._loading = False
+        self._update_title_counter()
 
     def _on_title_edited(self):
         if self._loading or self.entry is None:
@@ -612,6 +687,7 @@ class _BasePanel(QScrollArea):
         # le panneau : la frappe clavier ne doit jamais perdre le focus.
         if dlg is not None:
             dlg.refresh_tree_item_text(self.entry)
+        self._update_title_counter()
 
     def _build_advanced(self, layout):
         self.advanced_title = QLabel(f"<b>{t('pda.advanced.readonly')}</b>")
@@ -895,6 +971,7 @@ class _ChapterPanel(_BasePanel):
 
 class _TaskPanel(_BasePanel):
     title_key = "TaskTitle"
+    title_limit = TITLE_LIMITS["TaskTitle"]     # 26 : limite HUD du jeu
 
     def __init__(self, model, suggestions, parent=None):
         super().__init__(model, suggestions, parent)
@@ -963,6 +1040,7 @@ class _TaskPanel(_BasePanel):
 
 class _ActionPanel(_BasePanel):
     title_key = "ActionTitle"
+    title_limit = TITLE_LIMITS["ActionTitle"]   # 24 : limite HUD du jeu
 
     def __init__(self, model, suggestions, parent=None):
         super().__init__(model, suggestions, parent)
@@ -981,6 +1059,15 @@ class _ActionPanel(_BasePanel):
         self.form = SpecForm(self.model, self._suggestions_provider())
         self.form.changed.connect(self._on_field_changed)
         self._layout.addWidget(self.form)
+        # A2/A7 (12/09/2026) : bandeau LIVE des problemes de l'action en
+        # cours (CompletedMessage manquant, NAMES/TYPES requis par le Check,
+        # champs non supportes...). Regles : core/pda/validation.py.
+        self.issues_label = QLabel("")
+        self.issues_label.setWordWrap(True)
+        self.issues_label.setTextFormat(Qt.TextFormat.RichText)
+        self.issues_label.setStyleSheet("color: #E8555A; font-size: 11px;")
+        self.issues_label.hide()
+        self._layout.addWidget(self.issues_label)
         self._build_advanced(self._layout)
         self._layout.addStretch()
 
@@ -992,6 +1079,28 @@ class _ActionPanel(_BasePanel):
         self.check_combo.setCurrentText(check)
         self._build_fields(check)
         self._loading = False
+        self._refresh_issues()
+
+    def _refresh_issues(self):
+        """A2/A7 en live : regles du guide appliquees a CETTE action
+        (core/pda/validation.validate_action), affichees dans le bandeau."""
+        dlg = self._dlg()
+        if dlg is None or self.entry is None:
+            self.issues_label.hide()
+            return
+        data = dlg._current_data()
+        chapter = dlg._parent_entry_of(data, _K_CHAPTER) if data else None
+        task = dlg._parent_entry_of(data, _K_TASK) if data else None
+        if chapter is None or task is None:
+            self.issues_label.hide()
+            return
+        issues = validate_action(self.model, chapter, task, self.entry)
+        if not issues:
+            self.issues_label.hide()
+            return
+        self.issues_label.setText(
+            "<br>".join(f"&bull; {i.message}" for i in issues))
+        self.issues_label.setVisible(True)
 
     def _build_fields(self, check):
         fields = action_fields(check)
@@ -1021,6 +1130,7 @@ class _ActionPanel(_BasePanel):
         else:
             self.model.set_scalar(self.entry, "Check", text)
         self._build_fields(text)
+        self._refresh_issues()
 
     def _on_field_changed(self, key, value):
         if self._loading or self.entry is None:
@@ -1032,6 +1142,7 @@ class _ActionPanel(_BasePanel):
             self.model.set_scalar(self.entry, key, value)
         if key == "Description":
             self._notify_title_change()
+        self._refresh_issues()
 
     def _notify_title_change(self):
         # Meme discipline que le panneau chapitre : jamais de reload complet
