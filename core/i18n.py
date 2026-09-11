@@ -42,6 +42,13 @@ def set_language(lang: str) -> None:
     settings.set_language(lang)
 
 
+def has(translation_key: str) -> bool:
+    """La cle existe-t-elle dans la table (toutes langues) ? Utilise par les
+    tooltips construits dynamiquement (ex: pda.field.<KEY>.tooltip) : le
+    champ n'affiche une infobulle que si le texte existe reellement."""
+    return translation_key in STRINGS
+
+
 def t(translation_key: str, to_lang: str | None = None, **kwargs) -> str:
     """Traduit `translation_key` dans la langue active (ou `to_lang` si
     fourni -- utilise pour generer un contenu dans une langue imposee,

@@ -12,7 +12,7 @@
 ; corresponde exactement a APP_VERSION dans core/version.py.
 
 #define MyAppName "Empyrion Scenario Editor"
-#define MyAppVersion "1.6.7"
+#define MyAppVersion "1.6.8"
 #define MyAppPublisher "Daflo"
 #define MyAppExeName "EmpyrionScenarioEditor.exe"
 
@@ -37,6 +37,17 @@ VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
+; TOUJOURS proposer le choix du dossier d'installation (demande du
+; 12/09/2026). Par defaut (auto), Inno SAUTE cette page des qu'une
+; installation precedente est detectee : l'utilisateur ne voyait jamais
+; l'option en mise a jour. Avec "no", la page est affichee a chaque
+; installation, pre-remplie avec le dossier precedent (UsePreviousAppDir
+; par defaut) -- modifiable librement. L'application ne suppose RIEN sur
+; ce dossier (ressources relatives a l'exe, donnees utilisateur dans le
+; profil) : voir BUILD.md. Choisir un dossier non accessible en ecriture
+; a l'utilisateur (ex: C:\Program Files avec PrivilegesRequired=lowest)
+; echouera avec le message d'erreur standard d'Inno Setup.
+DisableDirPage=no
 ; Affiche une page d'information avant l'installation, resumant les seules
 ; fonctionnalites qui font des requetes reseau (traduction en ligne,
 ; verification de version, bouton Signaler) et comment les desactiver --

@@ -6182,5 +6182,281 @@
  "argos.engine_size_approx": {
   "fr": "Estimation du téléchargement (taille exacte indisponible) : ~{mb} Mo. Installation locale : ~1,5 Go. Aucun contenu de vos scénarios n'est envoyé en ligne.",
   "en": "Download estimate (exact size unavailable): ~{mb} MB. Installed locally: ~1.5 GB. None of your scenario content is sent online."
+ },
+ "pda.chapter.category.tooltip": {
+  "fr": "Onglet du PDA où le chapitre apparaît : FactionMission, SoloMission, Tutorial ou Knowledgebase.",
+  "en": "Which PDA tab the chapter appears in: FactionMission, SoloMission, Tutorial or Knowledgebase."
+ },
+ "pda.chapter.noskip.tooltip": {
+  "fr": "Coché : le joueur ne peut PAS passer/sauter ce chapitre.",
+  "en": "Checked: the player CANNOT skip this chapter."
+ },
+ "pda.chapter.activatable.tooltip": {
+  "fr": "Définit quand le chapitre peut être activé par le joueur (Always : à tout moment).",
+  "en": "Defines when the chapter can be activated by the player (Always: at any time)."
+ },
+ "pda.chapter.visibility.tooltip": {
+  "fr": "Quand le chapitre est visible dans la liste du PDA : Always (toujours), ByLevel (à partir d'un niveau), WhenRewarded (une fois le chapitre précédent terminé). ATTENTION : pour WhenRewarded, l'ORDRE des chapitres dans le PDA.yaml décrit la progression.",
+  "en": "When the chapter shows in the PDA list: Always, ByLevel (from a given level), WhenRewarded (after the previous chapter is completed). NOTE: for WhenRewarded, the ORDER of chapters in PDA.yaml defines the flow."
+ },
+ "pda.chapter.player_level.tooltip": {
+  "fr": "Niveau minimum du joueur pour pouvoir ACTIVER ce chapitre.",
+  "en": "Minimum player level required to ACTIVATE this chapter."
+ },
+ "pda.chapter.group.tooltip": {
+  "fr": "Nom de groupe : regroupe plusieurs chapitres sous une même entrée du PDA.",
+  "en": "Group name: gathers several chapters under one PDA entry."
+ },
+ "pda.chapter.hide_tasks.tooltip": {
+  "fr": "Coché : la liste des tâches est masquée dans le détail du chapitre.",
+  "en": "Checked: the task list is hidden in the chapter detail view."
+ },
+ "pda.chapter.description.tooltip": {
+  "fr": "Description affichée dans l'écran de détail du chapitre (visible en cliquant sur son titre dans le PDA). Champ localisé : la valeur est un jeton traduit dans le PDA.csv.",
+  "en": "Description shown in the chapter detail screen (visible when clicking its title in the PDA). Localized field: the value is a token translated in PDA.csv."
+ },
+ "pda.chapter.start_message.tooltip": {
+  "fr": "Message affiché au joueur quand le chapitre démarre. $ = message par défaut du jeu.",
+  "en": "Message shown to the player when the chapter starts. $ = game default."
+ },
+ "pda.chapter.completed_message.tooltip": {
+  "fr": "Message de fin de chapitre. $ = message par défaut du jeu (« You successfully completed '<titre>' »). Une valeur est nécessaire pour que la mission fonctionne.",
+  "en": "Chapter completion message. $ = game default (\"You successfully completed '<title>'\"). A value is required for the mission to run."
+ },
+ "pda.chapter.skip_message.tooltip": {
+  "fr": "Message affiché si le joueur passe (skip) ce chapitre.",
+  "en": "Message shown if the player skips this chapter."
+ },
+ "pda.chapter.faction.tooltip": {
+  "fr": "Faction de référence du chapitre (utilisée avec le niveau de réputation).",
+  "en": "Reference faction of the chapter (used with the reputation level)."
+ },
+ "pda.chapter.reputation_level.tooltip": {
+  "fr": "Niveau de réputation requis auprès de la faction pour ce chapitre.",
+  "en": "Reputation level required with the faction for this chapter."
+ },
+ "pda.chapter.picture.tooltip": {
+  "fr": "Image affichée dans l'écran de détail. Le fichier doit se trouver dans Content/Extras/PDA du jeu.",
+  "en": "Picture shown in the detail screen. The file must be located in the game's Content/Extras/PDA folder."
+ },
+ "pda.chapter.auto_activate.tooltip": {
+  "fr": "Coché : le chapitre s'active automatiquement au démarrage de la partie.",
+  "en": "Checked: the chapter activates automatically when the game starts."
+ },
+ "pda.chapter.activate_on_completion.tooltip": {
+  "fr": "Chapitre activé AUTOMATIQUEMENT quand celui-ci est terminé (les conditions comme le niveau restent vérifiées).",
+  "en": "Chapter activated AUTOMATICALLY when this one is completed (conditions like player level are still checked)."
+ },
+ "pda.chapter.activate_on_skip.tooltip": {
+  "fr": "Chapitre activé si le joueur passe (skip) celui-ci.",
+  "en": "Chapter activated if the player skips this one."
+ },
+ "pda.chapter.playfields.tooltip": {
+  "fr": "Chapitre limité à ces playfields précis (vide = tous).",
+  "en": "Chapter restricted to these exact playfields (empty = all)."
+ },
+ "pda.chapter.playfield_types.tooltip": {
+  "fr": "Chapitre limité à ces TYPES de playfields (planète, lune, espace...).",
+  "en": "Chapter restricted to these playfield TYPES (planet, moon, space...)."
+ },
+ "pda.chapter.visible_on_start.tooltip": {
+  "fr": "Visible au démarrage de la partie uniquement sur ces playfields.",
+  "en": "Visible at game start only on these playfields."
+ },
+ "pda.chapter.visible_on_start_types.tooltip": {
+  "fr": "Visible au démarrage uniquement sur ces types de playfields.",
+  "en": "Visible at game start only on these playfield types."
+ },
+ "pda.chapter.player_credits.tooltip": {
+  "fr": "Crédits versés au joueur à la complétion du chapitre (récompense alternative/ajoutée aux items).",
+  "en": "Credits granted to the player on chapter completion (reward on top of items)."
+ },
+ "pda.task.headline.tooltip": {
+  "fr": "Titre de la tâche : affiché au-dessus de la liste d'actions dans le HUD et en sous-titre du chapitre dans le PDA. Maximum ~26 caractères (au-delà, retour à la ligne moche dans le HUD).",
+  "en": "Task title: shown above the HUD action list and as the chapter sub-header in the PDA. Max ~26 characters (longer text wraps badly in the HUD)."
+ },
+ "pda.task.start_delay.tooltip": {
+  "fr": "Délai (secondes) avant que la tâche ne démarre après son activation.",
+  "en": "Delay (seconds) before this task starts after activation."
+ },
+ "pda.task.unique_items.tooltip": {
+  "fr": "Coché : les items de la tâche sont uniques (ne peuvent être fournis/réutilisés par ailleurs).",
+  "en": "Checked: the task's items are unique (cannot be provided/reused elsewhere)."
+ },
+ "pda.task.only_visible_rewarded.tooltip": {
+  "fr": "Coché : la tâche n'est visible que lorsque la tâche/chapitre précédent a été récompensé.",
+  "en": "Checked: the task is only visible once the previous task/chapter has been rewarded."
+ },
+ "pda.task.on_activate_signal.tooltip": {
+  "fr": "Signal de POI déclenché quand la tâche s'ACTIVE (utilise * comme joker dans les blueprints de POI).",
+  "en": "POI signal fired when the task ACTIVATES (use * as wildcard in POI blueprints)."
+ },
+ "pda.task.on_complete_signal.tooltip": {
+  "fr": "Signal de POI déclenché quand la tâche est TERMINÉE.",
+  "en": "POI signal fired when the task is COMPLETED."
+ },
+ "pda.task.rewarded_tasks.tooltip": {
+  "fr": "Tâches marquées comme récompensées quand celle-ci est terminée.",
+  "en": "Tasks marked as rewarded when this one completes."
+ },
+ "pda.task.rewarded_chapters.tooltip": {
+  "fr": "Chapitres marqués comme récompensés quand cette tâche est terminée.",
+  "en": "Chapters marked as rewarded when this task completes."
+ },
+ "pda.field.description.tooltip": {
+  "fr": "Description détaillée de l'action, affichée à droite de l'écran de détail du PDA. Champ localisé (jeton PDA.csv).",
+  "en": "Detailed action description, shown on the right of the PDA detail screen. Localized field (PDA.csv token)."
+ },
+ "pda.field.completed_message.tooltip": {
+  "fr": "OBLIGATOIRE. $ = message par défaut (« You successfully completed '<titre>' ») ; remplace le $ par ton propre texte si besoin.",
+  "en": "REQUIRED. $ = default message (\"You successfully completed '<title>'\"); replace the $ with your own text if needed."
+ },
+ "pda.field.allow_manual.tooltip": {
+  "fr": "Coché : le joueur peut cocher lui-même la case de l'action dans le PDA pour la terminer manuellement. Décoché = complétion automatique uniquement.",
+  "en": "Checked: the player can tick the action's checkbox in the PDA to complete it manually. Unchecked = automatic completion only."
+ },
+ "pda.field.is_ordered.tooltip": {
+  "fr": "Coché : les tâches de ce chapitre doivent être accomplies dans l'ordre du fichier.",
+  "en": "Checked: this chapter's tasks must be completed in file order."
+ },
+ "pda.field.names_required.tooltip": {
+  "fr": "S'applique aux NAMES : coché = TOUS les emplacements listés sont concernés (NeedAll) ; décoché = un seul suffit (NeedOne).",
+  "en": "Applies to NAMES: checked = ALL listed locations apply (NeedAll); unchecked = any single one is enough (NeedOne)."
+ },
+ "pda.field.amount.tooltip": {
+  "fr": "Quantité d'éléments (NAMES ou TYPES) nécessaire pour compléter l'action.",
+  "en": "How many of the listed NAMES or TYPES are needed to complete the action."
+ },
+ "pda.field.amount_kills.tooltip": {
+  "fr": "Nombre d'unités à éliminer pour compléter l'action.",
+  "en": "Number of units to kill to complete the action."
+ },
+ "pda.field.amount_seconds.tooltip": {
+  "fr": "Durée en secondes (attente/écoute) pour compléter l'action.",
+  "en": "Duration in seconds (wait/listen) to complete the action."
+ },
+ "pda.field.comment.tooltip": {
+  "fr": "Note interne : non utilisée par le jeu, pour toi/ton équipe.",
+  "en": "Internal note: ignored by the game, for you/your team."
+ },
+ "pda.field.trigger_distance.tooltip": {
+  "fr": "Distance (en mètres) de déclenchement du Check de proximité.",
+  "en": "Distance (meters) at which the proximity Check triggers."
+ },
+ "pda.field.guiding_distance.tooltip": {
+  "fr": "Distance (mètres) à laquelle le guidage/waypoint s'affiche (-1 = désactivé).",
+  "en": "Distance (meters) at which the guiding/waypoint shows (-1 = off)."
+ },
+ "pda.field.guiding.tooltip": {
+  "fr": "Mode de guidage du joueur vers l'objectif (waypoint, direction...).",
+  "en": "Player guiding mode towards the objective (waypoint, direction...)."
+ },
+ "pda.field.value_option.tooltip": {
+  "fr": "Numéro de l'option de dialogue concernée (1 = première option).",
+  "en": "Number of the targeted dialog option (1 = first option)."
+ },
+ "pda.field.names_poi.tooltip": {
+  "fr": "NAMES = OÙ : POI (base, installation) concerné par le Check.",
+  "en": "NAMES = WHERE: the POI (base, structure) targeted by the Check."
+ },
+ "pda.field.names_unit.tooltip": {
+  "fr": "NAMES = OÙ/QUI : entité concernée (NPC, créature, drone...).",
+  "en": "NAMES = WHERE/WHO: the entity involved (NPC, creature, drone...)."
+ },
+ "pda.field.names_targets.tooltip": {
+  "fr": "NAMES = CIBLES : entités à atteindre/éliminer pour le Check.",
+  "en": "NAMES = TARGETS: entities to reach/eliminate for the Check."
+ },
+ "pda.field.names_device.tooltip": {
+  "fr": "NAMES = le dispositif concerné par le Check.",
+  "en": "NAMES = the device involved in the Check."
+ },
+ "pda.field.names_signal.tooltip": {
+  "fr": "Nom du SIGNAL (utilise * comme joker dans les blueprints de POI).",
+  "en": "SIGNAL name (use * as wildcard in POI blueprints)."
+ },
+ "pda.field.names_playfield.tooltip": {
+  "fr": "NAMES = OÙ : playfield (planète/lune/espace) concerné.",
+  "en": "NAMES = WHERE: the playfield (planet/moon/space) involved."
+ },
+ "pda.field.names_pf_type.tooltip": {
+  "fr": "Type de playfield concerné (planète, lune, espace).",
+  "en": "Playfield type involved (planet, moon, space)."
+ },
+ "pda.field.names_biome.tooltip": {
+  "fr": "Biome concerné par le Check (désert, neige...).",
+  "en": "Biome the Check applies to (desert, snow...)."
+ },
+ "pda.field.names_star_class.tooltip": {
+  "fr": "Classe spectrale de l'étoile du système concerné.",
+  "en": "Spectral class of the system's star."
+ },
+ "pda.field.names_structure.tooltip": {
+  "fr": "Structure (vaisseau/base avec bloc de démarrage) concernée.",
+  "en": "Structure (vessel/base with starter block) involved."
+ },
+ "pda.field.names_dialog.tooltip": {
+  "fr": "Dialogue/NPC dont l'option est surveillée par le Check.",
+  "en": "Dialog/NPC whose option is watched by the Check."
+ },
+ "pda.field.names_item.tooltip": {
+  "fr": "Item concerné par le Check (inventaire, fabrication...).",
+  "en": "Item involved in the Check (inventory, crafting...)."
+ },
+ "pda.field.names_optional.tooltip": {
+  "fr": "NAMES optionnels : complètent le Check sans être obligatoires.",
+  "en": "Optional NAMES: complete the Check without being mandatory."
+ },
+ "pda.field.names_window.tooltip": {
+  "fr": "Fenêtre/écran du PDA concerné par le Check.",
+  "en": "PDA window/screen the Check applies to."
+ },
+ "pda.field.types_block.tooltip": {
+  "fr": "TYPES = QUOI : bloc concerné (poser, détruire, récolter...).",
+  "en": "TYPES = WHAT: the block involved (place, destroy, mine...)."
+ },
+ "pda.field.types_item.tooltip": {
+  "fr": "TYPES = QUOI : item à posséder/fabriquer/consommer.",
+  "en": "TYPES = WHAT: item to own/craft/consume."
+ },
+ "pda.field.types_plant.tooltip": {
+  "fr": "TYPES = QUOI : plante à récolter.",
+  "en": "TYPES = WHAT: plant to harvest."
+ },
+ "pda.field.types_resource.tooltip": {
+  "fr": "TYPES = QUOI : ressource à découvrir/être à proximité.",
+  "en": "TYPES = WHAT: resource to discover/be near."
+ },
+ "pda.activation.popup_activates.tooltip": {
+  "fr": "Coché : la popup d'information active le chapitre quand le joueur la ferme.",
+  "en": "Checked: the info popup activates the chapter when the player closes it."
+ },
+ "pda.activation.notify_message.tooltip": {
+  "fr": "Message de notification affiché à l'écran (jeton PDA.csv).",
+  "en": "Notification message shown on screen (PDA.csv token)."
+ },
+ "pda.activation.message_time.tooltip": {
+  "fr": "Durée d'affichage de la notification (secondes).",
+  "en": "How long the notification stays on screen (seconds)."
+ },
+ "pda.repeat.num_repeats.tooltip": {
+  "fr": "Nombre de répétitions du rappel/activité.",
+  "en": "How many times the reminder/activity repeats."
+ },
+ "pda.repeat.delay_seconds.tooltip": {
+  "fr": "Délai en secondes entre deux répétitions.",
+  "en": "Delay in seconds between repeats."
+ },
+ "pda.repeat.delay.tooltip": {
+  "fr": "Délai (unité jeu) avant la première répétition.",
+  "en": "Delay (game unit) before the first repeat."
+ },
+ "pda.repeat.delay_add.tooltip": {
+  "fr": "Temps ajouté à chaque répétition au délai précédent.",
+  "en": "Time added to the previous delay on every repeat."
+ },
+ "pda.repeat.no_reminder.tooltip": {
+  "fr": "Coché : pas de rappel à l'écran pour cette entrée.",
+  "en": "Checked: no on-screen reminder for this entry."
  }
 }

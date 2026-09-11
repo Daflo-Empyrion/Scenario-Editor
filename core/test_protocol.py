@@ -50,7 +50,7 @@ Champs d'un cas :
 
 REECRITURE GLOBALE (08/09/2026) : les 248 cas reecrits en pas-a-pas
 detaille pour utilisateurs non techniques (chaque clic, chaque commande,
-formes copiables version installee EmpyrionEditorCLI.exe ET depot
+formes copiables version installee EmpyrionEditorCLI.exe ET depot -- {CLI} = token remplace a l'affichage par le chemin REEL de l'outil installe (dossier choisi a l'installation) -- {CLI} = token remplace a l'affichage par le chemin REEL de l'outil installe (dossier choisi a l'installation)
 "python cli/...") + traduction anglaise integrale. Discipline rev :
 +1 sur chaque cas existant (TECH-003 excepte, cas N/A sans rien a
 retester) ; les nouveaux cas PDA2 n'ont PAS de champ rev (rev 1 implicite).
@@ -400,7 +400,7 @@ CASES = [
             {
                 "txt": "Vérifie la fidélité du fichier en ligne de commande : copie l'une des commandes ci-dessous et colle-la dans une invite de commandes (voir CLI-001 pour ouvrir une invite), en remplaçant <fichier> par le chemin du fichier modifié (astuce : Maj+clic droit sur le fichier > Copier en tant que chemin d'accès).",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-ecf \"<fichier>\"",
+                    "\"{CLI}\" verifier-ecf \"<fichier>\"",
                     "python cli/verifier_parser_ecf.py \"<fichier>\"",
                 ],
             },
@@ -780,7 +780,7 @@ CASES = [
             {
                 "txt": "Vérifie la fidélité : commande ci-dessous (remplace <fichier>), ou compare les octets avant/après avec une copie faite avant l'enregistrement.",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-yaml \"<fichier>\"",
+                    "\"{CLI}\" verifier-yaml \"<fichier>\"",
                     "python cli/verifier_parser_yaml.py \"<fichier>\"",
                 ],
             },
@@ -904,7 +904,7 @@ CASES = [
             {
                 "txt": "Lance la vérification de fidélité sur le fichier (remplace <fichier>) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-yaml \"<fichier>\"",
+                    "\"{CLI}\" verifier-yaml \"<fichier>\"",
                     "python cli/verifier_parser_yaml.py \"<fichier>\"",
                 ],
             },
@@ -1086,7 +1086,7 @@ CASES = [
             {
                 "txt": "Vérification par commande (remplace <fichier>) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-csv \"<fichier>\"",
+                    "\"{CLI}\" verifier-csv \"<fichier>\"",
                     "python cli/verifier_parser_csv.py \"<fichier>\"",
                 ],
             },
@@ -2161,7 +2161,7 @@ CASES = [
             "Ouvre une invite de commandes : touche Windows + R, tape cmd, appuie sur Entrée (une fenêtre noire s'ouvre).",
             {
                 "txt": "Version APPLICAtion INSTALLÉE : colle la 1re commande (remplace <fichier> par le chemin du fichier, Maj+clic droit sur le fichier > Copier en tant que chemin d'accès).",
-                "cmd": ["\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-ecf \"<fichier>\""],
+                "cmd": ["\"{CLI}\" verifier-ecf \"<fichier>\""],
             },
             {
                 "txt": "Version DÉPÔT (développeurs) : colle la 2e commande depuis la racine du dépôt -- les scripts CLI sont TOUS dans cli/ (correctif protocole v1.6.1).",
@@ -2178,7 +2178,7 @@ CASES = [
             {
                 "txt": "Colle l'une des commandes (remplace <fichier>) -- forme installée puis forme dépôt (scripts dans cli/, voir CLI-001) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-yaml \"<fichier>\"",
+                    "\"{CLI}\" verifier-yaml \"<fichier>\"",
                     "python cli/verifier_parser_yaml.py \"<fichier>\"",
                 ],
             },
@@ -2192,7 +2192,7 @@ CASES = [
             {
                 "txt": "Colle l'une des commandes (remplace <fichier>) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-csv \"<fichier>\"",
+                    "\"{CLI}\" verifier-csv \"<fichier>\"",
                     "python cli/verifier_parser_csv.py \"<fichier>\"",
                 ],
             },
@@ -2206,7 +2206,7 @@ CASES = [
             {
                 "txt": "Cherche un bloc par Id, y compris dans les commentaires (remplace <fichier> et <Id> -- ex : 1625) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" diagnostic-bloc \"<fichier>\" <Id>",
+                    "\"{CLI}\" diagnostic-bloc \"<fichier>\" <Id>",
                     "python cli/diagnostic_bloc.py \"<fichier>\" <Id>",
                 ],
             },
@@ -2220,7 +2220,7 @@ CASES = [
             {
                 "txt": "Sur un fichier sain, puis sur un cas fabriqué (un bloc dont l'accolade fermante a été supprimée) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" detecter-imbrication \"<fichier>\"",
+                    "\"{CLI}\" detecter-imbrication \"<fichier>\"",
                     "python cli/detecter_imbrication_anormale.py \"<fichier>\"",
                 ],
             },
@@ -2235,7 +2235,7 @@ CASES = [
             {
                 "txt": "Compare les deux versions (remplace <versionA> et <versionB>) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" diff \"<versionA>\" \"<versionB>\"",
+                    "\"{CLI}\" diff \"<versionA>\" \"<versionB>\"",
                     "python cli/diff_ecf.py \"<versionA>\" \"<versionB>\"",
                 ],
             },
@@ -2262,7 +2262,7 @@ CASES = [
             {
                 "txt": "Fusionne deux sources vers une sortie (remplace <sortie>, <source1>, <source2> -- sur des COPIES de test), puis vérifie la sortie (verifier-ecf) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" merge \"<sortie>\" \"<source1>\" \"<source2>\"",
+                    "\"{CLI}\" merge \"<sortie>\" \"<source1>\" \"<source2>\"",
                     "python cli/merge_ecf.py \"<sortie>\" \"<source1>\" \"<source2>\"",
                 ],
             },
@@ -2277,7 +2277,7 @@ CASES = [
             {
                 "txt": "Lance la transformation (voir usage affiché), puis vérifie le résultat (verifier-ecf) :",
                 "cmd": [
-                    "\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" transform",
+                    "\"{CLI}\" transform",
                     "python cli/transform_ecf.py",
                 ],
             },
@@ -2407,7 +2407,7 @@ CASES = [
             "Invite de commandes (CLI-001) SANS Python installé (machine de l'installeur).",
             {
                 "txt": "Lance une commande (remplace <fichier>) :",
-                "cmd": ["\"C:/Program Files/Empyrion Scenario Editor/CLI/EmpyrionEditorCLI.exe\" verifier-ecf \"<fichier>\""],
+                "cmd": ["\"{CLI}\" verifier-ecf \"<fichier>\""],
             },
             "Lance-la SANS argument pour voir la liste des commandes.",
         ],

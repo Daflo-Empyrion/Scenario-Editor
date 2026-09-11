@@ -178,6 +178,27 @@ where python
 Le chemin affiche doit pointer vers `...\venv\Scripts\python.exe`, jamais vers
 `AppData\Local\Programs\Python\...`.
 
+### Installation silencieuse et choix du dossier (v1.6.8)
+
+L'installeur propose TOUJOURS le choix du dossier d'installation
+(`DisableDirPage=no` dans installer.iss) -- meme en mise a jour, pre-rempli
+avec le dossier precedent. En installation silencieuse :
+
+```bat
+Setup-....exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LANG=french /DIR="D:\Mon\Dossier"
+```
+
+- `/LANG=` est OBLIGATOIRE en silencieux des que plusieurs langues sont
+  declarees (french + english) : sinon le dialogue de langue apparait et
+  bloque l'installeur (vecu 12/09/2026).
+- PrivilegesRequired=lowest : aucun droit admin necessaire, mais le dossier
+  choisi doit etre accessible en ecriture par l'utilisateur (choisir
+  C:\Program Files echouera -- message standard Inno Setup).
+- L'application ne suppose RIEN sur son dossier d'installation : ressources
+  relatives a l'exe, donnees utilisateur dans le profil (~/.empyrion_editor).
+  Le protocole de test resoluit le chemin de l'outil CLI a l'affichage
+  (token {CLI}, voir gui/test_protocol_runner.py).
+
 ### Cas particulier : traduction hors ligne Argos dans l'exe (v1.6.6)
 
 Depuis la v1.6.6, `argostranslate` N'EST PAS embarque (plus de 1 Go installe) ;

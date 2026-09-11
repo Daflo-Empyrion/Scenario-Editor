@@ -62,8 +62,17 @@ class SpecForm(QWidget):
                 continue
             self._widgets[spec.key] = (spec.kind, widget)
             label = QLabel(t(spec.label_key))
-            if spec.tooltip_key:
-                label.setToolTip(t(spec.tooltip_key))
+            # Infobulle explicative du champ, basee sur le guide PDA du jeu
+            # (doc/EMPYRION_GALACTIC_SURVIVAL/PDA) : convention
+            # <label_key>.tooltip dans i18n_strings.json, surcharge possible
+            # par spec.tooltip_key. Posee sur le LABEL ET le champ (au
+            # survol de l'un ou de l'autre -- demande du 12/09/2026).
+            tooltip_key = spec.tooltip_key or (spec.label_key + ".tooltip")
+            from core import i18n
+            if spec.tooltip_key or i18n.has(tooltip_key):
+                tip = t(tooltip_key)
+                label.setToolTip(tip)
+                widget.setToolTip(tip)
             self._form.addRow(label, widget)
 
     def _clear(self):

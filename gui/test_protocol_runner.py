@@ -404,6 +404,22 @@ class StepWindow(QMainWindow):
             if w is not None:
                 w.deleteLater()
 
+    @staticmethod
+    def _resolve_cmd(cmd: str) -> str:
+        """{CLI} = chemin REEL de l'outil CLI installe (le dossier
+        d'installation est choisi par l'utilisateur a l'installation, il ne
+        peut plus etre code en dur dans les donnees du protocole). Depuis
+        les sources : gabarit generique (les formes `python cli/...`
+        couvrent deja ce cas)."""
+        if "{CLI}" not in cmd:
+            return cmd
+        if getattr(sys, "frozen", False):
+            exe = Path(sys.executable).parent / "CLI" / "EmpyrionEditorCLI.exe"
+            if exe.is_file():
+                return cmd.replace("{CLI}", str(exe))
+            return cmd.replace("{CLI}", "<installation>\\CLI\\EmpyrionEditorCLI.exe")
+        return cmd.replace("{CLI}", "<installation>\\CLI\\EmpyrionEditorCLI.exe")
+
     def _fill_steps(self, case: dict):
         self._clear_steps()
         self._current_cmds = []
@@ -423,7 +439,8 @@ class StepWindow(QMainWindow):
             txt.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             txt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             line.addWidget(txt, 1)
-            for cmd in row["cmds"]:
+            for raw_cmd in row["cmds"]:
+                cmd = self._resolve_cmd(raw_cmd)
                 self._current_cmds.append(cmd)
                 line.addWidget(self._copy_button(cmd))
             wrap = QWidget()
