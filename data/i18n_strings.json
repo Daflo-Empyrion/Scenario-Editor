@@ -5079,6 +5079,10 @@
   "fr": "Option enregistree : relancez l'application pour changer de style d'interface.",
   "en": "Setting saved: restart the application to switch the interface style."
  },
+ "menu.options.press_anim": {
+  "fr": "Animations de pression (themes Relief)",
+  "en": "Press animations (Relief themes)"
+ },
  "vanilla.title": {
   "fr": "Dossier Content de l'installation du jeu",
   "en": "Content folder of the game installation"

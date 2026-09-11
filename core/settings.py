@@ -202,6 +202,17 @@ def set_fluent_pilot_enabled(enabled: bool) -> None:
     _set('fluent_pilot_enabled', enabled)
 
 
+def get_press_anim_enabled() -> bool:
+    """Animation de pression des boutons (enfoncement subtil, look Relief
+    phase 2 du 12/09/2026) : True par defaut (activee), desactivable dans
+    Options > Interface. N'a d'effet QUE sur un theme Relief."""
+    return _get('press_anim_enabled', True)
+
+
+def set_press_anim_enabled(enabled: bool) -> None:
+    _set('press_anim_enabled', enabled)
+
+
 def get_extra_icons_dir() -> str:
     """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
     PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,

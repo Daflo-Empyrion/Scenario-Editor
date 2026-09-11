@@ -42,8 +42,9 @@ def test_other_themes_have_no_optional_glass_keys():
     # Les cles optionnelles (extra_qss/neon_selection/acrylic/backdrop/
     # glass_qss) restent reservees aux themes qui les DECLARENT explicitement
     # ("h" Verriere acrylique, "i" Nuit Fluent grilles estompees, "j" Nuit
-    # Mica, "k" Relief nuit biseaux) -- aucune fuite vers les autres themes.
-    themes_with_optional = {"h", "i", "j", "k"}
+    # Mica, "k" Relief nuit biseaux, "l" Relief clair phase 2) -- aucune
+    # fuite vers les autres themes.
+    themes_with_optional = {"h", "i", "j", "k", "l"}
     for theme_id, palette in THEMES.items():
         if theme_id not in themes_with_optional:
             assert "extra_qss" not in palette
@@ -411,10 +412,10 @@ def test_p6_status_label_refreshed_after_project_resume(qapp, monkeypatch, tmp_p
 
 def test_relief_theme_k_declared_and_ordered():
     """Theme 'k' Relief nuit (prototype look 3D du 11/09/2026) : declare,
-    dernier de THEME_ORDER, extra_qss avec biseaux (degrades + bords par
-    cote, uniques aux boutons extrudes / champs en creux)."""
+    avant-dernier de THEME_ORDER, extra_qss avec biseaux (degrades + bords
+    par cote, uniques aux boutons extrudes / champs en creux)."""
     from core.themes import THEMES, THEME_ORDER, get_palette
-    assert THEME_ORDER[-1] == "k" and "k" in THEMES
+    assert THEME_ORDER[-2] == "k" and "k" in THEMES
     palette = get_palette("k")
     qss = palette["extra_qss"]
     assert "qlineargradient" in qss
@@ -425,9 +426,30 @@ def test_relief_theme_k_declared_and_ordered():
     assert palette["label"].startswith("K —")
 
 
+def test_relief_theme_l_declared_and_ordered():
+    """Theme 'l' Relief clair (phase 2 du look 3D du 12/09/2026) : declare en
+    DERNIER de THEME_ORDER, meme mecanique de biseaux que 'k', palette
+    lumineuse, bevel_card pose (le cadre fiche derive de la palette)."""
+    from core.themes import THEMES, THEME_ORDER, get_palette
+    assert THEME_ORDER[-1] == "l" and "l" in THEMES
+    palette = get_palette("l")
+    qss = palette["extra_qss"]
+    assert "qlineargradient" in qss
+    assert "border-top:" in qss and "border-bottom: 2px solid" in qss
+    assert "QPushButton:pressed" in qss
+    assert palette["label"].startswith("L —")
+    # palette vraiment claire : fond plus LUMINEUX que le texte (inverse du k)
+    from PyQt6.QtGui import QColor
+    lum = lambda h: QColor(h).lightness()
+    assert lum(palette["bg"]) > lum(palette["text_primary"])
+    assert lum(palette["bg"]) > 150 and lum(palette["text_primary"]) < 80
+
+
 def test_is_relief_theme_follows_current_theme(qapp, monkeypatch):
     from gui import theme
     monkeypatch.setattr(theme, "CURRENT_THEME_ID", "k")
+    assert theme.is_relief_theme() is True
+    monkeypatch.setattr(theme, "CURRENT_THEME_ID", "l")
     assert theme.is_relief_theme() is True
     monkeypatch.setattr(theme, "CURRENT_THEME_ID", "classic")
     assert theme.is_relief_theme() is False

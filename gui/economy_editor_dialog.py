@@ -490,8 +490,11 @@ class EconomyEditorDialog(QDialog):
                              Qt.AspectRatioMode.KeepAspectRatio,
                              Qt.TransformationMode.FastTransformation)
         popup = QDialog(self, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
-        lay = QVBoxLayout(popup)
-        lay.setContentsMargins(6, 6, 6, 6)
+        # Look Relief (phase 2) : fenetre translucide + cadre interne biseaute
+        # + VRAIE ombre portee, comme la fiche info (gui/relief_effects) ;
+        # hors Relief : conteneur direct, rendu inchangé.
+        from gui import relief_effects
+        _, lay = relief_effects.shadow_container(popup, bg="#111111", border="#3a3a3a")
         bar = QHBoxLayout()
         bar.addStretch(1)
         btn_close = QPushButton(icon("fa5s.times", "#ffffff"), "")

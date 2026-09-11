@@ -377,6 +377,11 @@ QToolTip {{
         "nav_text": "#e3e3e3",
         "success": "#5FD98A", "warning": "#F5A623", "danger": "#E8555A", "danger_dark": "#C23B40",
         "font_family": "Segoe UI",
+        # Relief (niveau 2) : biseau de couleur du CADRE FICHE INFO
+        # (gui/block_info_card_widget.py) -- (haut, gauche, bas, droite),
+        # clair en haut/gauche, profond en bas/droite. Consomme via
+        # get_palette(CURRENT_THEME_ID) au moment de la creation de la fiche.
+        "bevel_card": ("#4c4c57", "#45454f", "#0b0b0f", "#101014"),
         "extra_qss": """
 /* --- Theme Relief nuit : biseaux extrudes / en creux (contraste fort) --- */
 QPushButton {{
@@ -538,11 +543,189 @@ QStatusBar {{
            GRID_LINE="#26262e", TEXT_PRIMARY="#e3e3e3", TEXT_MUTED="#a1a1a1",
            TEXT_ON_PRIMARY="#0c1016", BORDER="#3a3a44"),
     },
+    "l": {
+        # Theme "Relief clair" (phase 2 du look 3D, 12/09/2026) : meme
+        # mecanique de biseaux QSS que "k" en luminosite inversee -- boutons
+        # extrudes (degrade + bord haut clair / bord bas fonce, presse =
+        # enfoncement), champs en creux, onglets/en-tetes surEleves. Ajoute a
+        # RELIEF_THEME_IDS (gui/theme.py) : la fiche info et le zoom d'icone
+        # recupèrent donc ombre portee + cadre biseau automatiquement.
+        "label": "L — Relief clair",
+        "bg": "#dde0e7", "surface": "#eceef3", "surface_alt": "#f7f8fb",
+        "border": "#b3b7c3", "border_strong": "#969bab",
+        "text_primary": "#23252e", "text_muted": "#5c6170", "text_on_primary": "#ffffff",
+        "accent": "#2287bd", "accent_hover": "#3399ce", "accent_pressed": "#1a6a97",
+        "accent_bg_tint": "#d9ecf8",
+        "nav_gradient": "qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+                         "stop:0 #f2f3f8, stop:1 #d5d8e0)",
+        "nav_text": "#23252e",
+        "success": "#1f9d55", "warning": "#c47f16", "danger": "#c93a3f", "danger_dark": "#a52e33",
+        "font_family": "Segoe UI",
+        "bevel_card": ("#ffffff", "#f4f6fa", "#8d92a1", "#a7abba"),
+        "extra_qss": """
+/* --- Theme Relief clair : biseaux extrudes / en creux (contraste doux) --- */
+QPushButton {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #8ed2f2, stop:0.45 #45a5d4, stop:1 #2287bd);
+    color: {TEXT_ON_PRIMARY};
+    border: 1px solid #1a6a97;
+    border-top-color: #b5e2f7;
+    border-bottom: 2px solid #155679;
+    border-radius: 8px;
+    padding: 6px 15px;
+    font-weight: 600;
+}}
+QPushButton:hover {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #a5ddf6, stop:0.45 #57b2df, stop:1 #3399ce);
+}}
+QPushButton:pressed, QPushButton:checked {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #155679, stop:0.6 #2287bd, stop:1 #55b7e2);
+    border: 1px solid #155679;
+    border-bottom: 2px solid #155679;
+    padding-top: 8px;
+    padding-bottom: 4px;
+}}
+QPushButton:disabled {{
+    background: {SURFACE};
+    color: {TEXT_MUTED};
+    border: 1px solid {BORDER};
+    border-bottom: 1px solid {BORDER};
+    padding: 6px 15px;
+}}
+QPushButton#secondaryButton {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #fbfcfe, stop:1 #d2d6e0);
+    color: {TEXT_PRIMARY};
+    border: 1px solid #a7abba;
+    border-top-color: #ffffff;
+    border-bottom: 2px solid #8d92a1;
+}}
+QPushButton#secondaryButton:hover {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #ffffff, stop:1 {ACCENT_BG_TINT});
+    color: {ACCENT_DARK};
+    border-top-color: #ffffff;
+}}
+QPushButton#secondaryButton:pressed {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #c3c8d3, stop:1 #dfe2ea);
+    border-top-color: #8d92a1;
+    padding-top: 8px;
+    padding-bottom: 4px;
+}}
+QPushButton#secondaryButton:disabled {{
+    background: {SURFACE};
+    color: {TEXT_MUTED};
+    border: 1px solid {BORDER};
+    border-bottom: 1px solid {BORDER};
+}}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QTextEdit {{
+    background-color: #d3d6de;
+    border: 1px solid #a7abba;
+    border-top: 2px solid #8f94a3;
+    border-bottom: 1px solid #ffffff;
+    border-radius: 6px;
+    padding: 3px 6px;
+}}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QPlainTextEdit:focus {{
+    background-color: {SURFACE};
+    border: 1px solid {ACCENT};
+    border-top: 2px solid {ACCENT_DARK};
+    border-bottom: 1px solid {ACCENT};
+}}
+QComboBox QAbstractItemView {{
+    background-color: {SURFACE};
+    border: 1px solid #8d92a1;
+    border-top-color: #ffffff;
+    selection-background-color: {ACCENT_BG_TINT};
+}}
+QTabWidget::pane {{
+    background-color: {SURFACE};
+    border: 1px solid #8d92a1;
+    border-top: 1px solid #ffffff;
+    border-radius: 6px;
+}}
+QTabBar::tab {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #e2e5ec, stop:1 #cfd3dd);
+    color: {TEXT_MUTED};
+    border: 1px solid #a7abba;
+    border-top-color: #ffffff;
+    border-bottom: 2px solid #8d92a1;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 6px 14px;
+}}
+QTabBar::tab:selected {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {SURFACE}, stop:1 {SURFACE});
+    color: {TEXT_PRIMARY};
+    border-bottom: 2px solid {SURFACE};
+}}
+QTabBar::tab:hover {{
+    background: {ACCENT_BG_TINT};
+    color: {ACCENT_DARK};
+}}
+QHeaderView::section {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #e8eaf0, stop:1 #d3d6df);
+    color: {TEXT_PRIMARY};
+    border: none;
+    border-bottom: 2px solid #8d92a1;
+    border-right: 1px solid #a7abba;
+    padding: 5px;
+}}
+QTableWidget {{
+    gridline-color: {GRID_LINE};
+    alternate-background-color: {SURFACE};
+    background-color: #e4e6ec;
+}}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {{
+    border: none;
+}}
+QTreeWidget, QListWidget {{
+    background-color: #e4e6ec;
+    border: 1px solid #a7abba;
+    border-top: 2px solid #8f94a3;
+    border-bottom: 1px solid #ffffff;
+    border-radius: 8px;
+}}
+QGroupBox {{
+    background-color: {SURFACE};
+    border: 1px solid #8d92a1;
+    border-top: 1px solid #ffffff;
+    border-radius: 8px;
+    margin-top: 10px;
+    padding-top: 6px;
+}}
+QToolTip {{
+    background: {SURFACE_ALT};
+    color: {TEXT_PRIMARY};
+    border: 1px solid #8d92a1;
+    border-top-color: #ffffff;
+    border-bottom: 2px solid #8d92a1;
+    border-radius: 4px;
+}}
+QMenu {{
+    background-color: {SURFACE};
+    border: 1px solid #8d92a1;
+    border-top-color: #ffffff;
+    border-bottom: 2px solid #8d92a1;
+}}
+QStatusBar {{
+    background: qlineargradient(x1:0, y1:1, x2:0, y2:0,
+                stop:0 #d5d8e0, stop:1 #f2f3f8);
+}}
+""".format(ACCENT="#2287bd", SURFACE="#eceef3", SURFACE_ALT="#f7f8fb",
+           ACCENT_BG_TINT="#d9ecf8", ACCENT_DARK="#1a6a97", ACCENT_HOVER="#3399ce",
+           GRID_LINE="#c6cad4", TEXT_PRIMARY="#23252e", TEXT_MUTED="#5c6170",
+           TEXT_ON_PRIMARY="#ffffff", BORDER="#b3b7c3"),
+    },
 }
 
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
-
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
 DEFAULT_THEME_ID = "classic"
 
 

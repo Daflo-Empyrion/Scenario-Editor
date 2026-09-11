@@ -298,6 +298,15 @@ class MainWindow(QMainWindow):
         self.action_fluent_pilot.setEnabled(fluent_pilot.is_available())
         self.action_fluent_pilot.toggled.connect(self._toggle_fluent_pilot)
 
+        # Animations de pression des boutons (look Relief phase 2, 12/09/2026)
+        # : actif seulement sur un theme Relief, toggle immediate (pas de
+        # relance) via l'etat memoire du filtre global.
+        from gui import press_feedback
+        self.action_press_anim = self.menu_options.addAction(t("menu.options.press_anim"))
+        self.action_press_anim.setCheckable(True)
+        self.action_press_anim.setChecked(settings.get_press_anim_enabled())
+        self.action_press_anim.toggled.connect(self._toggle_press_anim)
+
         self.menu_theme = self.menu_options.addMenu(t("menu.options.theme"))
         self._theme_actions = {}
         from core.themes import THEMES, THEME_ORDER
@@ -315,6 +324,14 @@ class MainWindow(QMainWindow):
         d'etat comme pour un message ephemere."""
         fluent_pilot.set_enabled(checked)
         self.statusBar().showMessage(t("menu.options.fluent_pilot.restart"), 8000)
+
+    def _toggle_press_anim(self, checked: bool):
+        """Persiste + applique IMMEDIATEMENT le toggle des animations de
+        pression (pas de relance necessaire : le filtre global relit son
+        etat memoire, voir gui/press_feedback)."""
+        from gui import press_feedback
+        settings.set_press_anim_enabled(checked)
+        press_feedback.refresh_enabled()
 
     def _build_menu_help(self):
         self.menu_help = self.menuBar().addMenu(t("menu.help"))
@@ -1398,6 +1415,11 @@ class MainWindow(QMainWindow):
                 # clair/sombre et la couleur d'accent du moteur Fluent (sans
                 # effet sur les widgets non-Fluent).
                 fluent_pilot.sync_theme()
+                # Animations de pression : l'etat Relief a change, le filtre
+                # global relit son etat memoire (Options peut aussi le
+                # toggler, voir _toggle_press_anim).
+                from gui import press_feedback
+                press_feedback.refresh_enabled()
             finally:
                 for w in frozen:
                     w.setUpdatesEnabled(True)
@@ -3687,6 +3709,10 @@ def main():
     # courant (clair/sombre + accent) juste apres la feuille de style QSS.
     from gui import fluent_pilot
     fluent_pilot.sync_theme()
+    # Animations de pression (look Relief phase 2) : filtre global installe
+    # une seule fois pour toute la duree du processus.
+    from gui import press_feedback
+    press_feedback.install(app)
 
     # Icone de l'application (barre de titre + barre des taches) : meme .ico
     # que l'exe et l'installeur (voir empyrion_editor.spec et installer.iss).

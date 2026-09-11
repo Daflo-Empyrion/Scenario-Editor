@@ -51,11 +51,11 @@ from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
     QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QPlainTextEdit, QTextEdit,
-    QGraphicsDropShadowEffect,
 )
 
 from core.block_info_card import BlockInfoCard, InfoCardField, card_to_markdown
 from core.i18n import t
+from gui import relief_effects
 from gui.theme import icon
 
 _GENERIC_ICON_NAME = "fa5s.cube"
@@ -559,8 +559,7 @@ class BlockInfoCardWidget(QWidget):
         self._relief = is_relief_theme()
         if self._relief:
             # gauche, haut, droite, bas -- plus large en bas (offset ombre)
-            self._shadow_margins = (12, 10, 16, 26)
-            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            self._shadow_margins = relief_effects.SHADOW_MARGINS
         else:
             self._shadow_margins = (0, 0, 0, 0)
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
@@ -571,12 +570,15 @@ class BlockInfoCardWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._card_frame = QFrame(self)
         if self._relief:
-            # biseau de couleur : bord haut/gauche clair, bas/droit profond
+            # biseau de couleur DEPUIS LA PALETTE (bevel_card du theme actif) :
+            # themes nuit ET clair partagent le meme rendu extrude -- les
+            # valeurs n'etaient plus codees en dur depuis la phase 2 Relief.
+            top, left, bottom, right = relief_effects.card_bevel()
             self._card_frame.setStyleSheet(
                 f"QFrame {{ background: {_CARD_BG}; "
                 f"border: 1px solid {_CARD_BORDER}; "
-                f"border-top-color: #4c4c57; border-left-color: #45454f; "
-                f"border-bottom-color: #0b0b0f; border-right-color: #101014; "
+                f"border-top-color: {top}; border-left-color: {left}; "
+                f"border-bottom-color: {bottom}; border-right-color: {right}; "
                 f"border-radius: 8px; }} "
                 f"QLabel {{ color: {_CARD_TEXT}; background: transparent; }}"
             )
@@ -589,11 +591,7 @@ class BlockInfoCardWidget(QWidget):
         root.setContentsMargins(*self._shadow_margins)
         root.addWidget(self._card_frame)
         if self._relief:
-            effect = QGraphicsDropShadowEffect(self)
-            effect.setBlurRadius(34)
-            effect.setOffset(0, 12)
-            effect.setColor(QColor(0, 0, 0, 185))
-            self._card_frame.setGraphicsEffect(effect)
+            relief_effects.apply_window_shadow(self, self._card_frame)
         outer = QVBoxLayout(self._card_frame)
         outer.setSpacing(6)
         self.setMinimumSize(_MIN_WIDTH + self._shadow_margins[0] + self._shadow_margins[2],

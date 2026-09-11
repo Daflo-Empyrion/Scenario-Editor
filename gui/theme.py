@@ -98,6 +98,14 @@ def icon(name: str, color: str = None, size: int = 16) -> QIcon:
     charge, jamais mise a jour lors d'un changement de theme a l'execution."""
     if color is None:
         color = TEXT_DARK
+    # Pack relief (phase 2 du look 3D) : sur theme Relief, les glyphes SVG
+    # maison (degrade biseaute derive de la couleur demandee) passent AVANT
+    # qtawesome ; repli silencieux si le nom n'est pas couvert.
+    if CURRENT_THEME_ID in RELIEF_THEME_IDS:
+        from gui.relief_glyphs import relief_icon
+        ic = relief_icon(name, color)
+        if ic is not None:
+            return ic
     if not _HAS_QTA:
         return QIcon()
     try:
@@ -451,9 +459,11 @@ QLabel#mutedLabel {{
     return base + palette.get("extra_qss", "")
 
 
-# Themes "Relief" (look 3D, prototype 11/09/2026) : les elements flottants
-# (fiche info...) adaptent leurs bordures en biseau quand l'un est actif.
-RELIEF_THEME_IDS = {"k"}
+# Themes "Relief" (look 3D, prototype 11/09/2026, clair phase 2 12/09/2026) :
+# les elements flottants (fiche info, zoom d'icone) adaptent leurs bordures
+# en biseau quand l'un est actif ; les icones passent par le pack relief
+# (gui/relief_glyphs.py) avec repli qtawesome.
+RELIEF_THEME_IDS = {"k", "l"}
 
 
 def is_relief_theme() -> bool:
