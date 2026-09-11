@@ -26,11 +26,11 @@ disponibles) pour editer en gardant la reference sous les yeux, sans perdre d'es
 d'affichage a switcher entre onglets separes.
 """
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 import re
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget,
+    QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget, QToolButton,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
     QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
     QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
@@ -63,6 +63,66 @@ from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcu
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
 
 
+# ---------------------------------------------------------------------------
+# Retrofit catalogue (10/09/2026, inventaire tools/inventaire_cles_items.py)
+# ---------------------------------------------------------------------------
+# Cles qui REFERENCENT un item, par fichier -- decision UX de l'utilisateur
+# ("ok pour tout") : le selecteur du catalogue s'ouvre sur ces cles la.
+# Modes : "value" = remplacer la valeur entiere ; "first_field" = remplacer
+# le premier champ d'une liste CSV (stocks de marchands TraderNPCConfig :
+# 'Item, prix, stock, ...' -- le reste doit rester intact).
+
+_ITEM_REF_EXACT = {
+    "eclassconfig.ecf": (
+        "ItemsOnEnterGame", "HandItem", "ItemOnPickup", "DropInventoryItem"),
+    "tokenconfig.ecf": ("CustomIcon",),
+    "itemsconfig.ecf": (
+        "AmmoType", "TechTreeParent", "FoodDecayedItem", "CustomIcon", "Meshfile"),
+}
+_ITEM_REF_NUMBERED = {
+    "tradernpcconfig.ecf": (re.compile(r"Item\d+$"), "first_field"),
+    "containers.ecf": (re.compile(r"Name_\d+$"), "value"),
+    "lootgroups.ecf": (re.compile(r"Item_\d+$"), "value"),
+}
+
+
+def item_ref_target(filename: str, key: str) -> Optional[str]:
+    """Mode de remplacement catalogue pour (fichier, cle), ou None si la cle
+    n'est pas une reference d'item reconnue."""
+    base = Path(filename).name.lower()
+    if base == "tradernpcconfig.ecf" and re.fullmatch(r"Item\d+", key or ""):
+        return "first_field"
+    if base == "containers.ecf" and re.fullmatch(r"Name_\d+", key or ""):
+        return "value"
+    if base == "lootgroups.ecf" and re.fullmatch(r"Item_\d+", key or ""):
+        return "value"
+    if base == "blockgroupsconfig.ecf" and key == "Blocks":
+        return "append_csv"
+    if key in _ITEM_REF_EXACT.get(base, ()):
+        return "value"
+    return None
+
+
+def apply_item_ref(old_value: str, new_name: str, mode: str) -> str:
+    """Applique le nom choisi selon le mode : valeur entiere ('value'),
+    premier champ du CSV en gardant le reste EXACTEMENT tel quel
+    ('first_field' -- prix/stocks du marchand), ou ajout sans doublon a la
+    liste CSV eventuellement quotee ('append_csv' -- BlockGroups Blocks)."""
+    if mode == "first_field" and "," in old_value:
+        return new_name + "," + old_value.split(",", 1)[1]
+    if mode == "append_csv":
+        v = old_value.strip()
+        if not v:
+            return new_name
+        members = [m.strip().strip('"') for m in v.split(",")]
+        if new_name in members:
+            return old_value
+        if v.endswith('"'):
+            return v[:-1] + "," + new_name + '"'
+        return v + "," + new_name
+    return new_name
+
+
 class _PropertyValueDelegate(QStyledItemDelegate):
     """Editeur en liste deroulante EDITABLE pour la colonne Valeur du tableau
     de proprietes -- demande explicite de l'utilisateur (30/08/2026 : 'avoir
@@ -77,9 +137,16 @@ class _PropertyValueDelegate(QStyledItemDelegate):
     texte dans l'item -> itemChanged -> _on_cell_changed (aucune logique
     d'ecriture dupliquee ici)."""
 
-    def __init__(self, values_by_key: Dict[str, List[str]], parent=None):
+    def __init__(self, values_by_key: Dict[str, List[str]], parent=None,
+                 targets: Optional[Dict[str, str]] = None,
+                 catalog_opener: Optional[Callable] = None):
         super().__init__(parent)
         self._values_by_key = values_by_key
+        # Retrofit catalogue : (cle -> mode "value"/"first_field") des cles
+        # qui referencent un item + callback d'ouverture du catalogue
+        # (EcfEditWidget._pick_catalog_entry).
+        self._targets = targets or {}
+        self._catalog_opener = catalog_opener
 
     def _key_for(self, index) -> Optional[str]:
         """Cle de propriete de la ligne : stockee en UserRole sur l'item de
@@ -90,18 +157,62 @@ class _PropertyValueDelegate(QStyledItemDelegate):
             return data[1]
         return None
 
+    def _target_for(self, index) -> Optional[str]:
+        """Mode catalogue de CETTE cellule : la cle vient de l'item lui-meme
+        (valeur en mode tableau : (prop, Name_0)) ou de la colonne 0 (mode
+        plat). Le filtre par fichier est deja applique dans _targets."""
+        for data in (index.data(Qt.ItemDataRole.UserRole),
+                     index.siblingAtColumn(0).data(Qt.ItemDataRole.UserRole)):
+            if isinstance(data, tuple) and len(data) == 2 and data[1] != "__TYPE__":
+                return self._targets.get(data[1])
+        return None
+
     def createEditor(self, parent, option, index):
         combo = QComboBox(parent)
         combo.setEditable(True)
         combo.addItems(self._values_by_key.get(self._key_for(index), []))
         combo.setCurrentText(index.data() or "")
+        target = self._target_for(index)
+        if target and self._catalog_opener is not None:
+            box = QWidget(parent)
+            lay = QHBoxLayout(box)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(2)
+            combo.setParent(box)
+            lay.addWidget(combo, 1)
+            btn = QToolButton(box)
+            btn.setIcon(icon("fa5s.box-open", "#4a7dfc"))
+            btn.setToolTip(t("ecf.catalog_pick_tooltip"))
+            btn.setAccessibleName(t("eco.btn.catalog"))
+            lay.addWidget(btn)
+
+            def _open_catalog():
+                name = self._catalog_opener()
+                if name:
+                    combo.setCurrentText(
+                        apply_item_ref(combo.currentText(), name, target))
+
+            btn.clicked.connect(_open_catalog)
+            return box
         return combo
 
+    @staticmethod
+    def _combo_of(editor):
+        """Le createEditor retourne soit le combo seul, soit un conteneur
+        [combo + bouton catalogue] : trouver le combo dans les deux cas."""
+        if isinstance(editor, QComboBox):
+            return editor
+        return editor.findChild(QComboBox)
+
     def setEditorData(self, editor, index):
-        editor.setCurrentText(index.data() or "")
+        combo = self._combo_of(editor)
+        if combo is not None:
+            combo.setCurrentText(index.data() or "")
 
     def setModelData(self, editor, model, index):
-        model.setData(index, editor.currentText())
+        combo = self._combo_of(editor)
+        if combo is not None:
+            model.setData(index, combo.currentText())
 
 
 class DisabledBlocksDialog(QDialog):
@@ -2067,6 +2178,11 @@ class EcfEditWidget(QWidget):
             item_k.setData(Qt.ItemDataRole.UserRole, (prop_node, k))
             item_v = QTableWidgetItem(v)
             item_v.setData(Qt.ItemDataRole.UserRole, (prop_node, k))
+            # Retrofit catalogue : affordance sur les cles qui referencent
+            # un item (menu contextuel / bouton de l'editeur ouvrent le
+            # selecteur -- decision 10/09/2026).
+            if item_ref_target(self.path.name, k):
+                item_v.setToolTip(t("ecf.catalog_pick_tooltip"))
             # Infobulle specifique a CETTE cle (glossaire du fichier ou
             # commentaire reel trouve dans le fichier), avec une note
             # structurelle en plus si la propriete est sur la ligne
@@ -2098,8 +2214,17 @@ class EcfEditWidget(QWidget):
         for key, counter in observed_all.items():
             if not values_by_key.get(key):
                 values_by_key[key] = [v for v, _c in counter.most_common()]
+        # Retrofit catalogue : modes de remplacement par cle pour CE fichier
+        # (TraderNPCConfig 'first_field', Containers/LootGroups/EClass...).
+        targets = {}
+        for k, _v, _node in rows:
+            mode = item_ref_target(self.path.name, k)
+            if mode:
+                targets[k] = mode
         self.props_table.setItemDelegateForColumn(
-            1, _PropertyValueDelegate(values_by_key, self.props_table))
+            1, _PropertyValueDelegate(values_by_key, self.props_table,
+                                      targets=targets,
+                                      catalog_opener=self._pick_catalog_entry))
 
     def _refresh_props_table_grid(self, block: EcfBlock, param_columns: List[str]):
         """Affichage en tableau pour les structures repetitives (Child Items, Child
@@ -2114,8 +2239,8 @@ class EcfEditWidget(QWidget):
         self.props_table.setIconSize(QSize(32, 32))
         # Mode tableau (structures repetitives) : pas de liste deroulante de
         # valeurs observees ici (la colonne 1 est un nom d'entree Name_N, pas
-        # une propriete unique) -- retire le delegate du mode plat.
-        self.props_table.setItemDelegateForColumn(1, None)
+        # une propriete unique) -- le delegate pose plus bas sert UNIQUEMENT
+        # au retrofit catalogue (bouton sur les cles qui referencent un item).
 
         # Infobulles d'en-tete de colonne (apparition apres une courte pause du
         # curseur, comportement standard Qt) -- toujours coherentes avec le VRAI
@@ -2143,6 +2268,10 @@ class EcfEditWidget(QWidget):
             item_type.setData(Qt.ItemDataRole.UserRole, (prop, "__TYPE__"))
             item_value = QTableWidgetItem(first_value)
             item_value.setData(Qt.ItemDataRole.UserRole, (prop, first_key))
+            # Retrofit catalogue : affordance sur les entrees items
+            # (Name_N de Containers, Item_N de LootGroups...).
+            if item_ref_target(self.path.name, first_key):
+                item_value.setToolTip(t("ecf.catalog_pick_tooltip"))
             modified = id(prop) in self._edited_prop_nodes
             if modified:
                 mark_modified(item_type)
@@ -2160,6 +2289,20 @@ class EcfEditWidget(QWidget):
                 if modified:
                     mark_modified(cell)
                 self.props_table.setItem(row, 2 + col_idx, cell)
+
+        # Retrofit catalogue : delegate de la colonne valeur avec le bouton
+        # catalogue sur les entrees qui referencent un item (targets construits
+        # depuis les cles reelles de CE bloc).
+        targets = {}
+        for prop in prop_children:
+            if prop.pairs and prop.pairs[0][0]:
+                mode = item_ref_target(self.path.name, prop.pairs[0][0])
+                if mode:
+                    targets[prop.pairs[0][0]] = mode
+        self.props_table.setItemDelegateForColumn(
+            1, _PropertyValueDelegate({}, self.props_table,
+                                      targets=targets,
+                                      catalog_opener=self._pick_catalog_entry))
 
     def _on_cell_changed(self, item: QTableWidgetItem):
         data = item.data(Qt.ItemDataRole.UserRole)
@@ -2301,6 +2444,14 @@ class EcfEditWidget(QWidget):
         if not is_header_prop:
             action_del = menu.addAction(t("ecf.delete_property_action"))
 
+        # Retrofit catalogue : action uniquement sur les cellules qui
+        # referencent un item (regles fichier+cle, 10/09/2026).
+        catalog_target = None
+        if not is_header_prop and value_item.column() != 0:
+            catalog_target = item_ref_target(self.path.name, pair_key)
+        action_catalog = menu.addAction(t("ecf.catalog_pick_context")) \
+            if catalog_target else None
+
         chosen = menu.exec(global_pos)
 
         if chosen == action_bbcode:
@@ -2311,6 +2462,8 @@ class EcfEditWidget(QWidget):
             self._translate_cell(value_item, None, prop_node, lang_actions[chosen])
         elif chosen == action_duplicate_row and isinstance(prop_node, EcfProperty):
             self._duplicate_row_action(prop_node)
+        elif chosen == action_catalog and catalog_target:
+            self._replace_cell_from_catalog(value_item, catalog_target)
         elif chosen == action_del and isinstance(prop_node, EcfProperty):
             self._snapshot_undo()
             remove_property_line(self._current_block, prop_node)
@@ -2541,10 +2694,45 @@ class EcfEditWidget(QWidget):
         catalog = ItemCatalogDialog(
             entries, parent=self,
             icon_loader=self._ecf_catalog_icon_loader,
-            display_name=self._ecf_catalog_display_name,
+            display_name=self._catalog_display_name_factory(),
             refresh_callback=self._refresh_ecf_catalog_entries)
         catalog.SELECTION_ACCEPTED.connect(self._insert_catalog_items)
         catalog.exec()
+
+    def _pick_catalog_entry(self) -> Optional[str]:
+        """Ouvre le catalogue et retourne le nom du PREMIER item choisi
+        (None si annulation). Utilise par le retrofit catalogue pour le
+        remplacement d'une cellule qui reference un item ; instance separee
+        du dialogue d'insertion : aucun comportement partage."""
+        entries = self._get_ecf_catalog_entries()
+        if not entries:
+            QMessageBox.information(self, t("eco.btn.catalog"),
+                                    t("ecf.catalog_unavailable"))
+            return None
+        from gui.item_catalog_dialog import ItemCatalogDialog
+        picked = []
+        catalog = ItemCatalogDialog(
+            entries, parent=self,
+            icon_loader=self._ecf_catalog_icon_loader,
+            display_name=self._catalog_display_name_factory(),
+            refresh_callback=self._refresh_ecf_catalog_entries)
+        catalog.SELECTION_ACCEPTED.connect(
+            lambda lst: picked.extend(e.name for e in lst))
+        # double-clic = choisir CET item et fermer (comportement adapté au
+        # remplacement d'une seule cellule, contrairement au flux insertion)
+        catalog.ITEM_CHOSEN.connect(
+            lambda e: (picked.append(e.name), catalog.accept()))
+        catalog.exec()
+        return picked[0] if picked else None
+
+    def _replace_cell_from_catalog(self, item, target: str):
+        """Remplace la valeur d'une cellule qui REFERENCE un item. Ecriture
+        via item.setText -> itemChanged -> _on_cell_changed : chemin unique
+        (snapshot undo, mark modifiee), aucune logique dupliquee."""
+        name = self._pick_catalog_entry()
+        if not name:
+            return
+        item.setText(apply_item_ref(item.text(), name, target))
 
     def _ecf_catalog_icon_loader(self, entry):
         try:
@@ -2566,6 +2754,28 @@ class EcfEditWidget(QWidget):
             return self._get_info_card_localization_index().get(entry.name, get_language())
         except Exception:
             return None
+
+    def _catalog_display_name_factory(self):
+        """Retourne un callback display_name qui utilise un index de
+        localisation lu UNE SEULE FOIS par ouverture du catalogue. Le rappel
+        direct (_ecf_catalog_display_name) refaisait la verification de
+        signature disque PAR ENTREE x 3 vues (~13 000 appels) : gel de
+        plusieurs secondes a chaque ouverture, meme a chaud (regression
+        vecue 11/09/2026). La fraicheur du 07/09/2026 reste garantie :
+        l'index est relu a CHAQUE OUVERTURE du catalogue, jamais fige au
+        widget."""
+        try:
+            index = self._get_info_card_localization_index()
+        except Exception:
+            index = None
+        from core.i18n import get_language
+
+        def display(entry):
+            if index is not None:
+                return index.get(entry.name, get_language())
+            return None
+
+        return display
 
     def _insert_catalog_items(self, entries):
         """Insertion des items choisis dans le bloc courant : ligne

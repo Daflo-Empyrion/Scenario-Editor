@@ -42,8 +42,8 @@ def test_other_themes_have_no_optional_glass_keys():
     # Les cles optionnelles (extra_qss/neon_selection/acrylic/backdrop/
     # glass_qss) restent reservees aux themes qui les DECLARENT explicitement
     # ("h" Verriere acrylique, "i" Nuit Fluent grilles estompees, "j" Nuit
-    # Mica) -- aucune fuite vers les autres themes.
-    themes_with_optional = {"h", "i", "j"}
+    # Mica, "k" Relief nuit biseaux) -- aucune fuite vers les autres themes.
+    themes_with_optional = {"h", "i", "j", "k"}
     for theme_id, palette in THEMES.items():
         if theme_id not in themes_with_optional:
             assert "extra_qss" not in palette
@@ -407,3 +407,40 @@ def test_p6_status_label_refreshed_after_project_resume(qapp, monkeypatch, tmp_p
     # et le libelle du bandeau copie de travail est aussi rafraichi
     assert ("Copie de travail" in win.label_working.text()
             or "Working copy" in win.label_working.text())
+
+
+def test_relief_theme_k_declared_and_ordered():
+    """Theme 'k' Relief nuit (prototype look 3D du 11/09/2026) : declare,
+    dernier de THEME_ORDER, extra_qss avec biseaux (degrades + bords par
+    cote, uniques aux boutons extrudes / champs en creux)."""
+    from core.themes import THEMES, THEME_ORDER, get_palette
+    assert THEME_ORDER[-1] == "k" and "k" in THEMES
+    palette = get_palette("k")
+    qss = palette["extra_qss"]
+    assert "qlineargradient" in qss
+    # biseaux par cote : bord haut clair / bord bas epais fonce (extrude)
+    assert "border-top:" in qss and "border-bottom: 2px solid" in qss
+    assert "QPushButton:pressed" in qss
+    # l'etiquette apparait telle quelle dans le menu Options
+    assert palette["label"].startswith("K —")
+
+
+def test_is_relief_theme_follows_current_theme(qapp, monkeypatch):
+    from gui import theme
+    monkeypatch.setattr(theme, "CURRENT_THEME_ID", "k")
+    assert theme.is_relief_theme() is True
+    monkeypatch.setattr(theme, "CURRENT_THEME_ID", "classic")
+    assert theme.is_relief_theme() is False
+
+
+def test_relief_theme_stylesheet_builds_and_applies(qapp):
+    """Le QSS du theme Relief s'applique sans erreur et la bascule est
+    reversible (retour a classic propre)."""
+    from gui import theme
+    theme.apply_theme(qapp, "k")
+    try:
+        assert theme.CURRENT_THEME_ID == "k"
+        assert theme.is_relief_theme()
+    finally:
+        theme.apply_theme(qapp, "classic")
+    assert not theme.is_relief_theme()

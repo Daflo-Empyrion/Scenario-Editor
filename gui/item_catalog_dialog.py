@@ -96,6 +96,12 @@ class ItemCatalogDialog(QDialog):
         # icones DOUBLES dans le catalogue aussi (demande utilisateur 09/09/2026)
         for view in (self.cat_tree, self.az_list, self.all_list):
             view.setIconSize(QSize(48, 48))
+        # Onglets LAZY (regression 11/09/2026 : construire 3 x 4364 lignes
+        # gelait le dialogue plus de 2 s a CHAQUE ouverture) : seul l'onglet
+        # visible est construit a l'ouverture, les listes A-Z / Tout le
+        # construisent a leur premiere activation (_on_tab_changed).
+        self._built_tabs = {0}
+        self.tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self.tabs, 1)
 
         bottom = QHBoxLayout()
@@ -185,54 +191,105 @@ class ItemCatalogDialog(QDialog):
         self._loading = True
         try:
             entries = self._filtered_entries()
-            self._build_category_tree(entries)
-            self._build_flat_list(self.az_list, sorted(
-                entries, key=lambda e: self._entry_label(e).lower()))
-            self._build_flat_list(self.all_list, entries)
+            # Memo des libelles : _entry_label (nom traduit eventuel) est
+            # appelle 3 fois par entree (arbre + A-Z + tout) -- un rappel
+            # callback qui relit un index disque par entree etait la cause
+            # d'un gel de plusieurs secondes A CHAQUE ouverture du catalogue
+            # (regression vecue 11/09/2026, depuis les noms traduits v1.6.5).
+            memo: Dict[str, str] = {}
+
+            def label(e: CatalogEntry) -> str:
+                k = e.key
+                if k not in memo:
+                    memo[k] = self._entry_label(e)
+                return memo[k]
+
+            self._label_for = label
+            self._build_category_tree(entries, label)
+            # onglets LAZY : reconstruit uniquement ceux deja construits une
+            # premiere fois (l'onglet visible s'ouvre quasi instantanement)
+            for idx, listw in ((1, self.az_list), (2, self.all_list)):
+                if idx in self._built_tabs:
+                    self._build_flat_list(idx, listw, self._tab_entries(
+                        idx, entries, label), label)
             self._update_count()
         finally:
             self._loading = False
         self._load_icons_chunked()
 
-    def _build_category_tree(self, entries: List[CatalogEntry]):
-        self.cat_tree.clear()
-        for source, label_key in ((SOURCE_ITEM, "icat.group_items"),
-                                  (SOURCE_BLOCK, "icat.group_blocks")):
-            group = [e for e in entries if e.source == source]
-            if not group:
-                continue
-            root = QTreeWidgetItem([t(label_key)])
-            root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-            self.cat_tree.addTopLevelItem(root)
-            by_cat: Dict[str, List[CatalogEntry]] = {}
-            for e in group:
-                by_cat.setdefault(e.category, []).append(e)
-            for cat in sorted(by_cat, key=str.lower):
-                cat_label = t("icat.no_category") if not cat else cat
-                cat_item = QTreeWidgetItem([cat_label, "", ""])
-                cat_item.setFlags(cat_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-                root.addChild(cat_item)
-                for e in sorted(by_cat[cat], key=lambda x: self._entry_label(x).lower()):
-                    leaf = QTreeWidgetItem([self._entry_label(e),
-                                            self._source_text(e),
-                                            self._price_text(e)])
-                    leaf.setData(0, Qt.ItemDataRole.UserRole, e.key)
-                    leaf.setFlags(leaf.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                    leaf.setCheckState(0, Qt.CheckState.Checked
-                                       if e.key in self._checked else Qt.CheckState.Unchecked)
-                    cat_item.addChild(leaf)
-            root.setExpanded(True)
+    def _tab_entries(self, idx: int, entries: List[CatalogEntry],
+                     label: Callable[[CatalogEntry], str]) -> List[CatalogEntry]:
+        """Ordre d'affichage : A-Z alphabetique, Tout = ordre du catalogue."""
+        if idx == 1:
+            return sorted(entries, key=lambda e: label(e).lower())
+        return entries
 
-    def _build_flat_list(self, listw: QListWidget, entries: List[CatalogEntry]):
-        listw.clear()
-        for e in entries:
-            it = QListWidgetItem(f"{self._entry_label(e)}   [{self._source_text(e)}]  "
-                                 f"({self._price_text(e)})")
-            it.setData(Qt.ItemDataRole.UserRole, e.key)
-            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            it.setCheckState(Qt.CheckState.Checked
-                             if e.key in self._checked else Qt.CheckState.Unchecked)
-            listw.addItem(it)
+    def _on_tab_changed(self, idx: int):
+        """Premiere activation d'un onglet liste : construction a la volee
+        avec le filtre courant, puis chargement d'icones de ses lignes."""
+        if idx in self._built_tabs:
+            return
+        self._built_tabs.add(idx)
+        self._loading = True
+        try:
+            entries = self._filtered_entries()
+            label = getattr(self, "_label_for", self._entry_label)
+            self._build_flat_list(idx, {1: self.az_list, 2: self.all_list}[idx],
+                                  self._tab_entries(idx, entries, label), label)
+        finally:
+            self._loading = False
+        self._load_icons_chunked()
+
+    def _build_category_tree(self, entries: List[CatalogEntry],
+                             label: Callable[[CatalogEntry], str]):
+        self.cat_tree.setUpdatesEnabled(False)
+        try:
+            self.cat_tree.clear()
+            for source, label_key in ((SOURCE_ITEM, "icat.group_items"),
+                                      (SOURCE_BLOCK, "icat.group_blocks")):
+                group = [e for e in entries if e.source == source]
+                if not group:
+                    continue
+                root = QTreeWidgetItem([t(label_key)])
+                root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                self.cat_tree.addTopLevelItem(root)
+                by_cat: Dict[str, List[CatalogEntry]] = {}
+                for e in group:
+                    by_cat.setdefault(e.category, []).append(e)
+                for cat in sorted(by_cat, key=str.lower):
+                    cat_label = t("icat.no_category") if not cat else cat
+                    cat_item = QTreeWidgetItem([cat_label, "", ""])
+                    cat_item.setFlags(cat_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                    root.addChild(cat_item)
+                    for e in sorted(by_cat[cat], key=lambda x: label(x).lower()):
+                        leaf = QTreeWidgetItem([label(e),
+                                                self._source_text(e),
+                                                self._price_text(e)])
+                        leaf.setData(0, Qt.ItemDataRole.UserRole, e.key)
+                        leaf.setFlags(leaf.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                        leaf.setCheckState(0, Qt.CheckState.Checked
+                                           if e.key in self._checked else Qt.CheckState.Unchecked)
+                        cat_item.addChild(leaf)
+                root.setExpanded(True)
+        finally:
+            self.cat_tree.setUpdatesEnabled(True)
+
+    def _build_flat_list(self, tab_idx: int, listw: QListWidget,
+                         entries: List[CatalogEntry],
+                         label: Callable[[CatalogEntry], str]):
+        listw.setUpdatesEnabled(False)
+        try:
+            listw.clear()
+            for e in entries:
+                it = QListWidgetItem(f"{label(e)}   [{self._source_text(e)}]  "
+                                     f"({self._price_text(e)})")
+                it.setData(Qt.ItemDataRole.UserRole, e.key)
+                it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                it.setCheckState(Qt.CheckState.Checked
+                                 if e.key in self._checked else Qt.CheckState.Unchecked)
+                listw.addItem(it)
+        finally:
+            listw.setUpdatesEnabled(True)
 
     # ------------------------------------------------------------ icones
 

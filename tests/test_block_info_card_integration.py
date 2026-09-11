@@ -431,3 +431,56 @@ def test_card_ingredient_edit_writes_templates_on_disk(widget_with_scenario):
     assert before_qty is not None
     assert after_qty == "12"
     assert widget._info_card.isHidden() is False
+
+
+def test_clicking_second_row_closes_first_editor(widget_with_scenario):
+    """Regression 11/09/2026 : cliquer une 2e ligne laissait la 1re en
+    edition (un clic ne provoque pas de perte de focus pour un editeur Qt).
+    Le clic doit refermer (commit) la ligne en cours puis editer la nouvelle."""
+    widget = widget_with_scenario
+    item = _find_tree_item(widget, "FuelTankMSLarge")
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
+    card = widget._info_card
+    editable = [r for r in card._inline_rows if r._source_key is not None]
+    assert len(editable) >= 2
+    a, b = editable[0], editable[1]
+
+    a.start_edit()
+    assert a._editor is not None
+    assert card._active_inline_row is a
+
+    b.start_edit()
+    assert a._editor is None                       # ligne A refermee
+    assert card._active_inline_row is b
+    assert b._editor is not None                   # ligne B en edition
+    # aucune ecriture au modele : la valeur n'avait pas change
+    assert card._pending_edit_key is None
+
+
+def test_row_switch_commits_modified_value_and_reopens_new_row(widget_with_scenario):
+    """Changement de ligne avec valeur MODIFIEE : le commit reconstruit la
+    fiche (refresh synchrone) et la nouvelle ligne B passe en edition ; la
+    valeur modifiee de A est appliquee au modele."""
+    widget = widget_with_scenario
+    item = _find_tree_item(widget, "FuelTankMSLarge")
+    widget._on_tree_item_double_clicked_for_info_card(item, 0)
+    card = widget._info_card
+    editable = [r for r in card._inline_rows if r._source_key is not None]
+    a, b = editable[0], editable[1]
+    key_a, old_a = a._source_key, a._source_raw_value
+
+    a.start_edit()
+    if hasattr(a._editor, "setCurrentText"):
+        a._editor.setCurrentText("999")
+    else:
+        a._editor.setText("999")
+    b.start_edit()          # referme A (commit + rebuild) puis edite la nouvelle B
+
+    assert card._active_inline_row is not None and card._active_inline_row is not a
+    assert card._active_inline_row._editor is not None
+    assert card._pending_edit_key is None
+    # la valeur de A est bien ecrite dans le modele sous-jacent
+    from gui.ecf_edit_widget import EcfEditWidget  # noqa: F401 (contexte)
+    model_vals = [r._source_raw_value for r in card._inline_rows
+                  if r._source_key == key_a]
+    assert model_vals and model_vals[0] == "999"

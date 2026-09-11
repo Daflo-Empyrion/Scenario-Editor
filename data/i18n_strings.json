@@ -528,8 +528,16 @@
   "en": "Search"
  },
  "search.csv_limitation_note": {
-  "fr": "Les resultats CSV ouvrent le fichier concerne, sans naviguer jusqu'a la ligne exacte (limitation connue).",
-  "en": "CSV results open the relevant file, without navigating to the exact row (known limitation)."
+  "fr": "Double-clic ou bouton Ouvrir : les resultats ECF et YAML s'ouvrent directement sur le bloc / l'entree correspondants. Les CSV ouvrent seulement le fichier concerne, sans naviguer jusqu'a la ligne exacte (limitation connue).",
+  "en": "Double-click or the Open button: ECF and YAML results open right on the matching block / entry. CSV files just open the relevant file, without navigating to the exact row (known limitation)."
+ },
+ "search.btn_open": {
+  "fr": "Ouvrir dans le fichier",
+  "en": "Open in file"
+ },
+ "search.btn_open_tooltip": {
+  "fr": "Ouvre le fichier du resultat selectionne et va au bloc / a l'entree correspondante (ECF/YAML ; les CSV ouvrent le fichier). Double-clic sur un resultat = meme action.",
+  "en": "Opens the selected result's file and goes to the matching block / entry (ECF/YAML; CSV opens the file). Double-clicking a result does the same."
  },
  "search.n_results": {
   "fr": "{n} resultat(s)",
@@ -5858,6 +5866,14 @@
  "ecf.col.quantity": {
   "fr": "Quantité",
   "en": "Quantity"
+ },
+ "ecf.catalog_pick_context": {
+  "fr": "Choisir dans le catalogue...",
+  "en": "Pick from the catalog..."
+ },
+ "ecf.catalog_pick_tooltip": {
+  "fr": "Clic droit ou double-clic : choisir dans le catalogue du scénario.",
+  "en": "Right-click or double-click: pick from the scenario catalog."
  },
  "ecf.catalog_unavailable": {
   "fr": "Catalogue indisponible : ItemsConfig.ecf/BlocksConfig.ecf introuvables à côté de ce fichier.",

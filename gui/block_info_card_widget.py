@@ -51,6 +51,7 @@ from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
     QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QPlainTextEdit, QTextEdit,
+    QGraphicsDropShadowEffect,
 )
 
 from core.block_info_card import BlockInfoCard, InfoCardField, card_to_markdown
@@ -231,6 +232,23 @@ class _InlineValueRow(QWidget):
     def start_edit(self) -> None:
         if self._editor is not None or self._source_key is None:
             return
+        # Regression 11/09/2026 : un clic n'active pas la ligne cliquee au
+        # clavier, donc l'editeur ouvert d'une AUTRE ligne ne recevait jamais
+        # de perte de focus et restait en edition. On referme d'abord
+        # l'editeur actif (commit, comportement tableau) ; si la valeur a
+        # change, la fiche se reconstruit (refresh SYNCHRONE) et la
+        # reouverture de CETTE ligne est realisee par _rebuild_content via
+        # _pending_edit_key -- ne plus toucher self ensuite (ancien widget
+        # detruit en attente par deleteLater).
+        active = self._card._active_inline_row
+        if active is not None and active is not self:
+            self._card._pending_edit_key = self._source_key
+            self._card._pending_edit_from_template = self._from_template
+            active._commit()
+            if self._card._pending_edit_key is None:
+                return      # reconstruction effective : nouvelle ligne en edition
+            self._card._pending_edit_key = None   # valeur inchangee : on ouvre ici
+        self._card._active_inline_row = self
         # Liste deroulante EDITABLE quand la propriete a un historique dans
         # le fichier (valeurs observees, tri frequence -- meme regle que le
         # tableau de proprietes, demande du 31/08/2026) ; saisie libre
@@ -349,6 +367,8 @@ class _InlineValueRow(QWidget):
         self._stop_edit()
 
     def _stop_edit(self) -> None:
+        if self._card._active_inline_row is self:
+            self._card._active_inline_row = None
         if self._editor is not None:
             self._editor.deleteLater()
             self._editor = None
@@ -511,6 +531,14 @@ class BlockInfoCardWidget(QWidget):
         self.editable: bool = True
         self._show_all: bool = True  # vue COMPLETE par defaut (demande du 31/08/2026)
         self.root_identity: str = ""
+        # Edition inline (regression 11/09/2026) : UNE seule ligne editable
+        # a la fois. Clic sur une ligne -> fermeture (commit) de l'editeur
+        # actif d'une autre ligne, puis reouverture differee de la nouvelle
+        # (le commit reconstruit la fiche : voir _rebuild_content).
+        self._active_inline_row: Optional[_InlineValueRow] = None
+        self._pending_edit_key: Optional[str] = None
+        self._pending_edit_from_template: bool = False
+        self._inline_rows: list = []
         self._base_point_size = QApplication.font().pointSizeF() or 9.0
         # Fenetre-outil INDEPENDANTE plutot qu'un simple widget enfant --
         # bug reel signale par l'utilisateur (29/08/2026) : en tant que
@@ -521,23 +549,60 @@ class BlockInfoCardWidget(QWidget):
         # retire la barre de titre native (deja notre propre en-tete/croix).
         # `parent` est conserve pour la duree de vie (fermee avec l'onglet)
         # SANS clipper son affichage aux limites du parent.
+        # Look Relief (theme k, 11/09/2026) : fenetre TRANSLUCIDE + cadre
+        # interne portant fond/bordure + QGraphicsDropShadowEffect = VRAIE
+        # ombre portee. Sur une fenetre frameless, l'effet applique
+        # directement au widget serait rogne a ses limites : il faut une
+        # marge transparente autour du cadre. Hors theme Relief : marges
+        # nulles, rendu identique a l'ancien.
+        from gui.theme import is_relief_theme
+        self._relief = is_relief_theme()
+        if self._relief:
+            # gauche, haut, droite, bas -- plus large en bas (offset ombre)
+            self._shadow_margins = (12, 10, 16, 26)
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        else:
+            self._shadow_margins = (0, 0, 0, 0)
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         # QWidget ne peint PAS son arriere-plan CSS par defaut (contrairement
         # a QFrame/QLabel) -- sans cet attribut, le fond noir demande
         # explicitement par l'utilisateur (29/08/2026) reste invisible (le
         # widget parent transparait a travers, bug reel trouve au rendu).
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(
-            f"BlockInfoCardWidget {{ background: {_CARD_BG}; border: 1px solid {_CARD_BORDER}; "
-            f"border-radius: 8px; }} QLabel {{ color: {_CARD_TEXT}; background: transparent; }}"
-        )
-        self.setMinimumSize(_MIN_WIDTH, _MIN_HEIGHT)
-        self.setMaximumSize(_MAX_WIDTH, _MAX_HEIGHT)
-        self.resize(_BASE_WIDTH, _BASE_HEIGHT)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(10, 8, 10, 10)
+        self._card_frame = QFrame(self)
+        if self._relief:
+            # biseau de couleur : bord haut/gauche clair, bas/droit profond
+            self._card_frame.setStyleSheet(
+                f"QFrame {{ background: {_CARD_BG}; "
+                f"border: 1px solid {_CARD_BORDER}; "
+                f"border-top-color: #4c4c57; border-left-color: #45454f; "
+                f"border-bottom-color: #0b0b0f; border-right-color: #101014; "
+                f"border-radius: 8px; }} "
+                f"QLabel {{ color: {_CARD_TEXT}; background: transparent; }}"
+            )
+        else:
+            self._card_frame.setStyleSheet(
+                f"QFrame {{ background: {_CARD_BG}; border: 1px solid {_CARD_BORDER}; "
+                f"border-radius: 8px; }} QLabel {{ color: {_CARD_TEXT}; background: transparent; }}"
+            )
+        root = QVBoxLayout(self)
+        root.setContentsMargins(*self._shadow_margins)
+        root.addWidget(self._card_frame)
+        if self._relief:
+            effect = QGraphicsDropShadowEffect(self)
+            effect.setBlurRadius(34)
+            effect.setOffset(0, 12)
+            effect.setColor(QColor(0, 0, 0, 185))
+            self._card_frame.setGraphicsEffect(effect)
+        outer = QVBoxLayout(self._card_frame)
         outer.setSpacing(6)
+        self.setMinimumSize(_MIN_WIDTH + self._shadow_margins[0] + self._shadow_margins[2],
+                            _MIN_HEIGHT + self._shadow_margins[1] + self._shadow_margins[3])
+        self.setMaximumSize(_MAX_WIDTH + self._shadow_margins[0] + self._shadow_margins[2],
+                            _MAX_HEIGHT + self._shadow_margins[1] + self._shadow_margins[3])
+        self.resize(_BASE_WIDTH + self._shadow_margins[0] + self._shadow_margins[2],
+                    _BASE_HEIGHT + self._shadow_margins[1] + self._shadow_margins[3])
+
 
         header = _DraggableHeader(self)
         header_row = QHBoxLayout(header)
@@ -787,7 +852,12 @@ class BlockInfoCardWidget(QWidget):
     def _rebuild_content(self) -> None:
         card = self._current_card
         self._clear_content()
+        # les anciennes lignes partent en deleteLater : l'editeur actif (s'il
+        # y en avait un) n'existe plus aux yeux de la fiche
+        self._inline_rows = []
+        self._active_inline_row = None
         if card is None:
+            self._pending_edit_key = None
             return
 
         if card.description_html:
@@ -834,6 +904,16 @@ class BlockInfoCardWidget(QWidget):
 
         self._content_layout.addStretch(1)
         self._apply_font_scale()
+        # Regression 11/09/2026 : si un clic sur une ligne B a demande la
+        # fermeture (commit) d'une ligne A en edition, la reconstruction est
+        # terminee -> reouvrir l'edition sur la NOUVELLE ligne B.
+        key, tpl = self._pending_edit_key, self._pending_edit_from_template
+        self._pending_edit_key = None
+        if key is not None:
+            for row in self._inline_rows:
+                if row._source_key == key and row._from_template == tpl:
+                    row.start_edit()
+                    break
 
     def _make_row(self, label: str, value: str, source_key: Optional[str],
                    source_raw_value: Optional[str], from_template: bool,
@@ -843,9 +923,11 @@ class BlockInfoCardWidget(QWidget):
         # affichait un double deux-points ('Volume de production: : 1'),
         # constate le 30/08/2026.
         label = label.rstrip().rstrip(':').rstrip()
-        return _InlineValueRow(label, value, source_raw_value or "", self,
-                               source_key, source_raw_value, from_template=from_template,
-                               deletable=deletable)
+        row = _InlineValueRow(label, value, source_raw_value or "", self,
+                              source_key, source_raw_value, from_template=from_template,
+                              deletable=deletable)
+        self._inline_rows.append(row)
+        return row
 
     def _add_add_row(self, from_template: bool) -> None:
         """Bouton '+' + formulaire inline d'ajout (demande du 31/08/2026 :
@@ -900,7 +982,9 @@ class BlockInfoCardWidget(QWidget):
         self._apply_font_scale()
 
     def _position_resize_grip(self) -> None:
-        self._resize_grip.move(self.width() - _RESIZE_GRIP_SIZE - 2, self.height() - _RESIZE_GRIP_SIZE - 2)
+        ml, _mt, mr, mb = getattr(self, "_shadow_margins", (0, 0, 0, 0))
+        self._resize_grip.move(self.width() - _RESIZE_GRIP_SIZE - 2 - mr,
+                               self.height() - _RESIZE_GRIP_SIZE - 2 - mb)
 
     def _current_scale(self) -> float:
         """Facteur d'echelle du texte, derive de la LARGEUR actuelle par

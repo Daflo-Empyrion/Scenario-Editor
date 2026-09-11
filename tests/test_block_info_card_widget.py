@@ -174,7 +174,9 @@ def test_header_drag_moves_card(qapp, sample_card):
     w.show_card("FuelTankMSLarge", sample_card, None)
     w.move(100, 100)
 
-    header = w.layout().itemAt(0).widget()
+    # structure v1.6.6+ : fenetre translucide > cadre interne (ombre Relief)
+    # > en-tete draggable
+    header = w._card_frame.layout().itemAt(0).widget()
 
     start_global = QPoint(150, 110)
     press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(start_global),
@@ -203,7 +205,9 @@ def test_icon_and_title_transparent_to_mouse_so_clicks_reach_header(qapp, sample
         icon_key="Test")
     w.show_card("Test", long_title_card, None)
 
-    header = w.layout().itemAt(0).widget()
+    # structure v1.6.6+ : fenetre translucide > cadre interne (ombre Relief)
+    # > en-tete draggable
+    header = w._card_frame.layout().itemAt(0).widget()
 
     title_point = w.title_label.mapTo(w, w.title_label.rect().center())
     assert w.childAt(title_point) is header

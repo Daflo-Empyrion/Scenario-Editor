@@ -357,9 +357,192 @@ QToolTip {{
             " .QWidget { background-color: rgba(30, 30, 36, 170); }"
         ),
     },
+    "k": {
+        # Theme "Relief nuit" (prototype 3D demande le 11/09/2026, niveaux
+        # 1+2 valides) : base nuit profonde + BISEAUX QSS -- boutons
+        # "extrudes" (degrade vertical, bord haut clair / bord bas fonce,
+        # presse = biseau inverse), champs "en creux" (bords inverses),
+        # entetes et onglets surEleves. QSS uniquement : aucun effet par
+        # widget, donc zero cout CPU sur les grandes vues. Niveau 2
+        # (ombre portee fiche info) branche dans gui/theme.py via
+        # is_relief_theme().
+        "label": "K — Relief nuit",
+        "bg": "#141419", "surface": "#1f1f27", "surface_alt": "#282832",
+        "border": "#3a3a44", "border_strong": "#4a4a56",
+        "text_primary": "#e3e3e3", "text_muted": "#a1a1a1", "text_on_primary": "#0c1016",
+        "accent": "#60cdff", "accent_hover": "#7ed8ff", "accent_pressed": "#48b3e6",
+        "accent_bg_tint": "#14384a",
+        "nav_gradient": "qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+                         "stop:0 #34343f, stop:1 #191920)",
+        "nav_text": "#e3e3e3",
+        "success": "#5FD98A", "warning": "#F5A623", "danger": "#E8555A", "danger_dark": "#C23B40",
+        "font_family": "Segoe UI",
+        "extra_qss": """
+/* --- Theme Relief nuit : biseaux extrudes / en creux (contraste fort) --- */
+QPushButton {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #b5e9ff, stop:0.45 #5ec9f8, stop:1 #1f7fb0);
+    color: {TEXT_ON_PRIMARY};
+    border: 1px solid #0e3348;
+    border-top-color: #d8f3ff;
+    border-bottom: 2px solid #0b2a3c;
+    border-radius: 8px;
+    padding: 6px 15px;
+    font-weight: 600;
+}}
+QPushButton:hover {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #d8f3ff, stop:0.45 #8fdcff, stop:1 #2f96cc);
+}}
+QPushButton:pressed, QPushButton:checked {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #135a7e, stop:0.6 #1f7fb0, stop:1 #5ec9f8);
+    border: 1px solid #0b2a3c;
+    border-bottom: 2px solid #0b2a3c;
+    padding-top: 8px;
+    padding-bottom: 4px;
+}}
+QPushButton:disabled {{
+    background: {SURFACE};
+    color: {TEXT_MUTED};
+    border: 1px solid {BORDER};
+    border-bottom: 1px solid {BORDER};
+    padding: 6px 15px;
+}}
+QPushButton#secondaryButton {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #3c3c47, stop:1 #1c1c23);
+    color: {TEXT_PRIMARY};
+    border: 1px solid #101014;
+    border-top-color: #4f4f5c;
+    border-bottom: 2px solid #0a0a0e;
+}}
+QPushButton#secondaryButton:hover {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #454551, stop:1 {ACCENT_BG_TINT});
+    color: {ACCENT_HOVER};
+    border-top-color: #5a5a68;
+}}
+QPushButton#secondaryButton:pressed {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #101014, stop:1 #26262e);
+    border-top-color: #0a0a0e;
+    padding-top: 8px;
+    padding-bottom: 4px;
+}}
+QPushButton#secondaryButton:disabled {{
+    background: {SURFACE};
+    color: {TEXT_MUTED};
+    border: 1px solid {BORDER};
+    border-bottom: 1px solid {BORDER};
+}}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QTextEdit {{
+    background-color: #0f0f14;
+    border: 1px solid {BORDER};
+    border-top: 2px solid #07070a;
+    border-bottom: 1px solid #41414c;
+    border-radius: 6px;
+    padding: 3px 6px;
+}}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QPlainTextEdit:focus {{
+    background-color: {SURFACE};
+    border: 1px solid {ACCENT};
+    border-top: 2px solid {ACCENT_DARK};
+    border-bottom: 1px solid {ACCENT};
+}}
+QComboBox QAbstractItemView {{
+    background-color: {SURFACE};
+    border: 1px solid #07070a;
+    border-top-color: #4f4f5c;
+    selection-background-color: {ACCENT_BG_TINT};
+}}
+QTabWidget::pane {{
+    background-color: {SURFACE};
+    border: 1px solid #07070a;
+    border-top: 1px solid #4f4f5c;
+    border-radius: 6px;
+}}
+QTabBar::tab {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #2e2e38, stop:1 #191920);
+    color: {TEXT_MUTED};
+    border: 1px solid #07070a;
+    border-top-color: #45454f;
+    border-bottom: 2px solid #07070a;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 6px 14px;
+}}
+QTabBar::tab:selected {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {SURFACE}, stop:1 {SURFACE});
+    color: {TEXT_PRIMARY};
+    border-bottom: 2px solid {SURFACE};
+}}
+QTabBar::tab:hover {{
+    background: {ACCENT_BG_TINT};
+    color: {ACCENT_HOVER};
+}}
+QHeaderView::section {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #3c3c47, stop:1 #202028);
+    color: {TEXT_PRIMARY};
+    border: none;
+    border-bottom: 2px solid #0a0a0e;
+    border-right: 1px solid #0a0a0e;
+    padding: 5px;
+}}
+QTableWidget {{
+    gridline-color: {GRID_LINE};
+    alternate-background-color: {SURFACE};
+    background-color: #101015;
+}}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {{
+    border: none;
+}}
+QTreeWidget, QListWidget {{
+    background-color: #101015;
+    border: 1px solid {BORDER};
+    border-top: 2px solid #07070a;
+    border-bottom: 1px solid #41414c;
+    border-radius: 8px;
+}}
+QGroupBox {{
+    background-color: {SURFACE};
+    border: 1px solid #07070a;
+    border-top: 1px solid #4f4f5c;
+    border-radius: 8px;
+    margin-top: 10px;
+    padding-top: 6px;
+}}
+QToolTip {{
+    background: {SURFACE_ALT};
+    color: {TEXT_PRIMARY};
+    border: 1px solid #0a0a0e;
+    border-top-color: #5a5a68;
+    border-bottom: 2px solid #0a0a0e;
+    border-radius: 4px;
+}}
+QMenu {{
+    background-color: {SURFACE};
+    border: 1px solid #0a0a0e;
+    border-top-color: #4f4f5c;
+    border-bottom: 2px solid #0a0a0e;
+}}
+QStatusBar {{
+    background: qlineargradient(x1:0, y1:1, x2:0, y2:0,
+                stop:0 #2e2e38, stop:1 #191920);
+}}
+""".format(ACCENT="#5ec9f8", SURFACE="#1f1f27", SURFACE_ALT="#282832",
+           ACCENT_BG_TINT="#14384a", ACCENT_DARK="#1f7fb0", ACCENT_HOVER="#7ed8ff",
+           GRID_LINE="#26262e", TEXT_PRIMARY="#e3e3e3", TEXT_MUTED="#a1a1a1",
+           TEXT_ON_PRIMARY="#0c1016", BORDER="#3a3a44"),
+    },
 }
 
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
 DEFAULT_THEME_ID = "classic"
 
 

@@ -71,6 +71,8 @@ class ScenarioSearchDialog(QDialog):
 
         self.results_list = QListWidget()
         self.results_list.itemDoubleClicked.connect(self._navigate_to_result)
+        self.results_list.itemSelectionChanged.connect(self._update_open_enabled)
+        self.results_list.setToolTip(t("search.btn_open_tooltip"))
         layout.addWidget(self.results_list, 1)
 
         # Remplacement multi-fichiers (demande du 10/09/2026) : champ
@@ -94,6 +96,17 @@ class ScenarioSearchDialog(QDialog):
         self.summary_label.setObjectName("mutedLabel")
         bottom_row.addWidget(self.summary_label)
         bottom_row.addStretch()
+        # Ouvrir dans le fichier (demande du 11/09/2026) : la navigation
+        # EXISTAIT deja en double-clic (_navigate_to_result) mais etait
+        # indetectable -- bouton visible + active selon la selection.
+        from gui.theme import icon
+        self.btn_open = QPushButton(icon("fa5s.external-link-alt", "#4a7dfc"),
+                                    t("search.btn_open"))
+        self.btn_open.setObjectName("secondaryButton")
+        self.btn_open.setToolTip(t("search.btn_open_tooltip"))
+        self.btn_open.setEnabled(False)
+        self.btn_open.clicked.connect(self._open_selected_result)
+        bottom_row.addWidget(self.btn_open)
         btn_close = QPushButton(t("validation.close"))
         btn_close.setObjectName("secondaryButton")
         btn_close.clicked.connect(self.close)
@@ -142,6 +155,17 @@ class ScenarioSearchDialog(QDialog):
             item.setCheckState(Qt.CheckState.Checked)
             self.results_list.addItem(item)
         self.summary_label.setText(t("search.n_results", n=len(results)))
+        self.btn_open.setEnabled(False)   # aucune selection apres un clear
+
+    def _update_open_enabled(self):
+        item = self.results_list.currentItem()
+        self.btn_open.setEnabled(item is not None and item.data(Qt.ItemDataRole.UserRole) is not None)
+
+    def _open_selected_result(self):
+        item = self.results_list.currentItem()
+        if item is None:
+            return
+        self._navigate_to_result(item)
 
     def _checked_files(self):
         """Fichiers distincts des resultats coches (ordre stable)."""

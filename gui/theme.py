@@ -451,6 +451,16 @@ QLabel#mutedLabel {{
     return base + palette.get("extra_qss", "")
 
 
+# Themes "Relief" (look 3D, prototype 11/09/2026) : les elements flottants
+# (fiche info...) adaptent leurs bordures en biseau quand l'un est actif.
+RELIEF_THEME_IDS = {"k"}
+
+
+def is_relief_theme() -> bool:
+    """Vrai si le theme ACTIF est un theme Relief (niveau 2 du look 3D)."""
+    return CURRENT_THEME_ID in RELIEF_THEME_IDS
+
+
 def apply_theme(app, theme_id: str = None):
     """A appeler une premiere fois juste apres la creation de QApplication,
     puis a nouveau a chaque changement de theme choisi par l'utilisateur

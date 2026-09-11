@@ -160,3 +160,39 @@ def test_search_with_invalid_regex_shows_warning_and_keeps_results(
     assert len(warnings) == 1
     assert dialog.results_list.count() >= 1  # resultats precedents conserves
     dialog.close()
+
+
+def test_open_button_navigates_to_selected_result(window_with_scenario):
+    """Demande du 11/09/2026 : la navigation existait en DOUBLE-CLIC mais
+    etait indetectable -- un bouton visible doit faire la meme chose, active
+    seulement quand un resultat est selectionne."""
+    window_with_scenario._open_search_dialog()
+    dialog = window_with_scenario._search_dialog
+    dialog.query_edit.setText("IronOre")
+    dialog._run_search()
+    assert dialog.results_list.count() == 1
+
+    # apres une recherche, rien n'est selectionne : bouton desactive
+    assert dialog.btn_open.isEnabled() is False
+
+    dialog.results_list.setCurrentRow(0)
+    assert dialog.btn_open.isEnabled() is True
+
+    dialog._open_selected_result()
+    assert window_with_scenario.tabs.count() == 1
+    dialog.close()
+
+
+def test_open_button_disabled_after_new_search(window_with_scenario):
+    """Une nouvelle recherche vide la liste : le bouton retombe desactive
+    (pas de resultat courant a ouvrir)."""
+    window_with_scenario._open_search_dialog()
+    dialog = window_with_scenario._search_dialog
+    dialog.query_edit.setText("IronOre")
+    dialog._run_search()
+    dialog.results_list.setCurrentRow(0)
+    assert dialog.btn_open.isEnabled() is True
+
+    dialog.query_edit.setText("Iron")
+    dialog._run_search()
+    assert dialog.btn_open.isEnabled() is False

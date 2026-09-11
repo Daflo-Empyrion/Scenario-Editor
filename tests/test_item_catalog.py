@@ -86,6 +86,25 @@ def _tree_leaves(dlg):
     return out
 
 
+def _tree_leaves(dlg):
+    out = []
+    for i in range(dlg.cat_tree.topLevelItemCount()):
+        root = dlg.cat_tree.topLevelItem(i)
+        for j in range(root.childCount()):
+            cat = root.child(j)
+            for k in range(cat.childCount()):
+                out.append((root.text(0), cat.text(0), cat.child(k)))
+    return out
+
+
+def _open_tab(dlg, idx):
+    """Active un onglet liste comme l'utilisateur : construction LAZY depuis
+    la regression 11/09/2026 (les onglets A-Z / Tout ne sont peuples qu'a
+    leur premiere activation, pour une ouverture quasi instantanee)."""
+    dlg.tabs.setCurrentIndex(idx)
+    dlg._on_tab_changed(idx)
+
+
 def test_dialog_three_tabs_populated(dialog):
     assert dialog.tabs.count() == 3
     groups = {g for g, _, _ in _tree_leaves(dialog)}
@@ -93,6 +112,8 @@ def test_dialog_three_tabs_populated(dialog):
     assert any("BlocksConfig" in g for g in groups)
     categories = {c for _, c, _ in _tree_leaves(dialog)}
     assert "Medical" in categories and "Devices" in categories
+    _open_tab(dialog, 1)
+    _open_tab(dialog, 2)
     assert dialog.az_list.count() == 5
     assert dialog.all_list.count() == 5
 
@@ -103,6 +124,7 @@ def test_dialog_checkboxes_shared_across_tabs(dialog):
     med.setCheckState(0, __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
     assert "item:MedPack" in dialog._checked
     # l'onglet A->Z suit (etat partage par cle)
+    _open_tab(dialog, 1)
     az_state = None
     for i in range(dialog.az_list.count()):
         it = dialog.az_list.item(i)
@@ -116,12 +138,14 @@ def test_dialog_search_filters_all_tabs(dialog):
     dialog.search.setText("medpack")
     leaves = _tree_leaves(dialog)
     assert len(leaves) == 2                     # item + bloc MedPack
+    _open_tab(dialog, 1)                        # construit avec le filtre actif
     assert dialog.az_list.count() == 2
-    dialog.search.setText("")
+    dialog.search.setText("")                   # onglet A-Z deja construit
     assert dialog.az_list.count() == 5
 
 
 def test_dialog_hide_no_price_filter(dialog):
+    _open_tab(dialog, 1)
     dialog.hide_no_price.setChecked(True)
     assert dialog.az_list.count() == 3          # MedPack x2 + SansCat ont un prix
 
@@ -141,6 +165,7 @@ def test_dialog_selection_and_quick_pick(dialog):
     assert len(accepted[0]) == 2                # les deux, ordre catalogue
     assert [e.name for e in accepted[0]] == ["MedPack", "Trader"]
     # double-clic = ajout rapide d'une seule entree
+    _open_tab(dialog, 1)
     med_item = next(it for it in [dialog.az_list.item(i) for i in range(dialog.az_list.count())]
                     if it.data(0x0100) == "item:MedPack")
     dialog._on_list_double_clicked(med_item)
@@ -174,6 +199,31 @@ def test_economy_add_entries_uses_market_price_default(qapp):
     assert out.count("MedPack") == 1 and '"MedPack, 126, 10-50"' in dlg.config.doc.render()
 
 
+def test_dialog_label_callback_called_once_per_entry(qapp, catalog_files):
+    """Regression 11/09/2026 : le callback display_name etait appele PAR
+    ENTREE x 3 VUES (plus de 13 000 appels sur un vrai scenario, chacun
+    relisant l'index de localisation disque) -> gel de plusieurs secondes
+    A CHAQUE ouverture du catalogue, meme a chaud. Le memo limite a une
+    fois par entree et par reconstruction."""
+    from gui.item_catalog_dialog import ItemCatalogDialog
+    entries = build_catalog(catalog_files)
+    calls = []
+
+    def display(e):
+        calls.append(e.key)
+        return e.name
+
+    dlg = ItemCatalogDialog(entries, display_name=display)
+    assert len(calls) == len(entries)           # une fois par entree, pas x3
+    calls.clear()
+    dlg.search.setText("med")                   # refiltrage : memo retombe
+    # le filtrage consulte display une fois par entree + une fois par ligne
+    # rendue (devenu bon marché : l'index couteux est lu une seule fois par
+    # ouverture via _catalog_display_name_factory)
+    assert len(calls) < 2 * len(entries)
+    dlg.close()
+
+
 def test_icons_load_on_tree_and_list_views(qapp, catalog_files):
     """Regression : _apply_icon appelait setIcon(0, ic) (signature
     QTreeWidgetItem) sur les items de LISTE (setIcon(ic), 1 seul argument)
@@ -199,6 +249,9 @@ def test_icons_load_on_tree_and_list_views(qapp, catalog_files):
                 if not leaf.icon(0).isNull():
                     n_tree_ok += 1
     assert n_tree_ok == n_tree == len(entries)
+    _open_tab(dlg, 1)                           # construction LAZY de l'onglet
+    for _ in range(10):
+        qapp.processEvents()
     n_list_ok = sum(1 for i in range(dlg.az_list.count())
                     if not dlg.az_list.item(i).icon().isNull())
     assert n_list_ok == dlg.az_list.count()

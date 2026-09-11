@@ -28,8 +28,9 @@ def test_theme_registry_has_all_expected_ids():
     # "i" = Nuit Fluent (audit rendu du 09/09/2026 : palette longues
     # sessions desaturee, s'articule avec le pilote gui/fluent_pilot.py)
     # "j" = Nuit Mica (10/09/2026 : meme palette + materiau Mica Windows 11)
+    # "k" = Relief nuit (11/09/2026 : prototype look 3D, biseaux QSS)
     assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e",
-                           "f", "g", "h", "i", "j"]
+                           "f", "g", "h", "i", "j", "k"]
 
 
 REQUIRED_PALETTE_KEYS = {
