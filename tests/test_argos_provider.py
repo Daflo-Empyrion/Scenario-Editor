@@ -20,6 +20,18 @@ from pathlib import Path
 
 import core.settings as settings
 from core import argos_provider
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_translation_memory(tmp_path, monkeypatch):
+    """La memoire de traduction (desormais consultee AVANT le moteur, quel
+    que soit le reglage) doit etre isolee de la VRAIE memoire de la machine :
+    sinon une entree residuelle ('bonjour'->...) court-circuite le dispatch
+    teste ici."""
+    import core.translation_memory as tm
+    monkeypatch.setattr(tm, "MEMORY_FILE", tmp_path / "translation_memory.json")
+    monkeypatch.setattr(tm, "_cache", None)
 
 
 def test_translation_engine_setting_roundtrip(tmp_path, monkeypatch):

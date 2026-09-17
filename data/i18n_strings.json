@@ -1739,6 +1739,142 @@
   "fr": "Opération en cours, veuillez patienter…",
   "en": "Operation in progress, please wait…"
  },
+ "busy.downloading": {
+  "fr": "Téléchargement en cours...",
+  "en": "Downloading..."
+ },
+ "menu.options.glossary": {
+  "fr": "Glossaire de traduction...",
+  "en": "Translation glossary..."
+ },
+ "spellcheck.fix_all_btn": {
+  "fr": "Corriger tout (Grammalecte)",
+  "en": "Fix all (Grammalecte)"
+ },
+ "spellcheck.fix_row_btn": {
+  "fr": "Corriger cette ligne (Grammalecte)",
+  "en": "Fix this line (Grammalecte)"
+ },
+ "spellcheck.not_installed_short": {
+  "fr": "Grammalecte n'est pas installé (voir Options > « Vérifier l'orthographe » dans l'éditeur CSV pour l'installer).",
+  "en": "Grammalecte is not installed (see Options > \"Check spelling\" in the CSV editor to install it)."
+ },
+ "spellcheck.correcting": {
+  "fr": "Correction grammaticale...",
+  "en": "Grammar checking..."
+ },
+ "trans.autofix_note": {
+  "fr": "Corrections grammaticales Grammalecte appliquées : {n}",
+  "en": "Grammar fixes applied (Grammalecte): {n}"
+ },
+ "menu.options.nllb": {
+  "fr": "Traduction locale NLLB (IA, qualité+)...",
+  "en": "Local NLLB translation (AI, quality+)..."
+ },
+ "nllb.title": {
+  "fr": "Moteur local NLLB (Meta)",
+  "en": "Local NLLB engine (Meta)"
+ },
+ "nllb.intro": {
+  "fr": "Modèle neuronal local (Meta NLLB) nettement plus fluide que les modèles Argos, 100 % local : aucun texte ne quitte ton poste. Fonctionne sur CPU (ton GPU AMD ne sert pas à l'inférence, voir v2). Licence des poids : CC-BY-NC (usage non commercial).",
+  "en": "Local neural model (Meta NLLB) clearly more fluent than the Argos models, 100% local: no text ever leaves your machine. Runs on CPU (your AMD GPU is not used for inference, see v2). Model weights licence: CC-BY-NC (non-commercial use)."
+ },
+ "nllb.v600m.label": {
+  "fr": "Modèle rapide (600M, ~630 Mo) — recommandé : très bonne qualité, PDA complet ≈ 2 h",
+  "en": "Fast model (600M, ~630 MB) — recommended: very good quality, full PDA ≈ 2 h"
+ },
+ "nllb.v600m.tip": {
+  "fr": "NLLB-200 distilled 600M quantifié int8. Tourne sur 8 Go de RAM. Traduit ~1 cellule par seconde.",
+  "en": "NLLB-200 distilled 600M int8 quantized. Runs on 8 GB RAM. Translates ~1 cell per second."
+ },
+ "nllb.v13b.label": {
+  "fr": "Modèle qualité (1.3B, ~1,4 Go) — un cran au-dessus, ~1,5x plus lent",
+  "en": "Quality model (1.3B, ~1.4 GB) — a notch better, ~1.5x slower"
+ },
+ "nllb.v13b.tip": {
+  "fr": "NLLB-200 distilled 1.3B quantifié int8. Tourne sur 16 Go de RAM.",
+  "en": "NLLB-200 distilled 1.3B int8 quantized. Runs on 16 GB RAM."
+ },
+ "nllb.download_btn": {
+  "fr": "Télécharger",
+  "en": "Download"
+ },
+ "nllb.reinstall": {
+  "fr": "Réinstaller",
+  "en": "Reinstall"
+ },
+ "nllb.use_as_engine": {
+  "fr": "Utiliser NLLB comme moteur de traduction",
+  "en": "Use NLLB as the translation engine"
+ },
+ "nllb.need_model": {
+  "fr": "Télécharge d'abord un des deux modèles.",
+  "en": "Download one of the two models first."
+ },
+ "nllb.test_btn": {
+  "fr": "Tester",
+  "en": "Test"
+ },
+ "nllb.test_ok": {
+  "fr": "Test réussi : « {result} »",
+  "en": "Test succeeded: \"{result}\""
+ },
+ "nllb.test_fail": {
+  "fr": "Échec du test : {error}",
+  "en": "Test failed: {error}"
+ },
+ "nllb.not_installed": {
+  "fr": "Le modèle NLLB {variant} n'est pas installé : Options > Traduction locale NLLB.",
+  "en": "The NLLB {variant} model is not installed: Options > Local NLLB translation."
+ },
+ "nllb.downloading": {
+  "fr": "Téléchargement du modèle NLLB...",
+  "en": "Downloading the NLLB model..."
+ },
+ "glossary.title": {
+  "fr": "Glossaire de traduction",
+  "en": "Translation glossary"
+ },
+ "glossary.intro": {
+  "fr": "Termes toujours traduits de la même façon, quel que soit le moteur (Argos, Google...). Les entrées courtes validées dans les revues de traduction s'y ajoutent automatiquement.",
+  "en": "Terms always translated the same way, whatever the engine (Argos, Google...). Short entries validated in translation reviews are added here automatically."
+ },
+ "glossary.col_on": {
+  "fr": "Actif",
+  "en": "Enabled"
+ },
+ "glossary.col_src": {
+  "fr": "Terme source",
+  "en": "Source term"
+ },
+ "glossary.col_dst": {
+  "fr": "Traduction imposée",
+  "en": "Enforced translation"
+ },
+ "glossary.src_placeholder": {
+  "fr": "Terme source (ex : Warp Drive)",
+  "en": "Source term (e.g. Warp Drive)"
+ },
+ "glossary.dst_placeholder": {
+  "fr": "Traduction imposée (ex : moteur de distorsion)",
+  "en": "Enforced translation (e.g. warp drive)"
+ },
+ "glossary.add": {
+  "fr": "Ajouter",
+  "en": "Add"
+ },
+ "glossary.remove": {
+  "fr": "Supprimer la sélection",
+  "en": "Remove selected"
+ },
+ "glossary.need_both": {
+  "fr": "Renseigne le terme source et sa traduction.",
+  "en": "Fill in both the source term and its translation."
+ },
+ "glossary.forbidden_chars": {
+  "fr": "Caractères interdits dans une entrée de glossaire (crochets, accolades, antislash).",
+  "en": "Forbidden characters in a glossary entry (brackets, braces, backslash)."
+ },
  "err.read_title": {
   "fr": "Erreur de lecture",
   "en": "Read error"
@@ -3166,6 +3302,106 @@
  "trans.place_in": {
   "fr": "Placer dans {destination}",
   "en": "Place in {destination}"
+ },
+ "trans.no_target_column": {
+  "fr": "Aucune colonne « {lang} » reconnue dans l'en-tête de ce fichier (inexistante, non standard ou en-tête corrompu) : la traduction remplacera la cellule d'origine.",
+  "en": "No \"{lang}\" column recognized in this file's header (missing, non-standard, or corrupted header): the translation will replace the original cell."
+ },
+ "trans.engine_no_change": {
+  "fr": "Le moteur de traduction n'a rien modifié (résultat identique à l'original). Vérifie la langue du texte source, ou modifie la traduction à la main dans le champ de l'aperçu.",
+  "en": "The translation engine returned no change (result identical to the original). Check the source text language, or edit the translation manually in the preview field."
+ },
+ "btn.clipboard_copy": {
+  "fr": "Copier",
+  "en": "Copy"
+ },
+ "btn.clipboard_cut": {
+  "fr": "Couper",
+  "en": "Cut"
+ },
+ "btn.clipboard_paste": {
+  "fr": "Coller",
+  "en": "Paste"
+ },
+ "btn.spellcheck": {
+  "fr": "Vérifier l'orthographe...",
+  "en": "Check spelling..."
+ },
+ "spellcheck.title": {
+  "fr": "Revue des corrections",
+  "en": "Correction review"
+ },
+ "spellcheck.intro": {
+  "fr": "{n} point(s) détecté(s) — {scope}. Coche les corrections à appliquer, décoche les lignes à ignorer.",
+  "en": "{n} issue(s) detected — {scope}. Check the corrections to apply, uncheck lines to ignore."
+ },
+ "spellcheck.col_key": {
+  "fr": "Clé",
+  "en": "Key"
+ },
+ "spellcheck.col_context": {
+  "fr": "Contexte",
+  "en": "Context"
+ },
+ "spellcheck.col_problem": {
+  "fr": "Problème",
+  "en": "Problem"
+ },
+ "spellcheck.col_fix": {
+  "fr": "Correction",
+  "en": "Fix"
+ },
+ "spellcheck.scope_cell": {
+  "fr": "La cellule courante",
+  "en": "Current cell"
+ },
+ "spellcheck.scope_column": {
+  "fr": "La colonne courante",
+  "en": "Current column"
+ },
+ "spellcheck.scope_file": {
+  "fr": "Tout le fichier",
+  "en": "Whole file"
+ },
+ "spellcheck.cell_action": {
+  "fr": "Vérifier cette cellule",
+  "en": "Check this cell"
+ },
+ "spellcheck.check_all": {
+  "fr": "Tout cocher",
+  "en": "Check all"
+ },
+ "spellcheck.uncheck_all": {
+  "fr": "Tout décocher",
+  "en": "Uncheck all"
+ },
+ "spellcheck.ignore_word_btn": {
+  "fr": "Ignorer ce mot partout",
+  "en": "Ignore this word everywhere"
+ },
+ "spellcheck.apply": {
+  "fr": "Appliquer la sélection ({n})",
+  "en": "Apply selection ({n})"
+ },
+ "spellcheck.no_correction": {
+  "fr": "(ne pas corriger)",
+  "en": "(do not fix)"
+ },
+ "spellcheck.no_issues": {
+  "fr": "Aucune erreur détectée.",
+  "en": "No issue found."
+ },
+ "spellcheck.done": {
+  "fr": "{n} correction(s) appliquée(s).",
+  "en": "{n} correction(s) applied."
+ },
+ "spellcheck.type_lang": {
+  "fr": "Texte encore en anglais (probable) — utilise le bouton Traduire sur cette cellule",
+  "en": "Still English text (likely) — use the Translate button on this cell"
+ },
+ "spellcheck.not_installed": {
+  "fr": "Le correcteur Grammalecte v{version} n'est pas installé (~6 Mo, 100 % local, aucune donnée ne sort du poste). Le télécharger maintenant ?",
+  "en": "Grammalecte v{version} is not installed yet (~6 MB, 100% local, no data leaves your machine). Download it now?"
  },
  "trans.replace_cell": {
   "fr": "Remplacer la cellule par ce texte",

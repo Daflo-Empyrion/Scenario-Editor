@@ -213,6 +213,16 @@ def set_press_anim_enabled(enabled: bool) -> None:
     _set('press_anim_enabled', enabled)
 
 
+def get_nllb_variant() -> str:
+    """Variante du modele NLLB installee/utilisee ('600M' par defaut,
+    '1.3B' pour la qualite maximale)."""
+    return _get('nllb_variant', '600M')
+
+
+def set_nllb_variant(variant: str) -> None:
+    _set('nllb_variant', variant)
+
+
 def get_extra_icons_dir() -> str:
     """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
     PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,
@@ -232,7 +242,7 @@ def get_translation_engine() -> str:
 
 
 def set_translation_engine(engine: str) -> None:
-    if engine in ('google', 'argos'):
+    if engine in ('google', 'argos', 'nllb'):
         _set('translation_engine', engine)
 
 

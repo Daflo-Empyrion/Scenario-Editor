@@ -31,10 +31,12 @@ from PyQt6.QtGui import QColor, QBrush
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QPushButton, QDialog,
     QTextEdit, QLineEdit, QComboBox, QCheckBox, QTableWidget, QTableWidgetItem,
-    QMessageBox,
+    QMessageBox, QMenu,
 )
 
 from core.i18n import t
+from core import spellcheck as _spellcheck
+from gui import theme as _theme
 
 
 class TranslationResultDialog(QDialog):
@@ -42,7 +44,9 @@ class TranslationResultDialog(QDialog):
     remplacer la cellule d'origine (ou une cellule destination precise) ou juste
     copier le resultat."""
 
-    def __init__(self, original: str, translated: str, parent=None, destination_label: Optional[str] = None):
+    def __init__(self, original: str, translated: str, parent=None,
+                 destination_label: Optional[str] = None,
+                 destination_warning: Optional[str] = None):
         super().__init__(parent)
         self.setWindowTitle(t("trans.dialog_title"))
         self.setMinimumWidth(500)
@@ -60,6 +64,17 @@ class TranslationResultDialog(QDialog):
         self.translated_view = QTextEdit()
         self.translated_view.setPlainText(translated)
         layout.addWidget(self.translated_view)
+
+        # Avertissement explicite quand la colonne de la langue cible n'a PAS
+        # ete trouvee dans l'en-tete (non standard ou mojibake) : le remplacement
+        # se fera dans la cellule d'origine -- ne jamais laisser croire a un bug
+        # (retour utilisateur 12/09/2026 : la trad FR avait ecrase la cellule EN
+        # sans explication, la cellule FR restant vide).
+        if destination_warning:
+            warn = QLabel(destination_warning)
+            warn.setWordWrap(True)
+            warn.setStyleSheet(f"color: {_theme.ORANGE}; font-size: 11px;")
+            layout.addWidget(warn)
 
         buttons = QHBoxLayout()
         replace_label = t("trans.place_in", destination=destination_label) if destination_label else t("trans.replace_cell")
@@ -162,6 +177,17 @@ class BatchTranslationReviewDialog(QDialog):
         btn_uncheck_all.setObjectName("secondaryButton")
         btn_uncheck_all.clicked.connect(lambda: self._set_all_checked(False))
         btn_row.addWidget(btn_uncheck_all)
+        # Correction grammaticale Grammalecte sur les traductions de la revue
+        # (demande du 12/09/2026 : corriger les bizarries du moteur AVANT
+        # validation, pour que memoire/glossaire recoivent la version propre).
+        self._spellcheck_ok = _spellcheck.is_packaged()
+        btn_fix_all = QPushButton(t("spellcheck.fix_all_btn"))
+        btn_fix_all.setObjectName("secondaryButton")
+        btn_fix_all.setEnabled(self._spellcheck_ok)
+        btn_fix_all.setToolTip("" if self._spellcheck_ok
+                               else t("spellcheck.not_installed_short"))
+        btn_fix_all.clicked.connect(self._fix_all)
+        btn_row.addWidget(btn_fix_all)
         btn_row.addStretch()
         initial_checked = sum(1 for it in items if not it.get('failed'))
         self.btn_apply = QPushButton(t("trans.apply_checked", count=initial_checked))
@@ -174,6 +200,39 @@ class BatchTranslationReviewDialog(QDialog):
         layout.addLayout(btn_row)
 
         self.table.itemChanged.connect(self._update_apply_count)
+        # clic droit sur une ligne : corriger cette ligne seulement
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._row_context_menu)
+
+    def _fix_row(self, row: int) -> bool:
+        """Corrige la cellule Traduction de la ligne (Grammalecte). Retourne
+        True si le texte a change."""
+        trans_item = self.table.item(row, 3)
+        if trans_item is None or not trans_item.text().strip():
+            return False
+        corrected, applied = _spellcheck.auto_fix(trans_item.text())
+        if corrected != trans_item.text():
+            trans_item.setText(corrected)
+            return True
+        return False
+
+    def _fix_all(self) -> None:
+        from gui.busy import busy_guard
+        with busy_guard(self, "spellcheck.correcting"):
+            fixed = sum(1 for r in range(self.table.rowCount())
+                        if self._fix_row(r))
+        if fixed:
+            self.table.resizeRowsToContents()
+
+    def _row_context_menu(self, pos) -> None:
+        row = self.table.rowAt(pos.y())
+        if row < 0:
+            return
+        menu = QMenu(self)
+        action = menu.addAction(t("spellcheck.fix_row_btn"))
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if chosen == action and self._fix_row(row):
+            self.table.resizeRowsToContents()
 
     def _set_all_checked(self, checked: bool):
         state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked

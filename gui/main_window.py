@@ -276,6 +276,10 @@ class MainWindow(QMainWindow):
         self.action_extra_icons.triggered.connect(self._set_extra_icons_dialog)
         self.action_argos = self.menu_options.addAction(t("menu.options.argos"))
         self.action_argos.triggered.connect(self._open_argos_setup)
+        self.action_nllb = self.menu_options.addAction(t("menu.options.nllb"))
+        self.action_nllb.triggered.connect(self._open_nllb_setup)
+        self.action_glossary = self.menu_options.addAction(t("menu.options.glossary"))
+        self.action_glossary.triggered.connect(self._open_glossary)
         # Meme geste que "Traduction en ligne (Google)" : une case cochee
         # DANS le menu pour basculer le moteur (retour utilisateur du
         # 10/09/2026 : l'activation n'etait que dans l'assistant). Grisee
@@ -1493,6 +1497,21 @@ class MainWindow(QMainWindow):
         from gui.argos_setup_dialog import ArgosSetupDialog
         self._argos_dialog = ArgosSetupDialog(self)
         self._argos_dialog.show()
+
+    def _open_glossary(self):
+        """Gestion du glossaire terminologique (moteur-agnostique, phase 2 de
+        l'aide a la traduction) : alimente manuellement et par validation des
+        traductions courtes."""
+        from gui.glossary_dialog import GlossaryDialog
+        self._glossary_dialog = GlossaryDialog(self)
+        self._glossary_dialog.show()
+
+    def _open_nllb_setup(self):
+        """Assistant du moteur local NLLB (Meta, CTranslate2) -- qualite
+        superieure a Argos, 100 % local, installation en un clic."""
+        from gui.nllb_setup_dialog import NllbSetupDialog
+        self._nllb_dialog = NllbSetupDialog(self)
+        self._nllb_dialog.show()
 
     def _set_extra_icons_dialog(self):
         """Dossier d'icones supplementaires (icones de MODS, ex RE2) : fusionne

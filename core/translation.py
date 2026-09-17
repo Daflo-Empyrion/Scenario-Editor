@@ -113,12 +113,41 @@ def find_language_aliases(target_code: str, target_label: str) -> list:
     aliases.add(target_label)
     return [_normalize(a) for a in aliases]
 
+
+# Chiffres cyrilliques (А-Я, а-я, Ё, ё) : signature d'un en-tete "double-encode"
+# (UTF-8 decode par erreur en CP1251 -- voir repair_mojibake).
+_CYRILLIC_RE = re.compile('[\u0410-\u044f\u0401\u0451]')
+
+
+def repair_mojibake(s: str) -> str:
+    """Tente de reparer une chaine 'double-encodee' : 'Français' stocke en UTF-8
+    puis decode par erreur en CP1251 donne 'FranГ§ais' (vecu reel sur
+    atlantis/Extras/PDA/PDA.csv, scenario d'origine russe -- la colonne FR
+    n'etait plus reconnue par find_language_aliases et la traduction ecrasait
+    la cellule source). Re-encode en CP1251 puis decode en UTF-8 ; retourne
+    la chaine originale si aucun cyrillique ou si l'aller-retour echoue
+    (la chaine n'etait alors pas un mojibake)."""
+    if not _CYRILLIC_RE.search(s):
+        return s
+    try:
+        return s.encode('cp1251').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return s
+
 # Balises BBCode : [b], [/b], [color=#FF0000], [url=...], etc.
 _BBCODE_RE = r'\[/?[a-zA-Z0-9_]+(?:=[^\]]*)?\]'
+# [-] : balise de fermeture Empyrion (fin de couleur) -- le tiret n'est pas
+# couvert par _BBCODE_RE, et elle doit rester hors du texte envoye au moteur.
+_CLOSING_DASH_RE = r'\[-\]'
+# Retours a la ligne LITTERAUX des CSV Empyrion ('\n' ecrit backslash + n) :
+# sans protection, le moteur mangait le backslash et laissait un 'n' orphelin
+# dans la traduction (vecu reel, PDA.csv Atlantis, 12/09/2026).
+_LITERAL_NEWLINE_RE = r'(?:\\n)+'
 # Jetons de substitution courants : {PlayerName}, {0}, %s, %d, %1
 _PLACEHOLDER_RE = r'\{[^{}]*\}|%[a-zA-Z0-9]+'
 
-_PROTECTED_RE = re.compile(f'(?:{_BBCODE_RE})|(?:{_PLACEHOLDER_RE})')
+_PROTECTED_RE = re.compile(
+    f'(?:{_BBCODE_RE})|(?:{_CLOSING_DASH_RE})|(?:{_LITERAL_NEWLINE_RE})|(?:{_PLACEHOLDER_RE})')
 
 
 def protect_segments(text: str) -> Tuple[str, List[str]]:
@@ -147,6 +176,59 @@ def restore_segments(translated_text: str, segments: List[str]) -> str:
     return result
 
 
+# Entite HTML numerique eventuellement COUPEE par le tokenizer d'Argos :
+# 'Heure&#160;: ' sort en 'Heure & #160;:' (vecu reel, PDA.csv Atlantis).
+# On la resserre et on la decode en vrai caractere (160 = espace insecable
+# francaise legitime devant ':', on consomme donc l'espace qui la precede).
+_ARGOS_ENTITY_RE = re.compile(r' ?&\s*#\s*(\d+)\s*;')
+
+
+def _clean_argos_entities(s: str) -> str:
+    return _ARGOS_ENTITY_RE.sub(lambda m: chr(int(m.group(1))), s)
+
+
+def _translate_offline_fragments(text: str, source: str, target: str,
+                                 translate_fn=None) -> str:
+    """Pipeline en DEUX temps (approche "Google" : on n'envoie au moteur
+    que le texte, jamais le BBCode) :
+
+    1. protect_segments(text) remplace balises/placeholders par des jetons ;
+    2. seuls les fragments de TEXTE LIBRE restants sont traduits, un par un ;
+    3. le texte final est reconstruit avec les balises d'origine a leur place
+       exacte -- la structure BBCode est garantie par construction, alors
+       qu'envoyer la chaine entiere a un moteur le fait RECOPIER sans
+       traduire des que la densite de balises est forte (vecu reel : ligne
+       'Prologue: Journey into the unknown' du PDA.csv Atlantis, entiere
+       renvoyee en anglais, 12/09/2026).
+
+    translate_fn(frag, source, target) : fonction de traduction d'un
+    fragment (defaut : Argos). NLLB passe la sienne (core/nllb_provider).
+    Argos est local : les appels multiples par fragment ne coutent rien.
+    Leve une exception si le moteur sous-jacent echoue."""
+    from . import argos_provider
+    translate_fn = translate_fn or argos_provider.translate_offline
+    protected, segments = protect_segments(text)
+    parts = re.split(r'(XXTAG\d+XX)', protected)
+    out: List[str] = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            out.append(segments[idx // 2] if idx // 2 < len(segments) else part)
+        elif part.strip() and re.search(r"[^\W_]", part, re.UNICODE):
+            # conserver les espaces de bord du fragment original autour de la
+            # traduction (le modele n'a pas a les decider). Les fragments SANS
+            # aucun caractere alphanumerique (un '!' isole entre deux balises,
+            # '===', ...) ne partent PAS au moteur : les moteurs hallucinent
+            # dessus ('!' -> '- Oui.', vecu 12/09/2026) et il n'y a rien a
+            # traduire.
+            lead = part[:len(part) - len(part.lstrip())]
+            trail = part[len(part.rstrip()):]
+            core = translate_fn(part.strip(), source, target)
+            out.append(lead + _clean_argos_entities(core) + trail)
+        else:
+            out.append(part)
+    return "".join(out)
+
+
 def is_available() -> bool:
     return _AVAILABLE
 
@@ -165,19 +247,26 @@ DEFAULT_TRANSLATION_TIMEOUT_S = 15.0
 
 
 def translate_text(text: str, target: str = "fr", source: str = "auto",
-                   timeout_seconds: float = DEFAULT_TRANSLATION_TIMEOUT_S) -> str:
+                   timeout_seconds: float = DEFAULT_TRANSLATION_TIMEOUT_S,
+                   store_in_memory: bool = True) -> str:
     """Traduit `text` vers la langue `target` (code ISO, ex: 'fr', 'en'), en preservant
     le BBCode et les placeholders. Leve une exception explicite si la bibliotheque
     n'est pas installee ou si la requete echoue (ex: pas de connexion internet) -- a
     capturer et afficher clairement cote GUI. Leve TimeoutError si Google ne repond
     pas dans `timeout_seconds` (voir DEFAULT_TRANSLATION_TIMEOUT_S).
 
-    Consulte d'abord la memoire de traduction (core/translation_memory.py) : si ce
-    texte exact a deja ete traduit vers cette langue, renvoie directement le resultat
-    memorise (aucun appel reseau) -- plus rapide et garantit une traduction coherente
-    du meme texte partout dans le fichier. La memoire est indexee par langue SOURCE
-    reelle, jamais 'auto' (sinon deux appels 'auto' pourraient a tort partager un cache
-    alors que le texte source n'etait pas dans la meme langue).
+    MEMOIRE DE TRADUCTION (core/translation_memory.py) consultee en PREMIER,
+    quel que soit le moteur choisi : meme texte -> meme traduction, partout,
+    sans rappeler l'API ; puis memoire VANILLE (core/vanilla_memory.py) : les
+    textes identiques a la localisation officielle du jeu ressortent avec la
+    traduction Eleon. L'ALIMENTATION de la memoire, elle, ne se fait plus
+    automatiquement ici : les revues passent store_in_memory=False et
+    l'interface enregistre la traduction au moment ou l'utilisateur LA VALIDE
+    (cases cochees de la revue) -- demande du 12/09/2026.
+
+    GLOSSAIRE (core/glossary.py) : les termes actifs sont proteges par jetons
+    avant l'envoi au moteur et reinjectes dans la reponse, quel que soit le
+    moteur -- la terminologie imposee n'est jamais traduite a tort.
 
     IMPLEMENTATION DU TIMEOUT : l'appel reseau tourne dans un thread daemon sur
     lequel on joint avec un delai -- deep-translator n'exposant pas de timeout dans
@@ -193,6 +282,19 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
     if not text or not text.strip():
         return text
 
+    from . import glossary
+
+    from . import translation_memory
+    cached = translation_memory.get_cached(text, source, target)
+    if cached is not None:
+        return cached
+    from . import vanilla_memory
+    vanilla_cached = vanilla_memory.get_vanilla_cached(text, target)
+    if vanilla_cached is not None:
+        return vanilla_cached
+
+    gtext, gloss_replacements = glossary.apply_glossary(text)
+
     # Moteur HORS LIGNE prefere (Options > Moteur de traduction) : si Argos
     # est installe avec la paire demandee, on traduit localement -- aucune
     # donnee ne quitte le poste, aucun appel Google. Si la paire manque, on
@@ -201,17 +303,40 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
     # message "Google non active" apparaissait a tort sur un echec Argos).
     from . import settings as _settings
     _offline_error: Optional[str] = None
-    if _settings.get_translation_engine() == "argos":
+    engine = _settings.get_translation_engine()
+    if engine == "nllb":
+        from . import lang_detect, nllb_provider
+        variant = _settings.get_nllb_variant()
+        if not nllb_provider.is_installed(variant):
+            from .i18n import t
+            raise RuntimeError(t("nllb.not_installed", variant=variant))
+
+        def _nllb_frag(frag: str, src: str, tgt: str) -> str:
+            # NLLB n'a pas de mode 'auto' : detection lexicale par fragment
+            # (core/lang_detect.py) quand la source n'est pas connue.
+            code = src
+            if code in (None, "auto"):
+                scores = lang_detect.language_scores(frag)
+                code = "en" if scores.get("en", 0) >= scores.get("fr", 0) else "fr"
+            return nllb_provider.translate(frag, code, tgt, variant)
+
+        result = _translate_offline_fragments(gtext, source, target,
+                                              translate_fn=_nllb_frag)
+        return glossary.restore_glossary(result, gloss_replacements)
+
+    if engine == "argos":
         try:
-            from . import argos_provider
-            return argos_provider.translate_offline(text, source, target)
+            # Ne jamais envoyer le BBCode brut a Argos : le modele le recopie
+            # sans traduire (bug vecu PDA.csv Atlantis, 12/09/2026) -- seuls
+            # les fragments de texte libre partent au moteur, la structure est
+            # reconstruite apres coup (voir _translate_offline_fragments).
+            argos_result = _translate_offline_fragments(gtext, source, target)
         except Exception as e:
             _offline_error = str(e) or "moteur Argos ou paire de langues absente"
-
-    from . import translation_memory
-    cached = translation_memory.get_cached(text, source, target)
-    if cached is not None:
-        return cached
+        else:
+            # chemin Argos reussi : retour IMMEDIAT, ne jamais traverser le
+            # garde "traduction en ligne desactivee" (qui ne le concerne pas)
+            return glossary.restore_glossary(argos_result, gloss_replacements)
 
     # Verifie le reglage de confidentialite AVANT tout appel reseau -- le cache
     # ci-dessus reste utilisable meme desactive (aucune donnee n'est envoyee,
@@ -233,17 +358,17 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
             "dans le menu Options si tu veux t'en servir."
         )
 
-    protected, segments = protect_segments(text)
+    protected, segments = protect_segments(gtext)
 
-    result: dict = {}
+    result_holder: dict = {}
 
     def _call():
         try:
-            result['value'] = GoogleTranslator(source=source, target=target).translate(protected)
+            result_holder['value'] = GoogleTranslator(source=source, target=target).translate(protected)
         except BaseException as e:
             # Volontairement large : l'exception doit traverser le join pour etre
             # relevee dans le thread appelant (jamais silencieuse).
-            result['error'] = e
+            result_holder['error'] = e
 
     worker = threading.Thread(target=_call, daemon=True, name="empyrion-translate")
     worker.start()
@@ -253,10 +378,10 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
             f"Google Translate n'a pas repondu en {timeout_seconds:.0f} s "
             f"(reseau indisponible ou pare-feu ?). Reessaie plus tard, ou "
             f"desactive la traduction en ligne dans les options (voir PRIVACY.md).")
-    if 'error' in result:
-        raise result['error']
+    if 'error' in result_holder:
+        raise result_holder['error']
 
-    translated = result['value']
+    translated = result_holder['value']
     # deep-translator peut RENVOYER la page d'erreur HTML de Google comme si
     # c'etait la traduction (observe en reel : "Error 500 (Server Error)!!1")
     # -- jamais afficher ce garbage dans un fichier de jeu (retour du
@@ -272,5 +397,7 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
     if segments:
         translated = restore_segments(translated, segments)
 
-    translation_memory.store(text, source, target, translated)
+    translated = glossary.restore_glossary(translated, gloss_replacements)
+    if store_in_memory:
+        translation_memory.store(text, source, target, translated)
     return translated

@@ -30,7 +30,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush
 
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
-from core import translation, settings
+from core import translation, settings, translation_memory
 from core.i18n import t
 from core.csv_column_glossary import get_csv_column_tooltip
 from gui.theme import icon, icon_size
@@ -137,6 +137,23 @@ class CsvEditWidget(QWidget):
             btn_del_row.setObjectName("secondaryButton")
             btn_del_row.clicked.connect(self._delete_selected_row)
             toolbar.addWidget(btn_del_row)
+            # Presse-papiers en barre (demande 12/09/2026) : les memes actions
+            # que le menu contextuel de cellule, accessibles d'un clic.
+            btn_copy = QPushButton(icon("fa5s.copy", "#4a7dfc"), t("btn.clipboard_copy"))
+            btn_copy.setIconSize(icon_size())
+            btn_copy.setObjectName("secondaryButton")
+            btn_copy.clicked.connect(lambda: copy_selection(self.table))
+            toolbar.addWidget(btn_copy)
+            btn_cut = QPushButton(icon("fa5s.cut", "#4a7dfc"), t("btn.clipboard_cut"))
+            btn_cut.setIconSize(icon_size())
+            btn_cut.setObjectName("secondaryButton")
+            btn_cut.clicked.connect(self._do_cut)
+            toolbar.addWidget(btn_cut)
+            btn_paste = QPushButton(icon("fa5s.paste", "#4a7dfc"), t("btn.clipboard_paste"))
+            btn_paste.setIconSize(icon_size())
+            btn_paste.setObjectName("secondaryButton")
+            btn_paste.clicked.connect(self._do_paste)
+            toolbar.addWidget(btn_paste)
             btn_fill_missing = QPushButton(icon("fa5s.language", "#4a7dfc"), t("btn.fill_missing_translations"))
             btn_fill_missing.setIconSize(icon_size())
             btn_fill_missing.setObjectName("secondaryButton")
@@ -147,6 +164,11 @@ class CsvEditWidget(QWidget):
             btn_quick_translate.setObjectName("secondaryButton")
             btn_quick_translate.clicked.connect(self._quick_translate)
             toolbar.addWidget(btn_quick_translate)
+            btn_spellcheck = QPushButton(icon("fa5s.spell-check", "#4a7dfc"), t("btn.spellcheck"))
+            btn_spellcheck.setIconSize(icon_size())
+            btn_spellcheck.setObjectName("secondaryButton")
+            btn_spellcheck.clicked.connect(self._open_spellcheck_menu)
+            toolbar.addWidget(btn_spellcheck)
             btn_find_replace = QPushButton(icon("fa5s.exchange-alt", "#4a7dfc"), t("btn.find_replace"))
             btn_find_replace.setIconSize(icon_size())
             btn_find_replace.setObjectName("secondaryButton")
@@ -412,13 +434,21 @@ class CsvEditWidget(QWidget):
     def _find_language_column(self, target_code: str, target_label: str) -> Optional[int]:
         """Trouve la colonne dont l'en-tete correspond a la langue cible -- via une
         liste d'alias (code ISO, nom anglais, nom natif, libelle du menu), comparaison
-        insensible aux accents et a la casse (voir core.translation.find_language_aliases)."""
+        insensible aux accents et a la casse (voir core.translation.find_language_aliases).
+        L'en-tete est AUSSI compare apres reparation mojibake : les scenarios d'origine
+        russe (Atlantis, RE2) contiennent des en-tetes 'FranГ§ais' (UTF-8 decode par
+        erreur en CP1251) qui masquaient la colonne FR -- la traduction ecrasait alors
+        la cellule source au lieu de remplir la colonne française (bug vecu 12/09/2026)."""
         aliases = translation.find_language_aliases(target_code, target_label)
         for c in range(self.table.columnCount()):
             header_item = self.table.horizontalHeaderItem(c)
             if not header_item:
                 continue
-            if translation._normalize(header_item.text().strip()) in aliases:
+            header_text = header_item.text().strip()
+            if translation._normalize(header_text) in aliases:
+                return c
+            repaired = translation._normalize(translation.repair_mojibake(header_text))
+            if repaired != translation._normalize(header_text) and repaired in aliases:
                 return c
         return None
 
@@ -480,12 +510,14 @@ class CsvEditWidget(QWidget):
         translate_menu = None
         lang_actions = {}
         action_bbcode = None
+        action_spell = None
         if item and text.strip():
             translate_menu = menu.addMenu(t("ctx.translate_to"))
             for label, code in translation.COMMON_LANGUAGES:
                 a = translate_menu.addAction(label)
                 lang_actions[a] = (code, label)
             action_bbcode = menu.addAction(t("ctx.bbcode"))
+            action_spell = menu.addAction(t("spellcheck.cell_action"))
 
         selected_items = self.table.selectedItems()
         batch_menu = None
@@ -518,6 +550,10 @@ class CsvEditWidget(QWidget):
                 item.setText(new_text)
             return
 
+        if chosen == action_spell:
+            self._run_spellcheck("cell")
+            return
+
         if chosen not in lang_actions:
             return
         target_code, target_label = lang_actions[chosen]
@@ -533,23 +569,51 @@ class CsvEditWidget(QWidget):
             QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
         try:
-            translated = translation.translate_text(text, target=target_code)
+            translated = translation.translate_text(text, target=target_code,
+                                                    store_in_memory=False)
         except Exception as e:
             QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
 
+        # Correction grammaticale Grammalecte AVANT l'apercu (demande du
+        # 12/09/2026) : l'utilisateur valide une version deja corrigee, qui
+        # alimente ensuite memoire/glossaire a l'application.
+        from core import spellcheck as _sp
+        translated, _fixed = _sp.auto_fix(translated)
+
         target_col = self._find_language_column(target_code, target_label)
         dest_label = None
+        destination_warning = None
         if target_col is not None and target_col != item.column():
             header = self.table.horizontalHeaderItem(target_col)
             dest_label = f"la colonne '{header.text() if header else target_label}' (meme ligne)"
+        elif target_col is None:
+            # Colonne de la langue cible introuvable dans l'en-tete (inexistante,
+            # non standard ou mojibake) : le remplacement va dans la cellule
+            # d'origine -- a annoncer EXPLICITEMENT dans le dialogue, sinon
+            # l'utilisateur croit a un bug (vecu 12/09/2026).
+            destination_warning = t("trans.no_target_column", lang=target_label)
 
-        dialog = TranslationResultDialog(text, translated, self, destination_label=dest_label)
+        dialog = TranslationResultDialog(text, translated, self, destination_label=dest_label,
+                                         destination_warning=destination_warning)
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.accepted_replace:
             return
         result_text = dialog.result_text()
 
         self._snapshot_undo()
+        if result_text == text:
+            # Le moteur n'a rien traduit (identique a l'original) : a annoncer
+            # dans le dialogue, ne jamais faire croire a une traduction (vecu
+            # 12/09/2026 avec Argos avant le fix fragments).
+            QMessageBox.information(self, t("trans.dialog_title"),
+                                    t("trans.engine_no_change", lang=target_label))
+        # Memoire + glossaire alimentes a la VALIDATION seulement (demande du
+        # 12/09/2026) : une cellule validee et courte devient une entree de
+        # glossaire, toutes vont en memoire de traduction.
+        from core import glossary
+        translation_memory.store(text, "auto", target_code, result_text)
+        if glossary.auto_feed_ok(text):
+            glossary.add_entry(text, result_text)
         if target_col is not None and target_col != item.column():
             dest_item = self.table.item(row, target_col)
             if dest_item is None:
@@ -580,6 +644,155 @@ class CsvEditWidget(QWidget):
             return
         self._translate_single_cell(item, item.text(), target_code, target_label)
 
+    # ------------------------------------------------------------------
+    # Correcteur orthographe/grammaire (Grammalecte) + detection de texte
+    # encore en anglais -- aide a la traduction phase 2 (12/09/2026).
+    # ------------------------------------------------------------------
+    def _open_spellcheck_menu(self):
+        menu = QMenu(self)
+        item = self.table.currentItem()
+        action_cell = menu.addAction(t("spellcheck.scope_cell"))
+        # bool() obligatoire : 'and' retourne le str de item.text().strip()
+        # quand il n'est pas vide -> TypeError dans setEnabled (vecu reel).
+        action_cell.setEnabled(item is not None and bool(item.text().strip()))
+        action_column = menu.addAction(t("spellcheck.scope_column"))
+        action_file = menu.addAction(t("spellcheck.scope_file"))
+        chosen = menu.exec(self.cursor().pos())
+        if chosen == action_cell:
+            self._run_spellcheck("cell")
+        elif chosen == action_column:
+            self._run_spellcheck("column")
+        elif chosen == action_file:
+            self._run_spellcheck("file")
+
+    def _french_columns(self) -> list:
+        """Colonnes dont l'en-tete designe le francais (tolerant mojibake,
+        meme reconnaissance que la traduction)."""
+        from core.translation import find_language_aliases, _normalize, repair_mojibake
+        aliases = find_language_aliases("fr", "Francais")
+        cols = []
+        for c in range(self.table.columnCount()):
+            header = self.table.horizontalHeaderItem(c)
+            if not header:
+                continue
+            ht = header.text().strip()
+            if _normalize(ht) in aliases:
+                cols.append(c)
+            else:
+                repaired = _normalize(repair_mojibake(ht))
+                if repaired != _normalize(ht) and repaired in aliases:
+                    cols.append(c)
+        return cols
+
+    def _row_key(self, row: int) -> str:
+        key_item = self.table.item(row, 0)
+        return key_item.text() if key_item else str(row + 1)
+
+    def _header_language_code(self, col: Optional[int]) -> str:
+        """Code de langue d'une colonne d'apres son en-tete ('en', 'fr'...),
+        tolerant mojibake ; 'auto' si non reconnu (index memoire par defaut)."""
+        from core.translation import COMMON_LANGUAGES, _normalize, repair_mojibake
+        if col is None or col < 0:
+            return "auto"
+        header = self.table.horizontalHeaderItem(col)
+        if not header:
+            return "auto"
+        ht = _normalize(repair_mojibake(header.text().strip()))
+        for label, code in translation.COMMON_LANGUAGES:
+            if ht in translation.find_language_aliases(code, label):
+                return code
+        return "auto"
+
+    def _collect_spellcheck_targets(self, scope: str) -> list:
+        """[(row, col, key, text)] des cellules non vides selon le scope."""
+        targets = []
+        if scope == "cell":
+            item = self.table.currentItem()
+            if item and item.text().strip():
+                targets.append((item.row(), item.column(),
+                                self._row_key(item.row()), item.text()))
+            return targets
+        col_filter = None if scope == "file" else self.table.currentColumn()
+        for r in range(self.table.rowCount()):
+            for c in range(self.table.columnCount()):
+                if col_filter is not None and c != col_filter:
+                    continue
+                it = self.table.item(r, c)
+                if it and it.text().strip():
+                    targets.append((r, c, self._row_key(r), it.text()))
+        return targets
+
+    def _run_spellcheck(self, scope: str) -> None:
+        """Scan (Grammalecte + detection EN sur les colonnes francaises) puis
+        revue cochable et application des corrections."""
+        from core import spellcheck as sp
+        from core import lang_detect
+        from core.translation import find_language_aliases, _normalize, repair_mojibake
+        from gui.busy import busy_guard
+
+        if not sp.is_available():
+            answer = QMessageBox.question(
+                self, t("spellcheck.title"),
+                t("spellcheck.not_installed", version=sp.GRAMMALECTE_VERSION),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if answer == QMessageBox.StandardButton.Yes:
+                with busy_guard(self, "busy.downloading"):
+                    sp.download_and_install()
+            return
+
+        targets = self._collect_spellcheck_targets(scope)
+        fr_cols = set(self._french_columns())
+        issues = []
+        with busy_guard(self):
+            for row, col, key, text in targets:
+                for iss in sp.check_text(text):
+                    iss.update({"row": row, "col": col, "key": key,
+                                "cell_text": text, "is_lang": False})
+                    issues.append(iss)
+            # Detection "encore en anglais" : uniquement sur les colonnes
+            # francaises (les colonnes sources EN sont supposement voulues).
+            for row, col, key, text in targets:
+                if col in fr_cols and lang_detect.is_likely_english(text):
+                    issues.append({"row": row, "col": col, "key": key,
+                                   "cell_text": text, "start": 0, "end": 0,
+                                   "orig": "", "s_type": "lang",
+                                   "message": "", "suggestions": [],
+                                   "is_lang": True})
+
+        if not issues:
+            QMessageBox.information(self, t("spellcheck.title"), t("spellcheck.no_issues"))
+            return
+        issues.sort(key=lambda i: (i["row"], i["col"]))
+        scope_label = {"cell": t("spellcheck.scope_cell"),
+                       "column": t("spellcheck.scope_column"),
+                       "file": t("spellcheck.scope_file")}[scope]
+        from gui.spellcheck_dialog import SpellcheckReviewDialog
+        dialog = SpellcheckReviewDialog(issues, self, scope_label=scope_label)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        chosen_issues = dialog.checked_issues()
+        if not chosen_issues:
+            return
+
+        self._snapshot_undo()
+        applied = 0
+        by_cell: dict = {}
+        for iss in chosen_issues:
+            by_cell.setdefault((iss["row"], iss["col"]), []).append(iss)
+        for (row, col), cell_issues in by_cell.items():
+            item = self.table.item(row, col)
+            if item is None:
+                continue
+            text = item.text()
+            # du plus grand offset au plus petit : les offsets restent valides
+            for iss in sorted(cell_issues, key=lambda i: i["start"], reverse=True):
+                if 0 <= iss["start"] < iss["end"] <= len(text):
+                    text = text[:iss["start"]] + iss["chosen"] + text[iss["end"]:]
+                    applied += 1
+            item.setText(text)
+        self._set_modified(True)
+        self.search_status.setText(t("spellcheck.done", n=applied))
+
     def _batch_translate_selection(self, selected_items: list, target_code: str, target_label: str):
         """Traduit toutes les cellules non vides de la selection vers la langue
         choisie, avec une barre de progression (la memoire de traduction -- voir
@@ -602,6 +815,8 @@ class CsvEditWidget(QWidget):
         # correspond deja a la langue cible, le resultat y va (meme ligne) plutot
         # que d'ecraser la cellule source qui a servi de texte d'origine.
         target_col = self._find_language_column(target_code, target_label)
+        source_code = self._header_language_code(
+            self.table.currentColumn() if self.table.currentColumn() >= 0 else None)
         plan = []
         for it in candidates:
             header = self.table.horizontalHeaderItem(it.column())
@@ -616,7 +831,8 @@ class CsvEditWidget(QWidget):
             else:
                 dest_item = it
             plan.append({'label': f"{row_key} / {header_text}",
-                         'original': it.text(), 'dest_item': dest_item})
+                         'original': it.text(), 'dest_item': dest_item,
+                         'target_code': target_code, 'source_code': source_code})
 
         self._run_batch_translation(
             [p['original'] for p in plan], target_code,
@@ -651,7 +867,11 @@ class CsvEditWidget(QWidget):
         results = [None] * len(texts)
         state = {'consecutive_failures': 0, 'stopped_by_failures': False}
         MAX_CONSECUTIVE_FAILURES = 5
-        worker = BatchTranslationWorker(texts, target_code, parent=self)
+        # Correction Grammalecte de chaque traduction DANS le thread worker
+        # (jamais de gel interface) -- la revue affiche la version corrigee.
+        from core import spellcheck as _spellcheck
+        worker = BatchTranslationWorker(texts, target_code, parent=self,
+                                        autofix=_spellcheck.is_available())
         self._batch_worker = worker
 
         def _on_progress(index, total):
@@ -724,8 +944,17 @@ class CsvEditWidget(QWidget):
             return
 
         self._snapshot_undo()
+        from core import glossary
         for idx, final_text in accepted:
             plan[idx]['dest_item'].setText(final_text)
+            # Memoire + glossaire alimentes a la VALIDATION seulement (cases
+            # cochees de la revue) -- demande du 12/09/2026.
+            original = plan[idx]['original']
+            target_code = plan[idx].get('target_code', 'auto')
+            source_code = plan[idx].get('source_code', 'auto')
+            translation_memory.store(original, source_code, target_code, final_text)
+            if glossary.auto_feed_ok(original):
+                glossary.add_entry(original, final_text)
 
     def _open_fill_missing_dialog(self):
         """Combler les traductions manquantes : choisit une colonne source (deja
@@ -782,7 +1011,9 @@ class CsvEditWidget(QWidget):
             if dest_item is None:
                 dest_item = QTableWidgetItem("")
                 self.table.setItem(row, target_col, dest_item)
-            plan.append({'label': row_key, 'original': source_text, 'dest_item': dest_item})
+            plan.append({'label': row_key, 'original': source_text, 'dest_item': dest_item,
+                         'target_code': target_code,
+                         'source_code': self._header_language_code(source_col)})
 
         self._run_batch_translation(
             [p['original'] for p in plan], target_code,

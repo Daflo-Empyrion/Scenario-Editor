@@ -47,10 +47,12 @@ class BatchTranslationWorker(QThread):
     item_done = pyqtSignal(int, str, str)  # (index, traduction, message_erreur_vide_si_ok)
     finished_all = pyqtSignal()
 
-    def __init__(self, texts: List[str], target_code: str, parent=None):
+    def __init__(self, texts: List[str], target_code: str, parent=None,
+                 autofix: bool = False):
         super().__init__(parent)
         self._texts = texts
         self._target = target_code
+        self._autofix = autofix   # correction Grammalecte de chaque traduction
         self._stop_requested = False
 
     def stop(self) -> None:
@@ -60,12 +62,21 @@ class BatchTranslationWorker(QThread):
 
     def run(self) -> None:
         total = len(self._texts)
+        spellcheck = None
+        if self._autofix:
+            from core import spellcheck as _sp
+            if _sp.is_available():
+                spellcheck = _sp
         for i, text in enumerate(self._texts):
             if self._stop_requested:
                 break
             self.progress.emit(i, total)
             try:
                 translated = translation.translate_text(text, target=self._target)
+                if spellcheck is not None and translated:
+                    # correction grammaticale DANS le thread (jamais de gel
+                    # interface) -- la revue affiche la version corrigee
+                    translated, _applied = spellcheck.auto_fix(translated)
                 self.item_done.emit(i, translated, "")
             except Exception as e:
                 self.item_done.emit(i, "", str(e))
