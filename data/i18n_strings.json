@@ -1807,6 +1807,30 @@
   "fr": "Utiliser NLLB comme moteur de traduction",
   "en": "Use NLLB as the translation engine"
  },
+ "nllb.variant_use_tip": {
+  "fr": "Utiliser cette variante pour la traduction (les deux peuvent être installées ; cocher la case ci-dessous active automatiquement la plus lourde si besoin).",
+  "en": "Use this variant for translation (both can be installed; ticking the engine checkbox auto-selects the heaviest one if needed)."
+ },
+ "nllb.beam.label": {
+  "fr": "Finesse du décodage :",
+  "en": "Decoding effort:"
+ },
+ "nllb.beam.fast": {
+  "fr": "Rapide (2)",
+  "en": "Fast (2)"
+ },
+ "nllb.beam.balanced": {
+  "fr": "Équilibré (4)",
+  "en": "Balanced (4)"
+ },
+ "nllb.beam.quality": {
+  "fr": "Qualité (8)",
+  "en": "Quality (8)"
+ },
+ "nllb.beam.tip": {
+  "fr": "Beam search du décodeur NLLB : déterministe (même texte = même traduction). Plus grand = traductions légèrement meilleures, traduction plus lente.",
+  "en": "NLLB decoder beam search: deterministic (same text = same translation). Higher = slightly better translations, slower translation."
+ },
  "nllb.need_model": {
   "fr": "Télécharge d'abord un des deux modèles.",
   "en": "Download one of the two models first."
@@ -2466,6 +2490,14 @@
  "menu.options.merge_enabled": {
   "fr": "Autoriser la fusion (experimental, desactive par defaut)",
   "en": "Allow merging (experimental, disabled by default)"
+ },
+ "menu.options.translation_sub": {
+  "fr": "Traduction",
+  "en": "Translation"
+ },
+ "menu.options.interface_sub": {
+  "fr": "Interface",
+  "en": "Interface"
  },
  "menu.options.online_translation": {
   "fr": "Traduction en ligne (Google Translate) -- envoie le texte a traduire a Google, voir PRIVACY.md",
@@ -3327,6 +3359,22 @@
   "fr": "Vérifier l'orthographe...",
   "en": "Check spelling..."
  },
+ "btn.resume_review": {
+  "fr": "Reprendre la révision",
+  "en": "Resume review"
+ },
+ "btn.resume_spellcheck": {
+  "fr": "Reprendre la correction orthographique",
+  "en": "Resume spell-check review"
+ },
+ "btn.resume_review_tooltip": {
+  "fr": "Réouvrir la révision sauvegardée pour ce fichier (traduction ou correction orthographique)",
+  "en": "Reopen the saved review for this file (translation or spell-check)"
+ },
+ "trans.vanilla_cell_tooltip": {
+  "fr": "Traduction issue de la localisation officielle du jeu (vanille Eleon).",
+  "en": "Translation from the official game localization (Eleon vanilla)."
+ },
  "spellcheck.title": {
   "fr": "Revue des corrections",
   "en": "Correction review"
@@ -3406,6 +3454,46 @@
  "trans.replace_cell": {
   "fr": "Remplacer la cellule par ce texte",
   "en": "Replace the cell with this text"
+ },
+ "trans.review_save_quit": {
+  "fr": "Sauvegarder et quitter",
+  "en": "Save and quit"
+ },
+ "trans.review_close_ask": {
+  "fr": "Sauvegarder la révision pour la reprendre plus tard ? ({count} ligne(s) restantes à contrôler)",
+  "en": "Save the review to resume it later? ({count} line(s) left to check)"
+ },
+ "trans.review_discard_btn": {
+  "fr": "Quitter sans sauvegarder",
+  "en": "Quit without saving"
+ },
+ "trans.review_resume_title": {
+  "fr": "Révision interrompue",
+  "en": "Interrupted review"
+ },
+ "trans.review_resume_msg": {
+  "fr": "Une révision de traduction interrompue existe pour {name} : {count} ligne(s) restantes à contrôler.\n\nReprendre maintenant ?",
+  "en": "An interrupted translation review exists for {name}: {count} line(s) left to check.\n\nResume it now?"
+ },
+ "trans.review_resume_spell_msg": {
+  "fr": "Une correction orthographique et grammaticale interrompue existe pour {name} : {count} point(s) restant(s) à contrôler.\n\nReprendre maintenant ?",
+  "en": "An interrupted spell-check review exists for {name}: {count} issue(s) left to check.\n\nResume it now?"
+ },
+ "trans.review_resume_btn": {
+  "fr": "Reprendre",
+  "en": "Resume"
+ },
+ "trans.review_later_btn": {
+  "fr": "Plus tard",
+  "en": "Later"
+ },
+ "trans.review_delete_btn": {
+  "fr": "Supprimer la session",
+  "en": "Delete session"
+ },
+ "trans.review_resumed_missing": {
+  "fr": "{count} ligne(s) introuvable(s) dans le fichier (supprimée(s) depuis la sauvegarde ?), ignorée(s).",
+  "en": "{count} line(s) not found in the file (deleted since the save?), skipped."
  },
  "dup.file_missing_title": {
   "fr": "Fichier absent",
@@ -6406,6 +6494,34 @@
  "argos.engine_name_google": {
   "fr": "Google (en ligne)",
   "en": "Google (online)"
+ },
+ "argos.engine_name_nllb": {
+  "fr": "NLLB (hors ligne)",
+  "en": "NLLB (offline)"
+ },
+ "menu.options.engine_sub": {
+  "fr": "Moteur de traduction",
+  "en": "Translation engine"
+ },
+ "menu.options.engine_google": {
+  "fr": "Google Translate (en ligne)",
+  "en": "Google Translate (online)"
+ },
+ "menu.options.engine_argos": {
+  "fr": "Argos (hors ligne)",
+  "en": "Argos (offline)"
+ },
+ "menu.options.engine_nllb": {
+  "fr": "NLLB (hors ligne, IA)",
+  "en": "NLLB (offline, AI)"
+ },
+ "menu.options.engine_nllb.tip_none": {
+  "fr": "Aucun modèle NLLB téléchargé : ouvre « Traduction locale NLLB (IA, qualité+)... » pour l'installer.",
+  "en": "No NLLB model downloaded yet: open \"NLLB local translation (AI, quality+)...\" to install it."
+ },
+ "menu.options.engine_nllb.tip_variant": {
+  "fr": "NLLB (hors ligne, IA) — variante utilisée : {variant}",
+  "en": "NLLB (offline, AI) — active variant: {variant}"
  },
  "menu.options.argos_engine": {
   "fr": "Traduction hors ligne (Argos)",

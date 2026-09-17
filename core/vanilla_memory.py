@@ -15,17 +15,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Memoire de traduction VANILLE : paires EN -> FR officielles extraites du
-Localization.csv du jeu (dossier Content configure dans Options). Consultee
-en REPLI par core.translation apres la memoire utilisateur : tout texte
-identique a la vanille ressort avec la traduction officielle Eleon, quel que
-soit le moteur choisi.
+Memoire de traduction VANILLE : paires EN -> FR officielles extraites des
+CSV de localisation du jeu (dossier Content configure dans Options) :
+Localization.csv (UI), PDA.csv (textes de mission) et Dialogues.csv
+(dialogues de PNJ) -- demande 17/09/2026 : ne plus se limiter a Localization.
+Consultee en REPLI par core.translation apres la memoire utilisateur : tout
+texte identique a la vanille ressort avec la traduction officielle Eleon,
+quel que soit le moteur choisi.
 
 Generee LOCALEMENT depuis l'installation du jeu de l'utilisateur (jamais
 redistribuee avec l'application : les textes du jeu appartiennent a Eleon).
-Regeneration automatique si le CSV vanilla est plus recent que le fichier
-genere (mise a jour du jeu). Consultation en lecture seule : la memoire
-UTILISATEUR garde toujours la priorite.
+Regeneration automatique si un CSV source est plus recent que le fichier
+genere, absent, ou si l'index date de l'ancien format mono-fichier.
+Consultation en lecture seule : la memoire UTILISATEUR garde toujours la
+priorite. En cas de collision entre fichiers, Localization.csv gagne (le
+premier de la liste de priorite).
 """
 import json
 import threading
@@ -42,50 +46,64 @@ VANILLA_MEMORY_FILE = CONFIG_DIR / "vanilla_memory.json"
 _LOCK = threading.Lock()
 _cache: Optional[dict] = None  # {'en:fr': {source_normalisee: traduction}}
 
+# Ordre de priorite : le premier fichier qui definit une paire EN->FR gagne.
+_SOURCE_CANDIDATES = (
+    ("Extras", "Localization.csv"),
+    ("Localization.csv",),
+    ("Extras", "PDA", "PDA.csv"),
+    ("Configuration", "Dialogues.csv"),
+)
 
-def _vanilla_localization_csv() -> Optional[Path]:
-    """Localisation.csv de la vanille si configuree et presente."""
+
+def _source_files() -> list:
+    """CSV de localisation presents dans la vanille configuree, dans l'ordre
+    de priorite (liste vide si la vanille n'est pas configuree)."""
     from . import settings
     vanilla = (settings.get_vanilla_content_path() or "").strip()
     if not vanilla:
-        return None
-    for candidate in (Path(vanilla) / "Extras" / "Localization.csv",
-                      Path(vanilla) / "Localization.csv"):
-        if candidate.is_file():
-            return candidate
-    return None
+        return []
+    root = Path(vanilla)
+    return [root.joinpath(*parts) for parts in _SOURCE_CANDIDATES
+            if root.joinpath(*parts).is_file()]
 
 
 def build_from_vanilla() -> int:
-    """Genere (ou regenere) vanilla_memory.json depuis la vanille configuree.
-    Retourne le nombre de paires EN->FR importees ; leve une exception si la
-    vanille n'est pas disponible."""
-    csv_path = _vanilla_localization_csv()
-    if csv_path is None:
-        raise RuntimeError("Localization.csv de la vanille introuvable "
+    """Genere (ou regenere) vanilla_memory.json depuis TOUS les CSV de
+    localisation de la vanille configuree. Retourne le nombre de paires
+    EN->FR importees ; leve une exception si la vanille n'est pas
+    disponible."""
+    files = _source_files()
+    if not files:
+        raise RuntimeError("Localisation de la vanille introuvable "
                            "(configure le dossier Content du jeu dans Options).")
-    doc = parse_csv_text(csv_path.read_text(encoding="utf-8"))
-    header = doc.header or []
-    en_col = fr_col = None
-    for i, name in enumerate(header):
-        norm = _normalize(repair_mojibake(name.strip()))
-        if en_col is None and norm in find_language_aliases("en", "Anglais"):
-            en_col = i
-        elif fr_col is None and norm in find_language_aliases("fr", "Francais"):
-            fr_col = i
-    if en_col is None or fr_col is None:
+    pairs: dict = {}
+    sources: dict = {}
+    found_cols = False
+    for csv_path in files:
+        doc = parse_csv_text(csv_path.read_text(encoding="utf-8"))
+        header = doc.header or []
+        en_col = fr_col = None
+        for i, name in enumerate(header):
+            norm = _normalize(repair_mojibake(name.strip()))
+            if en_col is None and norm in find_language_aliases("en", "Anglais"):
+                en_col = i
+            elif fr_col is None and norm in find_language_aliases("fr", "Francais"):
+                fr_col = i
+        if en_col is None or fr_col is None:
+            continue  # fichier sans colonnes EN/FR reconnues : ignore
+        found_cols = True
+        for row in doc.rows:
+            if len(row) <= max(en_col, fr_col):
+                continue
+            src = " ".join(row[en_col].split())
+            dst = " ".join(row[fr_col].split())
+            if src and dst:
+                pairs.setdefault(src, dst)
+        sources[str(csv_path)] = int(csv_path.stat().st_mtime)
+    if not found_cols:
         raise RuntimeError("Colonnes English/Francais introuvables dans "
                            "la localisation de la vanille.")
-    pairs: dict = {}
-    for row in doc.rows:
-        if len(row) <= max(en_col, fr_col):
-            continue
-        src = " ".join(row[en_col].split())
-        dst = " ".join(row[fr_col].split())
-        if src and dst:
-            pairs[src] = dst
-    data = {"_source_mtime": str(csv_path.stat().st_mtime),
-            "en:fr": pairs}
+    data = {"_sources": sources, "en:fr": pairs}
     with _LOCK:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         VANILLA_MEMORY_FILE.write_text(
@@ -96,11 +114,12 @@ def build_from_vanilla() -> int:
 
 
 def _ensure_built() -> bool:
-    """Genere la memoire vanille si la vanille est configuree et que le
-    fichier genere est absent ou perime. Jamais d'exception remontee (le
-    fallback vanilla est un confort)."""
-    csv_path = _vanilla_localization_csv()
-    if csv_path is None:
+    """Genere la memoire vanille si la vanille est configuree et que l'index
+    est absent, perime (un CSV source plus recent), incomplet (nouveau fichier
+    de localisation apparu) ou dans l'ancien format mono-fichier. Jamais
+    d'exception remontee (le fallback vanilla est un confort)."""
+    files = _source_files()
+    if not files:
         return False
     if not VANILLA_MEMORY_FILE.exists():
         try:
@@ -109,12 +128,20 @@ def _ensure_built() -> bool:
         except Exception:
             return False
     try:
-        if int(float(json.loads(VANILLA_MEMORY_FILE.read_text(
-                encoding="utf-8")).get("_source_mtime", "0"))) \
-                < int(csv_path.stat().st_mtime):
-            build_from_vanilla()
+        data = json.loads(VANILLA_MEMORY_FILE.read_text(encoding="utf-8"))
+        stored = data.get("_sources")
+        if not isinstance(stored, dict):
+            build_from_vanilla()  # ancien format (<17/09/2026) : regen
+        else:
+            current = {str(p): int(p.stat().st_mtime) for p in files}
+            stored_norm = {k: int(float(v)) for k, v in stored.items()}
+            if current != stored_norm:
+                build_from_vanilla()
     except Exception:
-        pass  # fichier genere corrompu : on garde l'ancien, un re-save le fixera
+        try:
+            build_from_vanilla()  # index corrompu : tentative de reparation
+        except Exception:
+            pass  # on garde l'ancien, un re-save le fixera
     return VANILLA_MEMORY_FILE.exists()
 
 

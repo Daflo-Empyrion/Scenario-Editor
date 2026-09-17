@@ -136,6 +136,21 @@ def repair_mojibake(s: str) -> str:
 
 # Balises BBCode : [b], [/b], [color=#FF0000], [url=...], etc.
 _BBCODE_RE = r'\[/?[a-zA-Z0-9_]+(?:=[^\]]*)?\]'
+# Balise de dialogue Empyrion ('[IDA :]', '[NPC:]') : nom + ':' DANS la
+# balise -- jamais du BBCode legitime, jamais du texte a traduire. Vecu reel
+# (17/09/2026, PDA.csv Atlantis) : '[IDA :]' parti au moteur comme fragment
+# de texte libre, ressorti 'Je vous en prie.' (hallucination).
+_DIALOG_TAG_RE = r'\[[A-Za-z0-9_]+ ?:\]'
+# Jetons du glossaire (XXGLOS<n>XX poses par core/glossary.apply_glossary) :
+# s'ils traversent un moteur ils y sont deformes (casse, ponctuation) et la
+# restauration echoue -- le terme du glossaire serait traduit quand meme.
+_GLOSS_TOKEN_RE = r'XXGLOS\d+XX'
+# Nombres ISOLLES (entiers, decimaux, dates pointees) : jamais du texte a
+# traduire, et les moteurs hallucinent dessus ('29827602.55' ressorti
+# "Le montant de l'impot sur le revenu", vecu reel 17/09/2026). Les nombres
+# COLLES a des lettres ('x50', '1A', '1969B') restent au moteur : ils font
+# partie du mot.
+_NUMBER_RE = r'(?<![\w])\d+(?:[.,]\d+)*(?![\w])'
 # [-] : balise de fermeture Empyrion (fin de couleur) -- le tiret n'est pas
 # couvert par _BBCODE_RE, et elle doit rester hors du texte envoye au moteur.
 _CLOSING_DASH_RE = r'\[-\]'
@@ -147,7 +162,18 @@ _LITERAL_NEWLINE_RE = r'(?:\\n)+'
 _PLACEHOLDER_RE = r'\{[^{}]*\}|%[a-zA-Z0-9]+'
 
 _PROTECTED_RE = re.compile(
-    f'(?:{_BBCODE_RE})|(?:{_CLOSING_DASH_RE})|(?:{_LITERAL_NEWLINE_RE})|(?:{_PLACEHOLDER_RE})')
+    f'(?:{_BBCODE_RE})|(?:{_DIALOG_TAG_RE})|(?:{_CLOSING_DASH_RE})'
+    f'|(?:{_LITERAL_NEWLINE_RE})|(?:{_PLACEHOLDER_RE})|(?:{_GLOSS_TOKEN_RE})'
+    f'|(?:{_NUMBER_RE})')
+
+# Protection pour l'ANALYSE GRAMMALECTE (core/spellcheck.py::_rebuild_lines)
+# : SANS les nombres -- ils doivent rester du texte visible pour la
+# grammaire (aucune faute dans un nombre, mais la ponctuation AUTOUR nous
+# interesse : espace avant ':' d'une heure 'Time: 1900'). Les nombres ne
+# sont masques que pour l'ENVOI aux moteurs de traduction.
+_PROTECTED_RE_GRAMMAR = re.compile(
+    f'(?:{_BBCODE_RE})|(?:{_DIALOG_TAG_RE})|(?:{_CLOSING_DASH_RE})'
+    f'|(?:{_LITERAL_NEWLINE_RE})|(?:{_PLACEHOLDER_RE})')
 
 
 def protect_segments(text: str) -> Tuple[str, List[str]]:
@@ -401,3 +427,27 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
     if store_in_memory:
         translation_memory.store(text, source, target, translated)
     return translated
+
+
+def translate_text_with_source(text: str, target: str = "fr", source: str = "auto",
+                               timeout_seconds: float = DEFAULT_TRANSLATION_TIMEOUT_S
+                               ) -> Tuple[str, str]:
+    """Pareil que translate_text (jamais de store automatique : la memoire est
+    alimentee a la VALIDATION) mais retourne (traduction, source) ou source
+    vaut 'memory' (memoire utilisateur), 'vanilla' (localisation officielle
+    Eleon) ou 'engine' (moteur) -- la revue distingue visuellement les
+    traductions vanille (demande 17/09/2026). Source vide si rien n'a ete
+    traduit (texte vide)."""
+    if not text or not text.strip():
+        return text, ""
+    from . import translation_memory, vanilla_memory
+    cached = translation_memory.get_cached(text, source, target)
+    if cached is not None:
+        return cached, "memory"
+    vanilla_cached = vanilla_memory.get_vanilla_cached(text, target)
+    if vanilla_cached is not None:
+        return vanilla_cached, "vanilla"
+    translated = translate_text(text, target=target, source=source,
+                                timeout_seconds=timeout_seconds,
+                                store_in_memory=False)
+    return translated, "engine"

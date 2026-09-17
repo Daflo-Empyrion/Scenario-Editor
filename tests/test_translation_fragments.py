@@ -90,6 +90,71 @@ def test_fragments_no_tag_leak(fake_argos):
     assert "XXTAG" not in out
 
 
+def test_dialog_tag_protected(fake_argos):
+    """Balise de dialogue Empyrion '[IDA :]' (nom + ':' DANS la balise) :
+    structure du jeu, jamais du texte a traduire. Vecu reel 17/09/2026
+    (PDA.csv Atlantis) : '[IDA :]' parti au moteur comme fragment libre,
+    ressorti 'Je vous en prie.' (hallucination)."""
+    out = translation._translate_offline_fragments(
+        "[b][c][ffff00] [IDA :]-[/c][/b][c][100ffff]These are the files[/c]",
+        "en", "fr")
+    # la balise de dialogue ET le tiret sont reinjectes a l'identique ; seul
+    # le vrai texte part au moteur
+    assert out == ("[b][c][ffff00] [IDA :]-[/c][/b]"
+                   "[c][100ffff][FR]These are the files[/FR][/c]")
+    for call in fake_argos:
+        assert "IDA" not in call and "[" not in call
+
+
+def test_dialog_tag_without_space_protected(fake_argos):
+    out = translation._translate_offline_fragments("[NPC:] Well met", "en", "fr")
+    assert out.startswith("[NPC:] [FR]Well met")
+    for call in fake_argos:
+        assert "NPC" not in call
+
+
+def test_glossary_token_never_reaches_engine(fake_argos):
+    """Glossaire 'IDA' -> 'IDA' (verrouiller un acronyme) : le jeton XXGLOS
+    ne doit JAMAIS traverser un moteur (deforme -> restauration impossible,
+    le terme etait traduit quand meme -- vecu reel 17/09/2026)."""
+    from core import glossary
+    glossary.add_entry("IDA", "IDA")
+    jetoned, replacements = glossary.apply_glossary(
+        "[c][ffff00] The IDA system[/c]")
+    assert "XXGLOS0XX" in jetoned
+    out = translation._translate_offline_fragments(jetoned, "en", "fr")
+    out = glossary.restore_glossary(out, replacements)
+    assert "IDA" in out and "XXGLOS" not in out
+    for call in fake_argos:
+        assert "XXGLOS" not in call and "IDA" not in call
+
+
+def test_numbers_never_reach_engine(fake_argos):
+    """Nombres isoles : jamais au moteur -- Argos hallucine dessus
+    ('29827602.55' ressorti \"Le montant de l'impot sur le revenu\", vecu
+    reel 17/09/2026). Les nombres colles aux lettres ('x50', '1A') restent
+    du texte : ils font partie du mot."""
+    out = translation._translate_offline_fragments(
+        "[b]Runtime:[/b] 29827602.55\\nSteel Plate x50 since 1900",
+        "en", "fr")
+    assert "29827602.55" in out and "1900" in out and "\\n" in out
+    for call in fake_argos:
+        assert "29827602.55" not in call and "1900" not in call
+    # 'x50' colle a une lettre : reste dans le fragment envoye (comportement
+    # historique, le moteur le gere)
+    assert any("x50" in call for call in fake_argos)
+
+
+def test_decimal_date_protected(fake_argos):
+    """Date pointee : protegee ENTIERE ('25.07.2473', jamais '25' traduit
+    seul) -- jamais envoyee au moteur."""
+    out = translation._translate_offline_fragments(
+        "[b]Date:[/b] 25.07.2473 -- Log", "en", "fr")
+    assert "25.07.2473" in out
+    for call in fake_argos:
+        assert "25.07.2473" not in call
+
+
 def test_clean_argos_entities():
     # entite COUPEE par le tokenizer Argos (vecu reel : 'Heure & #160;:')
     assert translation._clean_argos_entities("Heure & #160;:") == "Heure\xa0:"
@@ -107,7 +172,9 @@ def test_pipeline_cleans_argos_entities(fake_argos, monkeypatch):
 
     out = translation._translate_offline_fragments(
         "[b]Time:[/b] 1900", "en", "fr")
-    assert out == "[b]Heure\xa0:[/b] [FR]1900[/FR]"
+    # l'entite COUPEE par Argos est resserree et decodee ; le nombre '1900'
+    # est protege : jamais envoye au moteur (plus de [FR]1900[/FR])
+    assert out == "[b]Heure\xa0:[/b] 1900"
     assert "&" not in out and "#160" not in out
 
 

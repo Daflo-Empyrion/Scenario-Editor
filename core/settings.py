@@ -223,6 +223,21 @@ def set_nllb_variant(variant: str) -> None:
     _set('nllb_variant', variant)
 
 
+def get_nllb_beam_size() -> int:
+    """Taille du faisceau (beam search) du decodeur NLLB : 2 = rapide,
+    4 = equilibre (defaut), 8 = qualite maximale au prix de la vitesse.
+    Determ : meme entree -> meme traduction (pas de sampling)."""
+    try:
+        return int(_get('nllb_beam_size', 4))
+    except (TypeError, ValueError):
+        return 4
+
+
+def set_nllb_beam_size(size: int) -> None:
+    if isinstance(size, int) and 1 <= size <= 10:
+        _set('nllb_beam_size', size)
+
+
 def get_extra_icons_dir() -> str:
     """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
     PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,

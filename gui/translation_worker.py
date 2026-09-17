@@ -44,7 +44,8 @@ from core import translation
 
 class BatchTranslationWorker(QThread):
     progress = pyqtSignal(int, int)        # (index_en_cours, total) -- avant chaque texte
-    item_done = pyqtSignal(int, str, str)  # (index, traduction, message_erreur_vide_si_ok)
+    # (index, traduction, message_erreur_vide_si_ok, source : memory/vanilla/engine)
+    item_done = pyqtSignal(int, str, str, str)
     finished_all = pyqtSignal()
 
     def __init__(self, texts: List[str], target_code: str, parent=None,
@@ -72,12 +73,16 @@ class BatchTranslationWorker(QThread):
                 break
             self.progress.emit(i, total)
             try:
-                translated = translation.translate_text(text, target=self._target)
+                # Source suit la traduction ('vanilla' = localisation officielle
+                # Eleon, coloree dans la revue) ; pas de store automatique :
+                # la memoire est alimentee a la VALIDATION (12/09/2026).
+                translated, src = translation.translate_text_with_source(
+                    text, target=self._target)
                 if spellcheck is not None and translated:
                     # correction grammaticale DANS le thread (jamais de gel
                     # interface) -- la revue affiche la version corrigee
                     translated, _applied = spellcheck.auto_fix(translated)
-                self.item_done.emit(i, translated, "")
+                self.item_done.emit(i, translated, "", src)
             except Exception as e:
-                self.item_done.emit(i, "", str(e))
+                self.item_done.emit(i, "", str(e), "")
         self.finished_all.emit()

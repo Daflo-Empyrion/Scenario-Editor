@@ -39,6 +39,32 @@ from core import spellcheck as _spellcheck
 from gui import theme as _theme
 
 
+def confirm_review_save(dialog, count: int) -> str:
+    """Boite commune aux revues interruptibles (traduction, orthographe) :
+    fermer sans rien perdre ? Retourne 'save' (sauvegarder et quitter),
+    'discard' (quitter sans sauvegarder) ou 'cancel' (rester ouvert).
+    QMessageBox de l'appelant patchable en test (le VRAI bloquerait pytest)."""
+    box = QMessageBox(dialog)
+    box.setWindowTitle(dialog.windowTitle())
+    box.setText(t("trans.review_close_ask", count=count))
+    btn_save = box.addButton(t("trans.review_save_quit"),
+                             QMessageBox.ButtonRole.AcceptRole)
+    box.addButton(t("trans.review_discard_btn"),
+                  QMessageBox.ButtonRole.DestructiveRole)
+    btn_cancel = box.addButton(t("btn.cancel"), QMessageBox.ButtonRole.RejectRole)
+    box.exec()
+    if box.clickedButton() is btn_save:
+        return "save"
+    if box.clickedButton() is btn_cancel:
+        return "cancel"
+    return "discard"
+
+
+# Fond des traductions issues de la localisation officielle (vanille) --
+# vert pale distinct du jaune 'modifie' et du rouge 'echec'.
+VANILLA_COLOR = QColor(228, 243, 232)
+
+
 class TranslationResultDialog(QDialog):
     """Petite fenetre affichant le resultat d'une traduction, avec le choix de
     remplacer la cellule d'origine (ou une cellule destination precise) ou juste
@@ -99,14 +125,31 @@ class BatchTranslationReviewDialog(QDialog):
     """Revue et validation d'un lot de traductions avant application -- reutilise pour
     la traduction en lot (selection multiple) et le comblement des langues manquantes.
     Chaque ligne : case a cocher pour l'inclure ou non, cle/reference, texte original,
-    traduction (modifiable avant validation)."""
+    traduction (modifiable avant validation).
+
+    Mode "revision persistable" (demande 17/09/2026 : controler 5000+ lignes se
+    fait en plusieurs fois) : si `on_apply_batch` est fourni, le bouton d'
+    application VALIDE les lignes cochees au fil de l'eau (callback) sans fermer
+    le dialogue, et "Sauvegarder et quitter"/la fermeture persistent l'etat
+    restant via `on_save_session(current_state())`. Sans ces callbacks
+    (Rechercher/Remplacer), le comportement historique tout-ou-rien est
+    conserve."""
 
     def __init__(self, items: list, parent=None, title: Optional[str] = None,
-                 intro: Optional[str] = None, translated_column_label: Optional[str] = None):
+                 intro: Optional[str] = None, translated_column_label: Optional[str] = None,
+                 metas: Optional[list] = None, on_apply_batch=None,
+                 on_save_session=None):
         """items : liste de dicts {'label': str, 'original': str, 'translated': str,
-        'failed': bool (optionnel, defaut False)} -- une entree 'failed' est affichee
-        decochee par defaut et surlignee en rouge clair, pour ne jamais l'appliquer
-        par erreur (ex: le service de traduction a echoue/bloque sur cette cellule).
+        'failed': bool (optionnel, defaut False), 'checked': bool (optionnel, defaut
+        not failed -- etat de coche restaure a la reprise d'une revision)} -- une
+        entree 'failed' est affichee decochee par defaut et surlignee en rouge clair,
+        pour ne jamais l'appliquer par erreur (ex: le service de traduction a
+        echoue/bloque sur cette cellule).
+
+        metas : liste parallele a `items` de dicts libres (row_key, colonnes,
+        codes de langue...) maintenus alignes aux lignes courantes du tableau
+        et retournes par current_state() -- sert a retrouver les destinations
+        a la reprise. on_apply_batch(results) recoit [(meta, texte_final)].
 
         title/intro/translated_column_label : personnalisation optionnelle du texte
         affiche -- ce dialogue est reutilise tel quel pour Rechercher/Remplacer (voir
@@ -114,6 +157,10 @@ class BatchTranslationReviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title or t("trans.batch_review_title"))
         self.resize(750, 450)
+        self.on_apply_batch = on_apply_batch
+        self.on_save_session = on_save_session
+        self.saved_session = False
+        self._metas: list = list(metas) if metas else [{} for _ in items]
 
         layout = QVBoxLayout(self)
         intro_label = QLabel(intro or t("trans.batch_review_intro"))
@@ -134,9 +181,11 @@ class BatchTranslationReviewDialog(QDialog):
         self.table.setRowCount(len(items))
         for i, item in enumerate(items):
             failed = item.get('failed', False)
+            checked = item.get('checked', not failed)
             check_item = QTableWidgetItem()
             check_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-            check_item.setCheckState(Qt.CheckState.Unchecked if failed else Qt.CheckState.Checked)
+            check_item.setCheckState(Qt.CheckState.Checked if checked
+                                     else Qt.CheckState.Unchecked)
             self.table.setItem(i, 0, check_item)
 
             key_item = QTableWidgetItem(item['label'])
@@ -150,6 +199,11 @@ class BatchTranslationReviewDialog(QDialog):
             trans_item = QTableWidgetItem(item['translated'])
             if failed:
                 trans_item.setBackground(QBrush(QColor(255, 220, 220)))
+            elif item.get('source') == 'vanilla':
+                # Traduction officielle Eleon (memoire vanille) : distinguishable
+                # au premier coup d'oeil (demande 17/09/2026).
+                trans_item.setBackground(QBrush(VANILLA_COLOR))
+                trans_item.setToolTip(t("trans.vanilla_cell_tooltip"))
             self.table.setItem(i, 3, trans_item)
 
         # Largeurs FIXES plutot que resizeColumnsToContents() : un texte source long
@@ -189,10 +243,20 @@ class BatchTranslationReviewDialog(QDialog):
         btn_fix_all.clicked.connect(self._fix_all)
         btn_row.addWidget(btn_fix_all)
         btn_row.addStretch()
-        initial_checked = sum(1 for it in items if not it.get('failed'))
+        initial_checked = sum(1 for it in items if it.get('checked', not it.get('failed', False)))
         self.btn_apply = QPushButton(t("trans.apply_checked", count=initial_checked))
-        self.btn_apply.clicked.connect(self.accept)
+        if self.on_apply_batch:
+            # Revision persistable : applique les cochees SANS fermer -- le
+            # dialogue se vide au fil de l'eau et se ferme seul quand il est vide.
+            self.btn_apply.clicked.connect(self._consume_checked)
+        else:
+            self.btn_apply.clicked.connect(self.accept)
         btn_row.addWidget(self.btn_apply)
+        if self.on_save_session:
+            btn_save_quit = QPushButton(t("trans.review_save_quit"))
+            btn_save_quit.setObjectName("secondaryButton")
+            btn_save_quit.clicked.connect(self._save_and_close)
+            btn_row.addWidget(btn_save_quit)
         btn_cancel = QPushButton(t("btn.cancel"))
         btn_cancel.setObjectName("secondaryButton")
         btn_cancel.clicked.connect(self.reject)
@@ -241,9 +305,71 @@ class BatchTranslationReviewDialog(QDialog):
 
     def _update_apply_count(self, item):
         if item.column() == 0:
-            count = sum(1 for i in range(self.table.rowCount())
-                        if self.table.item(i, 0).checkState() == Qt.CheckState.Checked)
-            self.btn_apply.setText(t("trans.apply_checked", count=count))
+            self._refresh_apply_text()
+
+    def _refresh_apply_text(self):
+        count = sum(1 for i in range(self.table.rowCount())
+                    if self.table.item(i, 0).checkState() == Qt.CheckState.Checked)
+        self.btn_apply.setText(t("trans.apply_checked", count=count))
+
+    def _consume_checked(self):
+        """Mode revision : applique les lignes cochees via on_apply_batch puis
+        les retire du tableau (les destinations restent valides : la table
+        hote ne change pas pendant la revue). Se ferme seul quand il n'y a
+        plus rien a controler."""
+        results, rows = [], []
+        for r in range(self.table.rowCount()):
+            if self.table.item(r, 0).checkState() == Qt.CheckState.Checked:
+                results.append((self._metas[r], self.table.item(r, 3).text()))
+                rows.append(r)
+        if not rows:
+            return
+        self.on_apply_batch(results)
+        for r in reversed(rows):
+            self.table.removeRow(r)
+            del self._metas[r]
+        self._refresh_apply_text()
+        if not self.table.rowCount():
+            self.accept()
+
+    def current_state(self) -> list:
+        """Etat persistable des lignes restantes : meta de chaque ligne
+        (row_key, colonnes, codes...) + label/original/traduction/failed/checked
+        -- on_save_session l'ecrit tel quel dans la session de revision."""
+        state = []
+        for r in range(self.table.rowCount()):
+            entry = {k: v for k, v in self._metas[r].items()}
+            entry.update({
+                'label': self.table.item(r, 1).text(),
+                'original': self.table.item(r, 2).text(),
+                'translated': self.table.item(r, 3).text(),
+                'failed': bool(entry.get('failed', False)),
+                'checked': self.table.item(r, 0).checkState() == Qt.CheckState.Checked,
+            })
+            state.append(entry)
+        return state
+
+    def remaining(self) -> int:
+        return self.table.rowCount()
+
+    def _save_and_close(self):
+        if self.on_save_session:
+            self.on_save_session(self.current_state())
+            self.saved_session = True
+        self.accept()
+
+    def reject(self):
+        """Fermeture (Annuler, Echap, croix) : sur une revision non vide,
+        proposer de sauvegarder pour reprendre plus tard au lieu de tout
+        perdre -- la demande d'origine de cette fonctionnalite."""
+        if self.on_save_session and self.table.rowCount():
+            answer = confirm_review_save(self, self.table.rowCount())
+            if answer == "cancel":
+                return
+            if answer == "save":
+                self._save_and_close()
+                return
+        super().reject()
 
     def get_accepted_results(self) -> list:
         """Retourne [(index_dans_la_liste_items_d_origine, texte_final), ...] pour les

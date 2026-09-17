@@ -103,6 +103,81 @@ def test_vanilla_memory_build_and_lookup(tmp_path, monkeypatch):
     assert vanilla_memory.get_vanilla_cached("Iron Ore", "en") is None  # seulement en->fr
 
 
+def test_vanilla_memory_multi_files_and_priority(tmp_path, monkeypatch):
+    """Demande 17/09/2026 : la memoire vanille fusionne Localization.csv,
+    PDA.csv et Dialogues.csv ; en cas de collision Localization.csv gagne."""
+    (tmp_path / "Extras" / "PDA").mkdir(parents=True)
+    (tmp_path / "Configuration").mkdir()
+    (tmp_path / "Extras" / "Localization.csv").write_text(
+        "KEY,English,Français\nLoc-1,Hello,Bonjour\n", encoding="utf-8")
+    (tmp_path / "Extras" / "PDA" / "PDA.csv").write_text(
+        "KEY,English,Français\n"
+        "Pda-1,Board the ship,Embarquez\n"
+        "Dup-1,Hello,BONJOUR PDA\n", encoding="utf-8")
+    (tmp_path / "Configuration" / "Dialogues.csv").write_text(
+        "KEY,English,Français\nDlg-1,Well met,Enchante\n", encoding="utf-8")
+    monkeypatch.setattr(vanilla_memory, "VANILLA_MEMORY_FILE",
+                        tmp_path / "vanilla_memory.json")
+    monkeypatch.setattr(vanilla_memory.settings, "get_vanilla_content_path",
+                        lambda: str(tmp_path))
+    n = vanilla_memory.build_from_vanilla()
+    assert n == 3  # Hello deduplique (Localization prioritaire)
+    assert vanilla_memory.get_vanilla_cached("Hello", "fr") == "Bonjour"
+    assert vanilla_memory.get_vanilla_cached("Board the ship", "fr") == "Embarquez"
+    assert vanilla_memory.get_vanilla_cached("Well met", "fr") == "Enchante"
+    data = __import__("json").loads(
+        vanilla_memory.VANILLA_MEMORY_FILE.read_text(encoding="utf-8"))
+    assert len(data["_sources"]) == 3  # les trois fichiers traces (mtime)
+
+
+def test_vanilla_memory_regen_on_source_change(tmp_path, monkeypatch):
+    """Le jeu se met a jour : CSV plus recent -> regeneration automatique."""
+    import os
+    (tmp_path / "Extras").mkdir()
+    loc = tmp_path / "Extras" / "Localization.csv"
+    loc.write_text("KEY,English,Français\nX-1,Old,Ancien\n", encoding="utf-8")
+    monkeypatch.setattr(vanilla_memory, "VANILLA_MEMORY_FILE",
+                        tmp_path / "vanilla_memory.json")
+    monkeypatch.setattr(vanilla_memory.settings, "get_vanilla_content_path",
+                        lambda: str(tmp_path))
+    assert vanilla_memory.build_from_vanilla() == 1
+    assert vanilla_memory.get_vanilla_cached("Old", "fr") == "Ancien"
+    loc.write_text("KEY,English,Français\nX-1,New,Nouveau\n", encoding="utf-8")
+    st = loc.stat()
+    os.utime(loc, (st.st_atime, st.st_mtime + 10))
+    assert vanilla_memory.get_vanilla_cached("New", "fr") == "Nouveau"
+    assert vanilla_memory.get_vanilla_cached("Old", "fr") is None
+
+
+def test_vanilla_memory_old_format_regenerated(tmp_path, monkeypatch):
+    """Index de l'ancien format (cle _source_mtime, mono-fichier) : doit etre
+    regenere au format _sources au premier appel."""
+    (tmp_path / "Extras").mkdir()
+    (tmp_path / "Extras" / "Localization.csv").write_text(
+        "KEY,English,Français\nX-1,Ancient,Ancien\n", encoding="utf-8")
+    monkeypatch.setattr(vanilla_memory, "VANILLA_MEMORY_FILE",
+                        tmp_path / "vanilla_memory.json")
+    monkeypatch.setattr(vanilla_memory.settings, "get_vanilla_content_path",
+                        lambda: str(tmp_path))
+    vanilla_memory.VANILLA_MEMORY_FILE.write_text(
+        __import__("json").dumps({"_source_mtime": "1", "en:fr": {}}),
+        encoding="utf-8")
+    vanilla_memory._cache = None
+    assert vanilla_memory._ensure_built() is True
+    data = __import__("json").loads(
+        vanilla_memory.VANILLA_MEMORY_FILE.read_text(encoding="utf-8"))
+    assert "_sources" in data
+    assert vanilla_memory.get_vanilla_cached("Ancient", "fr") == "Ancien"
+
+
+def test_vanilla_memory_not_configured(tmp_path, monkeypatch):
+    """Vanille non configuree : pas de fichiers sources, jamais d'exception."""
+    monkeypatch.setattr(vanilla_memory.settings, "get_vanilla_content_path",
+                        lambda: "")
+    assert vanilla_memory._source_files() == []
+    assert vanilla_memory.get_vanilla_cached("Hello", "fr") is None
+
+
 def test_translate_text_store_in_memory_false(monkeypatch):
     """store_in_memory=False : la memoire n'est PAS alimentee automatiquement
     -- l'alimentation se fait a la validation (appel store() de l'UI)."""

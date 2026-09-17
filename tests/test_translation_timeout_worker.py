@@ -95,8 +95,8 @@ def test_translate_text_propagates_translator_error(offline_env, monkeypatch):
 
 def test_worker_translates_all_texts_and_signals(qapp, monkeypatch):
     from gui.translation_worker import BatchTranslationWorker
-    monkeypatch.setattr(translation, 'translate_text',
-                        lambda text, target="fr": f"TRAD:{text}")
+    monkeypatch.setattr(translation, 'translate_text_with_source',
+                        lambda text, target="fr": (f"TRAD:{text}", "engine"))
 
     worker = BatchTranslationWorker(["a", "b", "c"], "fr")
     results = {}
@@ -114,6 +114,25 @@ def test_worker_translates_all_texts_and_signals(qapp, monkeypatch):
     assert progress_seen[0] == (0, 3)
 
 
+def test_worker_emits_vanilla_source(qapp, monkeypatch):
+    """item_done transporte la source : 'vanilla' pour une traduction issue de
+    la localisation officielle Eleon -- la revue colore ces lignes/cellules
+    (demande 17/09/2026)."""
+    from gui.translation_worker import BatchTranslationWorker
+    monkeypatch.setattr(translation, 'translate_text_with_source',
+                        lambda text, target="fr": (f"OFF:{text}", "vanilla"))
+    worker = BatchTranslationWorker(["a"], "fr")
+    results = {}
+    loop = QEventLoop()
+    worker.item_done.connect(
+        lambda i, tr, err, src: results.__setitem__(i, (tr, err, src)))
+    worker.finished_all.connect(loop.quit)
+    worker.start()
+    loop.exec()
+    worker.wait()
+    assert results[0] == ("OFF:a", "", "vanilla")
+
+
 def test_worker_reports_errors_without_stopping(qapp, monkeypatch):
     """Un texte qui echoue produit un item_done avec message d'erreur, et le lot
     continue sur les suivants (l'arret anticipe est decide par l'appelant)."""
@@ -122,8 +141,8 @@ def test_worker_reports_errors_without_stopping(qapp, monkeypatch):
     def _flaky(text, target="fr"):
         if text == "boom":
             raise RuntimeError("panne")
-        return f"TRAD:{text}"
-    monkeypatch.setattr(translation, 'translate_text', _flaky)
+        return f"TRAD:{text}", "engine"
+    monkeypatch.setattr(translation, 'translate_text_with_source', _flaky)
 
     worker = BatchTranslationWorker(["ok1", "boom", "ok2"], "fr")
     results = {}
@@ -148,8 +167,8 @@ def test_worker_stop_takes_effect_between_items(qapp, monkeypatch):
 
     def _slow(text, target="fr"):
         time.sleep(0.1)
-        return f"TRAD:{text}"
-    monkeypatch.setattr(translation, 'translate_text', _slow)
+        return f"TRAD:{text}", "engine"
+    monkeypatch.setattr(translation, 'translate_text_with_source', _slow)
 
     worker = BatchTranslationWorker(["a", "b", "c", "d"], "fr")
     done = []

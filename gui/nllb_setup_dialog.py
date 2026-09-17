@@ -31,7 +31,8 @@ NLLB sont CC-BY-NC 4.0 -- usage NON commercial (ok pour des scenarios
 gratuits).
 """
 from PyQt6.QtWidgets import (
-    QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+    QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QRadioButton,
+    QVBoxLayout,
 )
 
 from core import nllb_provider, settings, translation
@@ -59,8 +60,17 @@ class NllbSetupDialog(QDialog):
         layout.addWidget(intro)
 
         self.variant_labels = {}
+        self.variant_radios = {}
         for variant, (label_key, tip_key) in _VARIANT_LABELS.items():
             row = QHBoxLayout()
+            # Radio "utiliser celle-ci" (demande 17/09/2026) : le ✔ seul ne
+            # disait pas quelle variante SERVIT -- le telechargement en
+            # changeait sans rien afficher.
+            radio = QRadioButton()
+            radio.setToolTip(t("nllb.variant_use_tip"))
+            radio.toggled.connect(
+                lambda checked, v=variant: self._set_variant(v, checked))
+            row.addWidget(radio)
             label = QLabel()
             label.setToolTip(t(tip_key))
             label.setWordWrap(True)
@@ -71,11 +81,32 @@ class NllbSetupDialog(QDialog):
                 lambda _checked=False, v=variant, b=btn: self._download(v, b))
             row.addWidget(btn)
             self.variant_labels[variant] = (label, btn)
+            self.variant_radios[variant] = radio
             layout.addLayout(row)
 
         self.use_check = QCheckBox(t("nllb.use_as_engine"))
         self.use_check.toggled.connect(self._toggle_engine)
         layout.addWidget(self.use_check)
+
+        # Finesse du decodage (demande 17/09/2026) : beam search
+        # DETERMINISTE du decodeur NLLB -- pas de "temperature" (NLLB n'est
+        # pas un generateur creatif ; le beam search est le mode recommande
+        # pour la traduction). 2 rapide / 4 equilibre / 8 qualite.
+        beam_row = QHBoxLayout()
+        beam_label = QLabel(t("nllb.beam.label"))
+        beam_row.addWidget(beam_label)
+        self.beam_buttons = {}
+        for size, key in ((2, "nllb.beam.fast"), (4, "nllb.beam.balanced"),
+                          (8, "nllb.beam.quality")):
+            rb = QRadioButton(t(key))
+            rb.setToolTip(t("nllb.beam.tip"))
+            rb.setChecked(settings.get_nllb_beam_size() == size)
+            rb.toggled.connect(
+                lambda checked, s=size: self._set_beam(s, checked))
+            self.beam_buttons[size] = rb
+            beam_row.addWidget(rb)
+        beam_row.addStretch()
+        layout.addLayout(beam_row)
 
         self.test_result = QLabel("")
         self.test_result.setWordWrap(True)
@@ -95,13 +126,19 @@ class NllbSetupDialog(QDialog):
         self._refresh()
 
     def _refresh(self) -> None:
-        """Repeint l'etat installe de chaque variante + la case moteur."""
+        """Repeint l'etat installe de chaque variante, la radio de la variante
+        ACTIVE (celle que la traduction utilise) et la case moteur."""
         for variant, (label, _btn) in self.variant_labels.items():
             installed = nllb_provider.is_installed(variant)
             mark = "✔ " if installed else ""
             label.setText(mark + t(_VARIANT_LABELS[variant][0]))
             _btn.setText(t("nllb.reinstall") if installed
                          else t("nllb.download_btn"))
+            radio = self.variant_radios[variant]
+            radio.setEnabled(installed)
+            radio.blockSignals(True)
+            radio.setChecked(settings.get_nllb_variant() == variant)
+            radio.blockSignals(False)
         any_installed = any(nllb_provider.is_installed(v) for v in _VARIANT_LABELS)
         self.use_check.setEnabled(any_installed)
         self.use_check.blockSignals(True)
@@ -122,6 +159,22 @@ class NllbSetupDialog(QDialog):
         finally:
             button.setEnabled(True)
         self._refresh()
+
+    def _set_beam(self, size: int, checked: bool) -> None:
+        """Persiste la finesse du decodage. Ne fait quelque chose que quand
+        une radio se COCHE (toggled(False) est aussi emis pour celle qui se
+        decoche -- persistervia ce signal ecraserait la valeur par l'ancienne
+        radio selon l'ordre d'emission de Qt)."""
+        if checked:
+            settings.set_nllb_beam_size(size)
+
+    def _set_variant(self, variant: str, checked: bool) -> None:
+        """Radio « utiliser celle-ci » : sélectionne la variante que la
+        traduction NLLB utilisera (les deux peuvent être installées). Ne fait
+        quelque chose que quand une radio se COCHE (même piège toggled(False)
+        que _set_beam)."""
+        if checked and nllb_provider.is_installed(variant):
+            settings.set_nllb_variant(variant)
 
     def _toggle_engine(self, checked: bool) -> None:
         # activer NLLB impose une variante installee : prendre la plus lourde

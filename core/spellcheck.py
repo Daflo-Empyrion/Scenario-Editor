@@ -169,14 +169,19 @@ def _rebuild_lines(text: str):
     COMPLETE (analyse grammaticale utile) au lieu de bouts coupes par les
     balises (retour utilisateur 12/09/2026). Retourne une liste de
     (line_start_abs, pure_line, mapping) ou mapping = [(abs_start,
-    pure_start, frag_len)] localise chaque fragment dans la ligne reconstituee."""
-    from core.translation import _PROTECTED_RE
+    pure_start, frag_len)] localise chaque fragment dans la ligne reconstituee.
+
+    Utilise la protection SANS les nombres (_PROTECTED_RE_GRAMMAR) : un
+    nombre doit rester visible pour la grammaire -- la ponctuation autour
+    nous interesse (espace avant ':' de 'Time: 1900'), et il n'y a aucune
+    faute possible DANS un nombre."""
+    from core.translation import _PROTECTED_RE_GRAMMAR
     results = []
     line_start = 0
     for line in text.split("\n"):
         fragments = []
         pos = 0
-        for m in _PROTECTED_RE.finditer(line):
+        for m in _PROTECTED_RE_GRAMMAR.finditer(line):
             if m.start() > pos:
                 fragments.append((line_start + pos, line[pos:m.start()]))
             pos = m.end()
@@ -246,8 +251,8 @@ def check_text(text: str) -> List[dict]:
     _GAME_DOPTIONS). Les erreurs tombant sur un separateur de balise sont
     ignorees ; les erreurs hors fragments reconnus aussi (securite offsets)."""
     gce = _ensure_loaded()
-    from core.translation import _PROTECTED_RE
-    _ = _PROTECTED_RE  # documente : _rebuild_lines utilise la meme protection
+    from core.translation import _PROTECTED_RE_GRAMMAR
+    _ = _PROTECTED_RE_GRAMMAR  # documente : _rebuild_lines l'utilise
     ignored = load_ignore_words()
     issues: List[dict] = []
     # ATTENTION : un dOptions PARTIEL transmis a parse() REMPLACE toute la

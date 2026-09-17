@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QMenu, QMessageBox, QDialog, QLineEdit, QComboBox,
     QApplication,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QBrush
 
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
@@ -60,6 +60,20 @@ def mark_modified(item, column: int = None):
     else:
         item.setBackground(column, COLOR_MODIFIED_CELL)
         item.setForeground(column, FOREGROUND_MODIFIED)
+
+
+# Traduction issue de la localisation officielle (vanille) : vert pale
+# distinct du jaune 'modifie' -- demande 17/09/2026.
+COLOR_VANILLA_CELL = QBrush(QColor(228, 243, 232))
+FOREGROUND_VANILLA = QBrush(QColor(24, 66, 40))
+
+
+def mark_vanilla(item):
+    """Cellule traduite avec la localisation officielle Eleon (memoire
+    vanille) : fond vert pale + avant-plan vert fonce lisible sur les deux
+    familles de themes."""
+    item.setBackground(COLOR_VANILLA_CELL)
+    item.setForeground(FOREGROUND_VANILLA)
 
 
 class CsvEditWidget(QWidget):
@@ -169,6 +183,18 @@ class CsvEditWidget(QWidget):
             btn_spellcheck.setObjectName("secondaryButton")
             btn_spellcheck.clicked.connect(self._open_spellcheck_menu)
             toolbar.addWidget(btn_spellcheck)
+            # Revision persistable (17/09/2026) : visible seulement si une
+            # revision interrompue existe pour ce fichier (refresh a l'ouverture
+            # et apres chaque sauvegarde/application de la revue).
+            self.btn_resume_review = QPushButton(icon("fa5s.history", "#4a7dfc"),
+                                                 t("btn.resume_review"))
+            self.btn_resume_review.setIconSize(icon_size())
+            self.btn_resume_review.setObjectName("secondaryButton")
+            self.btn_resume_review.setToolTip(t("btn.resume_review_tooltip"))
+            self.btn_resume_review.clicked.connect(
+                lambda checked=False: self._resume_any_session())
+            self.btn_resume_review.setVisible(False)
+            toolbar.addWidget(self.btn_resume_review)
             btn_find_replace = QPushButton(icon("fa5s.exchange-alt", "#4a7dfc"), t("btn.find_replace"))
             btn_find_replace.setIconSize(icon_size())
             btn_find_replace.setObjectName("secondaryButton")
@@ -226,6 +252,10 @@ class CsvEditWidget(QWidget):
             # fenetre principale (main_window._global_undo) -- un doublon le
             # rendrait ambigu (CSV-010).
         layout.addWidget(self.table, 1)
+        # Proposition de reprise apres la construction (jamais un dialogue
+        # modal pendant __init__) : lit la session de revision du fichier.
+        if editable:
+            QTimer.singleShot(0, self._offer_review_resume)
 
     def _populate_table(self):
         """Remplit la table depuis self.doc.rows -- redimensionne D'ABORD la
@@ -569,8 +599,8 @@ class CsvEditWidget(QWidget):
             QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
         try:
-            translated = translation.translate_text(text, target=target_code,
-                                                    store_in_memory=False)
+            translated, src = translation.translate_text_with_source(
+                text, target=target_code)
         except Exception as e:
             QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
             return
@@ -620,10 +650,24 @@ class CsvEditWidget(QWidget):
                 dest_item = QTableWidgetItem("")
                 self.table.setItem(row, target_col, dest_item)
             dest_item.setText(result_text)
+            if src == "vanilla":
+                self.table.blockSignals(True)
+                try:
+                    mark_vanilla(dest_item)
+                    dest_item.setToolTip(t("trans.vanilla_cell_tooltip"))
+                finally:
+                    self.table.blockSignals(False)
         else:
             # Pas de colonne correspondant a cette langue trouvee dans l'en-tete ->
             # on remplace la cellule d'origine par defaut, comme avant.
             item.setText(result_text)
+            if src == "vanilla":
+                self.table.blockSignals(True)
+                try:
+                    mark_vanilla(item)
+                    item.setToolTip(t("trans.vanilla_cell_tooltip"))
+                finally:
+                    self.table.blockSignals(False)
 
     def _quick_translate(self):
         """Bouton 'Traduire' de la barre d'outils : traduit directement la selection
@@ -766,32 +810,114 @@ class CsvEditWidget(QWidget):
         scope_label = {"cell": t("spellcheck.scope_cell"),
                        "column": t("spellcheck.scope_column"),
                        "file": t("spellcheck.scope_file")}[scope]
-        from gui.spellcheck_dialog import SpellcheckReviewDialog
-        dialog = SpellcheckReviewDialog(issues, self, scope_label=scope_label)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        chosen_issues = dialog.checked_issues()
-        if not chosen_issues:
-            return
+        self._open_spellcheck_review(issues, scope_label)
 
-        self._snapshot_undo()
-        applied = 0
-        by_cell: dict = {}
-        for iss in chosen_issues:
-            by_cell.setdefault((iss["row"], iss["col"]), []).append(iss)
-        for (row, col), cell_issues in by_cell.items():
-            item = self.table.item(row, col)
-            if item is None:
+    def _make_spell_applier(self):
+        """Callback on_apply_batch de la revue Grammalecte : applique les
+        corrections cochees cellule par cellule (du plus grand offset au plus
+        petit, comme l'ancien flux tout-ou-rien) et retourne le texte final de
+        chaque cellule touchee -- la revue ajuste alors les offsets des lignes
+        restantes de ces cellules."""
+        def apply(pairs):
+            self._snapshot_undo()
+            by_cell: dict = {}
+            for issue, choice in pairs:
+                issue["chosen"] = choice
+                by_cell.setdefault((issue["row"], issue["col"]), []).append(issue)
+            new_texts = {}
+            for (row, col), cell_issues in by_cell.items():
+                item = self.table.item(row, col)
+                if item is None:
+                    continue
+                text = item.text()
+                for iss in sorted(cell_issues, key=lambda i: i["start"], reverse=True):
+                    if 0 <= iss["start"] < iss["end"] <= len(text):
+                        text = text[:iss["start"]] + iss["chosen"] + text[iss["end"]:]
+                item.setText(text)
+                new_texts[(row, col)] = text
+            self._set_modified(True)
+            return new_texts
+        return apply
+
+    def _open_spellcheck_review(self, issues: list, scope_label: str):
+        """Ouvre la revue Grammalecte en mode revision persistable (demande du
+        17/09/2026 : controler plusieurs milliers de corrections se fait en
+        plusieurs fois) -- application au fil de l'eau + sauvegarde/reprise."""
+        from core import review_session
+        from gui.spellcheck_dialog import SpellcheckReviewDialog
+        dialog = SpellcheckReviewDialog(
+            issues, self, scope_label=scope_label,
+            on_apply_batch=self._make_spell_applier(),
+            on_save_session=lambda state: review_session.save_session(
+                self.path, {'items': state}, kind='spellcheck'))
+        dialog.exec()
+        if dialog.remaining() == 0:
+            review_session.delete_session(self.path, kind='spellcheck')
+        self._refresh_review_resume_btn()
+
+    def _resume_spellcheck_session(self, data: Optional[dict] = None):
+        """Reprend une correction orthographique interrompue : les issues dont
+        la cellule n'a pas change depuis la sauvegarde sont restaurees a
+        l'identique (coches + choix conserves) ; celles dont la cellule a
+        evolue sont re-scannees sur le texte courant (offsets frais)."""
+        from core import review_session
+        from core import lang_detect
+        from core import spellcheck as sp
+        if data is None:
+            data = review_session.load_session(self.path, kind='spellcheck')
+        if not data:
+            return
+        items = data.get('items') or []
+        if not items:
+            return
+        by_key: dict = {}
+        for r in range(self.table.rowCount()):
+            it = self.table.item(r, 0)
+            key = it.text() if it else str(r + 1)
+            by_key.setdefault(key, []).append(r)
+        saved_by_cell: dict = {}
+        missing = 0
+        for saved in items:
+            rows = by_key.get(saved.get('row_key', ''))
+            col = saved.get('col')
+            if not rows or not isinstance(col, int) \
+                    or not (0 <= col < self.table.columnCount()):
+                missing += 1
                 continue
-            text = item.text()
-            # du plus grand offset au plus petit : les offsets restent valides
-            for iss in sorted(cell_issues, key=lambda i: i["start"], reverse=True):
-                if 0 <= iss["start"] < iss["end"] <= len(text):
-                    text = text[:iss["start"]] + iss["chosen"] + text[iss["end"]:]
-                    applied += 1
-            item.setText(text)
-        self._set_modified(True)
-        self.search_status.setText(t("spellcheck.done", n=applied))
+            row = rows.pop(0)
+            saved_by_cell.setdefault((row, col), []).append(saved)
+        issues = []
+        fr_cols = set(self._french_columns())
+        for (row, col), saved_list in saved_by_cell.items():
+            item = self.table.item(row, col)
+            text = item.text() if item else ""
+            if all(s.get('cell_text') == text for s in saved_list):
+                # cellule intacte : restauration exacte
+                for s in saved_list:
+                    s['row'], s['col'] = row, col
+                    s['key'] = self._row_key(row)
+                    issues.append(s)
+                continue
+            # cellule modifiee depuis la sauvegarde : re-scan de la cellule
+            for iss in sp.check_text(text):
+                iss.update({'row': row, 'col': col,
+                            'key': self._row_key(row), 'cell_text': text,
+                            'is_lang': False})
+                issues.append(iss)
+            if col in fr_cols and text and lang_detect.is_likely_english(text):
+                issues.append({'row': row, 'col': col,
+                               'key': self._row_key(row), 'cell_text': text,
+                               'start': 0, 'end': 0, 'orig': '',
+                               's_type': 'lang', 'message': '',
+                               'suggestions': [], 'is_lang': True})
+        issues.sort(key=lambda i: (i['row'], i['col']))
+        if missing:
+            self.search_status.setText(t("trans.review_resumed_missing", count=missing))
+        if not issues:
+            review_session.delete_session(self.path, kind='spellcheck')
+            self._refresh_review_resume_btn()
+            return
+        self._open_spellcheck_review(issues, t("spellcheck.scope_file"))
 
     def _batch_translate_selection(self, selected_items: list, target_code: str, target_label: str):
         """Traduit toutes les cellules non vides de la selection vers la langue
@@ -824,15 +950,22 @@ class CsvEditWidget(QWidget):
             key_item = self.table.item(it.row(), 0)
             row_key = key_item.text() if key_item else str(it.row() + 1)
             if target_col is not None and target_col != it.column():
+                dst_col = target_col
                 dest_item = self.table.item(it.row(), target_col)
                 if dest_item is None:
                     dest_item = QTableWidgetItem("")
                     self.table.setItem(it.row(), target_col, dest_item)
             else:
+                dst_col = it.column()
                 dest_item = it
             plan.append({'label': f"{row_key} / {header_text}",
                          'original': it.text(), 'dest_item': dest_item,
-                         'target_code': target_code, 'source_code': source_code})
+                         'target_code': target_code, 'source_code': source_code,
+                         # Identification durable pour la session de revision
+                         # (jamais l'index de ligne : l'ordre peut changer entre
+                         # deux ouvertures du fichier).
+                         'row_key': row_key, 'src_col': it.column(),
+                         'dst_col': dst_col, 'header': header_text})
 
         self._run_batch_translation(
             [p['original'] for p in plan], target_code,
@@ -878,11 +1011,12 @@ class CsvEditWidget(QWidget):
             progress.setValue(index)
             progress.setLabelText(progress_text(index, total))
 
-        def _on_item_done(index, translated, error):
+        def _on_item_done(index, translated, error, source=""):
             failed = bool(error)
             results[index] = {
                 'translated': translated if not failed else f"[{t('trans.error_title')}: {error}]",
                 'failed': failed,
+                'source': source,
             }
             if failed:
                 state['consecutive_failures'] += 1
@@ -917,7 +1051,9 @@ class CsvEditWidget(QWidget):
     def _finish_batch_review(self, plan: list, results: list, stopped_by_failures: bool,
                              consecutive_failures: int, processed: int):
         """Suite commune des lots de traduction : avertissement d'arret anticipe,
-        fenetre de revue, puis application des resultats acceptes. `plan` est
+        puis fenetre de revue en mode revision persistable (application au fil
+        de l'eau + sauvegarde/reprise -- demande du 17/09/2026 : controler
+        plusieurs milliers de lignes se fait en plusieurs fois). `plan` est
         parallele a `results` ; les resultats non traites (queue de la liste)
         sont simplement ignores."""
         if stopped_by_failures and processed:
@@ -929,32 +1065,205 @@ class CsvEditWidget(QWidget):
         if not processed:
             return
 
+        metas = []
+        for i in range(processed):
+            metas.append({**{k: plan[i].get(k) for k in
+                             ('row_key', 'src_col', 'dst_col', 'header',
+                              'target_code', 'source_code')},
+                          'plan_idx': i,
+                          'failed': results[i]['failed'],
+                          'translated': results[i]['translated'],
+                          'source': results[i].get('source', '')})
+        self._open_review_dialog(plan[:processed], metas)
+
+    def _open_review_dialog(self, plan: list, metas: list):
+        """Ouvre la revue de revision (BatchTranslationReviewDialog en mode
+        persistable) : chaque lot coche est applique immediatement, l'etat
+        restant peut etre sauvegarde pour reprendre a la prochaine ouverture
+        du fichier. `metas` est parallele a `plan` et porte l'identification
+        durable des destinations + failed/translated (et checked a la reprise)."""
+        from core import review_session
         items_for_review = [{
-            'label': plan[i]['label'],
-            'original': plan[i]['original'],
-            'translated': results[i]['translated'],
-            'failed': results[i]['failed'],
-        } for i in range(processed)]
+            'label': m.get('label', plan[i]['label']),
+            'original': m.get('original', plan[i]['original']),
+            'translated': m['translated'],
+            'failed': m['failed'],
+            'source': m.get('source', ''),
+            **({'checked': m['checked']} if 'checked' in m else {}),
+        } for i, m in enumerate(metas)]
+        dialog = BatchTranslationReviewDialog(
+            items_for_review, self, metas=metas,
+            on_apply_batch=self._make_review_applier(plan),
+            on_save_session=lambda state: review_session.save_session(
+                self.path, {'items': state}))
+        dialog.exec()
+        if dialog.remaining() == 0:
+            review_session.delete_session(self.path)
+        self._refresh_review_resume_btn()
 
-        dialog = BatchTranslationReviewDialog(items_for_review, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        accepted = dialog.get_accepted_results()
-        if not accepted:
-            return
+    def _make_review_applier(self, plan: list):
+        """Callback on_apply_batch de la revue : ecrit les textes valides dans
+        les destinations et alimente memoire/glossaire a CHAQUE lot (la memoire
+        est alimentee a la validation -- demande du 12/09/2026 ; en revision
+        persistable, validation = chaque lot coche, d'ou des snapshots undo
+        par lot aussi)."""
+        def apply(results):
+            self._snapshot_undo()
+            from core import glossary
+            for meta, final_text in results:
+                p = plan[meta['plan_idx']]
+                p['dest_item'].setText(final_text)
+                if meta.get('source') == 'vanilla':
+                    # Traduction officielle Eleon : cellule distinguishable
+                    # (demande 17/09/2026). Signaux bloques pendant la
+                    # coloration : setBackground declenche itemChanged ->
+                    # mark_modified ecraserait le vert par le jaune 'modifie'.
+                    self.table.blockSignals(True)
+                    try:
+                        mark_vanilla(p['dest_item'])
+                        p['dest_item'].setToolTip(t("trans.vanilla_cell_tooltip"))
+                    finally:
+                        self.table.blockSignals(False)
+                translation_memory.store(p['original'], p.get('source_code', 'auto'),
+                                         p.get('target_code', 'auto'), final_text)
+                if glossary.auto_feed_ok(p['original']):
+                    glossary.add_entry(p['original'], final_text)
+            self._set_modified(True)
+        return apply
 
-        self._snapshot_undo()
-        from core import glossary
-        for idx, final_text in accepted:
-            plan[idx]['dest_item'].setText(final_text)
-            # Memoire + glossaire alimentes a la VALIDATION seulement (cases
-            # cochees de la revue) -- demande du 12/09/2026.
-            original = plan[idx]['original']
-            target_code = plan[idx].get('target_code', 'auto')
-            source_code = plan[idx].get('source_code', 'auto')
-            translation_memory.store(original, source_code, target_code, final_text)
-            if glossary.auto_feed_ok(original):
-                glossary.add_entry(original, final_text)
+    def _refresh_review_resume_btn(self):
+        """Bouton 'Reprendre la revision' visible seulement si une session
+        (traduction OU correction orthographique) existe pour ce fichier."""
+        from core import review_session
+        pending = self._pending_review_kinds()
+        self.btn_resume_review.setVisible(bool(pending))
+        return pending[0][1] if pending else None
+
+    def _pending_review_kinds(self) -> list:
+        """[(kind, data)] des revisions interrompues du fichier."""
+        from core import review_session
+        kinds = []
+        for kind in ('translation', 'spellcheck'):
+            d = review_session.load_session(self.path, kind=kind)
+            if d:
+                kinds.append((kind, d))
+        return kinds
+
+    def _offer_review_resume(self):
+        """Au chargement d'un CSV : proposer la reprise d'une revision
+        interrompue (traduction et/ou correction orthographique)."""
+        if not self.editable:
+            return
+        self._refresh_review_resume_btn()
+        kinds = self._pending_review_kinds()
+        if not kinds:
+            return
+        if len(kinds) == 1:
+            self._ask_resume_review(kinds[0][0])
+            return
+        # les deux : un menu plutot qu'une boite arbitraire
+        menu = QMenu(self)
+        a_trad = menu.addAction(t("btn.resume_review"))
+        a_spell = menu.addAction(t("btn.resume_spellcheck"))
+        chosen = menu.exec(self.cursor().pos())
+        if chosen is a_trad:
+            self._ask_resume_review('translation')
+        elif chosen is a_spell:
+            self._ask_resume_review('spellcheck')
+
+    def _ask_resume_review(self, kind: str):
+        """Boite Reprendre / Plus tard / Supprimer pour une revision."""
+        from core import review_session
+        data = review_session.load_session(self.path, kind=kind)
+        if not data:
+            return
+        msg_key = ("trans.review_resume_msg" if kind == 'translation'
+                   else "trans.review_resume_spell_msg")
+        box = QMessageBox(self)
+        box.setWindowTitle(t("trans.review_resume_title"))
+        box.setText(t(msg_key, count=len(data['items']), name=self.path.name))
+        btn_resume = box.addButton(t("trans.review_resume_btn"),
+                                   QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(t("trans.review_later_btn"), QMessageBox.ButtonRole.RejectRole)
+        btn_delete = box.addButton(t("trans.review_delete_btn"),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        box.exec()
+        if box.clickedButton() is btn_resume:
+            if kind == 'translation':
+                self._resume_review_session(data)
+            else:
+                self._resume_spellcheck_session(data)
+        elif box.clickedButton() is btn_delete:
+            review_session.delete_session(self.path, kind=kind)
+            self._refresh_review_resume_btn()
+
+    def _resume_any_session(self):
+        """Slot du bouton barre : reprise directe si une seule revision en
+        attente, menu de choix sinon."""
+        kinds = self._pending_review_kinds()
+        if not kinds:
+            return
+        if len(kinds) == 1:
+            kind = kinds[0][0]
+        else:
+            menu = QMenu(self)
+            a_trad = menu.addAction(t("btn.resume_review"))
+            a_spell = menu.addAction(t("btn.resume_spellcheck"))
+            chosen = menu.exec(self.cursor().pos())
+            if chosen not in (a_trad, a_spell):
+                return
+            kind = 'translation' if chosen is a_trad else 'spellcheck'
+        if kind == 'translation':
+            self._resume_review_session()
+        else:
+            self._resume_spellcheck_session()
+
+    def _resume_review_session(self, data: Optional[dict] = None):
+        """Reprend une revision interrompue : retrouve la destination de chaque
+        ligne restante par sa cle (colonne 0) et ses colonnes source/destination
+        persistees (JAMAIS l'index de ligne), puis rouvre la revue a l'etat
+        sauvegarde (coches + corrections manuelles conserves)."""
+        from core import review_session
+        if data is None:
+            data = review_session.load_session(self.path)
+        if not data:
+            return
+        items = data.get('items') or []
+        if not items:
+            return
+        by_key: dict = {}
+        for r in range(self.table.rowCount()):
+            it = self.table.item(r, 0)
+            key = it.text() if it else str(r + 1)
+            by_key.setdefault(key, []).append(r)
+        plan, metas = [], []
+        missing = 0
+        for saved in items:
+            rows = by_key.get(saved.get('row_key', ''))
+            if not rows:
+                missing += 1
+                continue
+            row = rows.pop(0)
+            dst_col = saved.get('dst_col')
+            if not isinstance(dst_col, int) or not (0 <= dst_col < self.table.columnCount()):
+                dst_col = saved.get('src_col') or 0
+            dest_item = self.table.item(row, dst_col)
+            if dest_item is None:
+                dest_item = QTableWidgetItem("")
+                self.table.setItem(row, dst_col, dest_item)
+            plan.append({'label': saved.get('label', ''),
+                         'original': saved.get('original', ''),
+                         'dest_item': dest_item,
+                         'source_code': saved.get('source_code', 'auto'),
+                         'target_code': saved.get('target_code', 'auto')})
+            metas.append({**saved, 'plan_idx': len(plan) - 1})
+        if missing:
+            self.search_status.setText(t("trans.review_resumed_missing", count=missing))
+        if not plan:
+            review_session.delete_session(self.path)
+            self._refresh_review_resume_btn()
+            return
+        self._open_review_dialog(plan, metas)
 
     def _open_fill_missing_dialog(self):
         """Combler les traductions manquantes : choisit une colonne source (deja
@@ -1013,7 +1322,9 @@ class CsvEditWidget(QWidget):
                 self.table.setItem(row, target_col, dest_item)
             plan.append({'label': row_key, 'original': source_text, 'dest_item': dest_item,
                          'target_code': target_code,
-                         'source_code': self._header_language_code(source_col)})
+                         'source_code': self._header_language_code(source_col),
+                         'row_key': row_key, 'src_col': source_col,
+                         'dst_col': target_col, 'header': headers[source_col]})
 
         self._run_batch_translation(
             [p['original'] for p in plan], target_code,

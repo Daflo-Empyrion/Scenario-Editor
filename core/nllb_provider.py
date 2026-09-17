@@ -41,8 +41,23 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, Tuple
 
-import ctranslate2
-import sentencepiece as spm
+from . import settings
+
+# Imports PARESSEUX : ctranslate2/sentencepiece ne sont charges que par
+# _ensure_heavy() (appele par _get_translator) -- l'assistant et le menu
+# doivent pouvoir tester l'installation (is_installed, test disque) sans
+# payer le chargement. Globaux reassignables : les tests les remplacent par
+# des fakes (tests/test_nllb_provider.py).
+ctranslate2 = None
+spm = None
+
+
+def _ensure_heavy():
+    global ctranslate2, spm
+    if ctranslate2 is None or spm is None:
+        import ctranslate2 as _ct
+        import sentencepiece as _spm
+        ctranslate2, spm = _ct, _spm
 
 HOME_DIR = Path.home() / ".empyrion_editor"
 # Codes de langue NLLB (format tresor) pour les langues du selecteur.
@@ -112,6 +127,7 @@ def _get_translator(variant: str):
         cached = _translators.get(variant)
         if cached is not None:
             return cached
+        _ensure_heavy()
         d = variant_dir(variant)
         translator = ctranslate2.Translator(str(d), device="cpu",
                                             inter_threads=4)
@@ -130,13 +146,16 @@ def nllb_code(code: str) -> str:
 def translate(text: str, source_code: str, target_code: str,
               variant: str = "600M") -> str:
     """Traduit un texte (SANS balises : le pipeline en amont envoie les
-    fragments de texte libre, voir core/translation.py)."""
+    fragments de texte libre, voir core/translation.py). Finesse du
+    decodage reglable : beam search (deterministe) 2=rapide, 4=equilibre,
+    8=qualite -- reglage Options > Traduction locale NLLB (17/09/2026)."""
     translator, sp = _get_translator(variant)
     src = nllb_code(source_code)
     tgt = nllb_code(target_code)
     tokens = [src] + sp.encode(text, out_type=str) + ["</s>"]
-    res = translator.translate_batch([tokens], target_prefix=[[tgt]],
-                                     beam_size=4)
+    res = translator.translate_batch(
+        [tokens], target_prefix=[[tgt]],
+        beam_size=settings.get_nllb_beam_size())
     out = res[0].hypotheses[0]
     if out and out[0] == tgt:
         out = out[1:]

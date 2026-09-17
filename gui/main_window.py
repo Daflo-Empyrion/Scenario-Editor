@@ -194,7 +194,8 @@ class MainWindow(QMainWindow):
         """Menu Outils (P1, audit du 30/08/2026) : les outils d'exploration du
         scenario quittaient le menu Fichier, ou ils etait noyes parmi les
         sauvegardes et la gestion de projet -- leurs cles i18n disaient deja
-        "menu.tools.*". Raccourcis affiches dans le menu (P3)."""
+        "menu.tools.*". Raccourcis affiches dans le menu (P3). Groupes
+        explicites (17/09/2026) : exploration, PDA, gestion du projet."""
         self.menu_tools = self.menuBar().addMenu(t("menu.tools"))
         self.action_search_scenario = self.menu_tools.addAction(t("menu.file.search_scenario"))
         self.action_search_scenario.setShortcut("Ctrl+Shift+F")
@@ -205,6 +206,7 @@ class MainWindow(QMainWindow):
         self.action_galaxy_viewer = self.menu_tools.addAction(t("menu.tools.galaxy_viewer"))
         self.action_galaxy_viewer.setShortcut("Ctrl+G")
         self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
+        self.menu_tools.addSeparator()
         self.action_pda_mission = self.menu_tools.addAction(t("menu.tools.pda_mission"))
         self.action_pda_mission.setShortcut("Ctrl+M")
         self.action_pda_mission.triggered.connect(self._open_pda_mission_dialog)
@@ -225,93 +227,110 @@ class MainWindow(QMainWindow):
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
 
     def _build_menu_verification(self):
+        """Reorganise (17/09/2026) : le Centre de verification (une seule
+        entree qui relance TOUTES les familles, P4) ouvre le menu -- les
+        verifications individuelles suivent, du plus general au plus specifique."""
         self.menu_check = self.menuBar().addMenu(t("menu.verification"))
-        self.action_refs = self.menu_check.addAction(t("menu.verification.check_refs"))
-        self.action_refs.triggered.connect(self.check_references_dialog)
-        self.action_pending = self.menu_check.addAction(t("menu.verification.pending"))
-        self.action_pending.triggered.connect(self.check_pending_conflicts_dialog)
-        self.action_cross_refs = self.menu_check.addAction(t("menu.verification.cross_refs"))
-        self.action_cross_refs.triggered.connect(self.check_cross_references_dialog)
-        self.action_economy_check = self.menu_check.addAction(t("menu.verification.check_economy"))
-        self.action_economy_check.triggered.connect(self.check_economy_dialog)
-
-        self.action_validate = self.menu_check.addAction(t("validation.menu_action"))
-        self.action_validate.triggered.connect(self.validate_scenario_dialog)
-        self.action_orphans = self.menu_check.addAction(t("menu.verification.orphans"))
-        self.action_orphans.triggered.connect(self._open_orphan_dialog)
-        self.menu_check.addSeparator()
         # P4 (audit 30/08/2026) : le bilan de sante devient le Centre de
         # verification -- une seule entree, un seul clic (F5) relance toutes
         # les familles de verification avec compteurs.
         self.action_health_check = self.menu_check.addAction(t("menu.verification.center"))
         self.action_health_check.setShortcut("F5")
         self.action_health_check.triggered.connect(self._open_health_check_dialog)
+        self.menu_check.addSeparator()
+        self.action_refs = self.menu_check.addAction(t("menu.verification.check_refs"))
+        self.action_refs.triggered.connect(self.check_references_dialog)
+        self.action_cross_refs = self.menu_check.addAction(t("menu.verification.cross_refs"))
+        self.action_cross_refs.triggered.connect(self.check_cross_references_dialog)
+        self.action_pending = self.menu_check.addAction(t("menu.verification.pending"))
+        self.action_pending.triggered.connect(self.check_pending_conflicts_dialog)
+        self.action_economy_check = self.menu_check.addAction(t("menu.verification.check_economy"))
+        self.action_economy_check.triggered.connect(self.check_economy_dialog)
+        self.action_validate = self.menu_check.addAction(t("validation.menu_action"))
+        self.action_validate.triggered.connect(self.validate_scenario_dialog)
+        self.action_orphans = self.menu_check.addAction(t("menu.verification.orphans"))
+        self.action_orphans.triggered.connect(self._open_orphan_dialog)
 
     def _build_menu_options(self):
+        """Options reorganisees (17/09/2026) : trois groupes lisibles au lieu
+        de 15 entrees a plat melangeant profil, edition, traduction et
+        apparence -- ce qui touche a la TRADUCTION va dans un sous-menu, ce
+        qui touche a l'INTERFACE dans un autre ; les toggles d'edition les
+        plus utilises restent a plat. Attributs action_* et cles i18n
+        inchanges (tests et retranslation au changement de langue)."""
         self.menu_options = self.menuBar().addMenu(t("menu.options"))
+
+        # -- Profil & edition ------------------------------------------------
         self.action_author = self.menu_options.addAction(t("menu.options.author"))
         self.action_author.triggered.connect(self._set_author_dialog)
-        self.action_toggle_annotations = self.menu_options.addAction(t("menu.options.annotations"))
-        self.action_toggle_annotations.setCheckable(True)
-        self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
-        self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
-        self.action_toggle_merge = self.menu_options.addAction(t("menu.options.merge_enabled"))
-        self.action_toggle_merge.setCheckable(True)
-        self.action_toggle_merge.setChecked(settings.get_merge_enabled())
-        self.action_toggle_merge.toggled.connect(settings.set_merge_enabled)
-        self.action_toggle_online_translation = self.menu_options.addAction(
-            t("menu.options.online_translation"))
-        self.action_toggle_online_translation.setCheckable(True)
-        self.action_toggle_online_translation.setChecked(settings.get_online_translation_enabled())
-        self.action_toggle_online_translation.toggled.connect(settings.set_online_translation_enabled)
+        self.menu_options.addSeparator()
         self.action_toggle_autosave = self.menu_options.addAction(t("menu.options.autosave_enabled"))
         self.action_toggle_autosave.setCheckable(True)
         self.action_toggle_autosave.setChecked(settings.get_autosave_enabled())
         self.action_toggle_autosave.toggled.connect(settings.set_autosave_enabled)
-        self.action_default_language = self.menu_options.addAction(t("menu.options.default_language"))
+        self.action_toggle_merge = self.menu_options.addAction(t("menu.options.merge_enabled"))
+        self.action_toggle_merge.setCheckable(True)
+        self.action_toggle_merge.setChecked(settings.get_merge_enabled())
+        self.action_toggle_merge.toggled.connect(settings.set_merge_enabled)
+        self.action_toggle_annotations = self.menu_options.addAction(t("menu.options.annotations"))
+        self.action_toggle_annotations.setCheckable(True)
+        self.action_toggle_annotations.setChecked(settings.get_annotations_enabled())
+        self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
+
+        # -- Traduction (sous-menu) ------------------------------------------
+        self.menu_translation = self.menu_options.addMenu(
+            t("menu.options.translation_sub"))
+        self.action_toggle_online_translation = self.menu_translation.addAction(
+            t("menu.options.online_translation"))
+        self.action_toggle_online_translation.setCheckable(True)
+        self.action_toggle_online_translation.setChecked(settings.get_online_translation_enabled())
+        self.action_toggle_online_translation.toggled.connect(settings.set_online_translation_enabled)
+        # Moteur de traduction ACTIF : choix radio exclusif (demande du
+        # 17/09/2026 -- la case binaire Argos ne disait pas quel moteur
+        # tournait, et NLLB n'y figurait pas). La case "Traduction en ligne
+        # (Google)" ci-dessus reste une PERMISSION de confidentialite, pas un
+        # choix de moteur. Argos grise sans modele installe (test disque),
+        # NLLB grise sans modele telecharge.
+        self.menu_engine = self.menu_translation.addMenu(
+            t("menu.options.engine_sub"))
+        from PyQt6.QtGui import QActionGroup
+        from core.settings import get_translation_engine
+        self._engine_group = QActionGroup(self)
+        self._engine_group.setExclusive(True)
+        current_engine = get_translation_engine()
+        self.action_engine_google = self.menu_engine.addAction(
+            t("menu.options.engine_google"))
+        self.action_engine_argos = self.menu_engine.addAction(
+            t("menu.options.engine_argos"))
+        self.action_engine_nllb = self.menu_engine.addAction(
+            t("menu.options.engine_nllb"))
+        for engine_id, action in (("google", self.action_engine_google),
+                                  ("argos", self.action_engine_argos),
+                                  ("nllb", self.action_engine_nllb)):
+            action.setCheckable(True)
+            action.setChecked(engine_id == current_engine)
+            action.triggered.connect(
+                lambda checked, eid=engine_id: self._switch_translation_engine(eid))
+            self._engine_group.addAction(action)
+        self._refresh_engine_menu()
+        self.action_default_language = self.menu_translation.addAction(
+            t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
-        self.action_vanilla_content = self.menu_options.addAction(t("menu.options.vanilla_content"))
-        self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
-        self.action_extra_icons = self.menu_options.addAction(t("menu.options.extra_icons"))
-        self.action_extra_icons.triggered.connect(self._set_extra_icons_dialog)
-        self.action_argos = self.menu_options.addAction(t("menu.options.argos"))
+        self.menu_translation.addSeparator()
+        self.action_argos = self.menu_translation.addAction(t("menu.options.argos"))
         self.action_argos.triggered.connect(self._open_argos_setup)
-        self.action_nllb = self.menu_options.addAction(t("menu.options.nllb"))
+        self.action_nllb = self.menu_translation.addAction(t("menu.options.nllb"))
         self.action_nllb.triggered.connect(self._open_nllb_setup)
-        self.action_glossary = self.menu_options.addAction(t("menu.options.glossary"))
+        self.action_glossary = self.menu_translation.addAction(t("menu.options.glossary"))
         self.action_glossary.triggered.connect(self._open_glossary)
-        # Meme geste que "Traduction en ligne (Google)" : une case cochee
-        # DANS le menu pour basculer le moteur (retour utilisateur du
-        # 10/09/2026 : l'activation n'etait que dans l'assistant). Grisee
-        # tant qu'aucun modele Argos n'est installe (test sur disque, sans
-        # importer la bibliotheque lourde).
-        self.action_argos_engine = self.menu_options.addAction(t("menu.options.argos_engine"))
-        self.action_argos_engine.setCheckable(True)
-        self.action_argos_engine.setToolTip(t("menu.options.argos_engine.tip"))
-        self.action_argos_engine.toggled.connect(self._toggle_argos_engine)
-        self._refresh_argos_menu_action()
+        self.action_vanilla_content = self.menu_translation.addAction(
+            t("menu.options.vanilla_content"))
+        self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
 
-        # Pilote PyQt-Fluent-Widgets (decision 09/09/2026) : chrome de la
-        # fenetre principale en widgets Fluent, le reste de l'app inchange.
-        # Pris en compte au PROCHAIN lancement (les widgets de la barre
-        # d'outils sont deja construits) ; grisee si qfluentwidgets n'est
-        # pas importable (build sans la dependance -- degrade gracieux).
-        self.action_fluent_pilot = self.menu_options.addAction(t("menu.options.fluent_pilot"))
-        self.action_fluent_pilot.setCheckable(True)
-        self.action_fluent_pilot.setChecked(settings.get_fluent_pilot_enabled())
-        self.action_fluent_pilot.setEnabled(fluent_pilot.is_available())
-        self.action_fluent_pilot.toggled.connect(self._toggle_fluent_pilot)
-
-        # Animations de pression des boutons (look Relief phase 2, 12/09/2026)
-        # : actif seulement sur un theme Relief, toggle immediate (pas de
-        # relance) via l'etat memoire du filtre global.
-        from gui import press_feedback
-        self.action_press_anim = self.menu_options.addAction(t("menu.options.press_anim"))
-        self.action_press_anim.setCheckable(True)
-        self.action_press_anim.setChecked(settings.get_press_anim_enabled())
-        self.action_press_anim.toggled.connect(self._toggle_press_anim)
-
-        self.menu_theme = self.menu_options.addMenu(t("menu.options.theme"))
+        # -- Interface (sous-menu) --------------------------------------------
+        self.menu_interface = self.menu_options.addMenu(
+            t("menu.options.interface_sub"))
+        self.menu_theme = self.menu_interface.addMenu(t("menu.options.theme"))
         self._theme_actions = {}
         from core.themes import THEMES, THEME_ORDER
         current_theme_id = settings.get_theme()
@@ -321,6 +340,30 @@ class MainWindow(QMainWindow):
             theme_action.setChecked(theme_id == current_theme_id)
             theme_action.triggered.connect(lambda checked, tid=theme_id: self._set_theme(tid))
             self._theme_actions[theme_id] = theme_action
+
+        # Pilote PyQt-Fluent-Widgets (decision 09/09/2026) : chrome de la
+        # fenetre principale en widgets Fluent, le reste de l'app inchange.
+        # Pris en compte au PROCHAIN lancement (les widgets de la barre
+        # d'outils sont deja construits) ; grisee si qfluentwidgets n'est
+        # pas importable (build sans la dependance -- degrade gracieux).
+        self.action_fluent_pilot = self.menu_interface.addAction(t("menu.options.fluent_pilot"))
+        self.action_fluent_pilot.setCheckable(True)
+        self.action_fluent_pilot.setChecked(settings.get_fluent_pilot_enabled())
+        self.action_fluent_pilot.setEnabled(fluent_pilot.is_available())
+        self.action_fluent_pilot.toggled.connect(self._toggle_fluent_pilot)
+
+        # Animations de pression des boutons (look Relief phase 2, 12/09/2026)
+        # : actif seulement sur un theme Relief, toggle immediate (pas de
+        # relance) via l'etat memoire du filtre global.
+        self.action_press_anim = self.menu_interface.addAction(t("menu.options.press_anim"))
+        self.action_press_anim.setCheckable(True)
+        self.action_press_anim.setChecked(settings.get_press_anim_enabled())
+        self.action_press_anim.toggled.connect(self._toggle_press_anim)
+
+        self.menu_interface.addSeparator()
+        self.action_extra_icons = self.menu_interface.addAction(
+            t("menu.options.extra_icons"))
+        self.action_extra_icons.triggered.connect(self._set_extra_icons_dialog)
 
     def _toggle_fluent_pilot(self, checked: bool):
         """Persiste l'option du pilote Fluent -- pris en compte au prochain
@@ -588,10 +631,23 @@ class MainWindow(QMainWindow):
         self.action_author.setText(t("menu.options.author"))
         self.action_toggle_annotations.setText(t("menu.options.annotations"))
         self.action_toggle_merge.setText(t("menu.options.merge_enabled"))
-        self.action_toggle_online_translation.setText(t("menu.options.online_translation"))
         self.action_toggle_autosave.setText(t("menu.options.autosave_enabled"))
+        self.menu_translation.setTitle(t("menu.options.translation_sub"))
+        self.action_toggle_online_translation.setText(t("menu.options.online_translation"))
+        self.menu_engine.setTitle(t("menu.options.engine_sub"))
+        self.action_engine_google.setText(t("menu.options.engine_google"))
+        self.action_engine_argos.setText(t("menu.options.engine_argos"))
+        self.action_engine_nllb.setText(t("menu.options.engine_nllb"))
         self.action_default_language.setText(t("menu.options.default_language"))
+        self.action_argos.setText(t("menu.options.argos"))
+        self.action_nllb.setText(t("menu.options.nllb"))
+        self.action_glossary.setText(t("menu.options.glossary"))
         self.action_vanilla_content.setText(t("menu.options.vanilla_content"))
+        self.menu_interface.setTitle(t("menu.options.interface_sub"))
+        self.menu_theme.setTitle(t("menu.options.theme"))
+        self.action_fluent_pilot.setText(t("menu.options.fluent_pilot"))
+        self.action_press_anim.setText(t("menu.options.press_anim"))
+        self.action_extra_icons.setText(t("menu.options.extra_icons"))
 
         self.menu_help.setTitle(t("menu.help"))
         self.action_wiki_app.setText(t("menu.help.wiki_app"))
@@ -1468,28 +1524,48 @@ class MainWindow(QMainWindow):
             settings.set_author(name.strip())
 
     def _refresh_argos_menu_action(self):
-        """Synchronise la case « Traduction hors ligne (Argos) » du menu
-        Options avec les modeles installes et le moteur choisi. Appele a la
-        construction et par l'assistant Argos apres ses installations."""
+        """Compat : l'assistant Argos appelle cette methode apres ses
+        installations -- delegue au sous-menu moteur."""
+        self._refresh_engine_menu()
+
+    def _refresh_engine_menu(self):
+        """Synchronise les radios du sous-menu Moteur de traduction avec les
+        moteurs REELLEMENT disponibles et le moteur choisi. Appele a la
+        construction et par l'assistant Argos apres ses installations.
+        Tests disque sans importer les bibliotheques lourdes (Argos : compte
+        des paquets sur le disque ; NLLB : presence des fichiers modele)."""
         from core import argos_provider
+        from core import nllb_provider
         from core.settings import get_translation_engine
+        engine = get_translation_engine()
         has_models = argos_provider.packages_on_disk() > 0
-        self.action_argos_engine.setEnabled(has_models)
-        self.action_argos_engine.setToolTip(
+        self.action_engine_argos.setEnabled(has_models)
+        self.action_engine_argos.setToolTip(
             t("menu.options.argos_engine.tip") if has_models
             else t("menu.options.argos_engine.tip_none"))
-        self.action_argos_engine.blockSignals(True)
-        self.action_argos_engine.setChecked(
-            has_models and get_translation_engine() == "argos")
-        self.action_argos_engine.blockSignals(False)
+        has_nllb = (nllb_provider.is_installed("600M")
+                    or nllb_provider.is_installed("1.3B"))
+        self.action_engine_nllb.setEnabled(has_nllb)
+        self.action_engine_nllb.setToolTip(
+            t("menu.options.engine_nllb.tip_variant",
+              variant=settings.get_nllb_variant()) if has_nllb
+            else t("menu.options.engine_nllb.tip_none"))
+        # triggered n'est emis que par un clic utilisateur : pas besoin de
+        # bloquer les signaux pour synchroniser l'affichage
+        self.action_engine_google.setChecked(engine == "google")
+        self.action_engine_argos.setChecked(has_models and engine == "argos")
+        self.action_engine_nllb.setChecked(has_nllb and engine == "nllb")
 
-    def _toggle_argos_engine(self, checked: bool):
+    def _switch_translation_engine(self, engine_id: str):
+        """Choix radio du sous-menu Moteur : persiste et signale en barre
+        d'etat quel moteur est desormais actif."""
         from core.settings import set_translation_engine
-        set_translation_engine("argos" if checked else "google")
+        set_translation_engine(engine_id)
+        name_key = {"google": "argos.engine_name_google",
+                    "argos": "argos.engine_name_argos",
+                    "nllb": "argos.engine_name_nllb"}[engine_id]
         self.statusBar().showMessage(
-            t("argos.engine_switched",
-              engine=t("argos.engine_name_argos" if checked
-                       else "argos.engine_name_google")), 8000)
+            t("argos.engine_switched", engine=t(name_key)), 8000)
 
     def _open_argos_setup(self):
         """Assistant de traduction hors ligne Argos (moteur + modeles) --
