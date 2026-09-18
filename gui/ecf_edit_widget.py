@@ -51,6 +51,7 @@ from core.ecf.model import (
 )
 from core.ecf_header_glossary import find_term_explanation
 from core.ecf.pending_conflicts import suggest_free_ids
+from core.dialogue_items import script_value_key
 from core import settings
 from core.i18n import t
 from gui.theme import icon, icon_size
@@ -139,7 +140,8 @@ class _PropertyValueDelegate(QStyledItemDelegate):
 
     def __init__(self, values_by_key: Dict[str, List[str]], parent=None,
                  targets: Optional[Dict[str, str]] = None,
-                 catalog_opener: Optional[Callable] = None):
+                 catalog_opener: Optional[Callable] = None,
+                 script_items: Optional[List[str]] = None):
         super().__init__(parent)
         self._values_by_key = values_by_key
         # Retrofit catalogue : (cle -> mode "value"/"first_field") des cles
@@ -147,6 +149,9 @@ class _PropertyValueDelegate(QStyledItemDelegate):
         # (EcfEditWidget._pick_catalog_entry).
         self._targets = targets or {}
         self._catalog_opener = catalog_opener
+        # Autocompletion des Ids d'items dans les scripts de dialogue
+        # (Dialogues.ecf : AddItem/RemoveItem/HasItem -- v1.9.0, backlog).
+        self._script_items = script_items or []
 
     def _key_for(self, index) -> Optional[str]:
         """Cle de propriete de la ligne : stockee en UserRole sur l'item de
@@ -172,6 +177,14 @@ class _PropertyValueDelegate(QStyledItemDelegate):
         combo.setEditable(True)
         combo.addItems(self._values_by_key.get(self._key_for(index), []))
         combo.setCurrentText(index.data() or "")
+        key = self._key_for(index)
+        if self._script_items and script_value_key(key):
+            from gui.dialogue_item_completion import install_script_item_completer
+            # Le combo editable installe SON completer interne (sur ses
+            # valeurs observees) : il ferait double popup avec le notre sur
+            # des cles script -- on le retire.
+            combo.setCompleter(None)
+            install_script_item_completer(combo.lineEdit(), self._script_items)
         target = self._target_for(index)
         if target and self._catalog_opener is not None:
             box = QWidget(parent)
@@ -2162,6 +2175,12 @@ class EcfEditWidget(QWidget):
         grande majorite des blocs, qui n'ont pas de structure repetitive)."""
         self.props_table.setColumnCount(2)
         self.props_table.setHorizontalHeaderLabels([t("ecf.col_property"), t("ecf.col_value")])
+        # Autocompletion AddItem/RemoveItem/HasItem : uniquement pour un
+        # Dialogues.ecf (les scripts de dialogue n'existent que la), les
+        # noms d'items du catalogue servent de propositions.
+        script_items = None
+        if self.path.name.lower() == "dialogues.ecf":
+            script_items = self._get_script_item_names()
         rows = []
         for k, v in block.pairs:
             if k:
@@ -2183,6 +2202,8 @@ class EcfEditWidget(QWidget):
             # selecteur -- decision 10/09/2026).
             if item_ref_target(self.path.name, k):
                 item_v.setToolTip(t("ecf.catalog_pick_tooltip"))
+            elif script_items and script_value_key(k):
+                item_v.setToolTip(t("ecf.script_completion_tooltip"))
             # Infobulle specifique a CETTE cle (glossaire du fichier ou
             # commentaire reel trouve dans le fichier), avec une note
             # structurelle en plus si la propriete est sur la ligne
@@ -2224,7 +2245,8 @@ class EcfEditWidget(QWidget):
         self.props_table.setItemDelegateForColumn(
             1, _PropertyValueDelegate(values_by_key, self.props_table,
                                       targets=targets,
-                                      catalog_opener=self._pick_catalog_entry))
+                                      catalog_opener=self._pick_catalog_entry,
+                                      script_items=script_items))
 
     def _refresh_props_table_grid(self, block: EcfBlock, param_columns: List[str]):
         """Affichage en tableau pour les structures repetitives (Child Items, Child
@@ -2669,6 +2691,15 @@ class EcfEditWidget(QWidget):
                 self._catalog_paths = paths
                 self._catalog_entries_cache = load_catalog(paths)
         return self._catalog_entries_cache
+
+    def _get_script_item_names(self) -> List[str]:
+        """Noms d'items du catalogue (scenario + vanille) pour
+        l'autocompletion des commandes AddItem/RemoveItem/HasItem des
+        Dialogues.ecf (v1.9.0, backlog)."""
+        entries = self._get_ecf_catalog_entries()
+        if not entries:
+            return []
+        return sorted({e.name for e in entries})
 
     def _refresh_ecf_catalog_entries(self):
         """Rafraichir : reconstruit le catalogue en ignorant les caches disque
