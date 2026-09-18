@@ -1,0 +1,28 @@
+# Configuration des OUTILS de developpement (v1.7.1).
+# L'application n'est PAS un paquet pip (pas de [project]) : elle est
+# lancee depuis les sources ou embarquee par PyInstaller (empyrion_editor.spec).
+# Runtime : requirements.txt -- Build : requirements-build.txt -- Dev : requirements-dev.txt
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Hors depot reel : archives locales, artefacts de build et projets de test GUI.
+extend-exclude = [
+    "_archives_non_suivi",
+    "build",
+    "dist",
+    "installer_output",
+    "gui_test_project",
+    "gui_test_scenario",
+]
+
+[tool.ruff.lint]
+# Niveau "erreurs reelles" (equivalent flake8 critique) : syntaxe cassee,
+# noms indefinis, f-strings invalides, étoiles mal utilisees. Le stock
+# historique (~42 000 lignes) ne passerait pas un lint de style complet
+# sans un chantier dedie ; elargir progressivement si besoin.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.coverage.run]
+# Mesure : python -m coverage run -m pytest tests/ -q && python -m coverage report
+source = ["core", "gui", "protocol", "cli"]

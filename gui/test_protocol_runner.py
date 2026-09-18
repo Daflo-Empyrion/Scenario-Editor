@@ -70,7 +70,7 @@ from PyQt6.QtWidgets import (
 from core.fsutil import atomic_write_text
 from core.i18n import t
 from core.version import APP_VERSION, GITHUB_REPO
-from core.test_protocol import CASES, CATEGORIES, cases_by_category, category_label, localized_case
+from protocol.cases import CASES, CATEGORIES, cases_by_category, category_label, localized_case
 
 SESSION_DIR = Path.home() / ".empyrion_editor" / "test_sessions"
 SMOKE = False  # True pendant --smoke : pas de dialogue modal au demarrage

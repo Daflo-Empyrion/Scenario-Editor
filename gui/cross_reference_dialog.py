@@ -34,6 +34,7 @@ from gui.busy import busy_guard
 from core.i18n import t
 from core.ecf.cross_reference_check import (
     CROSS_REFERENCE_CHECKS, CrossRefContext, CrossRefIssue, run_checks,
+    apply_dialogue_ref_fix,
 )
 from gui.results_window_helpers import export_text_to_file
 from gui.theme import icon, icon_size

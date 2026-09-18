@@ -39,6 +39,10 @@ from core.scenario_diff import compare_scenarios, ScenarioDiffResult, FileDiffEn
 from gui.theme import icon, icon_size
 from gui import theme as _theme
 
+# Raccourci saute-a-la-ligne (v1.7.1 : etait utilise sans etre defini --
+# NameError au clic sur un fichier differant, rattrape par ruff F821).
+nl = "\n"
+
 
 def _status_colors() -> dict:
     """Construit le mapping a chaque appel (pas au niveau module) pour lire

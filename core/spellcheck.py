@@ -40,7 +40,7 @@ import threading
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Callable, List, Optional, Set
+from typing import Callable, List, Optional, Set, Tuple
 
 GRAMMALECTE_VERSION = "2.3.0"
 DOWNLOAD_URL = f"https://grammalecte.net/zip/Grammalecte-fr-v{GRAMMALECTE_VERSION}.zip"

@@ -16,7 +16,7 @@
 
 """
 MIROIR ANGLAIS du protocole de test manuel -- traduction des titres,
-preconditions, etapes et resultats attendus de core/test_protocol.py.
+preconditions, etapes et resultats attendus de protocol/cases.py.
 
 FORMAT : EN = {id_du_cas: {"titre": ..., "pre": ..., "etapes": [...],
 "attendu": ...}}. Regles :

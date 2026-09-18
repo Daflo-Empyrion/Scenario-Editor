@@ -117,6 +117,9 @@ class BlockLibraryDialog(QDialog):
         dlg.setWindowTitle(t("lib.export"))
         v = QVBoxLayout(dlg)
         v.addWidget(QLabel(t("lib.pick_file")))
+        combo = QComboBox()
+        combo.setEditable(False)
+        combo.addItems(ecf_files)
         v.addWidget(combo)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
                               | QDialogButtonBox.StandardButton.Cancel)

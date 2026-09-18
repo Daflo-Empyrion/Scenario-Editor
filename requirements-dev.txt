@@ -1,0 +1,7 @@
+# Outils de developpement UNIQUEMENT (tests, lint, couverture) -- ni
+# l'application (requirements.txt) ni l'installeur (requirements-build.txt)
+# n'en ont besoin. Installe par le job "tests" de la CI (.github/workflows/
+# build.yml) et a la main : pip install -r requirements-dev.txt
+pytest>=8.0,<9.0
+ruff>=0.6
+coverage>=7.6

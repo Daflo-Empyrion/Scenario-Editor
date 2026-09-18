@@ -34,7 +34,46 @@ on:
       - 'v*.*.*'
 
 jobs:
+  # Job de TESTS (v1.7.1) : la suite pytest ne tournait JAMAIS en CI
+  # (1549 tests locaux uniquement). Il devient un prealable au build :
+  # un tag pousse avec des tests rouges ne produit plus d'installeur.
+  # 3.14 = Python de developpement (echec bloquant) ; 3.12 = Python du
+  # job de build (remonte les ecarts sans bloquer une release, a passer
+  # a false quand 3.12 est vert partout).
+  tests:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: '3.14'
+            experimental: false
+          - python-version: '3.12'
+            experimental: true
+    continue-on-error: ${{ matrix.experimental }}
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v7
+
+      - name: Installer Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Installer les dependances (appli + dev)
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Audit i18n (code retour 0 obligatoire)
+        run: python tools/audit_i18n.py
+
+      - name: Tests pytest
+        run: python -m pytest tests/ -q
+
   build:
+    needs: tests
     runs-on: windows-latest
     # Necessaire pour que l'etape "Creer une Release GitHub en brouillon"
     # (softprops/action-gh-release) puisse ecrire une Release -- sans ceci, le

@@ -73,7 +73,7 @@ def test_case_fields_complete():
 
 
 def test_every_case_has_english_mirror():
-    from core.test_protocol_en import EN
+    from protocol.cases_en import EN
     missing = [c["id"] for c in CASES if c["id"] not in EN]
     extra = [k for k in EN if k not in {c["id"] for c in CASES}]
     assert not missing, f"cas sans miroir EN : {missing}"
@@ -81,7 +81,7 @@ def test_every_case_has_english_mirror():
 
 
 def test_english_mirror_matches_shape():
-    from core.test_protocol_en import EN
+    from protocol.cases_en import EN
     for case in CASES:
         en = EN[case["id"]]
         assert en.get("titre", "").strip(), case["id"]
@@ -99,7 +99,7 @@ def test_english_mirror_matches_shape():
 
 
 def test_localized_case_normalizes_steps_and_localizes():
-    from core import test_protocol as tp
+    from protocol import cases as tp
     fr = tp.localized_case(tp.CASES[0], lang="fr")
     assert all(isinstance(row, dict) and "txt" in row and "cmds" in row
                for row in fr["etapes"])
@@ -115,7 +115,7 @@ def test_localized_case_normalizes_steps_and_localizes():
 def test_protocol_has_commands_to_copy():
     # L'attendu utilisateur : les commandes console/chemins doivent etre
     # copiables (boutons dans le runner et le dialogue).
-    from core.test_protocol import localized_case
+    from protocol.cases import localized_case
     with_cmd = [c["id"] for c in CASES
                 if any(row["cmds"] for row in localized_case(c)["etapes"])]
     assert len(with_cmd) >= 15, "trop peu de cas avec commandes copiables"

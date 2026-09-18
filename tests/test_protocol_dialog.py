@@ -122,11 +122,11 @@ def test_start_session_button_opens_runner(qapp, monkeypatch):
 
 
 def test_protocol_data_is_embedded_in_core():
-    """Les donnees vivent dans core/test_protocol.py (embarquees par
+    """Les donnees vivent dans protocol/cases.py (embarquees par
     PyInstaller dans la version installee) et le shim tools/ re-exporte a
     l'identique pour les outils de developpement."""
     import importlib.util
-    from core import test_protocol as embedded
+    from protocol import cases as embedded
     spec = importlib.util.spec_from_file_location(
         "protocole_shim_check",
         Path(__file__).resolve().parent.parent / "tools" / "protocole_cas.py")

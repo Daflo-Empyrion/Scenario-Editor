@@ -6,10 +6,10 @@
 """
 Point d'entree COMPATIBILITE pour les outils de developpement (tests,
 lancement direct) -- les DONNEES du protocole vivent desormais dans
-core/test_protocol.py, embarquees dans l'application installee (le dialogue
+protocol/cases.py, embarquees dans l'application installee (le dialogue
 Aide > Protocole de test les lit directement).
 
-Ne rien ajouter ici : modifier core/test_protocol.py (incrementer "rev" des
+Ne rien ajouter ici : modifier protocol/cases.py (incrementer "rev" des
 cas modifies, voir l'en-tete de celui-ci).
 """
 import sys
@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.test_protocol import (  # noqa: F401
+from protocol.cases import (  # noqa: F401
     CASES, CATEGORIES, cases_by_category, protocol_to_markdown,
 )
 

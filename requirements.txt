@@ -7,4 +7,3 @@ qtawesome>=1.2,<2.0
 # (branche PyQt6, GPL v3). Si absent, degrade gracieux en widgets vanilla
 # (voir gui/fluent_pilot.py).
 PyQt6-Fluent-Widgets>=1.11,<2.0
-pytest>=8.0,<9.0

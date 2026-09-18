@@ -21,9 +21,10 @@ l'application sait faire, etape par etape) et d'AIDE AU DEBOGAGE (reproduire
 un comportement signale en suivant le cas correspondant, puis l'exporter en
 Markdown pour un rapport de bug).
 
-Les donnees sont EMBARQUEES (core/test_protocol.py) : le protocole ET le
-lancement de sessions (bouton "Commencer une session de tests...", vers
-gui/test_protocol_runner.py) fonctionnent aussi dans la version INSTALLEE.
+Les donnees sont EMBARQUEES (protocol/cases.py, ex core/test_protocol.py) :
+le protocole ET le lancement de sessions (bouton "Commencer une session de
+tests...", vers gui/test_protocol_runner.py) fonctionnent aussi dans la
+version INSTALLEE.
 Fenetre NON MODALE (meme motif que les autres fenetres de resultats).
 """
 import html
@@ -35,7 +36,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
-from core.test_protocol import (
+from protocol.cases import (
     CATEGORIES, cases_by_category, category_label,
     localized_case, protocol_to_markdown,
 )

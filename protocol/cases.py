@@ -28,7 +28,7 @@ COMMENT ENRICHIR CE PROTOCOLE (a chaque evolution de l'application) :
    -> modifier le dict ET incrementer "rev" (absent = rev 1). Dans toute
    session reprise, le cas est remis a non testé et marque "A RETESTER" :
    c'est ce qui garantit qu'un test vert sur l'ancien code ne masque pas
-   une regression. PENSER AU MIROIR ANGLAIS (core/test_protocol_en.py) :
+   une regression. PENSER AU MIROIR ANGLAIS (protocol/cases_en.py) :
    meme Id, meme nombre d'etapes, meme forme (str ou dict) -- un test
    d'integrite le verifie (tests/test_protocole_cas.py).
 
@@ -59,7 +59,7 @@ data/i18n_strings.json).
 """
 
 
-from core.test_protocol_en import CATEGORY_LABELS_EN, EN as _EN_TRANSLATIONS
+from protocol.cases_en import CATEGORY_LABELS_EN, EN as _EN_TRANSLATIONS
 
 
 CATEGORIES = [
@@ -2769,7 +2769,7 @@ def localized_case(case, lang=None):
       forme consommee par l'interface et les exports (plus jamais de
       chaine/dict brut en aval) ;
     - "titre"/"pre"/"etapes"/"attendu" sont remplaces par le miroir anglais
-      (core/test_protocol_en.py) quand la langue est "en" -- les "cmds"
+      (protocol/cases_en.py) quand la langue est "en" -- les "cmds"
       restent celles du FR (une commande console ne se traduit pas), seul
       le texte change.
     """
@@ -2808,7 +2808,7 @@ def category_label(code, lang=None):
         from core.i18n import get_language
         lang = get_language()
     if lang == "en":
-        from core.test_protocol_en import CATEGORY_LABELS_EN
+        from protocol.cases_en import CATEGORY_LABELS_EN
         if code in CATEGORY_LABELS_EN:
             return CATEGORY_LABELS_EN[code]
     return dict(CATEGORIES).get(code, code)

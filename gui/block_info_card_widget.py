@@ -50,7 +50,7 @@ from PyQt6.QtCore import Qt, QPoint, QSize, QEvent, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
-    QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QPlainTextEdit, QTextEdit,
+    QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QPlainTextEdit, QTextEdit, QMessageBox,
 )
 
 from core.block_info_card import BlockInfoCard, InfoCardField, card_to_markdown
