@@ -238,6 +238,27 @@ def set_nllb_beam_size(size: int) -> None:
         _set('nllb_beam_size', size)
 
 
+def get_groq_api_key() -> str:
+    """Cle API Groq (console.groq.com) pour le moteur 'groq' -- LLM en
+    ligne compatible OpenAI. STOCKEE EN LOCAL dans settings.json uniquement
+    (jamais dans le depot)."""
+    return _get('groq_api_key', '')
+
+
+def set_groq_api_key(key: str) -> None:
+    _set('groq_api_key', (key or '').strip())
+
+
+def get_groq_model() -> str:
+    """Modele Groq utilise pour la traduction (defaut : qwen3.8-27b, sans
+    raisonnement -- le meilleur rapport qualite/vitesse/tokens teste)."""
+    return _get('groq_model', 'qwen/qwen3.8-27b')
+
+
+def set_groq_model(model: str) -> None:
+    _set('groq_model', (model or '').strip())
+
+
 def get_extra_icons_dir() -> str:
     """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
     PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,
@@ -257,7 +278,7 @@ def get_translation_engine() -> str:
 
 
 def set_translation_engine(engine: str) -> None:
-    if engine in ('google', 'argos', 'nllb'):
+    if engine in ('google', 'argos', 'nllb', 'groq'):
         _set('translation_engine', engine)
 
 

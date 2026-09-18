@@ -1807,6 +1807,82 @@
   "fr": "Utiliser NLLB comme moteur de traduction",
   "en": "Use NLLB as the translation engine"
  },
+ "groq.title": {
+  "fr": "Traduction IA Groq (en ligne)",
+  "en": "Groq AI translation (online)"
+ },
+ "groq.limits_text": {
+  "fr": "  -- Groq : {requests} requêtes et {tokens} tokens restants (reset dans {reset})",
+  "en": "  -- Groq: {requests} requests and {tokens} tokens left (resets in {reset})"
+ },
+ "groq.rate_limited": {
+  "fr": "Limite de débit Groq atteinte (tier gratuit : 30 requêtes/min, 8 000 tokens/min, 200 000 tokens/jour) -- nouvelle tentative possible dans ~{delay}.",
+  "en": "Groq rate limit reached (free tier: 30 requests/min, 8,000 tokens/min, 200,000 tokens/day) -- retry possible in ~{delay}."
+ },
+ "groq.intro": {
+  "fr": "Groq fait tourner des modèles IA open-source à très haute vitesse (tier gratuit permanent, plafonné en débit : ~30 requêtes/minute et un plafond de tokens par jour). ATTENTION : le texte à traduire est envoyé EN LIGNE à Groq Inc. et au fournisseur du modèle — la case « Traduction en ligne » des Options autorise ou bloque ce moteur. Voir Aide > Politique de confidentialité.",
+  "en": "Groq runs open-source AI models at very high speed (permanent free tier, throttled: ~30 requests/minute and a daily token cap). WARNING: the text to translate is sent ONLINE to Groq Inc. and the model provider — the \"Online translation\" checkbox in Options allows or blocks this engine. See Help > Privacy policy."
+ },
+ "groq.step_account": {
+  "fr": "1. Crée un compte gratuit sur <a href=\"https://console.groq.com\">console.groq.com</a> (connexion Google ou GitHub, sans carte bancaire).",
+  "en": "1. Create a free account on <a href=\"https://console.groq.com\">console.groq.com</a> (Google or GitHub sign-in, no credit card)."
+ },
+ "groq.step_key": {
+  "fr": "2. Crée une clé sur <a href=\"https://console.groq.com/keys\">console.groq.com/keys</a> — bouton « Create API Key », copie la valeur affichée (elle ne sera plus montrée ensuite).",
+  "en": "2. Create a key on <a href=\"https://console.groq.com/keys\">console.groq.com/keys</a> — click \"Create API Key\" and copy the value (it will not be shown again)."
+ },
+ "groq.step_paste": {
+  "fr": "3. Colle la clé ci-dessous puis clique « Vérifier la clé ».",
+  "en": "3. Paste the key below then click \"Verify key\"."
+ },
+ "groq.key_label": {
+  "fr": "Clé API Groq :",
+  "en": "Groq API key:"
+ },
+ "groq.verify_btn": {
+  "fr": "Vérifier la clé",
+  "en": "Verify key"
+ },
+ "groq.verify_ok": {
+  "fr": "✔ Clé valide — {count} modèle(s) texte disponible(s) pour ton compte.",
+  "en": "✔ Key valid — {count} text model(s) available for your account."
+ },
+ "groq.verify_fail": {
+  "fr": "Clé refusée : {error}",
+  "en": "Key refused: {error}"
+ },
+ "groq.model_label": {
+  "fr": "Modèle de traduction :",
+  "en": "Translation model:"
+ },
+ "groq.model_tip": {
+  "fr": "Recommandé : qwen/qwen3.8-27b (sans raisonnement, le plus économe). Liste éditable — « Vérifier la clé » charge les modèles de ton compte.",
+  "en": "Recommended: qwen/qwen3.8-27b (no reasoning, most token-efficient). Editable list — \"Verify key\" loads your account's models."
+ },
+ "groq.use_as_engine": {
+  "fr": "Utiliser Groq comme moteur de traduction",
+  "en": "Use Groq as the translation engine"
+ },
+ "groq.need_key": {
+  "fr": "Colle d'abord une clé API Groq valide.",
+  "en": "Paste a valid Groq API key first."
+ },
+ "groq.test_btn": {
+  "fr": "Tester",
+  "en": "Test"
+ },
+ "groq.testing": {
+  "fr": "Test en cours...",
+  "en": "Testing..."
+ },
+ "groq.test_ok": {
+  "fr": "Traduction test réussie : {result}",
+  "en": "Test translation OK: {result}"
+ },
+ "groq.test_fail": {
+  "fr": "Échec du test : {error}",
+  "en": "Test failed: {error}"
+ },
  "nllb.variant_use_tip": {
   "fr": "Utiliser cette variante pour la traduction (les deux peuvent être installées ; cocher la case ci-dessous active automatiquement la plus lourde si besoin).",
   "en": "Use this variant for translation (both can be installed; ticking the engine checkbox auto-selects the heaviest one if needed)."
@@ -6499,6 +6575,10 @@
   "fr": "NLLB (hors ligne)",
   "en": "NLLB (offline)"
  },
+ "argos.engine_name_groq": {
+  "fr": "Groq (en ligne)",
+  "en": "Groq (online)"
+ },
  "menu.options.engine_sub": {
   "fr": "Moteur de traduction",
   "en": "Translation engine"
@@ -6522,6 +6602,22 @@
  "menu.options.engine_nllb.tip_variant": {
   "fr": "NLLB (hors ligne, IA) — variante utilisée : {variant}",
   "en": "NLLB (offline, AI) — active variant: {variant}"
+ },
+ "menu.options.engine_groq": {
+  "fr": "Groq (en ligne, IA)",
+  "en": "Groq (online, AI)"
+ },
+ "menu.options.engine_groq.tip_variant": {
+  "fr": "Groq (en ligne, IA) — modèle : {model}",
+  "en": "Groq (online, AI) — model: {model}"
+ },
+ "menu.options.engine_groq.tip_none": {
+  "fr": "Aucune clé API Groq configurée : ouvre « Traduction IA Groq (en ligne)... » pour créer ton compte et ta clé (gratuit).",
+  "en": "No Groq API key configured yet: open \"Groq AI translation (online)...\" to create your account and key (free)."
+ },
+ "menu.options.groq": {
+  "fr": "Traduction IA Groq (en ligne)...",
+  "en": "Groq AI translation (online)..."
  },
  "menu.options.argos_engine": {
   "fr": "Traduction hors ligne (Argos)",

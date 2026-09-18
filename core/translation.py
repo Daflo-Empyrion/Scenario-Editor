@@ -213,6 +213,36 @@ def _clean_argos_entities(s: str) -> str:
     return _ARGOS_ENTITY_RE.sub(lambda m: chr(int(m.group(1))), s)
 
 
+_TOKEN_SCAN_RE = re.compile(r"X{1,3}\s*TAG\s*(\d+)\s*X{1,3}", re.IGNORECASE)
+
+
+def _token_sequence(text: str) -> list:
+    """Indices des jetons XXTAGnXX presents dans le texte (tolerant casse et
+    espaces que le moteur peut inserer autour)."""
+    return [int(n) for n in _TOKEN_SCAN_RE.findall(text)]
+
+
+def _translate_llm_whole_cell(gtext: str, source: str, target: str,
+                              translate_whole, translate_fn) -> str:
+    """Mode CELLULE ENTIERE pour les moteurs LLM (18/09/2026) : UNE requete
+    par cellule -- le texte entier, protege en jetons XXTAG (balises,
+    nombres, placeholders), part d'un bloc. Coherence linguistique (le
+    modele voit la phrase complete), requetes et consigne systeme uniques.
+
+    Squelette verifie : la sequence de jetons de la reponse doit etre
+    EXACTEMENT celle de l'entree (meme count, meme ordre) ; sinon REPLI
+    automatique sur le pipeline fragments pour cette cellule -- jamais de
+    fichier corrompu. Les erreurs API (quota, reseau, cle) remontent : l'UI
+    les affiche avec le delai."""
+    protected, segments = protect_segments(gtext)
+    expected = list(range(len(segments)))
+    translated = translate_whole(protected, target)
+    if _token_sequence(translated) != expected:
+        return _translate_offline_fragments(gtext, source, target,
+                                            translate_fn=translate_fn)
+    return restore_segments(translated, segments)
+
+
 def _translate_offline_fragments(text: str, source: str, target: str,
                                  translate_fn=None) -> str:
     """Pipeline en DEUX temps (approche "Google" : on n'envoie au moteur
@@ -383,6 +413,20 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
             "traduire aux serveurs Google -- voir PRIVACY.md. Reactive-la "
             "dans le menu Options si tu veux t'en servir."
         )
+
+    if engine == "groq":
+        # LLM EN LIGNE (Groq Inc. + fournisseur du modele) : place APRES la
+        # garde de confidentialite, comme Google -- la case "Traduction en
+        # ligne" autorise/bloque aussi ce moteur. Mode CELLULE ENTIERE
+        # (18/09/2026) : UNE requete par cellule avec le texte protege en
+        # jetons (coherence linguistique, economie de requetes), squelette
+        # verifie et repli fragments par cellule si le LLM ecarte un jeton.
+        from . import groq_provider
+        groq_result = _translate_llm_whole_cell(
+            gtext, source, target,
+            translate_whole=groq_provider.translate_whole,
+            translate_fn=groq_provider.translate)
+        return glossary.restore_glossary(groq_result, gloss_replacements)
 
     protected, segments = protect_segments(gtext)
 

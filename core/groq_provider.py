@@ -1,0 +1,286 @@
+# Empyrion Scenario Editor
+# Copyright (C) 2026  Daflo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
+Moteur de traduction GROQ (api.groq.com) -- LLM en ligne compatible OpenAI
+(tier gratuit permanent, plafonne en debit : ~30 req/min et un plafond
+journalier de tokens selon le modele).
+
+Utilise le modele settings.get_groq_model() (defaut : qwen/qwen3.8-27b,
+SANS raisonnement -- le meilleur rapport qualite/vitesse/tokens teste le
+17/09/2026 ; les gpt-oss consomment des tokens de raisonnement sauf
+reasoning_effort='low').
+
+Recoit les FRAGMENTS de texte libre du pipeline (core/translation.py : les
+balises, nombres et placeholders ne partent jamais au moteur). La consigne
+systeme fixe le ton (localisateur de jeu) et la langue cible.
+
+ATTENTION EN-TETE : sans User-Agent, certaines passerelles (Cloudflare)
+bloquent la requete avant l'API (vecu reel sur Felo, 17/09/2026).
+"""
+import json
+import re
+import threading
+import time
+import urllib.error
+import urllib.request
+from typing import Optional
+
+from . import settings
+from .i18n import t
+
+BASE = "https://api.groq.com/openai/v1"
+# models listes dans le combo de l'assistant (editable : le catalogue evolue)
+KNOWN_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+
+# TIER GRATUIT (modeles texte, doc console.groq.com/docs/rate-limits) :
+# 30 requetes/min, 1 000 requetes/jour, 8 000 tokens/min, 200 000
+# tokens/jour. Cooldown client : espace les appels d'au moins
+# MIN_INTERVAL_S pour rester sous les 30 RPM avec marge (0 = desactive,
+# utilise par les tests).
+MIN_INTERVAL_S = 2.2
+
+_THROTTLE_LOCK = threading.Lock()
+_last_call: float = 0.0
+_cooldown_until: float = 0.0
+_last_limits: Optional[dict] = None  # en-tetes x-ratelimit de la derniere reponse
+
+_RESET_RE = re.compile(r"(?:(?P<m>[\d.]+)m)?(?:(?P<s>[\d.]+)s)?")
+
+
+def _parse_duration(s: str) -> float:
+    """'2m59.56s' -> 179.56 ; '7.66s' -> 7.66 ; '6m0s' -> 360."""
+    m = _RESET_RE.fullmatch((s or "").strip())
+    if not m:
+        return 0.0
+    return float(m.group("m") or 0) * 60 + float(m.group("s") or 0)
+
+
+def _fmt_duration(seconds: float) -> str:
+    seconds = max(1, round(seconds))
+    minutes, sec = divmod(seconds, 60)
+    return f"{minutes}m{sec:02d}s" if minutes else f"{sec}s"
+
+
+def _throttle() -> None:
+    """Espace les appels d'au moins MIN_INTERVAL_S et respecte le cooldown
+    pose par un 429 (retry-after) -- le tier gratuit est plafonne en
+    requetes/minute ET tokens/minute. Sommeil sous verrou : les appels Groq
+    sont sequentiels (worker batch), jamais concurrents en pratique."""
+    global _last_call
+    with _THROTTLE_LOCK:
+        while True:
+            now = time.monotonic()
+            wait = max(_cooldown_until - now,
+                       _last_call + MIN_INTERVAL_S - now, 0.0)
+            if wait <= 0:
+                break
+            time.sleep(min(wait, 1.0))
+            if wait > 1.0:  # reevaluer le cooldown (il ne diminue pas, mais
+                continue     # restons simple et re-boucler)
+        _last_call = time.monotonic()
+
+
+def _capture_limits(resp) -> None:
+    """Memorise les en-tetes x-ratelimit de la reponse pour l'affichage
+    (compteur de la barre de progression, demande 18/09/2026)."""
+    global _last_limits
+    h = resp.headers
+    _last_limits = {
+        "limit_requests": h.get("x-ratelimit-limit-requests", ""),
+        "limit_tokens": h.get("x-ratelimit-limit-tokens", ""),
+        "requests_remaining": h.get("x-ratelimit-remaining-requests", ""),
+        "tokens_remaining": h.get("x-ratelimit-remaining-tokens", ""),
+        "reset": h.get("x-ratelimit-reset-tokens",
+                       h.get("x-ratelimit-reset-requests", "")),
+    }
+
+
+def limits_text() -> str:
+    """Suffixe d'interface (barre de progression) : requetes/tokens
+    restants d'apres la derniere reponse Groq. Chaine vide si aucune
+    information (autre moteur, ou pas encore d'appel)."""
+    if not _last_limits:
+        return ""
+    return "  -- " + t("groq.limits_text",
+                       requests=_last_limits.get("requests_remaining", "?"),
+                       tokens=_last_limits.get("tokens_remaining", "?"),
+                       reset=_last_limits.get("reset", "?"))
+
+# noms anglais pour la consigne de traduction (codes courants du jeu)
+_LANG_NAMES = {
+    "en": "English", "fr": "French", "de": "German", "es": "Spanish",
+    "it": "Italian", "pt": "Portuguese", "ru": "Russian", "pl": "Polish",
+    "ja": "Japanese", "zh": "Chinese", "ko": "Korean", "tr": "Turkish",
+    "nl": "Dutch", "uk": "Ukrainian", "cs": "Czech",
+}
+
+_SYSTEM_TEMPLATE = (
+    "You are a professional video game localizer. Translate the user's text "
+    "into {lang}. Reply with ONLY the translation, no quotes, no notes. "
+    "Preserve the meaning and a concise military/space-opera tone.")
+
+_WHOLE_SYSTEM_TEMPLATE = (
+    "You are a professional video game localizer. Translate the user's text "
+    "into {lang}. The text contains placeholders like XXTAG0XX, XXTAG1XX "
+    "(they stand for game formatting tags, numbers and variables). Translate "
+    "ONLY the words between them: never translate, move, rename, duplicate "
+    "or drop a XXTAG token -- keep every token exactly as written, in the "
+    "same order. Reply with ONLY the translation, no quotes, no notes. "
+    "Preserve line breaks and a concise military/space-opera tone.")
+
+
+def _lang_name(target_code: str) -> str:
+    return _LANG_NAMES.get((target_code or "").lower(),
+                           f"language code '{target_code}'")
+
+
+def is_configured() -> bool:
+    """Vrai si une cle API est enregistree (test sans reseau)."""
+    return bool(settings.get_groq_api_key())
+
+
+def _post(payload: dict, timeout: float = 60.0) -> dict:
+    req = urllib.request.Request(
+        BASE + "/chat/completions", method="POST",
+        headers={"Authorization": f"Bearer {settings.get_groq_api_key()}",
+                 "Content-Type": "application/json",
+                 # SANS User-Agent : blocage Cloudflare 1010 avant l'API
+                 "User-Agent": "EmpyrionScenarioEditor"},
+        data=json.dumps(payload).encode("utf-8"))
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        _capture_limits(r)
+        return json.loads(r.read())
+
+
+def list_models() -> list:
+    """Modeles disponibles pour cette cle ( appel /models reel) ; liste de
+    secours = KNOWN_MODELS si l'appel echoue. Les modeles non-texte
+    (audio, moderation, agentique) sont filtres."""
+    try:
+        req = urllib.request.Request(
+            BASE + "/models",
+            headers={"Authorization": f"Bearer {settings.get_groq_api_key()}",
+                     "User-Agent": "EmpyrionScenarioEditor"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
+        skip = ("whisper", "guard", "compound", "orpheus", "allam", "tts")
+        ids = sorted(m["id"] for m in data.get("data", [])
+                     if not any(s in m["id"] for s in skip))
+        return ids or list(KNOWN_MODELS)
+    except Exception:
+        return list(KNOWN_MODELS)
+
+
+def _chat(payload: dict) -> str:
+    """POST /chat/completions avec throttle/cooldown et erreurs explicites.
+    Retourne le contenu du message reponse."""
+    if not is_configured():
+        raise RuntimeError("Aucune cle API Groq configuree (Options > "
+                           "Traduction > Traduction IA Groq).")
+    _throttle()
+    try:
+        data = _post(payload)
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            body = json.loads(e.read().decode(errors="replace"))
+            detail = body.get("error", {}).get("message", "")
+        except Exception:
+            pass
+        if e.code in (401, 403):
+            raise RuntimeError(f"Cle API Groq refusee ({e.code}). {detail}")
+        if e.code == 402:
+            raise RuntimeError(f"Quota Groq epuise. {detail}")
+        if e.code == 429:
+            # Depassement du tier gratuit : calculer le delai (retry-after
+            # en secondes, sinon en-tete reset au format '2m59.56s'), poser
+            # un cooldown LOCAL pour que les fragments suivants attendent
+            # automatiquement, et l'annoncer dans l'erreur affichee par la
+            # revue (demande 18/09/2026 : le temps a attendre pour relancer).
+            h = e.headers or {}
+            delay = 0.0
+            retry_after = h.get("retry-after")
+            if retry_after:
+                try:
+                    delay = float(retry_after)
+                except ValueError:
+                    delay = 0.0
+            if delay <= 0:
+                delay = max(_parse_duration(h.get("x-ratelimit-reset-tokens",
+                                                  "")),
+                            _parse_duration(h.get("x-ratelimit-reset-requests",
+                                                  "")))
+            if delay > 0:
+                global _cooldown_until
+                with _THROTTLE_LOCK:
+                    _cooldown_until = time.monotonic() + delay + 1.0
+                raise RuntimeError(t("groq.rate_limited",
+                                     delay=_fmt_duration(delay)))
+            raise RuntimeError("Limite de debit Groq atteinte (tier "
+                               "gratuit) -- reessaie plus tard.")
+        raise RuntimeError(f"Erreur Groq {e.code}. {detail}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise RuntimeError(f"Reseau indisponible pour Groq : {e}")
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as e:
+        raise RuntimeError(f"Reponse Groq inattendue : {e}")
+
+
+def translate(text: str, source_code: str, target_code: str) -> str:
+    """Traduit un FRAGMENT de texte libre (le pipeline en amont a deja
+    protege balises/nombres/placeholders). Leve RuntimeError avec un
+    message clair si la cle est invalide, le quota epuise ou le reseau
+    indisponible."""
+    payload = {
+        "model": settings.get_groq_model(),
+        "temperature": 0.2,  # sobre : consistence sans figer le style
+        "messages": [
+            {"role": "system",
+             "content": _SYSTEM_TEMPLATE.format(lang=_lang_name(target_code))},
+            {"role": "user", "content": text},
+        ],
+    }
+    return _chat(payload)
+
+
+def translate_whole(protected_text: str, target_code: str) -> str:
+    """Mode CELLULE ENTIERE (demande 18/09/2026) : traduit un texte protege
+    par jetons XXTAGnXX en UNE requete au lieu d'un appel par fragment --
+    coherence linguistique (le modele voit la phrase complete), requetes et
+    consigne systeme uniques. La coherence STRUCTURELLE (sequence de jetons)
+    est verifiee par core/translation.py, qui retombe sur le pipeline
+    fragments pour cette cellule si le LLM a ecarte ou bave un jeton."""
+    payload = {
+        "model": settings.get_groq_model(),
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system",
+             "content": _WHOLE_SYSTEM_TEMPLATE.format(
+                 lang=_lang_name(target_code))},
+            {"role": "user", "content": protected_text},
+        ],
+    }
+    return _chat(payload)
+
+
+def quick_check() -> str:
+    """Test reel utilise par l'assistant : traduit une phrase courte et
+    retourne le texte + le modele pour affichage. RuntimeError si echoue."""
+    model = settings.get_groq_model()
+    out = translate("The generators are overloaded.", "en", "fr")
+    return f"[{model}] {out}"

@@ -304,9 +304,12 @@ class MainWindow(QMainWindow):
             t("menu.options.engine_argos"))
         self.action_engine_nllb = self.menu_engine.addAction(
             t("menu.options.engine_nllb"))
+        self.action_engine_groq = self.menu_engine.addAction(
+            t("menu.options.engine_groq"))
         for engine_id, action in (("google", self.action_engine_google),
                                   ("argos", self.action_engine_argos),
-                                  ("nllb", self.action_engine_nllb)):
+                                  ("nllb", self.action_engine_nllb),
+                                  ("groq", self.action_engine_groq)):
             action.setCheckable(True)
             action.setChecked(engine_id == current_engine)
             action.triggered.connect(
@@ -321,6 +324,8 @@ class MainWindow(QMainWindow):
         self.action_argos.triggered.connect(self._open_argos_setup)
         self.action_nllb = self.menu_translation.addAction(t("menu.options.nllb"))
         self.action_nllb.triggered.connect(self._open_nllb_setup)
+        self.action_groq = self.menu_translation.addAction(t("menu.options.groq"))
+        self.action_groq.triggered.connect(self._open_groq_setup)
         self.action_glossary = self.menu_translation.addAction(t("menu.options.glossary"))
         self.action_glossary.triggered.connect(self._open_glossary)
         self.action_vanilla_content = self.menu_translation.addAction(
@@ -641,6 +646,7 @@ class MainWindow(QMainWindow):
         self.action_default_language.setText(t("menu.options.default_language"))
         self.action_argos.setText(t("menu.options.argos"))
         self.action_nllb.setText(t("menu.options.nllb"))
+        self.action_groq.setText(t("menu.options.groq"))
         self.action_glossary.setText(t("menu.options.glossary"))
         self.action_vanilla_content.setText(t("menu.options.vanilla_content"))
         self.menu_interface.setTitle(t("menu.options.interface_sub"))
@@ -1550,11 +1556,20 @@ class MainWindow(QMainWindow):
             t("menu.options.engine_nllb.tip_variant",
               variant=settings.get_nllb_variant()) if has_nllb
             else t("menu.options.engine_nllb.tip_none"))
+        # Groq : disponible si une cle API est enregistree (test sans reseau)
+        from core import groq_provider
+        has_groq = groq_provider.is_configured()
+        self.action_engine_groq.setEnabled(has_groq)
+        self.action_engine_groq.setToolTip(
+            t("menu.options.engine_groq.tip_variant",
+              model=settings.get_groq_model()) if has_groq
+            else t("menu.options.engine_groq.tip_none"))
         # triggered n'est emis que par un clic utilisateur : pas besoin de
         # bloquer les signaux pour synchroniser l'affichage
         self.action_engine_google.setChecked(engine == "google")
         self.action_engine_argos.setChecked(has_models and engine == "argos")
         self.action_engine_nllb.setChecked(has_nllb and engine == "nllb")
+        self.action_engine_groq.setChecked(has_groq and engine == "groq")
 
     def _switch_translation_engine(self, engine_id: str):
         """Choix radio du sous-menu Moteur : persiste et signale en barre
@@ -1563,7 +1578,8 @@ class MainWindow(QMainWindow):
         set_translation_engine(engine_id)
         name_key = {"google": "argos.engine_name_google",
                     "argos": "argos.engine_name_argos",
-                    "nllb": "argos.engine_name_nllb"}[engine_id]
+                    "nllb": "argos.engine_name_nllb",
+                    "groq": "argos.engine_name_groq"}[engine_id]
         self.statusBar().showMessage(
             t("argos.engine_switched", engine=t(name_key)), 8000)
 
@@ -1588,6 +1604,14 @@ class MainWindow(QMainWindow):
         from gui.nllb_setup_dialog import NllbSetupDialog
         self._nllb_dialog = NllbSetupDialog(self)
         self._nllb_dialog.show()
+
+    def _open_groq_setup(self):
+        """Assistant du moteur GROQ (LLM en ligne compatible OpenAI, tier
+        gratuit permanent) : creation de compte/cle avec liens cliquables,
+        choix du modele et test -- demande du 18/09/2026."""
+        from gui.groq_setup_dialog import GroqSetupDialog
+        self._groq_dialog = GroqSetupDialog(self)
+        self._groq_dialog.show()
 
     def _set_extra_icons_dialog(self):
         """Dossier d'icones supplementaires (icones de MODS, ex RE2) : fusionne

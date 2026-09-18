@@ -9,9 +9,10 @@ integralement en local sur ta machine, sur tes propres fichiers de scenario.
 Il ne collecte aucune donnee personnelle, aucune statistique d'usage, et ne
 transmet rien "en arriere-plan" a l'insu de l'utilisateur.
 
-Trois fonctionnalites precises effectuent des requetes reseau. Chacune est
-decrite ci-dessous avec exactement ce qui est envoye, quand, et comment la
-desactiver si tu le souhaites.
+Trois fonctionnalites precises effectuent des requetes reseau (quatre avec
+le moteur IA Groq optionnel). Chacune est decrite ci-dessous avec
+exactement ce qui est envoye, quand, et comment la desactiver si tu le
+souhaites.
 
 ### 1. Traduction en ligne (Google Translate)
 Quand tu utilises la fonction de traduction (bouton "Traduire" dans
@@ -31,7 +32,27 @@ fois.
   precedemment restent utilisables depuis la memoire locale, sans aucun
   appel reseau.
 
-### 2. Verification de nouvelle version (GitHub)
+### 2. Traduction IA Groq (en ligne, optionnel)
+Si tu configures et actives le moteur « Groq » (Options > Traduction >
+Traduction IA Groq), les fragments de texte a traduire sont envoyes a l'API
+de Groq Inc. (`api.groq.com`), qui les transmet au fournisseur du modele IA
+choisi (par defaut Qwen) afin d'obtenir la traduction. Les moteurs locaux
+Argos et NLLB, eux, n'envoient rien du tout : tout reste sur ta machine.
+
+- **Quoi** : uniquement les fragments de texte libre a traduire (les balises
+  du jeu, les nombres et les placeholders sont retires avant l'envoi ; la
+  memoire locale evite de renvoyer deux fois le meme texte)
+- **Quand** : uniquement quand tu lances une traduction avec le moteur Groq
+  actif ; aucune requete tant que tu n'as pas colle ta propre cle API
+- **Ou va ta cle API** : uniquement dans ta configuration locale
+  (`~/.empyrion_editor/settings.json`), jamais dans le depot ni envoyee a
+  qui que ce soit d'autre que Groq
+- **Comment desactiver** : choisis un autre moteur dans le sous-menu
+  Options > Traduction > Moteur de traduction, et/ou decoche Options >
+  Traduction en ligne -- cette case autorise ou bloque TOUS les moteurs
+  en ligne (Google comme Groq)
+
+### 3. Verification de nouvelle version (GitHub)
 Au demarrage, l'application interroge l'API publique de GitHub
 (`api.github.com`) pour savoir si une version plus recente a ete publiee.
 Cette requete ne contient aucune information personnelle -- uniquement une
@@ -44,7 +65,7 @@ reseau, pas specifique a ce logiciel).
 Cette verification echoue silencieusement si elle ne peut pas aboutir (pas
 de connexion, etc.) et n'empeche jamais l'application de demarrer.
 
-### 3. Bouton "Signaler"
+### 4. Bouton "Signaler"
 Le bouton "Signaler" (rapport de bug) n'envoie rien directement depuis
 l'application -- il ouvre ton navigateur systeme habituel sur une page
 GitHub Issues pre-remplie. L'envoi effectif ne se produit que si tu choisis
@@ -67,7 +88,7 @@ locally on your machine, on your own scenario files. It does not collect
 any personal data, does not track usage statistics, and never sends
 anything "in the background" without your knowledge.
 
-Three specific features make network requests. Each is described below
+Four specific features make network requests (five with the optional Groq AI engine). Each is described below
 with exactly what is sent, when, and how to disable it if you wish.
 
 ### 1. Online translation (Google Translate)
@@ -86,7 +107,28 @@ your own machine) so the same text is never sent twice.
   disabled, translations already obtained previously remain usable from
   the local memory, with no network call at all.
 
-### 2. New version check (GitHub)
+### 2. Groq AI translation (online, optional)
+If you configure and enable the "Groq" engine (Options > Translation >
+Groq AI translation), the text fragments to translate are sent to Groq
+Inc.'s API (`api.groq.com`), which forwards them to the provider of the
+selected AI model (Qwen by default) to obtain the translation. The local
+Argos and NLLB engines send nothing at all: everything stays on your
+machine.
+
+- **What**: only the free-text fragments to translate (game tags, numbers
+  and placeholders are stripped before sending; the local memory avoids
+  sending the same text twice)
+- **When**: only when you start a translation with the Groq engine active;
+  no request at all until you paste your own API key
+- **Where your API key goes**: only into your local configuration
+  (`~/.empyrion_editor/settings.json`), never into the repository and
+  never sent to anyone other than Groq
+- **How to disable**: pick another engine in the Options > Translation >
+  Translation engine submenu, and/or uncheck Options > Online
+  translation -- this checkbox allows or blocks ALL online engines
+  (Google as well as Groq)
+
+### 3. New version check (GitHub)
 On startup, the application queries GitHub's public API
 (`api.github.com`) to check whether a newer version has been published.
 This request contains no personal information -- just a standard "what is
@@ -99,7 +141,7 @@ specific to this software).
 This check fails silently if it cannot complete (no connection, etc.) and
 never prevents the application from starting.
 
-### 3. "Report" button
+### 4. "Report" button
 The "Report" (bug report) button does not send anything directly from the
 application -- it opens your regular system browser to a pre-filled
 GitHub Issues page. The report is only actually submitted if you then

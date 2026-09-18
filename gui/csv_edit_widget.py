@@ -1009,7 +1009,15 @@ class CsvEditWidget(QWidget):
 
         def _on_progress(index, total):
             progress.setValue(index)
-            progress.setLabelText(progress_text(index, total))
+            label = progress_text(index, total)
+            if settings.get_translation_engine() == "groq":
+                # Compteur de limites du tier gratuit Groq (demande du
+                # 18/09/2026) : requetes/tokens restants d'apres les
+                # en-tetes de la derniere reponse (vide pour les autres
+                # moteurs).
+                from core import groq_provider
+                label += groq_provider.limits_text()
+            progress.setLabelText(label)
 
         def _on_item_done(index, translated, error, source=""):
             failed = bool(error)

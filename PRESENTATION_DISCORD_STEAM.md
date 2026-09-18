@@ -1,7 +1,7 @@
 # Empyrion Scenario Editor — présentez votre scénario, pas vos fichiers
 
 > Fichier de présentation pour Discord (partie Markdown) et Steam (partie BBCode en bas).
-> À jour de la version **v1.6.1**.
+> À jour de la version **v1.7.0**.
 
 ---
 
@@ -11,19 +11,27 @@
 
 **Gratuit & open source (GPLv3) · Windows 10/11 · interface FR/EN**
 
-Empyrion Scenario Editor est un éditeur graphique complet pour les scénarios d'**Empyrion Galactic Survival** : blocs et objets, recettes, playfields, dialogues, arbres technologiques, localisation et missions PDA. Il travaille toujours sur une **copie de travail** : vos scénarios d'origine restent intacts, et un fichier non modifié est réécrit **à l'identique octet par octet** (parseurs fidèles, BOM et fins de ligne préservés).
+Empyrion Scenario Editor est un éditeur graphique complet pour les scénarios d'**Empyrion Galactic Survival** : blocs et objets, recettes, playfields, dialogues, missions PDA, économie des marchands, arbres technologiques et **localisation avec IA de traduction**. Il travaille toujours sur une **copie de travail** : vos scénarios d'origine restent intacts, et un fichier non modifié est réécrit **à l'identique octet par octet**.
+
+## 🌍 La traduction, réinventée
+- **4 moteurs au choix** : Google Translate, **Argos** et **NLLB (IA, Meta)** 100 % locaux — aucun texte ne quitte votre PC — et **Groq (IA en ligne)** avec tier gratuit permanent, compte créé en 3 clics depuis l'application
+- **Traductions officielles en vert** : les textes déjà présents dans la localisation du jeu (Localization, PDA, Dialogues) ressortent avec la traduction Eleon
+- **Mémoire intelligente** : ce que vous validez est retenu, jamais deux fois le même travail
+- **Glossaire terminologique** : imposez vos acronymes et noms propres
+- **Révisions sauvegardables** : contrôler 5 000 lignes ? Fermez et reprenez plus tard
+- **Grammalecte intégré** : orthographe et grammaire avant validation
+- Balises BBCode, `{placeholders}` et nombres **jamais déformés** par les moteurs
 
 ## Ce que vous pouvez faire
-- 🧱 **Blocs & objets (ECF)** — édition en listes déroulantes des valeurs déjà observées du fichier, ajout/suppression de blocs et de propriétés, duplication avec nouvel Id libre, transformation en masse (multiplier, ajouter, plafonner, arrondir…), désactivation/réactivation
-- 🗺️ **Playfields** — éditeur structuré (ressources, POI, créatures, drones, zones de spawn, effets), **carte 2D** avec déplacement des POI à la souris, **carte de la galaxie** (Sectors.yaml) éditable et annulable
-- ⚙️ **Recettes (Templates)** — création et ajustement guidés, ingrédients choisis par nom, propositions tirées des recettes existantes
-- 💬 **Dialogues.ecf** — navigateur dédié, édition des textes, détection des liens cassés avec correction assistée
-- 🌳 **Arbre technologique** — niveaux, coûts, parents et catégories éditables directement sur l'arbre, fiche d'info détaillée par item (descriptif, fabrication, déblocage, export Markdown)
-- 🌍 **Localisation (CSV)** — tableur complet avec **traduction intégrée** : mémoire persistante, protection des balises BBCode et des placeholders (`{PlayerName}`…)
-- 📋 **Missions PDA** — éditeur complet (chapitres, tâches, actions, récompenses, activations) + assistant de création en 3 étapes
-- ✅ **Vérifications** — références orphelines, références croisées entre fichiers, Id > 8192, doublons, virgules non protégées… le Centre de vérification (F5) lance tout d'un coup
-- 🛟 **Sécurité** — sauvegardes avant mise à jour, restauration avec backup de sécurité, enregistrement atomique, récupération après plantage, annulation globale
-- 🧪 **Protocole de test intégré** — 248 cas réécrits **pas à pas** pour les non-techniciens, traduits FR/EN, commandes copiables en un clic
+- 🧱 **Blocs & objets (ECF)** — listes déroulantes des valeurs du fichier, création guidée de blocs avec recette, **sélecteur d'items par catalogue instantané**, transformation en masse, duplication
+- 📋 **Missions PDA** — éditeur complet + assistant 3 étapes + **validation** calibrée sur le guide officiel et le contenu réel
+- 🗺️ **Playfields** — éditeur structuré, **carte 2D** (POI à la souris), **carte de la galaxie** éditable
+- 💰 **Économie des marchands** — prix, stocks et taux par station, avec vérification de cohérence
+- 💬 **Dialogues.ecf** — navigateur dédié, liens cassés détectés et corrigés
+- 🌳 **Arbre technologique** — niveaux, coûts et parents éditables sur l'arbre
+- ✅ **Vérifications** — références cassées, conflits d'Id, orphelins… le **Centre de vérification (F5)** lance tout
+- 🎨 **13 thèmes** dont les thèmes Relief nuit et clair, ombres et animations
+- 🛟 **Sécurité** — sauvegardes versionnées, restauration, enregistrement atomique, récupération après plantage, annulation globale
 
 ## Téléchargement
 ➡ **[Télécharger la dernière version](https://github.com/Daflo-Empyrion/Scenario-Editor/releases/latest)** — installeur Windows autonome (aucune dépendance, Python inutile). Fonctionne avec la vanille et les scénarios personnalisés (Reforged Eden 2, Atlantis…).
@@ -43,20 +51,30 @@ Empyrion Scenario Editor est un éditeur graphique complet pour les scénarios d
 [h1]Empyrion Scenario Editor — éditez vos scénarios Empyrion sans risque[/h1]
 [b]Gratuit et open source (GPLv3) — Windows 10/11 — interface FR/EN[/b]
 
-Empyrion Scenario Editor est un éditeur graphique complet pour les scénarios d'Empyrion Galactic Survival : blocs et objets, recettes, playfields, dialogues, arbres technologiques, localisation et missions PDA. Il travaille toujours sur une copie de travail : vos scénarios d'origine restent intacts, et un fichier non modifié est réécrit à l'identique octet par octet.
+Empyrion Scenario Editor est un éditeur graphique complet pour les scénarios d'Empyrion Galactic Survival : blocs et objets, recettes, playfields, missions PDA, économie des marchands, dialogues, arbres technologiques et localisation avec IA de traduction. Il travaille toujours sur une copie de travail : vos scénarios d'origine restent intacts, et un fichier non modifié est réécrit à l'identique octet par octet.
+
+[h2]🌍 La traduction, réinventée[/h2]
+[list]
+[*][b]4 moteurs au choix[/b] : Google Translate, Argos et NLLB (IA, Meta) 100 % locaux — aucun texte ne quitte votre PC — et Groq (IA en ligne) avec tier gratuit permanent, compte créé en 3 clics depuis l'application
+[*][b]Traductions officielles en vert[/b] : les textes déjà présents dans la localisation du jeu ressortent avec la traduction Eleon
+[*][b]Mémoire intelligente[/b] : ce que vous validez est retenu — jamais deux fois le même travail
+[*][b]Glossaire terminologique[/b] : vos acronymes et noms propres imposés partout
+[*][b]Révisions sauvegardables[/b] : contrôler 5 000 lignes se fait en plusieurs fois, fermez et reprenez plus tard
+[*][b]Grammalecte intégré[/b] : orthographe et grammaire vérifiées avant validation
+[*][b]Structures protégées[/b] : BBCode, {placeholders} et nombres jamais déformés par les moteurs
+[/list]
 
 [h2]Ce que vous pouvez faire[/h2]
 [list]
-[*][b]Blocs & objets (ECF)[/b] : listes déroulantes des valeurs observées, ajout/suppression de blocs et propriétés, duplication avec nouvel Id, transformation en masse, désactivation/réactivation
-[*][b]Playfields[/b] : éditeur structuré (ressources, POI, créatures, drones, zones de spawn, effets), carte 2D avec déplacement des POI à la souris, carte de la galaxie éditable
-[*][b]Recettes (Templates)[/b] : création et ajustement guidés, ingrédients choisis par nom
-[*][b]Dialogues.ecf[/b] : navigateur dédié, détection des liens cassés avec correction assistée
-[*][b]Arbre technologique[/b] : niveaux, coûts, parents et catégories éditables sur l'arbre, fiche d'info détaillée par item (export Markdown)
-[*][b]Localisation (CSV)[/b] : tableur complet, traduction intégrée avec mémoire et protection du BBCode/placeholder
-[*][b]Missions PDA[/b] : éditeur complet (chapitres, tâches, actions, récompenses) + assistant de création
-[*][b]Vérifications[/b] : références cassées, Id > 8192, doublons, virgules non protégées… tout en un clic (F5)
-[*][b]Sécurité[/b] : sauvegardes, restauration avec backup de sécurité, enregistrement atomique, récupération après plantage, annulation globale
-[*][b]Protocole de test intégré[/b] : 248 cas pas à pas FR/EN, commandes copiables en un clic
+[*][b]Blocs & objets (ECF)[/b] : listes déroulantes des valeurs observées, création guidée avec recette, sélecteur d'items par catalogue instantané, transformation en masse, duplication
+[*][b]Missions PDA[/b] : éditeur complet + assistant 3 étapes + validation calibrée sur le guide officiel et le contenu réel
+[*][b]Playfields[/b] : éditeur structuré, carte 2D (POI à la souris), carte de la galaxie éditable
+[*][b]Économie des marchands[/b] : prix, stocks et taux par station, avec vérification de cohérence
+[*][b]Dialogues.ecf[/b] : navigateur dédié, liens cassés détectés et corrigés
+[*][b]Arbre technologique[/b] : niveaux, coûts et parents éditables sur l'arbre, fiche d'info par item
+[*][b]Vérifications[/b] : références cassées, conflits d'Id, orphelins… le Centre de vérification (F5) lance tout
+[*][b]13 thèmes[/b] dont les thèmes Relief nuit et clair, avec ombres et animations
+[*][b]Sécurité[/b] : sauvegardes versionnées, restauration, enregistrement atomique, récupération après plantage, annulation globale
 [/list]
 
 [h2]Téléchargement[/h2]
@@ -72,10 +90,8 @@ Créé par Daflo — libre et gratuit, licence GPL-3.
 
 ## 📌 Mode d'emploi du fichier
 
-- **Discord** : copier le bloc Markdown ci-dessus (du titre `# Empyrion Scenario Editor` jusqu'à « licence GPL-3 »).
-  - Limite Discord : 2000 caractères par message (~4000 avec Nitro). Le bloc fait ~2900 caractères : deux solutions —
-    1. poster le titre + la 1re section dans un 1er message, le reste (à partir de « ## Téléchargement ») dans un 2e ;
-    2. ou l'utiliser dans un post de forum/salon d'annonces (1er message à 4000).
-- **Steam** : copier le bloc `[h1]…[/h1]` (la zone entre les triplets de backticks) et le coller tel quel dans une annonce, un commentaire de collecte ou le forum — Steam convertit le BBCode. Les URL cliquables passent par `[url=…]`.
-- **Mettre à jour la version** : remplacer « v1.6.1 » (2 occurrences dans le texte Discord, 1 dans le BBCode) à la prochaine release.
-- **Images** : sur les deux plateformes, une ou deux captures d'écran juste sous le titre augmentent beaucoup l'impact (suggestion : l'éditeur ECF avec la fiche d'info, et la carte 2D d'un playfield).
+- **Discord** : copier le bloc Markdown (du titre `# Empyrion Scenario Editor` jusqu'à « licence GPL-3 »).
+  - Limite Discord : 2000 caractères par message (~4000 avec Nitro). Le bloc dépasse 4000 caractères : le poster dans un **post de forum/salon d'annonces** (message long) ou le scinder — la section Traduction peut devenir un second message dédié (c'est le meilleur accroche de la version).
+- **Steam** : copier le bloc `[h1]…[/h1]` (entre les triplets de backticks) et le coller tel quel — Steam convertit le BBCode. Les URL cliquables passent par `[url=…]`.
+- **Mettre à jour la version** : remplacer « v1.7.0 » (1 occurrence Discord, 1 en tête de fichier) à la prochaine release.
+- **Images** : une ou deux captures juste sous le titre augmentent beaucoup l'impact (suggestions : l'éditeur ECF avec fiche d'info, la revue de traduction avec les lignes vertes « traductions officielles », la carte 2D d'un playfield).

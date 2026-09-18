@@ -4,71 +4,115 @@
   <img src="assets/icon_512.png" width="220" alt="Empyrion Scenario Editor">
 </p>
 
-[![License: GPLv3](assets/gplv3_badge.png)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![Release](https://img.shields.io/github/v/release/Daflo-Empyrion/Scenario-Editor)](https://github.com/Daflo-Empyrion/Scenario-Editor/releases/latest)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/Daflo-Empyrion/Scenario-Editor/releases/latest)
 
-Editeur graphique (PyQt6) pour la creation et modification de scenarios
-**Empyrion Galactic Survival** — edition des fichiers `.ecf`, `.yaml` et `.csv`,
-fusion assistee entre scenarios, traduction automatique, verification de
-references, et un module dedie a l'edition structuree des playfields. Voir
-`docs/wiki_app_fr.md` (ou `_en.md`, accessible aussi depuis le menu Aide de
-l'application) pour la documentation complete des fonctionnalites.
+Editeur graphique (PyQt6) pour la creation et la modification de scenarios
+**Empyrion Galactic Survival** : blocs et objets (ECF), recettes, playfields,
+missions PDA, economie des marchands, arbres technologiques, dialogues et
+localisation — avec une suite de traduction complete (IA locale ou en ligne),
+des verifications de coherence et un systeme de securite qui preserve tes
+scenarios d'origine. Voir `wiki_app_fr.md` (ou `wiki_app_en.md`, accessibles
+aussi depuis le menu Aide de l'application) pour la documentation complete.
 
-## Fonctionnalites principales
+## Fonctionnalites
 
-### Edition ECF
-- Arbre de navigation par blocs, recherche, filtrage par propriete
-- Mode tableau automatique pour les structures repetitives
-- **Creation guidee de bloc/item** : choix Id+Name ou Name seul, tableau de
-  proprietes issues du fichier lui-meme (valeurs suggerees par menu
-  deroulant), proposition automatique de creer le Template (recette de
-  craft) associe
+### Edition ECF (blocs et objets)
+- Arbre de navigation par blocs, recherche, filtrage par propriete, **fiche
+  d'info detaillee** par item (descriptif, fabrication, deblocage, export
+  Markdown) avec edition inline
+- Mode tableau automatique pour les structures repetitives (Child Items,
+  LootGroups...)
+- **Creation guidee de bloc/item** : choix Id+Name ou Name seul, proprietes
+  issues du fichier lui-meme (valeurs suggerees en liste deroulante),
+  proposition automatique du Template (recette de craft) associe
+- **Selecteur d'items par catalogue** sur toutes les cles qui referencent un
+  item (conteneurs, loot, recettes, marchands...) — catalogue quasi
+  instantane, dedoublonne scenario > vanille
 - **Transformation en masse** : multiplier/ajouter/fixer/plafonner/arrondir
-  une propriete sur plusieurs blocs a la fois, avec tableau de revue editable
-- Fusion intelligente entre scenarios avec garde-fou anti-collision
-- **Verification de references croisees et de regles metier** : items/blocs
-  references, jetons, dialogues, heritage Ref, limite d'Id du jeu, doublons
-  — fenetres non modales avec actualisation et export
+  une propriete sur plusieurs blocs a la fois, avec revue editable
+- Duplication avec reecriture automatique des references internes
+- Fusion intelligente entre scenarios, avec apercu modifiable et garde-fou
+  anti-collision
+- Comparaison de scenarios A/B, fichiers modifies en un coup d'oeil
 
-### Edition de playfields (YAML) — module dedie
-Tout fichier `playfield*.yaml` ou `space*.yaml` s'ouvre avec un editeur
-structure a 8 onglets (Carte 2D, Ressources, POI, Creatures, Drones/Vaisseaux,
-Zones de spawn, Effets speciaux, YAML complet) plutot que du texte brut —
-tableaux avec ajout/suppression pour les ressources (liste deroulante peuplee
-depuis les vrais blocs du scenario), modification en tableau pour les autres
-sections, colonnes speciales (Biome pour les creatures, RegenAfter pour les
-POI/ressources spatiales).
+### Missions PDA
+- Editeur complet : chapitres, taches, actions, recompenses, activations
+- Assistant de creation de mission en 3 etapes
+- **Validation du PDA** basee sur le guide officiel, calibree sur le contenu
+  reel (vanille, Reforged Eden 2, Atlantis) : erreurs et avertissements
+  navigables par double-clic
 
-- **Carte 2D** — vue du dessus des entites positionnables d'un playfield
-  (POI fixes deplacables par glisser-depose, points de depart joueur,
-  patrouilles de drones...), filtres, zoom
-- **Inspecteur de POI** — statistiques de drones estimes par POI et par
-  faction, fenetre non modale avec export
-- **Carte de la galaxie** (`Sectors.yaml`) — systemes solaires du scenario,
-  positions reelles, curseur d'inclinaison pour separer les systemes proches
-  en X/Z mais distants en hauteur
+### Traduction (le gros morceau)
+- **Moteurs multiples au choix** :
+  - **NLLB (IA, Meta)** — 100 % local, aucun texte ne quitte le poste,
+    variantes 600M / 1.3B installables depuis l'application
+  - **Argos** — 100 % local, leger, installe en un clic
+  - **Groq (IA en ligne)** — tier gratuit permanent, compte et cle crees en
+    3 clics via l'assistant, compteur de quota en direct
+  - **Google Translate** — sans cle API
+- **Traductions officielles du jeu en vert** : les textes identiques a la
+  localisation Eleon (Localization.csv, PDA.csv, Dialogues.csv de la
+  vanille) sont traduits avec les textes officiels et marques visuellement
+- **Memoires de traduction** : ce que tu valides est retenu (jamais deux
+  fois le meme travail) ; memoire officielle consultee en repli
+- **Glossaire terminologique** : impose tes traductions d'acronymes et de
+  noms propres, auto-alimente par les cellules courtes validees
+- **Revisions interruptibles** : controler 5 000 lignes se fait en plusieurs
+  fois — quitte la revue a tout moment, tout est sauvegarde et propose a la
+  reprise
+- **Correcteur orthographe/grammaire Grammalecte** integre (cellule,
+  colonne ou fichier entier)
+- **Protection des structures** : balises BBCode, placeholders
+  ({PlayerName}...), nombres et termes du glossaire ne sont jamais deformes
+  par les moteurs
+- Confidentialite maitrisee : les moteurs locaux n'envoient rien du tout ;
+  la traduction en ligne est desactivable d'une case (voir `PRIVACY.md`)
 
-### Traduction et CSV
-- Traduction automatique (Google Translate, sans cle API) avec protection du
-  BBCode/placeholders et memoire de traduction locale — desactivable
-  entierement dans les options (voir `PRIVACY.md`)
-- Edition CSV (tables de localisation) avec recherche/remplacement cible
+### Playfields et galaxie (YAML)
+- Editeur structure a 8 onglets (ressources, POI, creatures, drones,
+  zones de spawn, effets...) au lieu du texte brut
+- **Carte 2D** : POI deplacables a la souris, points de depart, patrouilles,
+  zoom et filtres
+- **Inspecteur de POI** : statistiques de drones par POI et par faction
+- **Carte de la galaxie** (Sectors.yaml) : systemes solaires editables,
+  curseur d'inclinaison pour separer les systemes proches en X/Z
+
+### Economie des marchands
+- Editeur dedie : prix, stocks, taux de rachat, par station et par faction
+- Verification de coherence integree (menu Verification)
+
+### Verifications
+- Referencess, references croisees entre fichiers, blocs en attente (conflits
+  d'Id), economie, jetons orphelins, validation PDA
+- **Centre de verification (F5)** : tout d'un coup, avec compteurs
+
+### Securite
+- Travail sur **copie de travail** : tes scenarios d'origine restent intacts
+- Fichier non modifie reecrit **a l'identique octet par octet** (BOM et fins
+  de ligne preserves)
+- Sauvegardes versionnees avant mise a jour, restauration avec backup de
+  securite, enregistrement atomique, recuperation apres plantage,
+  annulation globale
 
 ### Et aussi
-- Comparaison de scenarios, extraction de proprietes en glossaire CSV
-- Sauvegardes de scenario et de parties
-- Tutoriels integres et wikis bilingues (FR/EN), consultables dans l'appli
-- Bouton "Signaler" integre (rapport de bug pre-rempli vers GitHub Issues)
+- 13 themes visuels dont les themes Relief (nuit et clair), interface
+  Fluent optionnelle
+- Tutoriels integres pas-a-pas et wikis bilingues FR/EN consultables dans
+  l'application
+- Protocole de test manuel integre (260 cas FR/EN, commandes copiables)
+- Bouton "Signaler" (rapport de bug pre-rempli vers GitHub Issues)
 - Verification automatique de nouvelle version au demarrage
 - Outils en ligne de commande (`EmpyrionEditorCLI.exe`) pour les memes
-  operations en scripts/automatisation
+  operations en scripts
 
 ## Installation
 
-Deux facons d'utiliser l'application :
-
-1. **Installeur Windows** (recommande pour un usage courant) : telecharge
+1. **Installeur Windows** (recommande) : telecharge
    `Setup-EmpyrionScenarioEditor-vX.X.X.exe` depuis la page
-   [Releases](https://github.com/Daflo-Empyrion/Scenario-Editor/releases)
+   [Releases](https://github.com/Daflo-Empyrion/Scenario-Editor/releases/latest)
+   — installeur autonome, aucune dependance ni Python requis
 2. **Depuis les sources** (pour developper) :
    ```bash
    python -m venv venv
@@ -77,19 +121,20 @@ Deux facons d'utiliser l'application :
    python run_gui.py
    ```
 
+Fonctionne avec la vanille et les scenarios personnalises (Reforged Eden 2,
+Atlantis...).
+
 ## Construire l'installeur
 
-Voir [`BUILD.md`](BUILD.md) pour la procedure complete (PyInstaller + Inno
-Setup), y compris la construction automatisee via GitHub Actions a chaque
-tag pousse.
+Voir [`BUILD.md`](BUILD.md) : PyInstaller + Inno Setup en local, ou
+construction automatisee par GitHub Actions a chaque tag pousse.
 
 ## A propos des avertissements antivirus
 
-Windows SmartScreen ou ton antivirus peuvent signaler l'installeur au premier
-lancement — c'est un faux positif connu, courant sur les executables Python
-non signes numeriquement. Voir `BUILD.md` (section "Faux positifs
-antivirus") pour le detail et les liens de signalement aux editeurs
-concernes. Le code source est integralement disponible dans ce depot.
+Windows SmartScreen ou ton antivirus peuvent signaler l'installeur au
+premier lancement — faux positif connu, courant sur les executables Python
+non signes numeriquement. Le code source est integralement disponible dans
+ce depot (voir `BUILD.md` pour le detail).
 
 ## Politique de signature de code / Code Signing Policy
 
@@ -102,7 +147,8 @@ Foundation (application pending).*
   (mainteneur unique de ce projet a ce jour)
 - **Politique de confidentialite / Privacy policy** : voir [`PRIVACY.md`](PRIVACY.md)
   pour le detail exact de ce qui est envoye sur le reseau, quand, et comment
-  le desactiver.
+  le desactiver. En resume : tout est local, sauf la traduction en ligne que
+  tu choisis explicitement d'activer.
 
 ## Signaler un bug ou proposer une amelioration
 
