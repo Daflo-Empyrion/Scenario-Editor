@@ -26,7 +26,7 @@ Azure etait trop complique). La cle est stockee dans settings.json LOCAL
 """
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QVBoxLayout,
+    QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
 from core import groq_provider, settings
@@ -88,6 +88,19 @@ class GroqSetupDialog(QDialog):
         self.model_combo.currentTextChanged.connect(self._set_model)
         model_row.addWidget(self.model_combo, 1)
         layout.addLayout(model_row)
+
+        # Style / ton (demande du backlog 18/09/2026) : consigne libre
+        # injectee dans la consigne systeme de CHAQUE requete (fragments,
+        # cellule entiere et lots). Vide = consigne par defaut.
+        style_label = QLabel(t("groq.style_label"))
+        layout.addWidget(style_label)
+        self.style_edit = QPlainTextEdit()
+        self.style_edit.setPlaceholderText(t("groq.style_placeholder"))
+        self.style_edit.setToolTip(t("groq.style_tip"))
+        self.style_edit.setPlainText(settings.get_groq_style())
+        self.style_edit.setFixedHeight(56)
+        self.style_edit.textChanged.connect(self._set_style)
+        layout.addWidget(self.style_edit)
 
         self.use_check = QCheckBox(t("groq.use_as_engine"))
         self.use_check.toggled.connect(self._toggle_engine)
@@ -164,6 +177,9 @@ class GroqSetupDialog(QDialog):
         model = (model or "").strip()
         if model:
             settings.set_groq_model(model)
+
+    def _set_style(self) -> None:
+        settings.set_groq_style(self.style_edit.toPlainText())
 
     def _toggle_engine(self, checked: bool) -> None:
         if checked and not groq_provider.is_configured():

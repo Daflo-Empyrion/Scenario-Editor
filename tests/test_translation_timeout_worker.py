@@ -93,6 +93,17 @@ def test_translate_text_propagates_translator_error(offline_env, monkeypatch):
 # BatchTranslationWorker
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _classic_engine(monkeypatch):
+    """Moteur force a 'google' pour TOUS les tests du worker : sur une
+    machine de dev configuree groq+lots, le worker partirait sinon sur le
+    chemin lots (translate_batch_with_source, non mocke ici) et ces tests
+    feraient des appels reels (piege documente : ne jamais supposer les
+    reglages reels). Le chemin lots a ses tests dans test_translation_batch."""
+    monkeypatch.setattr('core.settings.get_translation_engine',
+                        lambda: 'google')
+
+
 def test_worker_translates_all_texts_and_signals(qapp, monkeypatch):
     from gui.translation_worker import BatchTranslationWorker
     monkeypatch.setattr(translation, 'translate_text_with_source',

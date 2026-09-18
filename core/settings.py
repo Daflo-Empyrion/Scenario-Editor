@@ -259,6 +259,31 @@ def set_groq_model(model: str) -> None:
     _set('groq_model', (model or '').strip())
 
 
+def get_groq_batch_enabled() -> bool:
+    """Mode LOTS du moteur Groq (v1.8.0) : plusieurs cellules traduites par
+    requete au lieu d'une par appel (tier gratuit plafonne en debit :
+    ~30 req/min) -- True par defaut, desactivable dans Options >
+    Traduction. Le squelette de jetons de CHAQUE cellule reste verifie :
+    une cellule deviante repasse en mode cellule entiere."""
+    return _get('groq_batch_enabled', True)
+
+
+def set_groq_batch_enabled(enabled: bool) -> None:
+    _set('groq_batch_enabled', enabled)
+
+
+def get_groq_style() -> str:
+    """Conseigne de style/ton libre (registre, tutoiement, terminologie...)
+    injectee dans la consigne systeme envoyee au modele Groq (demande du
+    backlog 18/09/2026). Vide = consigne par defaut (localisateur de jeu
+    sobre)."""
+    return _get('groq_style', '')
+
+
+def set_groq_style(style: str) -> None:
+    _set('groq_style', (style or '').strip()[:500])
+
+
 def get_extra_icons_dir() -> str:
     """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
     PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,

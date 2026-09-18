@@ -142,6 +142,33 @@ _WHOLE_SYSTEM_TEMPLATE = (
     "same order. Reply with ONLY the translation, no quotes, no notes. "
     "Preserve line breaks and a concise military/space-opera tone.")
 
+_BATCH_SYSTEM_TEMPLATE = (
+    "You are a professional video game localizer. The user's message contains "
+    "several numbered game texts to translate into {lang}, each wrapped as "
+    "<CELL0>...</CELL0>, <CELL1>...</CELL1> and so on. The texts contain "
+    "placeholders like XXTAG0XX, XXTAG1XX (they stand for game formatting "
+    "tags, numbers and variables). Translate ONLY the words between them: "
+    "never translate, move, rename, duplicate or drop a XXTAG token. Reply "
+    "with EVERY input cell translated, wrapped exactly the same way "
+    "(<CELLn>...</CELLn>, same count, same order, same numbers), no extra "
+    "cell, no quotes, no notes. Preserve line breaks and a concise "
+    "military/space-opera tone.")
+
+# Reponse du mode lots : enveloppes <CELLn> ouvertes (la balise fermante et
+# le bavardage eventuel apres elle sont supprimes au decodage).
+_BATCH_CELL_OPEN_RE = re.compile(r"<\s*CELL\s*(\d+)\s*>", re.IGNORECASE)
+_BATCH_CELL_CLOSE_RE = re.compile(r"<\s*/\s*CELL\s*\d+\s*>.*\Z",
+                                  re.IGNORECASE | re.DOTALL)
+
+
+def _style_directive() -> str:
+    """Conseigne de style/ton de l'auteur (settings.groq_style), ajoutee a
+    la consigne systeme de chaque requete. Vide = consigne par defaut."""
+    style = (settings.get_groq_style() or "").strip()
+    if not style:
+        return ""
+    return " Style directive from the game author (follow it): " + style
+
 
 def _lang_name(target_code: str) -> str:
     return _LANG_NAMES.get((target_code or "").lower(),
@@ -251,7 +278,8 @@ def translate(text: str, source_code: str, target_code: str) -> str:
         "temperature": 0.2,  # sobre : consistence sans figer le style
         "messages": [
             {"role": "system",
-             "content": _SYSTEM_TEMPLATE.format(lang=_lang_name(target_code))},
+             "content": _SYSTEM_TEMPLATE.format(lang=_lang_name(target_code))
+                        + _style_directive()},
             {"role": "user", "content": text},
         ],
     }
@@ -271,11 +299,58 @@ def translate_whole(protected_text: str, target_code: str) -> str:
         "messages": [
             {"role": "system",
              "content": _WHOLE_SYSTEM_TEMPLATE.format(
-                 lang=_lang_name(target_code))},
+                 lang=_lang_name(target_code)) + _style_directive()},
             {"role": "user", "content": protected_text},
         ],
     }
     return _chat(payload)
+
+
+def translate_batch(protected_texts: list, target_code: str) -> list:
+    """Mode LOTS (v1.8.0, tier gratuit plafonne en debit ~30 req/min) :
+    traduit PLUSIEURS textes proteges (jetons XXTAG deja poses par le
+    pipeline) en UNE requete. Chaque texte part enveloppe dans
+    <CELLn>...</CELLn> ; la reponse doit restituer les memes enveloppes.
+
+    Retourne la liste parallele : traduction, ou None pour une cellule
+    manquante/dupliquee/deviante (core/translation.py verifie le squelette
+    de jetons de chaque cellule et retombe alors sur le mode cellule
+    entiere -- puis fragments -- pour cette cellule seule). Les erreurs
+    API (cle, quota, reseau) remontent : l'interface les affiche avec le
+    delai d'attente."""
+    if not protected_texts:
+        return []
+    user_content = "\n".join(
+        f"<CELL{n}>{text}</CELL{n}>" for n, text in enumerate(protected_texts))
+    payload = {
+        "model": settings.get_groq_model(),
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system",
+             "content": _BATCH_SYSTEM_TEMPLATE.format(
+                 lang=_lang_name(target_code)) + _style_directive()},
+            {"role": "user", "content": user_content},
+        ],
+    }
+    response = _chat(payload)
+    out: list = [None] * len(protected_texts)
+    matches = list(_BATCH_CELL_OPEN_RE.finditer(response))
+    ids = [int(m.group(1)) for m in matches]
+    if len(set(ids)) != len(ids) or any(i < 0 or i >= len(out) for i in ids):
+        # doublons ou numerotation hors champ : reponse structurellement
+        # bavee, toutes les cellules None -> repli cellule entiere
+        return out
+    for k, m in enumerate(matches):
+        start = m.end()
+        end = matches[k + 1].start() if k + 1 < len(matches) else len(response)
+        body = response[start:end]
+        close = _BATCH_CELL_CLOSE_RE.search(body)
+        # la balise fermante ET le bavardage eventuel apres elle sont
+        # jetes ; sans balise fermante (derniere cellule tronquee), on
+        # garde le corps tel quel -- le squelette de jetons tranchera.
+        body = body[:close.start()] if close is not None else body.rstrip()
+        out[int(m.group(1))] = body.strip("\r\n")
+    return out
 
 
 def quick_check() -> str:

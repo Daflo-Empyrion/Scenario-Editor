@@ -7010,5 +7010,33 @@
  "pda.val.tokens_orphan_many": {
   "fr": "{n} jeton(s) orphelin(s) dans le PDA.csv (plus référencés par le YAML).",
   "en": "{n} orphan token(s) in PDA.csv (no longer referenced by the YAML)."
+ },
+ "menu.options.groq_batch": {
+  "fr": "Traduction par lots (moteurs IA)",
+  "en": "Batch translation (AI engines)"
+ },
+ "groq.style_label": {
+  "fr": "Style / ton des traductions (optionnel)",
+  "en": "Translation style / tone (optional)"
+ },
+ "groq.style_placeholder": {
+  "fr": "Ex. : registre militaire, tutoiement, garder les noms de vaisseaux en anglais...",
+  "en": "e.g. military register, informal tone, keep ship names in English..."
+ },
+ "groq.style_tip": {
+  "fr": "Conseigne libre injectee dans chaque requete Groq (fragments, cellule entiere et lots) : registre, tutoiement, terminologie a imposer. 500 caracteres max.",
+  "en": "Free-form instruction injected into every Groq request (fragments, whole cell and batch): register, tone, terminology to enforce. 500 characters max."
+ },
+ "dash.stat_transl": {
+  "fr": "Traduction EN→FR (cellules)",
+  "en": "EN→FR translation (cells)"
+ },
+ "dash.transl_summary": {
+  "fr": "Progression EN→FR : {pct} % ({done}/{total} cellules) -- {files}",
+  "en": "EN→FR progress: {pct}% ({done}/{total} cells) -- {files}"
+ },
+ "ecf.script_completion_tooltip": {
+  "fr": "Autocompletion : tapez l'apostrophe d'un Id dans AddItem/RemoveItem/HasItem pour proposer les items du catalogue.",
+  "en": "Autocompletion: type the opening quote of an Id inside AddItem/RemoveItem/HasItem to get catalogue item suggestions."
  }
 }

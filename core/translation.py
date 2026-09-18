@@ -32,7 +32,7 @@ de traduction CSV.
 """
 import re
 import threading
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 try:
     from deep_translator import GoogleTranslator
@@ -241,6 +241,64 @@ def _translate_llm_whole_cell(gtext: str, source: str, target: str,
         return _translate_offline_fragments(gtext, source, target,
                                             translate_fn=translate_fn)
     return restore_segments(translated, segments)
+
+
+# Bornes d'un lot LLM (v1.8.0). Tier gratuit Groq : 8 000 tokens/min -- a
+# ~4 caracteres/token sur du texte de jeu EN/FR, 8 cellules / 4 000
+# caracteres par requete restent largement sous les plafonds avec la
+# consigne systeme et la reponse.
+BATCH_MAX_CELLS = 8
+BATCH_MAX_CHARS = 4000
+
+
+def batch_chunks(texts: List[str], max_cells: int = BATCH_MAX_CELLS,
+                 max_chars: int = BATCH_MAX_CHARS) -> List[List[int]]:
+    """Groupe les indices des textes en lots pour translate_batch : au plus
+    `max_cells` cellules et `max_chars` caracteres (enveloppes <CELLn>
+    comprises) par requete. Les textes vides ne partent jamais (filtrés en
+    amont par translate_batch_with_source) ; un texte plus long que
+    `max_chars` part SEUL dans son lot."""
+    chunks: List[List[int]] = []
+    current: List[int] = []
+    current_chars = 0
+    for i, text in enumerate(texts):
+        size = len(text) + 16  # enveloppe <CELLn></CELLn> + marge
+        if current and (len(current) >= max_cells
+                        or current_chars + size > max_chars):
+            chunks.append(current)
+            current, current_chars = [], 0
+        current.append(i)
+        current_chars += size
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _translate_llm_cells_batch(gtexts: List[str], source: str, target: str,
+                               translate_batch, translate_whole,
+                               translate_fn) -> List[str]:
+    """Mode LOTS pour les moteurs LLM (v1.8.0) : tous les textes d'un lot
+    partent en UNE requete (translate_batch). Le squelette de jetons de
+    CHAQUE cellule est verifie comme en mode cellule entiere : une cellule
+    manquante ou deviante dans la reponse repasse AUTOMATIQUEMENT en mode
+    cellule entiere (qui lui-meme retombe sur les fragments) -- jamais de
+    fichier corrompu, et une deviation du modele ne coute qu'un appel
+    supplementaire sur la cellule fautive. Les erreurs API remontent (le
+    worker les affiche pour chaque cellule du lot)."""
+    protected_list, seg_list = [], []
+    for gtext in gtexts:
+        protected, segments = protect_segments(gtext)
+        protected_list.append(protected)
+        seg_list.append(segments)
+    translated_list = translate_batch(protected_list, target)
+    out: List[str] = []
+    for gtext, segments, translated in zip(gtexts, seg_list, translated_list):
+        if translated is None or _token_sequence(translated) != list(range(len(segments))):
+            out.append(_translate_llm_whole_cell(gtext, source, target,
+                                                 translate_whole, translate_fn))
+        else:
+            out.append(restore_segments(translated, segments))
+    return out
 
 
 def _translate_offline_fragments(text: str, source: str, target: str,
@@ -495,3 +553,70 @@ def translate_text_with_source(text: str, target: str = "fr", source: str = "aut
                                 timeout_seconds=timeout_seconds,
                                 store_in_memory=False)
     return translated, "engine"
+
+
+def translate_batch_with_source(texts: List[str], target: str = "fr",
+                                source: str = "auto"
+                                ) -> List[Tuple[str, str]]:
+    """Version LOT de translate_text_with_source, utilisee par le worker de
+    traduction en masse (v1.8.0) : memoire utilisateur puis memoire vanille
+    resolues par texte (sans rappeler le moteur), et le reste part au
+    moteur EN UNE SEULE requete quand le moteur est Groq avec le mode lots
+    active (Options > Traduction) -- le tier gratuit est plafonne en
+    debit, grouper les cellules divise d'autant le nombre de requetes.
+    Squelette de jetons verifie par cellule, repli cellule entiere puis
+    fragments (voir _translate_llm_cells_batch).
+
+    Retourne une liste parallele de (traduction, source). Texte vide ->
+    (texte, ""). Les erreurs moteur remontent : le worker les affiche pour
+    chaque cellule du lot et compte les echecs consecutifs."""
+    results: List[Tuple[str, str]] = [(text, "") for text in texts]
+    pending: List[Tuple[int, str]] = [
+        (i, text) for i, text in enumerate(texts) if text and text.strip()]
+    if not pending:
+        return results
+
+    from . import translation_memory, vanilla_memory
+    still: List[Tuple[int, str]] = []
+    for i, text in pending:
+        cached = translation_memory.get_cached(text, source, target)
+        if cached is not None:
+            results[i] = (cached, "memory")
+            continue
+        vanilla_cached = vanilla_memory.get_vanilla_cached(text, target)
+        if vanilla_cached is not None:
+            results[i] = (vanilla_cached, "vanilla")
+            continue
+        still.append((i, text))
+    if not still:
+        return results
+
+    from . import settings as _settings
+    engine = _settings.get_translation_engine()
+    if engine == "groq" and _settings.get_groq_batch_enabled() and len(still) > 1:
+        from . import glossary, groq_provider
+        gtexts, gloss_replacements = [], []
+        for _i, text in still:
+            gtext, replacements = glossary.apply_glossary(text)
+            gtexts.append(gtext)
+            gloss_replacements.append(replacements)
+        translated_list = _translate_llm_cells_batch(
+            gtexts, source, target,
+            translate_batch=groq_provider.translate_batch,
+            translate_whole=groq_provider.translate_whole,
+            translate_fn=groq_provider.translate)
+        for (i, _text), translated, replacements in zip(
+                still, translated_list, gloss_replacements):
+            results[i] = (glossary.restore_glossary(translated, replacements),
+                          "engine")
+        return results
+
+    # Chemin classique, cellule par cellule (autres moteurs, mode lots
+    # desactive, ou lot restant a une seule cellule) -- semantique
+    # identique a translate_text_with_source (memoire non alimentee :
+    # enregistrement a la VALIDATION).
+    for i, text in still:
+        translated = translate_text(text, target=target, source=source,
+                                    store_in_memory=False)
+        results[i] = (translated, "engine")
+    return results

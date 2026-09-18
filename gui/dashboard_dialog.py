@@ -92,6 +92,7 @@ class DashboardDialog(QDialog):
         n_traders = self._count_traders(working.root_path)
         errors, warnings = self._validation_summary(working.root_path)
         modified = len(self.main_window._modified_tab_widgets())
+        progress = self._translation_progress(working)
 
         cells = [
             (n_ecf, "dash.stat_ecf"),
@@ -101,10 +102,38 @@ class DashboardDialog(QDialog):
             (n_traders, "dash.stat_traders"),
             (modified, "dash.stat_modified"),
         ]
+        summary_extra = ""
+        if progress:
+            # Progression de traduction (v1.8.0) : % global des CSV de
+            # langue + detail par fichier dans le resume.
+            done = sum(p[1] for p in progress)
+            total = sum(p[2] for p in progress)
+            pct = round(100 * done / total) if total else 0
+            cells.append((f"{pct} %", "dash.stat_transl"))
+            files = "; ".join(f"{Path(p).name} {d}/{t}"
+                              for p, d, t in progress[:4])
+            if len(progress) > 4:
+                files += " ..."
+            summary_extra = " " + t("dash.transl_summary", pct=pct,
+                                    done=done, total=total, files=files)
         for i, (value, key) in enumerate(cells):
             self._add_stat(i // 3, i % 3, value, t(key))
         self.summary.setText(t("dash.validation_summary",
-                               errors=errors, warnings=warnings))
+                               errors=errors, warnings=warnings)
+                             + summary_extra)
+
+    def _translation_progress(self, working) -> list:
+        """Bilan source->cible (langue par defaut des options) sur les CSV de
+        la copie de travail ; liste vide si aucun CSV de langue."""
+        from core.settings import get_default_translation_language
+        from core.translation_progress import scenario_translation_progress
+        code, _label = get_default_translation_language()
+        csv_paths = [f.path for f in working.configuration
+                     if f.extension == '.csv']
+        try:
+            return scenario_translation_progress(csv_paths, target=code)
+        except Exception:
+            return []
 
     def _count_ecf_blocks(self, root: Path) -> int:
         from core.ecf.parser import parse_ecf_file

@@ -68,21 +68,47 @@ class BatchTranslationWorker(QThread):
             from core import spellcheck as _sp
             if _sp.is_available():
                 spellcheck = _sp
-        for i, text in enumerate(self._texts):
+        # MODE LOTS (v1.8.0) : moteur Groq + case lots active -> plusieurs
+        # cellules par requete (tier gratuit plafonne en debit ~30 req/min).
+        # Les bornes par lot (cellules/caracteres) sont calculees dans
+        # core/translation.batch_chunks ; l'arret utilisateur est pris en
+        # compte ENTRE deux requetes.
+        from core import settings as _settings
+        use_batch = (_settings.get_translation_engine() == "groq"
+                     and _settings.get_groq_batch_enabled())
+        i = 0
+        while i < total:
             if self._stop_requested:
                 break
-            self.progress.emit(i, total)
+            if use_batch:
+                chunk = translation.batch_chunks(self._texts[i:])[0]
+                indexes = [i + j for j in chunk]
+            else:
+                indexes = [i]
+            self.progress.emit(indexes[0], total)
+            sub = [self._texts[j] for j in indexes]
             try:
-                # Source suit la traduction ('vanilla' = localisation officielle
-                # Eleon, coloree dans la revue) ; pas de store automatique :
-                # la memoire est alimentee a la VALIDATION (12/09/2026).
-                translated, src = translation.translate_text_with_source(
-                    text, target=self._target)
+                if len(sub) == 1:
+                    # Source suit la traduction ('vanilla' = localisation
+                    # officielle Eleon, coloree dans la revue) ; pas de store
+                    # automatique : la memoire est alimentee a la VALIDATION
+                    # (12/09/2026).
+                    translated, src = translation.translate_text_with_source(
+                        sub[0], target=self._target)
+                    pairs = [(translated, src)]
+                else:
+                    pairs = translation.translate_batch_with_source(
+                        sub, target=self._target)
+            except Exception as e:
+                for j in indexes:
+                    self.item_done.emit(j, "", str(e), "")
+                i = indexes[-1] + 1
+                continue
+            for j, (translated, src) in zip(indexes, pairs):
                 if spellcheck is not None and translated:
                     # correction grammaticale DANS le thread (jamais de gel
                     # interface) -- la revue affiche la version corrigee
                     translated, _applied = spellcheck.auto_fix(translated)
-                self.item_done.emit(i, translated, "", src)
-            except Exception as e:
-                self.item_done.emit(i, "", str(e), "")
+                self.item_done.emit(j, translated, "", src)
+            i = indexes[-1] + 1
         self.finished_all.emit()
