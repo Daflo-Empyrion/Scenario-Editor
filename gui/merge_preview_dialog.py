@@ -136,6 +136,8 @@ class MergePreviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(t("mergepreview.title"))
         self.setMinimumSize(860, 560)
+        from gui.window_geometry import track
+        track(self, "merge_preview")
 
         result, rows = compute_merge_preview(working_doc, source_doc, source_label)
         self.result = result

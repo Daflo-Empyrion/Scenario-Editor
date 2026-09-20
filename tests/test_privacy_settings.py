@@ -27,10 +27,21 @@ def test_online_translation_can_be_disabled_and_reenabled(tmp_path, monkeypatch)
 
 
 def test_translate_text_refuses_when_disabled(tmp_path, monkeypatch):
-    from core import settings, translation
+    from core import settings, translation, translation_memory, vanilla_memory
     monkeypatch.setattr(settings, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(settings, "SETTINGS_FILE", tmp_path / "settings.json")
     settings.set_online_translation_enabled(False)
+    # Bascule automatique OFF : on teste le refus du chemin historique
+    # (avec la chaine, un moteur hors ligne de la machine pourrait servir).
+    monkeypatch.setattr(settings, "get_engine_fallback_enabled",
+                        lambda: False)
+    # Memoires isolees : une entree reelle ("Hello"->"Hello", vecu 19/09)
+    # court-circuiterait le refus AVANT la garde confidentialite.
+    monkeypatch.setattr(translation_memory, "MEMORY_FILE",
+                        tmp_path / "translation_memory.json")
+    monkeypatch.setattr(translation_memory, "_cache", None)
+    monkeypatch.setattr(vanilla_memory, "get_vanilla_cached",
+                        lambda *a, **k: None)
 
     with pytest.raises(RuntimeError, match="desactivee"):
         translation.translate_text("Hello", target="fr", source="en")

@@ -52,6 +52,20 @@ from core.ecf.variants import (
 from gui.template_adjust_dialog import TemplateAdjustDialog
 
 
+def find_template_by_name(templates_doc, name: str):
+    """Retourne le bloc Template dont le Name == `name`, INSENSIBLE a la
+    casse (convention du reste du code ECF), ou None. Sert a la fois a la
+    garde anti-doublon de create_templates et au bouton "Aller au
+    Template" du menu contextuel (v1.10.0)."""
+    wanted = (name or "").strip().lower()
+    if not wanted:
+        return None
+    for block in templates_doc.iter_blocks():
+        if (block.get_property('Name') or "").strip().lower() == wanted:
+            return block
+    return None
+
+
 def create_templates(parent, main_window, templates_path: Path,
                      variant_names: List[str],
                      source_template_name: str = "", author: str = "",
@@ -126,12 +140,13 @@ def create_templates(parent, main_window, templates_path: Path,
     if hasattr(templates_edit, "_snapshot_undo"):
         templates_edit._snapshot_undo()
 
-    existing_names = {b.get_property('Name') for b in templates_doc.iter_blocks()
+    existing_names = {(b.get_property('Name') or '').strip().lower()
+                      for b in templates_doc.iter_blocks()
                       if b.get_property('Name')}
     created = 0
     created_names: List[str] = []
     for variant_name in variant_names:
-        if variant_name in existing_names:
+        if (variant_name or '').strip().lower() in existing_names:
             continue
         if source_template is not None:
             new_template = _copy.deepcopy(source_template)

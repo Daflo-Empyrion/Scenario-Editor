@@ -84,3 +84,28 @@ def test_auto_open_tutorial_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
     settings.set_auto_open_tutorial(False)
     assert settings.get_auto_open_tutorial() is False
+
+
+def test_settings_cache_external_edit_is_picked_up(tmp_path, monkeypatch):
+    """Cache memoire (v1.10.0, lenteur generale) : le fichier n'est plus
+    lu a CHAQUE getter, mais une edition EXTERIEURE (autre processus,
+    edition manuelle) doit etre vue grace a l'invalidation par mtime."""
+    import time
+    monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
+    settings.set_author('alice')
+    assert settings.get_author() == 'alice'
+    # edition EXTERIEURE : ecriture directe du fichier (sans passer par _set)
+    data = json.loads((tmp_path / 'settings.json').read_text(encoding='utf-8'))
+    data['author'] = 'bob'
+    time.sleep(0.02)  # mtime distinct garanti (resolution fichier)
+    (tmp_path / 'settings.json').write_text(
+        json.dumps(data), encoding='utf-8')
+    assert settings.get_author() == 'bob'
+    assert settings._CACHE_DATA is not None  # le cache est bien actif
+
+
+def test_settings_cache_missing_file_resets(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, 'SETTINGS_FILE', tmp_path / 'settings.json')
+    settings.set_author('alice')
+    (tmp_path / 'settings.json').unlink()
+    assert settings.get_author() == 'utilisateur'  # defaut, fichier absent

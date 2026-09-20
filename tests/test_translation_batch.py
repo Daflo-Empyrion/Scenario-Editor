@@ -24,7 +24,7 @@ fonctions moteur sont remplacees par des doubles."""
 import pytest
 from PyQt6.QtCore import QEventLoop
 
-from core import groq_provider, settings, translation
+from core import deepl_provider, groq_provider, settings, translation
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +38,8 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(groq_provider, "_last_call", 0.0)
     settings.set_groq_api_key("gsk_test_key")
     settings.set_groq_batch_enabled(True)
+    monkeypatch.setattr("core.settings.get_engine_fallback_enabled",
+                        lambda: False)
     import core.glossary as g
     import core.translation_memory as tm
     import core.vanilla_memory as vm
@@ -248,12 +250,11 @@ def test_batch_disabled_uses_per_cell_path(monkeypatch):
     monkeypatch.setattr(settings, "get_groq_batch_enabled", lambda: False)
     seen = []
 
-    def fake_translate(text, target="fr", source="auto",
-                       store_in_memory=False, **kw):
-        seen.append(text)
-        return "TRAD:" + text
+    def fake_dispatch(gtext, replacements, target, source, timeout):
+        seen.append(gtext)
+        return "TRAD:" + gtext
 
-    monkeypatch.setattr(translation, "translate_text", fake_translate)
+    monkeypatch.setattr(translation, "_engine_dispatch", fake_dispatch)
     out = translation.translate_batch_with_source(["a", "b"], target="fr")
     assert out == [("TRAD:a", "engine"), ("TRAD:b", "engine")]
     assert seen == ["a", "b"]
@@ -263,9 +264,9 @@ def test_batch_other_engine_uses_per_cell_path(monkeypatch):
     monkeypatch.setattr(settings, "get_translation_engine", lambda: "google")
     seen = []
     monkeypatch.setattr(
-        translation, "translate_text",
-        lambda text, target="fr", source="auto", store_in_memory=False, **kw:
-        seen.append(text) or "TRAD:" + text)
+        translation, "_engine_dispatch",
+        lambda gtext, replacements, target, source, timeout:
+        seen.append(gtext) or "TRAD:" + gtext)
     out = translation.translate_batch_with_source(["a", "b"], target="fr")
     assert out == [("TRAD:a", "engine"), ("TRAD:b", "engine")]
     assert seen == ["a", "b"]
@@ -400,3 +401,48 @@ def test_scenario_translation_progress_aggregates(tmp_path):
     p2.write_text("A,B\n1,2\n", encoding="utf-8")
     out = scenario_translation_progress([p1, p2])
     assert out == [(str(p1), 1, 2)]
+
+
+def test_deepl_skeleton_verified_tokens_dropped_falls_back(monkeypatch):
+    """DeepL perd parfois des jetons XXTAG (\n notamment, vecu 19/09/2026)
+    quand plusieurs sont colles : le chemin DeepL verifie le squelette et
+    repasse en FRAGMENTS DeepL (les jetons ne voyagent plus) -- balise
+    toujours a sa place, jamais perdue."""
+    calls = {"whole": 0, "frag": 0}
+
+    def bad_whole(protected_text, target_code):
+        calls["whole"] += 1
+        # DeepL a AVALe le jeton du \n litteral (colle a la balise)
+        return protected_text.replace("XXTAG0XX", "")
+
+    def frag(text, src, tgt, translate_fn=None):
+        calls["frag"] += 1
+        return "[FR]" + text + "[/FR]"
+
+    monkeypatch.setattr(deepl_provider, "translate", bad_whole)
+    monkeypatch.setattr(translation, "_translate_offline_fragments", frag)
+    out = translation._translate_with_engine(
+        "deepl", "[b]Titre[/b]\nLigne deux.", "fr", "en", 15.0)
+    assert calls["whole"] == 1 and calls["frag"] >= 1
+    # le jeton du \n est REINJECTE a sa place via les fragments
+    assert out.startswith("[FR][b]Titre[/b]") and "XXTAG" not in out
+
+
+def test_deepl_skeleton_ok_single_call(monkeypatch):
+    """Cas nominal : DeepL restitue tous les jetons -> traduction acceptee,
+    aucun repli fragments."""
+    calls = {"whole": 0, "frag": 0}
+
+    def good_whole(protected_text, target_code):
+        calls["whole"] += 1
+        return "[FR]" + protected_text + "[/FR]"
+
+    monkeypatch.setattr(deepl_provider, "translate", good_whole)
+    def frag(text, src, tgt, translate_fn=None):
+        calls["frag"] += 1
+        return "[F]" + text + "[/F]"
+    monkeypatch.setattr(translation, "_translate_offline_fragments", frag)
+    out = translation._translate_with_engine(
+        "deepl", "Hello [b]world[/b]", "fr", "en", 15.0)
+    assert calls["whole"] == 1 and calls["frag"] == 0
+    assert "XXTAG" not in out

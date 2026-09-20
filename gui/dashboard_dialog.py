@@ -35,6 +35,8 @@ class DashboardDialog(QDialog):
         self.main_window = main_window
         self.setWindowTitle(t("dash.title"))
         self.resize(560, 420)
+        from gui.window_geometry import track
+        track(self, "dashboard")
         self._build_ui()
         self._refresh()
 

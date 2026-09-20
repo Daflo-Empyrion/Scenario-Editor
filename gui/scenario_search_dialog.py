@@ -45,6 +45,8 @@ class ScenarioSearchDialog(QDialog):
         self.workspace = main_window.workspace
         self.setWindowTitle(t("search.title"))
         self.setMinimumSize(680, 480)
+        from gui.window_geometry import track
+        track(self, "scenario_search")
 
         layout = QVBoxLayout(self)
 

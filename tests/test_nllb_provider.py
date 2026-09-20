@@ -35,6 +35,10 @@ def _isolate_stores(tmp_path, monkeypatch):
     import core.translation_memory as tm
     monkeypatch.setattr(tm, "MEMORY_FILE", tmp_path / "translation_memory.json")
     monkeypatch.setattr(tm, "_cache", None)
+    # Bascule automatique OFF : dispatch mono-moteur historique uniquement
+    # (sinon Argos reel de la machine servirait de secours).
+    monkeypatch.setattr("core.settings.get_engine_fallback_enabled",
+                        lambda: False)
 
 
 @pytest.fixture(autouse=True)

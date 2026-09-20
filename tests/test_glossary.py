@@ -51,6 +51,50 @@ def test_glossary_add_and_apply(glossary_file):
     assert restored == "Engage the moteur de distorsion now, moteur de distorsion offline."
 
 
+def test_glossary_per_target_isolation(glossary_file):
+    """Multi-langues (v1.10.0) : une entree ne s'applique qu'a SA langue
+    cible -- la traduction francaise imposee ne doit plus fuir dans les
+    traductions allemandes (et reciproquement)."""
+    glossary.add_entry("Warp Drive", "moteur de distorsion", target="fr")
+    glossary.add_entry("Warp Drive", "Warpantrieb", target="de")
+    text_fr, repl_fr = glossary.apply_glossary("The warp drive is on",
+                                               target="fr")
+    assert glossary.restore_glossary(text_fr, repl_fr) == \
+        "The moteur de distorsion is on"
+    text_de, repl_de = glossary.apply_glossary("The warp drive is on",
+                                               target="de")
+    assert glossary.restore_glossary(text_de, repl_de) == \
+        "The Warpantrieb is on"
+    # meme terme, traductions differentes par langue : les deux coexistent
+    assert len(glossary.entries()) == 2
+
+
+def test_glossary_legacy_format_migrated_to_fr(glossary_file):
+    """Ancien format (entree sans champ "target") : migree en "fr" au
+    chargement, appliquee pour le fr uniquement."""
+    glossary_file.write_text(
+        json.dumps([{"src": "Warp", "dst": "warp FR", "on": True}]),
+        encoding="utf-8")
+    glossary._cache = None  # forcer la relecture
+    text, repl = glossary.apply_glossary("The warp is on", target="fr")
+    assert "warp FR" in glossary.restore_glossary(text, repl)
+    # pas d'application pour une autre langue
+    text_de, repl_de = glossary.apply_glossary("The warp is on", target="de")
+    assert repl_de == [] and text_de == "The warp is on"
+
+
+def test_glossary_remove_and_toggle_are_per_target(glossary_file):
+    glossary.add_entry("Warp", "warp FR", target="fr")
+    glossary.add_entry("Warp", "Warpantrieb", target="de")
+    glossary.set_enabled("Warp", False, target="de")
+    assert glossary.apply_glossary("warp", target="de")[1] == []
+    assert glossary.apply_glossary("warp", target="fr")[1] != []
+    glossary.remove_entry("Warp", target="fr")
+    assert glossary.apply_glossary("warp", target="fr")[1] == []
+    # l'entree allemande survit a la suppression de la francaise
+    assert any(e.get("target") == "de" for e in glossary.entries())
+
+
 def test_glossary_case_insensitive_longest_first(glossary_file):
     glossary.add_entry("Warp", "warp FR")
     glossary.add_entry("Warp Drive", "moteur de distorsion")
@@ -103,6 +147,40 @@ def test_vanilla_memory_build_and_lookup(tmp_path, monkeypatch):
     assert vanilla_memory.get_vanilla_cached("Iron Ore", "en") is None  # seulement en->fr
 
 
+def test_vanilla_memory_loaded_once_per_session(tmp_path, monkeypatch):
+    """Lenteur generale vecue 19/09/2026 : _ensure_built relisait et
+    re-parseait le JSON ENTIER (~4 Mo, 17 ms) a CHAQUE consultation --
+    x 9 267 lignes d'un PDA.csv = 158 s de blocage au chargement.
+    L'index doit etre construit/verifie UNE seule fois par session, puis
+    plus AUCUN acces disque aux sources."""
+    csv_path = tmp_path / "Localization.csv"
+    csv_path.write_text(
+        "KEY,English,Français\nItemName-1,Iron Ore,Minerai de fer\n",
+        encoding="utf-8")
+    monkeypatch.setattr(vanilla_memory, "VANILLA_MEMORY_FILE",
+                        tmp_path / "vanilla_memory.json")
+    monkeypatch.setattr(vanilla_memory.settings, "get_vanilla_content_path",
+                        lambda: str(tmp_path))
+    calls = {"n": 0}
+    real_source_files = vanilla_memory._source_files
+
+    def counting_source_files():
+        calls["n"] += 1
+        return real_source_files()
+    monkeypatch.setattr(vanilla_memory, "_source_files", counting_source_files)
+    # nouvelle session (l'index en memoire d'un test precedent court-circuiterait
+    # tout -- c'est justement le but de l'optimisation)
+    vanilla_memory._cache = None
+
+    assert vanilla_memory.get_vanilla_cached("Iron Ore", "fr") == "Minerai de fer"
+    after_first = calls["n"]
+    assert after_first >= 1
+    for _ in range(20):
+        assert vanilla_memory.get_vanilla_cached("Iron Ore", "fr") == "Minerai de fer"
+        assert vanilla_memory.vanilla_matches("Iron Ore", "Minerai de fer")
+    assert calls["n"] == after_first  # plus AUCUN acces disque ensuite
+
+
 def test_vanilla_memory_multi_files_and_priority(tmp_path, monkeypatch):
     """Demande 17/09/2026 : la memoire vanille fusionne Localization.csv,
     PDA.csv et Dialogues.csv ; en cas de collision Localization.csv gagne."""
@@ -131,7 +209,10 @@ def test_vanilla_memory_multi_files_and_priority(tmp_path, monkeypatch):
 
 
 def test_vanilla_memory_regen_on_source_change(tmp_path, monkeypatch):
-    """Le jeu se met a jour : CSV plus recent -> regeneration automatique."""
+    """Le jeu se met a jour : CSV plus recent -> regeneration automatique
+    au PROCHAIN DEMARRAGE de session (v1.10.0 : la fraicheur est verifiee
+    une seule fois par session, sinon le JSON entier etait re-parse a
+    chaque consultation -- 17 ms x 9 267 lignes = 158 s de blocage)."""
     import os
     (tmp_path / "Extras").mkdir()
     loc = tmp_path / "Extras" / "Localization.csv"
@@ -145,6 +226,9 @@ def test_vanilla_memory_regen_on_source_change(tmp_path, monkeypatch):
     loc.write_text("KEY,English,Français\nX-1,New,Nouveau\n", encoding="utf-8")
     st = loc.stat()
     os.utime(loc, (st.st_atime, st.st_mtime + 10))
+    # nouvelle session : l'index en memoire repart, la fraicheur est
+    # re-evaluee et la regeneration se declenche
+    vanilla_memory._cache = None
     assert vanilla_memory.get_vanilla_cached("New", "fr") == "Nouveau"
     assert vanilla_memory.get_vanilla_cached("Old", "fr") is None
 
@@ -221,3 +305,32 @@ def test_translate_text_consults_memory_first(monkeypatch):
     assert translation.translate_text("Hello", target="fr",
                                       store_in_memory=False) == "TRAD MÉMORISÉE"
     assert calls == []
+
+
+def test_no_punctuation_only_terms(glossary_file, tmp_path, monkeypatch):
+    """Vecu 20/09/2026 : une cellule '-' seule validee a auto-alimente une
+    entree src='-' -> dst='Mourir / Sac a dos / Nager / Faction' qui
+    matchait le tiret de 'high-end' et inventait du contenu dans TOUTES
+    les traductions. Regles : auto-feed refuse le pur ponctuation,
+    add_entry refuse, et les entrees existantes sans caractere
+    alphanumerique sont ignorees a l'application."""
+    from core import glossary as g
+    monkeypatch.setattr(g, "GLOSSARY_FILE", tmp_path / "glossary.json")
+    monkeypatch.setattr(g, "_cache", None)
+    # auto-feed refuse le pur ponctuation
+    assert g.auto_feed_ok("-") is False
+    assert g.auto_feed_ok("===") is False
+    assert g.auto_feed_ok("Warp") is True
+    # add_entry refuse aussi
+    assert g.add_entry("-", "Mourir / Sac a dos") is False
+    # une entree toxique DEJA dans le fichier est ignoree a l'application
+    g._cache = None
+    g.GLOSSARY_FILE.write_text(
+        json.dumps([{"src": "-", "dst": "Mourir", "on": True},
+                    {"src": "Warp", "dst": "warp", "on": True}]),
+        encoding="utf-8")
+    text, repl = g.apply_glossary("high-end warp drive", target="fr")
+    assert repl == [] or all("Mourir" not in d for _t, d in repl)
+    out = g.restore_glossary(text, repl)
+    assert "Mourir" not in out
+    assert "warp" in out

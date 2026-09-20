@@ -145,21 +145,58 @@ def _ensure_built() -> bool:
     return VANILLA_MEMORY_FILE.exists()
 
 
-def get_vanilla_cached(text: str, target: str) -> Optional[str]:
-    """Traduction officielle vanille pour ce texte EN -> langue cible 'fr'
-    (seule paire generee), ou None."""
-    if not text or not text.strip() or target != "fr":
-        return None
+def _get_pair() -> dict:
+    """Paires EN->FR chargees. L'index est construit/lu UNE SEULE FOIS par
+    session : _ensure_built lit et parse le JSON ENTIER (~4 Mo, ~17 ms
+    mesurees) -- l'appeler a chaque consultation coutait 158 s sur un
+    PDA.csv de 9 267 lignes (vecu 19/09/2026, lenteur generale de
+    l'application). Fraicheur des sources : verifiee au premier acces de
+    la session seulement (une mise a jour du jeu en cours de session est
+    prise en compte au prochain lancement)."""
+    global _cache
+    if _cache is not None:
+        return _cache.get("en:fr", {})
     if not _ensure_built():
-        return None
+        return {}
     with _LOCK:
-        global _cache
         if _cache is None:
             try:
                 _cache = json.loads(VANILLA_MEMORY_FILE.read_text(
                     encoding="utf-8"))
             except Exception:
                 _cache = {}
-        pair = _cache.get("en:fr", {})
-        norm = " ".join(text.split())
-        return pair.get(norm)
+    return _cache.get("en:fr", {})
+
+
+def vanilla_pairs(target: str = "fr") -> dict:
+    """TOUTES les paires EN->traduction officielle (dict source normalisee
+    -> traduction) -- pour les traitements en masse (coloration d'une
+    grille entiere) : une seule consultation, puis requetes en memoire."""
+    if target != "fr":
+        return {}
+    return _get_pair()
+
+
+def get_vanilla_cached(text: str, target: str) -> Optional[str]:
+    """Traduction officielle vanille pour ce texte EN -> langue cible 'fr'
+    (seule paire generee), ou None."""
+    if not text or not text.strip() or target != "fr":
+        return None
+    return _get_pair().get(" ".join(text.split()))
+
+
+def vanilla_matches(source_text: str, translated_text: str,
+                    target: str = "fr") -> bool:
+    """Vrai si translated_text est EXACTEMENT la traduction officielle
+    Eleon de source_text (normalisation d'espaces identique a la
+    generation). Sert a marquer 'vanille' une cellule deja presente dans
+    la MEMOIRE UTILISATEUR quand elle coincide avec la traduction
+    officielle -- le vert reste un signal de conformite Eleon meme quand
+    la memoire utilisateur est prioritaire (retour 19/09/2026 : plus de
+    vert sur les fichiers deja traduits)."""
+    if not source_text or not translated_text or target != "fr":
+        return False
+    official = _get_pair().get(" ".join(source_text.split()))
+    if official is None:
+        return False
+    return " ".join(translated_text.split()) == official

@@ -60,6 +60,8 @@ class ScenarioCompareDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(t("compare.title"))
         self.resize(1100, 700)
+        from gui.window_geometry import track
+        track(self, "scenario_compare")
         self.result: Optional[ScenarioDiffResult] = None
 
         layout = QVBoxLayout(self)

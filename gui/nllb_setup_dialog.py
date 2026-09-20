@@ -53,6 +53,9 @@ class NllbSetupDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(t("nllb.title"))
         self.setMinimumWidth(560)
+        self.resize(620, 560)
+        from gui.window_geometry import track
+        track(self, "nllb_setup")
 
         layout = QVBoxLayout(self)
         intro = QLabel(t("nllb.intro"))

@@ -240,6 +240,8 @@ class DisabledBlocksDialog(QDialog):
         self.reactivated = False
         self.setWindowTitle(t("ecf.disabled_blocks_title"))
         self.resize(500, 400)
+        from gui.window_geometry import track
+        track(self, "disabled_blocks")
 
         layout = QVBoxLayout(self)
         intro = QLabel(t("ecf.disabled_blocks_intro"))
@@ -2202,6 +2204,9 @@ class EcfEditWidget(QWidget):
             # selecteur -- decision 10/09/2026).
             if item_ref_target(self.path.name, k):
                 item_v.setToolTip(t("ecf.catalog_pick_tooltip"))
+            elif (self.path.name.lower() == "tradernpcconfig.ecf"
+                    and k == "SellingText"):
+                item_v.setToolTip(t("trader.localize_tooltip"))
             elif script_items and script_value_key(k):
                 item_v.setToolTip(t("ecf.script_completion_tooltip"))
             # Infobulle specifique a CETTE cle (glossaire du fichier ou
@@ -2458,6 +2463,17 @@ class EcfEditWidget(QWidget):
 
         action_bbcode = menu.addAction(t("ctx.bbcode"))
 
+        # Localisation SellingText (v1.10.0, demande utilisateur) : sur
+        # TraderNPCConfig.ecf uniquement, la valeur peut pointer vers une
+        # cle de Localization.csv (mecanisme officiel documente dans le
+        # fichier vanille : # SellingText: "trwDefaultSellingText").
+        # Placee tot dans le menu pour etre immediatement visible.
+        action_localize = menu.addAction(
+            icon("fa5s.globe", "#4a7dfc"), t("trader.localize_action")) \
+            if (self.path.name.lower() == "tradernpcconfig.ecf"
+                and pair_key == "SellingText"
+                and not is_header_prop and value_item.column() != 0) else None
+        
         action_duplicate_row = None
         if self._table_mode and isinstance(prop_node, EcfProperty):
             action_duplicate_row = menu.addAction(t("dup.row_title"))
@@ -2480,6 +2496,8 @@ class EcfEditWidget(QWidget):
             new_text = open_bbcode_tool(self, value_item.text())
             if new_text is not None:
                 value_item.setText(new_text)
+        elif chosen == action_localize:
+            self._localize_selling_text(value_item)
         elif chosen in lang_actions:
             self._translate_cell(value_item, None, prop_node, lang_actions[chosen])
         elif chosen == action_duplicate_row and isinstance(prop_node, EcfProperty):
@@ -2960,17 +2978,83 @@ class EcfEditWidget(QWidget):
             main_window.statusBar().showMessage(
                 t("block_info.desc_edit_done", key=key_to_use), 8000)
 
+    def _localize_selling_text(self, value_item):
+        """Localiser cette valeur (v1.10.0, TraderNPCConfig.ecf ->
+        SellingText) : le jeu accepte une CLE de Localization.csv comme
+        valeur (mecanisme documente dans le fichier vanille :
+        # SellingText: "trwDefaultSellingText") et affiche alors le texte
+        dans la langue du joueur. Genere la cle, cree/met a jour la ligne
+        dans Extras/Localization.csv du scenario, et remplace la valeur
+        ECF par la cle (le texte EN reste traduisible via le flux CSV
+        existant)."""
+        raw = value_item.text().strip()
+        english_text = raw.strip('"').strip()
+        # Garde anti-double-clic : la cellule pointe DEJA vers une cle
+        # scn_Selling_ (action declenchee par accident en fermant le menu)
+        # -> rien a faire, on l'informe simplement.
+        if english_text.startswith("scn_Selling_"):
+            QMessageBox.information(self, t("trader.localize_title"),
+                                    t("trader.already_localized",
+                                      key=english_text.strip('"')))
+            return
+        if not english_text:
+            QMessageBox.information(self, t("trader.localize_title"),
+                                    t("trader.localize_need_text"))
+            return
+        trader_name = (self._current_block.get_property("Name")
+                       if self._current_block else None)
+        from core.selling_localization import build_key, ensure_localization_entry
+        try:
+            key = build_key(trader_name)
+        except ValueError:
+            QMessageBox.information(self, t("trader.localize_title"),
+                                    t("trader.localize_need_name"))
+            return
+        try:
+            root = None
+            main_window = self.window()
+            workspace = getattr(main_window, "workspace", None)
+            if workspace is not None:
+                root = getattr(workspace, "working_root", None)
+            result = ensure_localization_entry(self.path, key, english_text,
+                                               root=root)
+        except Exception as e:
+            QMessageBox.critical(self, t("err.title"),
+                                 t("trader.localize_fail", error=e))
+            return
+        self._snapshot_undo()
+        # ecriture par le chemin standard : itemChanged -> _on_cell_changed
+        value_item.setText(f'"{key}"')
+        # Confirmation VISIBLE (retour utilisateur 20/09/2026 : la barre de
+        # statut seule passait inapercue, la cellule semblait se remplir
+        # "par magie" au clic suivant) : boite de dialogue avec le detail
+        # de ce qui a ete fait et la suite (traduire le CSV).
+        loc_path = (self.path.parent.parent / "Extras" / "Localization.csv")
+        if root:
+            from core.selling_localization import localization_csv_path
+            loc_path = localization_csv_path(self.path, root)
+        result_msg = {"created": t("trader.localized_created", key=key),
+                      "updated": t("trader.localized_updated", key=key),
+                      "exists": t("trader.localized_exists", key=key)}[result]
+        QMessageBox.information(
+            self, t("trader.localize_title"),
+            result_msg + "\n\n" + t("trader.localized_path",
+                                    path=str(loc_path)))
+
     def _create_template_for_block(self, block: EcfBlock):
         """FUS-004 : creation d'un Template depuis le clic droit sur un bloc
         (cas : item/bloc du scenario non prevu au craft). Delegue au chemin
-        existant via la fenetre principale, en ciblant le NOM du bloc."""
+        existant via la fenetre principale, en ciblant le NOM du bloc.
+        offer_if_exists (v1.10.0) : si un Template existe deja pour ce nom,
+        l'utilisateur est INFORME (avec navigation) au lieu du silence."""
         name = block.get_property('Name')
         if not name:
             QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
             return
         main_window = self.window()
         if hasattr(main_window, '_offer_template_for_merged_block'):
-            main_window._offer_template_for_merged_block(block, self.path)
+            main_window._offer_template_for_merged_block(block, self.path,
+                                                         offer_if_exists=True)
 
     def _show_tree_context_menu(self, pos):
         item = self.tree.itemAt(pos)

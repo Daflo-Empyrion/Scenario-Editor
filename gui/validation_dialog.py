@@ -51,6 +51,8 @@ class ValidationDialog(QDialog):
         self.scenario_root = main_window.workspace.working_root
         self.setWindowTitle(t("validation.dialog_title"))
         self.setMinimumSize(900, 600)
+        from gui.window_geometry import track
+        track(self, "validation")
 
         self.issues_by_file: Dict[Path, List[ValidationIssue]] = {}
 

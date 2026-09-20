@@ -145,3 +145,28 @@ def test_concurrent_stores_all_persisted(tmp_path, monkeypatch):
         th.join()
     tm.flush()
     assert tm.entry_count() == 200
+
+
+def test_translate_text_ignores_garbage_memory_hit(tmp_path, monkeypatch):
+    """293 entrees "Error 500" de l'ere auto-stockage polluaient la memoire
+    reelle (vecu 19/09/2026) : un hit memoire qui ressemble a une page
+    d'erreur est IGNORE -- la cellule est re-traduite par le moteur."""
+    from core import settings, translation, translation_memory, vanilla_memory
+    monkeypatch.setattr(translation_memory, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setattr(translation_memory, 'MEMORY_FILE',
+                        tmp_path / 'memory.json')
+    monkeypatch.setattr(translation_memory, '_cache', None)
+    monkeypatch.setattr(vanilla_memory, 'get_vanilla_cached',
+                        lambda *a, **k: None)
+    monkeypatch.setattr(settings, 'get_translation_engine', lambda: 'google')
+    monkeypatch.setattr(settings, 'get_online_translation_enabled', lambda: True)
+    monkeypatch.setattr('core.settings.get_engine_fallback_enabled',
+                        lambda: False)
+    garbage = "Error 500 (Server Error)!!1 500. That's an error."
+    monkeypatch.setattr(translation_memory, 'get_cached',
+                        lambda text, src, tgt: garbage)
+    monkeypatch.setattr(translation, '_translate_google',
+                        lambda text, target, source, timeout: "TRAD:" + text)
+    out = translation.translate_text("Hello", target="fr",
+                                     store_in_memory=False)
+    assert out == "TRAD:Hello"  # PAS le hit memoire pollue

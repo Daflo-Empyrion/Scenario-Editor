@@ -43,6 +43,9 @@ class GroqSetupDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(t("groq.title"))
         self.setMinimumWidth(600)
+        self.resize(640, 580)
+        from gui.window_geometry import track
+        track(self, "groq_setup")
 
         layout = QVBoxLayout(self)
         intro = QLabel(t("groq.intro"))

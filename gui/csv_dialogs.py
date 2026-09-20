@@ -75,6 +75,8 @@ class TranslationResultDialog(QDialog):
                  destination_warning: Optional[str] = None):
         super().__init__(parent)
         self.setWindowTitle(t("trans.dialog_title"))
+        from gui.window_geometry import track
+        track(self, "translation_result", default_size=(520, 420))
         self.setMinimumWidth(500)
         self.accepted_replace = False
 
@@ -157,6 +159,8 @@ class BatchTranslationReviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title or t("trans.batch_review_title"))
         self.resize(750, 450)
+        from gui.window_geometry import track
+        track(self, "batch_review")
         self.on_apply_batch = on_apply_batch
         self.on_save_session = on_save_session
         self.saved_session = False
@@ -390,6 +394,8 @@ class FillMissingTranslationsDialog(QDialog):
     def __init__(self, column_headers: list, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("trans.fill_missing_title"))
+        from gui.window_geometry import track
+        track(self, "fill_missing", default_size=(420, 220))
 
         layout = QFormLayout(self)
         self.source_combo = QComboBox()
@@ -423,6 +429,8 @@ class FindReplaceDialog(QDialog):
     def __init__(self, column_headers: list, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("csv.find_replace_title"))
+        from gui.window_geometry import track
+        track(self, "find_replace", default_size=(520, 260))
 
         layout = QFormLayout(self)
         self.find_edit = QLineEdit()

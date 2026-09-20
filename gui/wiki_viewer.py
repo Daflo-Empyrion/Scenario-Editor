@@ -31,6 +31,8 @@ class WikiDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(900, 700)
+        from gui.window_geometry import track
+        track(self, "wiki")
 
         layout = QVBoxLayout(self)
 

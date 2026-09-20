@@ -57,6 +57,8 @@ class ArgosSetupDialog(QDialog):
         self.main_window = main_window
         self.setWindowTitle(t("argos.title"))
         self.resize(700, 560)
+        from gui.window_geometry import track
+        track(self, "argos_setup")
         self.signals = _Signals()
         self.signals.models_ready.connect(self._fill_models)
         self.signals.model_size.connect(self._update_model_size)

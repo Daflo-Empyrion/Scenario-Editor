@@ -32,12 +32,16 @@ from core import groq_provider, settings
 def _isolate(tmp_path, monkeypatch):
     """Settings isoles (la cle et le modele n'atteignent jamais le vrai
     settings.json) + throttle desactive (sinon chaque appel attendrait
-    MIN_INTERVAL_S) + etat de limites remis a zero."""
+    MIN_INTERVAL_S) + etat de limites remis a zero + bascule automatique
+    OFF (ces tests verifient le chemin mono-moteur Groq ; la chaine de
+    secours a ses tests dans test_engine_chain)."""
     monkeypatch.setattr(settings, "SETTINGS_FILE", tmp_path / "settings.json")
     monkeypatch.setattr(groq_provider, "MIN_INTERVAL_S", 0.0)
     monkeypatch.setattr(groq_provider, "_cooldown_until", 0.0)
     monkeypatch.setattr(groq_provider, "_last_call", 0.0)
     monkeypatch.setattr(groq_provider, "_last_limits", None)
+    monkeypatch.setattr("core.settings.get_engine_fallback_enabled",
+                        lambda: False)
     settings.set_groq_api_key("gsk_test_key")
     settings.set_groq_model("qwen/qwen3.8-27b")
 
@@ -356,3 +360,25 @@ def test_dialog_model_combo_roundtrip(qapp, tmp_path, monkeypatch):
         assert settings.get_groq_api_key() == "gsk_new"
     finally:
         d.close()
+
+
+def test_throttle_raises_fast_on_long_cooldown(monkeypatch):
+    """Blocage vecu 19/09/2026 (reset JOURNALIER = heures) : le throttle
+    ne doit JAMAIS dormir au-dela de _MAX_THROTTLE_WAIT_S -- il leve
+    immediatement et la chaine de secours prend le relais."""
+    import time as _time
+    monkeypatch.setattr(groq_provider, "_cooldown_until",
+                        _time.monotonic() + 3600)
+    t0 = _time.monotonic()
+    with pytest.raises(RuntimeError, match="Groq"):
+        groq_provider._throttle()
+    assert _time.monotonic() - t0 < 1.0  # echec immediat, pas de sommeil
+
+
+def test_cooldown_remaining(monkeypatch):
+    import time as _time
+    monkeypatch.setattr(groq_provider, "_cooldown_until", 0.0)
+    assert groq_provider.cooldown_remaining() == 0.0
+    monkeypatch.setattr(groq_provider, "_cooldown_until",
+                        _time.monotonic() + 120)
+    assert groq_provider.cooldown_remaining() > 100

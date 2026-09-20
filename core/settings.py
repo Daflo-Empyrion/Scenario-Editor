@@ -20,6 +20,7 @@ import json
 import logging
 import threading
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,14 @@ DEFAULT_AUTHOR = "utilisateur"
 # en usage normal).
 _LOCK = threading.Lock()
 
+# Cache memoire du settings.json (v1.10.0, lenteur generale vecue) : le
+# fichier etait RELU ET PARSE a CHAQUE getter -- or des chemins chauds le
+# consultent par ligne/par cellule (memoire vanille, chaine de secours,
+# reglages moteur...). Invalidation par mtime : une edition manuelle du
+# fichier (ou un autre processus) reste prise en compte.
+_CACHE_DATA: Optional[dict] = None
+_CACHE_MTIME: float = -1.0
+
 
 def _read_settings() -> dict:
     with _LOCK:
@@ -45,9 +54,22 @@ def _read_settings_locked() -> dict:
     """Version sans verrou de _read_settings(), a utiliser UNIQUEMENT depuis
     une section deja protegee par _LOCK (evite un deadlock si appelee depuis
     _set()/set_annotations_enabled(), qui tiennent deja le verrou)."""
+    global _CACHE_DATA, _CACHE_MTIME
+    try:
+        mtime = SETTINGS_FILE.stat().st_mtime
+    except OSError:
+        _CACHE_DATA = None
+        _CACHE_MTIME = -1.0
+        return {}
+    if _CACHE_DATA is not None and mtime == _CACHE_MTIME:
+        return _CACHE_DATA
     if SETTINGS_FILE.exists():
         try:
-            return json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            data = json.loads(SETTINGS_FILE.read_text(encoding='utf-8'))
+            if isinstance(data, dict):
+                _CACHE_DATA = data
+                _CACHE_MTIME = mtime
+                return data
         except Exception as e:
             logger.warning("Impossible de lire %s : %s", SETTINGS_FILE, e)
     return {}
@@ -61,12 +83,19 @@ def _write_settings(data: dict) -> None:
 def _write_settings_locked(data: dict) -> None:
     """Version sans verrou de _write_settings() -- meme raison que
     _read_settings_locked()."""
+    global _CACHE_DATA, _CACHE_MTIME
     from .fsutil import atomic_write_text
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     # Ecriture ATOMIQUE : settings.json contient la langue, l'etat des options,
     # la liste des annotations... sa corruption par un crash pendant l'ecriture
     # reinitialiserait d'un coup toute la configuration de l'utilisateur.
     atomic_write_text(SETTINGS_FILE, json.dumps(data, ensure_ascii=False))
+    # le cache sert la nouvelle valeur immédiatement (et evite une relecture)
+    _CACHE_DATA = data
+    try:
+        _CACHE_MTIME = SETTINGS_FILE.stat().st_mtime
+    except OSError:
+        _CACHE_MTIME = -1.0
 
 
 def _get(key: str, default):
@@ -259,6 +288,47 @@ def set_groq_model(model: str) -> None:
     _set('groq_model', (model or '').strip())
 
 
+def get_deepl_api_key() -> str:
+    """Cle API DeepL (plan DeepL API FREE : 500 000 caracteres/mois,
+    sans carte bancaire -- la cle free se termine par ':fx'). Stockee en
+    LOCAL dans settings.json uniquement (jamais dans le depot). Le texte
+    a traduire part chez DeepL SE : soumis a la case 'Traduction en
+    ligne' comme les autres moteurs en ligne."""
+    return _get('deepl_api_key', '')
+
+
+def set_deepl_api_key(key: str) -> None:
+    _set('deepl_api_key', (key or '').strip())
+
+
+def get_engine_fallback_enabled() -> bool:
+    """Bascule automatique entre moteurs (v1.10.0, inspiree du failover
+    de freellmapi) : quand le moteur principal (radio du sous-menu
+    Moteur) atteint son quota ou tombe en panne, la chaine de secours
+    enchaine les autres moteurs disponibles -- Groq -> DeepL -> Google
+    -> NLLB -> Argos, l'ordre reel partant du moteur principal. True par
+    defaut, desactivable dans Options > Traduction."""
+    return _get('engine_fallback_enabled', True)
+
+
+def set_engine_fallback_enabled(enabled: bool) -> None:
+    _set('engine_fallback_enabled', enabled)
+
+
+def get_window_geometry(key: str) -> list:
+    """Geometrie persistee d'une fenetre ([x, y, w, h] ou [x, y, w, h,
+    maximise]) ou liste vide -- voir gui/window_geometry.py (v1.10.0 :
+    ne plus avoir a agrandir les fenetres a la main a chaque ouverture)."""
+    geo = _get(f'win_geo_{key}', [])
+    return geo if isinstance(geo, list) else []
+
+
+def set_window_geometry(key: str, geo: list) -> None:
+    if (isinstance(geo, list) and len(geo) in (4, 5)
+            and all(isinstance(v, (int, float)) for v in geo)):
+        _set(f'win_geo_{key}', geo)
+
+
 def get_groq_batch_enabled() -> bool:
     """Mode LOTS du moteur Groq (v1.8.0) : plusieurs cellules traduites par
     requete au lieu d'une par appel (tier gratuit plafonne en debit :
@@ -303,7 +373,7 @@ def get_translation_engine() -> str:
 
 
 def set_translation_engine(engine: str) -> None:
-    if engine in ('google', 'argos', 'nllb', 'groq'):
+    if engine in ('google', 'argos', 'nllb', 'groq', 'deepl'):
         _set('translation_engine', engine)
 
 

@@ -49,6 +49,8 @@ class BackupManagerDialog(QDialog):
         title_key = "backup.title_scenario" if kind == 'scenario' else "backup.title_savegame"
         self.setWindowTitle(t(title_key))
         self.resize(750, 600)
+        from gui.window_geometry import track
+        track(self, "backup")
 
         layout = QVBoxLayout(self)
 

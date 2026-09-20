@@ -65,6 +65,8 @@ class ModifiedFilesDialog(QDialog):
         self.main_window = main_window
         self.setWindowTitle(t("modfiles.title"))
         self.resize(720, 500)
+        from gui.window_geometry import track
+        track(self, "modified_files")
         self._build_ui()
         self._refresh()
 

@@ -7038,5 +7038,161 @@
  "ecf.script_completion_tooltip": {
   "fr": "Autocompletion : tapez l'apostrophe d'un Id dans AddItem/RemoveItem/HasItem pour proposer les items du catalogue.",
   "en": "Autocompletion: type the opening quote of an Id inside AddItem/RemoveItem/HasItem to get catalogue item suggestions."
+ },
+ "menu.options.engine_deepl": {
+  "fr": "DeepL (API Free)",
+  "en": "DeepL (Free API)"
+ },
+ "menu.options.engine_deepl.tip_ok": {
+  "fr": "DeepL API Free : 500 000 caracteres/mois",
+  "en": "DeepL API Free: 500,000 characters/month"
+ },
+ "menu.options.engine_deepl.tip_none": {
+  "fr": "Necessite une cle DeepL (Options > Traduction > Traduction DeepL)",
+  "en": "Requires a DeepL key (Options > Translation > DeepL translation)"
+ },
+ "menu.options.engine_fallback": {
+  "fr": "Bascule automatique (secours en cas de quota ou de panne)",
+  "en": "Automatic fallback (on quota exhaustion or outage)"
+ },
+ "menu.options.deepl": {
+  "fr": "Traduction DeepL...",
+  "en": "DeepL translation..."
+ },
+ "argos.engine_name_deepl": {
+  "fr": "DeepL",
+  "en": "DeepL"
+ },
+ "trans.fallback_used": {
+  "fr": "Secours : traduction assuree par {engine}",
+  "en": "Fallback: translation handled by {engine}"
+ },
+ "deepl.title": {
+  "fr": "Traduction DeepL (API Free)",
+  "en": "DeepL translation (Free API)"
+ },
+ "deepl.intro": {
+  "fr": "DeepL propose un plan API gratuit (500 000 caracteres/mois, sans carte bancaire). C'est un moteur EN LIGNE : le texte part chez DeepL SE (soumis a la case Traduction en ligne). Il sert de maillon de secours apres Groq quand la bascule automatique est activee.",
+  "en": "DeepL offers a free API plan (500,000 characters/month, no credit card). This is an ONLINE engine: text is sent to DeepL SE (subject to the Online translation switch). It acts as a fallback link after Groq when automatic fallback is enabled."
+ },
+ "deepl.step_account": {
+  "fr": "1. Cree un compte API gratuit : <a href='https://www.deepl.com/pro-api'>deepl.com/pro-api</a> (choisir le plan DeepL API Free)",
+  "en": "1. Create a free API account: <a href='https://www.deepl.com/pro-api'>deepl.com/pro-api</a> (choose the DeepL API Free plan)"
+ },
+ "deepl.step_key": {
+  "fr": "2. Copie ta cle d'authentification dans <a href='https://www.deepl.com/account/summary'>ton compte DeepL</a>",
+  "en": "2. Copy your authentication key from <a href='https://www.deepl.com/account/summary'>your DeepL account</a>"
+ },
+ "deepl.step_paste": {
+  "fr": "3. Colle la cle ci-dessous (une cle FREE se termine par ':fx')",
+  "en": "3. Paste the key below (a FREE key ends with ':fx')"
+ },
+ "deepl.key_label": {
+  "fr": "Cle DeepL :",
+  "en": "DeepL key:"
+ },
+ "deepl.verify_btn": {
+  "fr": "Verifier",
+  "en": "Verify"
+ },
+ "deepl.need_key": {
+  "fr": "Saisis d'abord ta cle DeepL.",
+  "en": "Enter your DeepL key first."
+ },
+ "deepl.bad_key": {
+  "fr": "Cle DeepL refusee : verifie la cle et le plan (API Free).",
+  "en": "DeepL key rejected: check the key and the plan (Free API)."
+ },
+ "deepl.verify_ok": {
+  "fr": "Cle valide. Quota du mois : {used} / {limit} caracteres.",
+  "en": "Valid key. Monthly quota: {used} / {limit} characters."
+ },
+ "deepl.verify_fail": {
+  "fr": "Verification impossible : {error}",
+  "en": "Verification failed: {error}"
+ },
+ "deepl.use_as_engine": {
+  "fr": "Utiliser DeepL comme moteur principal",
+  "en": "Use DeepL as the main engine"
+ },
+ "deepl.test_btn": {
+  "fr": "Tester la traduction",
+  "en": "Test translation"
+ },
+ "deepl.testing": {
+  "fr": "Test en cours...",
+  "en": "Testing..."
+ },
+ "deepl.test_ok": {
+  "fr": "Test reussi : {result}",
+  "en": "Test OK: {result}"
+ },
+ "deepl.test_fail": {
+  "fr": "Test echoue : {error}",
+  "en": "Test failed: {error}"
+ },
+ "glossary.col_lang": {
+  "fr": "Langue cible",
+  "en": "Target language"
+ },
+ "glossary.lang_tip": {
+  "fr": "La regle ne s'applique qu'aux traductions vers cette langue.",
+  "en": "The rule only applies to translations into this language."
+ },
+ "template.exists_title": {
+  "fr": "Template deja present",
+  "en": "Template already exists"
+ },
+ "template.exists_msg": {
+  "fr": "Un Template existe deja pour '{name}' dans Templates.ecf — ce bloc est donc deja fabriquable en jeu.",
+  "en": "A Template already exists for '{name}' in Templates.ecf — this block can already be crafted in game."
+ },
+ "template.exists_go": {
+  "fr": "Aller au Template",
+  "en": "Go to the Template"
+ },
+ "trader.localize_action": {
+  "fr": "Localiser cette valeur (Localization)",
+  "en": "Localize this value (Localization)"
+ },
+ "trader.localize_tooltip": {
+  "fr": "Rend ce texte dans la langue du joueur : genere une cle et l'entree Localization.csv (clic droit -> Localiser cette valeur).",
+  "en": "Shows this text in the player's language: generates a key and the Localization.csv entry (right-click -> Localize this value)."
+ },
+ "trader.localize_title": {
+  "fr": "Localiser SellingText",
+  "en": "Localize SellingText"
+ },
+ "trader.localize_need_text": {
+  "fr": "La valeur SellingText est vide : rien a localiser.",
+  "en": "The SellingText value is empty: nothing to localize."
+ },
+ "trader.localize_need_name": {
+  "fr": "Ce bloc n'a pas de propriete Name : impossible de generer une cle de localisation.",
+  "en": "This block has no Name property: cannot generate a localization key."
+ },
+ "trader.localize_fail": {
+  "fr": "Localisation impossible : {error}",
+  "en": "Localization failed: {error}"
+ },
+ "trader.localized_created": {
+  "fr": "Cle '{key}' ajoutee a Extras/Localization.csv — traduisez les autres langues via ce CSV.",
+  "en": "Key '{key}' added to Extras/Localization.csv — translate the other languages via this CSV."
+ },
+ "trader.localized_updated": {
+  "fr": "Colonne English remplie pour la cle '{key}' (les autres langues etaient deja traduites).",
+  "en": "English column filled for key '{key}' (other languages were already translated)."
+ },
+ "trader.localized_exists": {
+  "fr": "La cle '{key}' avait deja une traduction : la valeur ECF pointe maintenant dessus.",
+  "en": "Key '{key}' already had a translation: the ECF value now points to it."
+ },
+ "trader.localized_path": {
+  "fr": "Fichier a traduire : {path}",
+  "en": "File to translate: {path}"
+ },
+ "trader.already_localized": {
+  "fr": "Ce SellingText est deja localise : la cellule pointe vers la cle '{key}'. Pour changer le texte, editez la ligne '{key}' dans Extras/Localization.csv du scenario (et reouvrez le fichier s'il etait deja ouvert dans un onglet).",
+  "en": "This SellingText is already localized: the cell points to key '{key}'. To change the text, edit the '{key}' row in the scenario's Extras/Localization.csv (and reopen the file if it was already open in a tab)."
  }
 }

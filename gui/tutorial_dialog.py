@@ -49,6 +49,8 @@ class TutorialDialog(QDialog):
 
         self.setWindowTitle(t("tutorials.dialog_title"))
         self.resize(800, 620 if auto_opened else 550)
+        from gui.window_geometry import track
+        track(self, "tutorial")
 
         outer = QVBoxLayout(self)
 

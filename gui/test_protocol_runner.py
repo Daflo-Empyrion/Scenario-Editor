@@ -274,6 +274,8 @@ class StepWindow(QMainWindow):
         self.on_updated = on_updated  # callback(rafraichi apres chaque verdict)
         self.setWindowTitle(t("runner.step_title"))
         self.resize(1180, 820)
+        from gui.window_geometry import track
+        track(self, "protocol_step")
         self._build()
         self._show_case(index)
 
@@ -510,6 +512,8 @@ class BilanDialog(QDialog):
         self.session = session
         self.setWindowTitle(t("runner.bilan_title"))
         self.resize(1100, 720)
+        from gui.window_geometry import track
+        track(self, "protocol_bilan")
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 12, 16, 12)
 
@@ -680,6 +684,8 @@ class MainWindow(QMainWindow):
         self.base_resultats: dict | None = None  # resultats de la session de base (flags NOUVEAU/A RETESTER)
         self.setWindowTitle(t("runner.main_title", version=APP_VERSION))
         self.resize(1280, 800)
+        from gui.window_geometry import track
+        track(self, "protocol_main")
         self._build()
         if not SMOKE:
             # Proposition de session au lancement (dialogue modal) -- saute en

@@ -270,7 +270,8 @@ def widget(qapp, tmp_path, monkeypatch):
     stored = []
     monkeypatch.setattr("core.translation_memory.store", lambda *a: stored.append(a))
     added = []
-    monkeypatch.setattr("core.glossary.add_entry", lambda *a: added.append(a))
+    monkeypatch.setattr("core.glossary.add_entry",
+                        lambda *a, **k: added.append(a))
     monkeypatch.setattr("core.glossary.auto_feed_ok", lambda txt: True)
     w = CsvEditWidget(_make_csv(tmp_path), editable=True)
     w._stored_memory = stored

@@ -37,6 +37,8 @@ class BlockLibraryDialog(QDialog):
         self.main_window = main_window
         self.setWindowTitle(t("lib.title"))
         self.resize(760, 520)
+        from gui.window_geometry import track
+        track(self, "block_library")
         self._build_ui()
         self._refresh()
 

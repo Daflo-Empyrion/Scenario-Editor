@@ -33,13 +33,15 @@ def offline_env(tmp_path, monkeypatch):
     memoire de l'utilisateur ni au reseau. Le moteur est force a google :
     sinon ces tests partiraient sur le chemin Argos quand la machine de dev
     a translation_engine=argos (vecu le 10/09/2026 : la vraie traduction
-    repondait au lieu du double Google)."""
+    repondait au lieu du double Google). Bascule automatique OFF : ces
+    tests verifient le chemin mono-moteur Google historique."""
     monkeypatch.setattr(translation_memory, 'CONFIG_DIR', tmp_path)
     monkeypatch.setattr(translation_memory, 'MEMORY_FILE', tmp_path / 'memory.json')
     monkeypatch.setattr(translation_memory, '_cache', None)
     monkeypatch.setattr(translation_memory, '_cache_for_path', None)
     monkeypatch.setattr('core.settings.get_online_translation_enabled', lambda: True)
     monkeypatch.setattr('core.settings.get_translation_engine', lambda: 'google')
+    monkeypatch.setattr('core.settings.get_engine_fallback_enabled', lambda: False)
 
 
 class _FakeTranslator:
@@ -95,13 +97,16 @@ def test_translate_text_propagates_translator_error(offline_env, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _classic_engine(monkeypatch):
-    """Moteur force a 'google' pour TOUS les tests du worker : sur une
-    machine de dev configuree groq+lots, le worker partirait sinon sur le
-    chemin lots (translate_batch_with_source, non mocke ici) et ces tests
-    feraient des appels reels (piege documente : ne jamais supposer les
-    reglages reels). Le chemin lots a ses tests dans test_translation_batch."""
+    """Moteur force a 'google' + bascule automatique OFF pour TOUS les
+    tests du worker : sur une machine de dev configuree groq+lots, le
+    worker partirait sinon sur le chemin lots (translate_batch_with_source,
+    non mocke ici) et ces tests feraient des appels reels (piege documente :
+    ne jamais supposer les reglages reels). Le chemin lots a ses tests dans
+    test_translation_batch, la chaine de secours dans test_engine_chain."""
     monkeypatch.setattr('core.settings.get_translation_engine',
                         lambda: 'google')
+    monkeypatch.setattr('core.settings.get_engine_fallback_enabled',
+                        lambda: False)
 
 
 def test_worker_translates_all_texts_and_signals(qapp, monkeypatch):

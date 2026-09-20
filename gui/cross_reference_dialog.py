@@ -55,6 +55,8 @@ class CrossReferenceDialog(QDialog):
 
         self.setWindowTitle(t("crossref.title"))
         self.setMinimumSize(680, 520)
+        from gui.window_geometry import track
+        track(self, "cross_reference")
         layout = QVBoxLayout(self)
 
         intro = QLabel(t("crossref.intro"))

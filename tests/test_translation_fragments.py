@@ -28,10 +28,20 @@ import pytest
 @pytest.fixture(autouse=True)
 def _isolate_glossary(tmp_path, monkeypatch):
     """Isole le glossaire du fichier reel de la machine (les tests y ont
-    ecrit des entrees de demonstration)."""
+    ecrit des entrees de demonstration) + bascule automatique OFF : ces
+    tests verifient le chemin mono-moteur historique (sinon une machine
+    de dev avec NLLB installe ferait servir la chaine de secours)."""
     from core import glossary as g
     monkeypatch.setattr(g, "GLOSSARY_FILE", tmp_path / "glossary.json")
     monkeypatch.setattr(g, "_cache", None)
+    # Les traductions reussies ici sont stockees (store_in_memory par
+    # defaut) : ne JAMAIS ecrire dans la vraie memoire de la machine
+    # (vecu 19/09/2026 : entree "Hello" polluee pour les autres tests).
+    import core.translation_memory as tm
+    monkeypatch.setattr(tm, "MEMORY_FILE", tmp_path / "translation_memory.json")
+    monkeypatch.setattr(tm, "_cache", None)
+    monkeypatch.setattr("core.settings.get_engine_fallback_enabled",
+                        lambda: False)
 
 
 
@@ -223,3 +233,21 @@ def test_azure_engine_missing_key_raises(monkeypatch):
                         lambda: False)
     with pytest.raises(RuntimeError):
         translation.translate_text("Hello", target="fr")
+
+
+def test_restore_segments_keeps_literal_backslash_n():
+    """Bug vecu 19-20/09/2026 : restore_segments reinjectait les segments
+    via re.sub avec un TEMPLATE chaine -- le \n litteral du CSV y etait
+    interprete comme un VRAI retour a la ligne par le moteur d'expressions
+    regulieres (pertes de \n sur tous les chemins "texte entier" :
+    Groq, DeepL, Google). Le remplacement par FONCTION n'est jamais
+    escape."""
+    from core.translation import protect_segments, restore_segments
+    text = "A\\nB [b]x[/b]"
+    protected, segments = protect_segments(text)
+    assert segments[0] == "\\n"  # le \n litteral est protege
+    engine_out = protected  # moteur qui recopie les jetons tels quels
+    out = restore_segments(engine_out, segments)
+    assert "\\n" in out  # le \n litteral est REINJECTE tel quel
+    assert chr(10) not in out  # aucun vrai retour a la ligne introduit
+    assert out == "A\\nB [b]x[/b]"

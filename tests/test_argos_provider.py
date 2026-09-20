@@ -32,6 +32,11 @@ def _isolate_translation_memory(tmp_path, monkeypatch):
     import core.translation_memory as tm
     monkeypatch.setattr(tm, "MEMORY_FILE", tmp_path / "translation_memory.json")
     monkeypatch.setattr(tm, "_cache", None)
+    # Bascule automatique OFF : ces tests verifient le dispatch mono-moteur
+    # historique (Argos -> Google), pas la chaine de secours (v1.10.0,
+    # testee dans test_engine_chain).
+    monkeypatch.setattr(settings, "get_engine_fallback_enabled",
+                        lambda: False)
 
 
 def test_translation_engine_setting_roundtrip(tmp_path, monkeypatch):

@@ -101,6 +101,8 @@ class MainWindow(QMainWindow):
         # barre d'outils y demande ~100 px de plus qu'en vanilla), voir
         # gui/fluent_pilot.default_window_size.
         self.resize(*fluent_pilot.default_window_size())
+        from gui.window_geometry import track
+        track(self, "main")
         self.workspace_undo = WorkspaceUndoStack()
 
         self.workspace: Optional[Workspace] = None
@@ -304,10 +306,13 @@ class MainWindow(QMainWindow):
             t("menu.options.engine_nllb"))
         self.action_engine_groq = self.menu_engine.addAction(
             t("menu.options.engine_groq"))
+        self.action_engine_deepl = self.menu_engine.addAction(
+            t("menu.options.engine_deepl"))
         for engine_id, action in (("google", self.action_engine_google),
                                   ("argos", self.action_engine_argos),
                                   ("nllb", self.action_engine_nllb),
-                                  ("groq", self.action_engine_groq)):
+                                  ("groq", self.action_engine_groq),
+                                  ("deepl", self.action_engine_deepl)):
             action.setCheckable(True)
             action.setChecked(engine_id == current_engine)
             action.triggered.connect(
@@ -322,6 +327,16 @@ class MainWindow(QMainWindow):
         self.action_groq_batch.setCheckable(True)
         self.action_groq_batch.setChecked(settings.get_groq_batch_enabled())
         self.action_groq_batch.toggled.connect(settings.set_groq_batch_enabled)
+        # Bascule AUTOMATIQUE entre moteurs (v1.10.0, inspiree de
+        # freellmapi) : quota/panne du principal -> maillons suivants
+        # (Groq -> DeepL -> Google -> NLLB -> Argos a partir du principal).
+        self.action_engine_fallback = self.menu_translation.addAction(
+            t("menu.options.engine_fallback"))
+        self.action_engine_fallback.setCheckable(True)
+        self.action_engine_fallback.setChecked(
+            settings.get_engine_fallback_enabled())
+        self.action_engine_fallback.toggled.connect(
+            settings.set_engine_fallback_enabled)
         self.action_default_language = self.menu_translation.addAction(
             t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
@@ -332,6 +347,8 @@ class MainWindow(QMainWindow):
         self.action_nllb.triggered.connect(self._open_nllb_setup)
         self.action_groq = self.menu_translation.addAction(t("menu.options.groq"))
         self.action_groq.triggered.connect(self._open_groq_setup)
+        self.action_deepl = self.menu_translation.addAction(t("menu.options.deepl"))
+        self.action_deepl.triggered.connect(self._open_deepl_setup)
         self.action_glossary = self.menu_translation.addAction(t("menu.options.glossary"))
         self.action_glossary.triggered.connect(self._open_glossary)
         self.action_vanilla_content = self.menu_translation.addAction(
@@ -650,11 +667,14 @@ class MainWindow(QMainWindow):
         self.action_engine_argos.setText(t("menu.options.engine_argos"))
         self.action_engine_nllb.setText(t("menu.options.engine_nllb"))
         self.action_engine_groq.setText(t("menu.options.engine_groq"))
+        self.action_engine_deepl.setText(t("menu.options.engine_deepl"))
         self.action_groq_batch.setText(t("menu.options.groq_batch"))
+        self.action_engine_fallback.setText(t("menu.options.engine_fallback"))
         self.action_default_language.setText(t("menu.options.default_language"))
         self.action_argos.setText(t("menu.options.argos"))
         self.action_nllb.setText(t("menu.options.nllb"))
         self.action_groq.setText(t("menu.options.groq"))
+        self.action_deepl.setText(t("menu.options.deepl"))
         self.action_glossary.setText(t("menu.options.glossary"))
         self.action_vanilla_content.setText(t("menu.options.vanilla_content"))
         self.menu_interface.setTitle(t("menu.options.interface_sub"))
@@ -1572,12 +1592,20 @@ class MainWindow(QMainWindow):
             t("menu.options.engine_groq.tip_variant",
               model=settings.get_groq_model()) if has_groq
             else t("menu.options.engine_groq.tip_none"))
+        # DeepL : disponible si une cle API est enregistree (test sans reseau)
+        from core import deepl_provider
+        has_deepl = deepl_provider.is_configured()
+        self.action_engine_deepl.setEnabled(has_deepl)
+        self.action_engine_deepl.setToolTip(
+            t("menu.options.engine_deepl.tip_ok") if has_deepl
+            else t("menu.options.engine_deepl.tip_none"))
         # triggered n'est emis que par un clic utilisateur : pas besoin de
         # bloquer les signaux pour synchroniser l'affichage
         self.action_engine_google.setChecked(engine == "google")
         self.action_engine_argos.setChecked(has_models and engine == "argos")
         self.action_engine_nllb.setChecked(has_nllb and engine == "nllb")
         self.action_engine_groq.setChecked(has_groq and engine == "groq")
+        self.action_engine_deepl.setChecked(has_deepl and engine == "deepl")
 
     def _switch_translation_engine(self, engine_id: str):
         """Choix radio du sous-menu Moteur : persiste et signale en barre
@@ -1587,9 +1615,18 @@ class MainWindow(QMainWindow):
         name_key = {"google": "argos.engine_name_google",
                     "argos": "argos.engine_name_argos",
                     "nllb": "argos.engine_name_nllb",
-                    "groq": "argos.engine_name_groq"}[engine_id]
+                    "groq": "argos.engine_name_groq",
+                    "deepl": "argos.engine_name_deepl"}[engine_id]
         self.statusBar().showMessage(
             t("argos.engine_switched", engine=t(name_key)), 8000)
+
+    def _open_deepl_setup(self):
+        """Assistant de traduction DeepL (plan API Free, cle locale) --
+        meme motif que l'assistant Groq ; ouvre aussi le choix du
+        moteur prefere."""
+        from gui.deepl_setup_dialog import DeepLSetupDialog
+        self._deepl_dialog = DeepLSetupDialog(self)
+        self._deepl_dialog.show()
 
     def _open_argos_setup(self):
         """Assistant de traduction hors ligne Argos (moteur + modeles) --
@@ -2802,30 +2839,59 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(t("status.block_merged", file=dest.name))
 
-    def _offer_template_for_merged_block(self, block: EcfBlock, dest_path: Path) -> None:
+    def _offer_template_for_merged_block(self, block: EcfBlock, dest_path: Path,
+                                         offer_if_exists: bool = False) -> None:
         """Apres une fusion qui a AJOUTE un bloc depuis Scenario A/B : si ce
         bloc n'a aucun Template dans la copie de travail, il sera impossible a
         fabriquer en jeu -- propose un Template pre-rempli avec les valeurs
         les plus courantes du scenario (gui/template_tools.create_templates,
-        apercu editable avec ajout/suppression d'ingredients)."""
+        apercu editable avec ajout/suppression d'ingredients).
+
+        offer_if_exists (v1.10.0, chemin du menu contextuel "Creer un
+        Template pour ce bloc") : si un Template porte deja ce nom, INFORMER
+        au lieu du retour silencieux (le menu semblait ne rien faire), avec
+        un bouton "Aller au Template" qui ouvre et selectionne le bloc dans
+        Templates.ecf. Comparaison insensible a la casse, comme le reste du
+        code ECF."""
         name = block.get_property('Name')
         if not name:
             return
         from core.ecf.block_creation import (
             find_file_by_name, list_craftable_names)
-        from gui.template_tools import create_templates
+        from gui.template_tools import create_templates, find_template_by_name
 
         ecf_files = [f.path for f in self.workspace.working.configuration
                      if f.extension == '.ecf']
         templates_path = find_file_by_name(ecf_files, 'Templates.ecf')
         if templates_path is None:
+            if offer_if_exists:
+                QMessageBox.information(self, t("template.exists_title"),
+                                        t("addblock.templates_not_found_msg"))
             return
         try:
             templates_doc = parse_ecf_file(templates_path)
         except Exception:
             return
-        if any(b.get_property('Name') == name for b in templates_doc.iter_blocks()):
-            return  # un Template existe deja pour ce nom
+        existing = find_template_by_name(templates_doc, name)
+        if existing is not None:
+            if not offer_if_exists:
+                return  # flux post-fusion : silence conserve (la proposition
+                # a deja ete faite une fois, on ne la rejoue pas)
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Information)
+            box.setWindowTitle(t("template.exists_title"))
+            box.setText(t("template.exists_msg", name=name))
+            btn_go = box.addButton(t("template.exists_go"),
+                                   QMessageBox.ButtonRole.AcceptRole)
+            box.addButton(t("btn.close"), QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            if box.clickedButton() is btn_go:
+                widget = self.open_working_file_tab(templates_path)
+                edit_widget = getattr(widget, "edit_widget", widget)
+                if hasattr(edit_widget, "select_block_by_identity"):
+                    edit_widget.select_block_by_identity(
+                        block_identity(existing))
+            return
 
         if not ask_yes_no(self, t("copy.offer_template_title"),
                           t("copy.offer_template_msg", name=name)):

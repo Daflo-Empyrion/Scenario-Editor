@@ -74,6 +74,8 @@ class EconomyEditorDialog(QDialog):
 
         self.setWindowTitle(t("eco.title"))
         self.resize(1150, 640)
+        from gui.window_geometry import track
+        track(self, "economy")
 
         root = QVBoxLayout(self)
         cols = QHBoxLayout()

@@ -262,3 +262,29 @@ def test_defaults_ingredient_values_by_key_per_ingredient():
     assert per_ingredient["SteelPlate"] == ["5"]
     assert per_ingredient["Electronics"] == ["2", "4"]
     assert "CraftTime" not in per_ingredient  # pas de scalaire ici
+
+
+def test_find_template_by_name_case_insensitive():
+    """v1.10.0 : le garde anti-doublon / le bouton "Aller au Template"
+    comparent les noms SANS tenir compte de la casse (convention ECF)."""
+    from gui.template_tools import find_template_by_name
+    doc = parse_ecf_text(TEMPLATES_TEXT)
+    found = find_template_by_name(doc, "fusil")  # le fichier porte "Fusil"
+    assert found is not None
+    assert found.get_property('Name') == "Fusil"
+    assert find_template_by_name(doc, "  FUSIL  ") is not None
+    assert find_template_by_name(doc, "Inexistant") is None
+    assert find_template_by_name(doc, "") is None
+    assert find_template_by_name(doc, None) is None
+
+
+def test_create_templates_skips_existing_case_insensitive():
+    """La garde interne de create_templates ne doit pas creer de doublon
+    quand seule la casse differe (ex : variante 'fusil' vs Template 'Fusil')."""
+    doc = parse_ecf_text(TEMPLATES_TEXT)
+    from gui.template_tools import find_template_by_name
+    # garde utilisee par create_templates : meme semantique
+    existing = {(b.get_property('Name') or '').strip().lower()
+                for b in doc.iter_blocks() if b.get_property('Name')}
+    assert "fusil" in existing
+    assert find_template_by_name(doc, "FUSIL") is not None

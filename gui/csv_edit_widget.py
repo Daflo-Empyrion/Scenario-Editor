@@ -30,6 +30,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QBrush
 
 from core.csv_handler import CsvHandler, CsvDocument, render_csv
+from core import vanilla_memory
+from core.translation import find_language_aliases, _normalize, repair_mojibake
 from core import translation, settings, translation_memory
 from core.i18n import t
 from core.csv_column_glossary import get_csv_column_tooltip
@@ -284,6 +286,54 @@ class CsvEditWidget(QWidget):
                 self.table.setItem(r, c, QTableWidgetItem(val))
         self.table.blockSignals(False)
         self._apply_row_highlights()
+        self._apply_vanilla_highlights()
+
+    def _apply_vanilla_highlights(self):
+        """Colore en vert les cellules cibles dont le contenu est
+        EXACTEMENT la traduction officielle Eleon (memoire vanille) --
+        au CHARGEMENT du fichier : les couleurs ne sont pas persistees
+        dans le CSV, sans ceci le vert disparaissait a chaque
+        reouverture (retour 19/09/2026). Couvre aussi les cellules
+        traduites par le passe dont la traduction validee coincide avec
+        la vanille. Signaux bloques pendant la coloration (setBackground
+        declenche itemChanged -> jaune 'modifie')."""
+        target_code, _label = settings.get_default_translation_language()
+        if target_code != "fr":
+            return  # la memoire vanille n'est generee qu'en EN->FR
+        header = self.doc.header or []
+        en_col = fr_col = None
+        en_aliases = set(find_language_aliases("en", "English"))
+        fr_aliases = set(find_language_aliases("fr", "Francais"))
+        for i, name in enumerate(header):
+            norm = _normalize(repair_mojibake(name.strip()))
+            if en_col is None and norm in en_aliases:
+                en_col = i
+            elif fr_col is None and norm in fr_aliases:
+                fr_col = i
+        if en_col is None or fr_col is None:
+            return
+        # TOUTES les paires vanille en memoire UNE fois (9 267 lignes x
+        # vanilla_matches = 158 s mesurees sinon -- lenteur generale vecue
+        # 19/09/2026) ; par ligne, ce ne sont plus que des acces dict.
+        pairs = vanilla_memory.vanilla_pairs("fr")
+        if not pairs:
+            return
+        self.table.blockSignals(True)
+        try:
+            for r, row in enumerate(self.doc.rows):
+                src = row[en_col] if en_col < len(row) else ""
+                dst = row[fr_col] if fr_col < len(row) else ""
+                if not src.strip() or not dst.strip():
+                    continue
+                official = pairs.get(" ".join(src.split()))
+                if official is not None \
+                        and " ".join(dst.split()) == official:
+                    item = self.table.item(r, fr_col)
+                    if item is not None:
+                        mark_vanilla(item)
+                        item.setToolTip(t("trans.vanilla_cell_tooltip"))
+        finally:
+            self.table.blockSignals(False)
 
     def highlight_touched_rows(self, keys: set):
         """Surligne les lignes dont la KEY est dans `keys` -- jetons crees ou
@@ -643,7 +693,7 @@ class CsvEditWidget(QWidget):
         from core import glossary
         translation_memory.store(text, "auto", target_code, result_text)
         if glossary.auto_feed_ok(text):
-            glossary.add_entry(text, result_text)
+            glossary.add_entry(text, result_text, target=target_code)
         if target_col is not None and target_col != item.column():
             dest_item = self.table.item(row, target_col)
             if dest_item is None:
@@ -1017,6 +1067,12 @@ class CsvEditWidget(QWidget):
                 # moteurs).
                 from core import groq_provider
                 label += groq_provider.limits_text()
+            # Bascule automatique (v1.10.0) : rendre VISIBLE le moteur de
+            # secours qui sert reellement ("" tant que le principal tient).
+            from core import translation as _tr
+            note = _tr.last_fallback_note()
+            if note:
+                label += "  -- " + note
             progress.setLabelText(label)
 
         def _on_item_done(index, translated, error, source=""):
@@ -1135,7 +1191,8 @@ class CsvEditWidget(QWidget):
                 translation_memory.store(p['original'], p.get('source_code', 'auto'),
                                          p.get('target_code', 'auto'), final_text)
                 if glossary.auto_feed_ok(p['original']):
-                    glossary.add_entry(p['original'], final_text)
+                    glossary.add_entry(p['original'], final_text,
+                                       target=p.get('target_code', 'auto'))
             self._set_modified(True)
         return apply
 

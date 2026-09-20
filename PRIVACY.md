@@ -9,10 +9,10 @@ integralement en local sur ta machine, sur tes propres fichiers de scenario.
 Il ne collecte aucune donnee personnelle, aucune statistique d'usage, et ne
 transmet rien "en arriere-plan" a l'insu de l'utilisateur.
 
-Trois fonctionnalites precises effectuent des requetes reseau (quatre avec
-le moteur IA Groq optionnel). Chacune est decrite ci-dessous avec
-exactement ce qui est envoye, quand, et comment la desactiver si tu le
-souhaites.
+Trois fonctionnalites precises effectuent des requetes reseau (cinq avec
+les moteurs IA optionnels Groq et DeepL). Chacune est decrite ci-dessous
+avec exactement ce qui est envoye, quand, et comment la desactiver si tu
+le souhaites.
 
 ### 1. Traduction en ligne (Google Translate)
 Quand tu utilises la fonction de traduction (bouton "Traduire" dans
@@ -52,7 +52,30 @@ Argos et NLLB, eux, n'envoient rien du tout : tout reste sur ta machine.
   Traduction en ligne -- cette case autorise ou bloque TOUS les moteurs
   en ligne (Google comme Groq)
 
-### 3. Verification de nouvelle version (GitHub)
+### 3. Traduction DeepL (en ligne, optionnel)
+Si tu configures et actives le moteur « DeepL » (Options > Traduction >
+Traduction DeepL), les textes a traduire sont envoyes a l'API de DeepL SE
+(`api-free.deepl.com`, plan API Free : 500 000 caracteres/mois) afin
+d'obtenir la traduction. C'est aussi un maillon de la bascule
+automatique : si le moteur principal atteint son quota, DeepL peut servir
+de secours (uniquement si tu y as colle ta propre cle, et uniquement si
+la traduction en ligne est permise).
+
+- **Quoi** : uniquement le texte a traduire (les balises du jeu et les
+  placeholders sont proteges avant l'envoi ; la memoire locale evite de
+  renvoyer deux fois le meme texte)
+- **Quand** : uniquement quand tu lances une traduction avec le moteur
+  DeepL actif, ou quand il sert de secours ; aucune requete tant que tu
+  n'as pas colle ta propre cle API
+- **Ou va ta cle API** : uniquement dans ta configuration locale
+  (`~/.empyrion_editor/settings.json`), jamais dans le depot ni envoyee a
+  qui que ce soit d'autre que DeepL
+- **Comment desactiver** : choisis un autre moteur dans le sous-menu
+  Options > Traduction > Moteur de traduction, et/ou decoche Options >
+  Traduction en ligne -- cette case autorise ou bloque TOUS les moteurs
+  en ligne (Google, Groq comme DeepL)
+
+### 4. Verification de nouvelle version (GitHub)
 Au demarrage, l'application interroge l'API publique de GitHub
 (`api.github.com`) pour savoir si une version plus recente a ete publiee.
 Cette requete ne contient aucune information personnelle -- uniquement une
@@ -65,7 +88,7 @@ reseau, pas specifique a ce logiciel).
 Cette verification echoue silencieusement si elle ne peut pas aboutir (pas
 de connexion, etc.) et n'empeche jamais l'application de demarrer.
 
-### 4. Bouton "Signaler"
+### 5. Bouton "Signaler"
 Le bouton "Signaler" (rapport de bug) n'envoie rien directement depuis
 l'application -- il ouvre ton navigateur systeme habituel sur une page
 GitHub Issues pre-remplie. L'envoi effectif ne se produit que si tu choisis
@@ -88,7 +111,7 @@ locally on your machine, on your own scenario files. It does not collect
 any personal data, does not track usage statistics, and never sends
 anything "in the background" without your knowledge.
 
-Four specific features make network requests (five with the optional Groq AI engine). Each is described below
+Four specific features make network requests (five with the optional Groq and DeepL online engines). Each is described below
 with exactly what is sent, when, and how to disable it if you wish.
 
 ### 1. Online translation (Google Translate)
@@ -128,7 +151,29 @@ machine.
   translation -- this checkbox allows or blocks ALL online engines
   (Google as well as Groq)
 
-### 3. New version check (GitHub)
+### 3. DeepL translation (online, optional)
+If you configure and enable the "DeepL" engine (Options > Translation >
+DeepL translation), the texts to translate are sent to DeepL SE's API
+(`api-free.deepl.com`, Free API plan: 500,000 characters/month) to obtain
+the translation. It is also a link in the automatic fallback chain: if
+the main engine runs out of quota, DeepL can serve as a fallback (only
+if you pasted your own key, and only if online translation is allowed).
+
+- **What**: only the text to translate (game tags and placeholders are
+  protected before sending; the local memory avoids sending the same
+  text twice)
+- **When**: only when you start a translation with the DeepL engine
+  active, or when it serves as a fallback; no request at all until you
+  paste your own API key
+- **Where your API key goes**: only into your local configuration
+  (`~/.empyrion_editor/settings.json`), never into the repository and
+  never sent to anyone other than DeepL
+- **How to disable**: pick another engine in the Options > Translation >
+  Translation engine submenu, and/or uncheck Options > Online
+  translation -- this checkbox allows or blocks ALL online engines
+  (Google, Groq as well as DeepL)
+
+### 4. New version check (GitHub)
 On startup, the application queries GitHub's public API
 (`api.github.com`) to check whether a newer version has been published.
 This request contains no personal information -- just a standard "what is
@@ -141,7 +186,7 @@ specific to this software).
 This check fails silently if it cannot complete (no connection, etc.) and
 never prevents the application from starting.
 
-### 4. "Report" button
+### 5. "Report" button
 The "Report" (bug report) button does not send anything directly from the
 application -- it opens your regular system browser to a pre-filled
 GitHub Issues page. The report is only actually submitted if you then

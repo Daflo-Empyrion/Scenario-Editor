@@ -40,6 +40,8 @@ import urllib.request
 from typing import Optional
 
 from . import settings
+from .engine_errors import (AuthError, EngineUnavailableError,
+                            QuotaExhaustedError)
 from .i18n import t
 
 BASE = "https://api.groq.com/openai/v1"
@@ -52,6 +54,13 @@ KNOWN_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
 # MIN_INTERVAL_S pour rester sous les 30 RPM avec marge (0 = desactive,
 # utilise par les tests).
 MIN_INTERVAL_S = 2.2
+# Attente MAXIMALE dans le throttle (v1.10.0, blocage vecu 19/09/2026) :
+# au-dela, ECHOUE IMMEDIATEMENT (QuotaExhaustedError) au lieu de dormir --
+# un 429 journalier (200K TPD) annonce un reset en HEURES et l'ancienne
+# boucle figeait le worker pendant tout ce temps (progression bloquee a
+# 2 %, "QThread destroyed" a l'annulation). La chaine de secours prend le
+# relais pendant ce temps.
+_MAX_THROTTLE_WAIT_S = 30.0
 
 _THROTTLE_LOCK = threading.Lock()
 _last_call: float = 0.0
@@ -59,6 +68,14 @@ _cooldown_until: float = 0.0
 _last_limits: Optional[dict] = None  # en-tetes x-ratelimit de la derniere reponse
 
 _RESET_RE = re.compile(r"(?:(?P<m>[\d.]+)m)?(?:(?P<s>[\d.]+)s)?")
+
+
+def cooldown_remaining() -> float:
+    """Secondes restantes avant la fin du cooldown pose par un 429 (0 si
+    aucun) -- la chaine de secours saute le maillon Groq tant que ce
+    delai court, au lieu de le laisser dormir dans le throttle."""
+    with _THROTTLE_LOCK:
+        return max(0.0, _cooldown_until - time.monotonic())
 
 
 def _parse_duration(s: str) -> float:
@@ -79,7 +96,12 @@ def _throttle() -> None:
     """Espace les appels d'au moins MIN_INTERVAL_S et respecte le cooldown
     pose par un 429 (retry-after) -- le tier gratuit est plafonne en
     requetes/minute ET tokens/minute. Sommeil sous verrou : les appels Groq
-    sont sequentiels (worker batch), jamais concurrents en pratique."""
+    sont sequentiels (worker batch), jamais concurrents en pratique.
+
+    UNBOUNDED WAIT INTERDITE (v1.10.0) : si le cooldown depasse
+    _MAX_THROTTLE_WAIT_S (reset journalier = heures), on leve AU LIEU de
+    dormir -- le worker reste vivant, l'annulation est honoree et la
+    chaine de secours sert les cellules."""
     global _last_call
     with _THROTTLE_LOCK:
         while True:
@@ -88,6 +110,9 @@ def _throttle() -> None:
                        _last_call + MIN_INTERVAL_S - now, 0.0)
             if wait <= 0:
                 break
+            if wait > _MAX_THROTTLE_WAIT_S:
+                raise QuotaExhaustedError(
+                    t("groq.rate_limited", delay=_fmt_duration(wait)))
             time.sleep(min(wait, 1.0))
             if wait > 1.0:  # reevaluer le cooldown (il ne diminue pas, mais
                 continue     # restons simple et re-boucler)
@@ -229,9 +254,10 @@ def _chat(payload: dict) -> str:
         except Exception:
             pass
         if e.code in (401, 403):
-            raise RuntimeError(f"Cle API Groq refusee ({e.code}). {detail}")
+            # cle refusee : JAMAIS de bascule silencieuse (auth)
+            raise AuthError(f"Cle API Groq refusee ({e.code}). {detail}")
         if e.code == 402:
-            raise RuntimeError(f"Quota Groq epuise. {detail}")
+            raise QuotaExhaustedError(f"Quota Groq epuise. {detail}")
         if e.code == 429:
             # Depassement du tier gratuit : calculer le delai (retry-after
             # en secondes, sinon en-tete reset au format '2m59.56s'), poser
@@ -255,13 +281,13 @@ def _chat(payload: dict) -> str:
                 global _cooldown_until
                 with _THROTTLE_LOCK:
                     _cooldown_until = time.monotonic() + delay + 1.0
-                raise RuntimeError(t("groq.rate_limited",
-                                     delay=_fmt_duration(delay)))
-            raise RuntimeError("Limite de debit Groq atteinte (tier "
-                               "gratuit) -- reessaie plus tard.")
-        raise RuntimeError(f"Erreur Groq {e.code}. {detail}")
+                raise QuotaExhaustedError(t("groq.rate_limited",
+                                            delay=_fmt_duration(delay)))
+            raise QuotaExhaustedError("Limite de debit Groq atteinte (tier "
+                                      "gratuit) -- reessaie plus tard.")
+        raise EngineUnavailableError(f"Erreur Groq {e.code}. {detail}")
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise RuntimeError(f"Reseau indisponible pour Groq : {e}")
+        raise EngineUnavailableError(f"Reseau indisponible pour Groq : {e}")
     try:
         return data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as e:

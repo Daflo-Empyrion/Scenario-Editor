@@ -45,6 +45,8 @@ class ItemCatalogDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(t("icat.title"))
         self.resize(880, 620)
+        from gui.window_geometry import track
+        track(self, "item_catalog")
         self._entries = entries
         self._refresh_callback = refresh_callback
         self._by_key: Dict[str, CatalogEntry] = {e.key: e for e in entries}

@@ -72,6 +72,8 @@ class SpellcheckReviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(t("spellcheck.title"))
         self.resize(980, 520)
+        from gui.window_geometry import track
+        track(self, "spellcheck")
         self._issues = issues
         self.on_apply_batch = on_apply_batch
         self.on_save_session = on_save_session
