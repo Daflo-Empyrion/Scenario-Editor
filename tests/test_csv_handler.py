@@ -53,3 +53,23 @@ def test_render_does_not_double_escape_already_correct_value():
     rendered2 = render_csv(doc2)
     assert rendered1 == rendered2
     assert doc1.rows == doc2.rows
+
+
+def test_render_escapes_real_newlines_in_cells():
+    """Empyrion lit ses CSV ligne par ligne : une cellule contenant un vrai
+    retour a la ligne devient une cellule multi-lignes que le parseur du jeu
+    ne resout plus (les cles concernees s'affichent brutes en jeu -- vecu
+    21/09 sur le PDA.csv de RE2 ATL, traductions FR invisibles). Le rendu
+    convertit tout vrai retour en litteral \\n, convention du jeu utilisee
+    par les colonnes EN du vanille."""
+    text = 'KEY,English,Français\npda_x,"line1\nline2",ligne3\n'
+    doc = parse_csv_text(text)
+    rendered = render_csv(doc)
+    # deux records, chacun sur UNE ligne physique (header + data)
+    assert len(rendered.strip("\r\n").splitlines()) == 2
+    assert "line1\\nline2" in rendered
+    # aller-retour : la cellule rechargee porte le litteral, plus aucun
+    # vrai retour a la ligne dans les donnees
+    doc2 = parse_csv_text(rendered)
+    assert doc2.rows == [["pda_x", "line1\\nline2", "ligne3"]]
+    assert render_csv(doc2) == rendered

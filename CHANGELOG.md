@@ -4,6 +4,51 @@ Tous les changements notables du projet sont documentes ici.
 Format inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ;
 versionnement [SemVer](https://semver.org/lang/fr/) (`vX.Y.Z`).
 
+## [1.11.0] — Non publiee
+
+### Ajoute
+- **Controle des blueprints .epb** (menu Verification -> Blueprints (.epb)) :
+  lecture du format binaire .epb (reconstruit depuis le code du jeu :
+  header magic/version/taille, proprietes, statistiques, BlockIdMapping
+  embarque, groupes, matrice sparse bitmask + uint32 par cellule occupee),
+  liste complete des blocs d'un .epb ou de tous les .epb d'un dossier
+  (prefabs du scenario, dossier de blueprints Steam), statuts par bloc :
+  inconnu (rouge) = absent du catalogue, interdit (orange) =
+  AllowedInBlueprint: false dans les ECF, avec quantites
+- **Vue 3D voxel** de la structure (gui/epb_view_3d.py) : projection
+  isometrique dans une zone de defilement (QAbstractScrollArea, seuls les
+  blocs visibles sont dessines -- 48k blocs fluides), zoom molette centre,
+  Pivoter 90 deg, Recentrer, clic sur un voxel -> id + nom du bloc
+- **Reparations** : Remplacement d'un bloc par un bloc du catalogue
+  (rotation et position conserves), Suppression de toutes les cellules
+  d'un id (clic droit), Sauvegarde des .epb modifies avec backup .bak ;
+  le rezip reconstruit crc/tailles locales et repertoire central
+- **Export CSV** de tous les blocs (X;Y;Z;ID;Nom;Rotation;HP)
+- **Saisie libre** dans le combo de remplacement : nom de bloc (completion
+  contient insensible a la casse), texte d'item `Nom (id)`, ou id numerique
+- **Index des couleurs** de la vue 3D : pastille exacte + nom + quantite
+  par id de bloc
+- **Catalogue de blocs fusionne** (load_block_catalog) : BlocksConfig*.ecf
+  des sources dans l'ordre du jeu (vanille d'abord, scenario gagne),
+  blocs `Ref:` sans Id heritent par nom, ids dont le nom a disparu de la
+  fusion = perdus au spawn (reproduit le message IdMapping de la console)
+
+### Corrige
+- **Rend_csv : les vrais retours a la ligne dans une cellule produisaient
+  des cellules multi-lignes que le parseur PDA du jeu ne resout plus**
+  (cles affichees brutes en jeu, vecu sur le PDA.csv de RE2 ATL, 37
+  cellules) : le rendu convertit tout retour en litteral 
+ -- convention
+  du jeu, utilisee par les colonnes EN du vanille ; normalisation appliquee
+  aux fichiers du scenario (PDA.csv 37, Localization.csv 8)
+
+### Notes
+- Catalogue par DOSSIER Configuration (le jeu fusionne tous les
+  BlocksConfig*.ecf) ; ordre [vanille, scenario] : la derniere definition
+  d'un id gagne ; blocs `Ref:` sans Id = connus par nom (id attribue par
+  le jeu), donc JAMAIS proposes au remplacement par erreur
+- Champ chemin du dialogue vide a l'ouverture (placeholder a la place)
+
 ## [1.10.0] — Non publiee
 
 ### Ajoute

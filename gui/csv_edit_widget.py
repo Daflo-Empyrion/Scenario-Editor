@@ -630,7 +630,7 @@ class CsvEditWidget(QWidget):
                 item.setText(new_text)
             return
 
-        if chosen == action_spell:
+        if action_spell is not None and chosen == action_spell:
             self._run_spellcheck("cell")
             return
 

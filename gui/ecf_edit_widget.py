@@ -2491,6 +2491,13 @@ class EcfEditWidget(QWidget):
             if catalog_target else None
 
         chosen = menu.exec(global_pos)
+        # menu.exec renvoie None quand le menu est FERME sans choix : une
+        # action optionnelle (donc None) matcherait None == None -- vecu
+        # 20/09 : fermer le menu sur une cellule quelconque de
+        # TraderNPCConfig declenchait la localisation SellingText. Sans
+        # choix explicite, ne rien faire.
+        if chosen is None:
+            return
 
         if chosen == action_bbcode:
             new_text = open_bbcode_tool(self, value_item.text())
@@ -2987,6 +2994,15 @@ class EcfEditWidget(QWidget):
         dans Extras/Localization.csv du scenario, et remplace la valeur
         ECF par la cle (le texte EN reste traduisible via le flux CSV
         existant)."""
+        # Garde structurelle (widget partage par TOUS les fichiers ECF) :
+        # la localisation ne peut viser QUE la cellule de VALEUR d'une
+        # propriete SellingText de TraderNPCConfig.ecf -- jamais une autre
+        # cle, un autre fichier, ni la ligne d'entete du bloc.
+        data = value_item.data(Qt.ItemDataRole.UserRole)
+        pair_key = data[1] if data else None
+        if (self.path.name.lower() != "tradernpcconfig.ecf"
+                or pair_key != "SellingText"):
+            return
         raw = value_item.text().strip()
         english_text = raw.strip('"').strip()
         # Garde anti-double-clic : la cellule pointe DEJA vers une cle

@@ -101,13 +101,22 @@ def parse_csv_text(raw_text: str) -> CsvDocument:
     )
 
 
+def _game_safe_cell(cell: str) -> str:
+    """Empyrion lit ses CSV ligne par ligne : un vrai retour a la ligne dans
+    une cellule produit une cellule multi-lignes que le parseur du jeu ne
+    resout plus (les cles concernees s'affichent brutes en jeu, vecu 21/09
+    sur le PDA.csv de RE2 ATL). Convention du jeu et du vanille : le
+    litteral \n dans la cellule, jamais de vrai retour."""
+    return cell.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n")
+
+
 def render_csv(doc: CsvDocument) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=doc.delimiter, quotechar=doc.quotechar,
                          lineterminator=doc.lineterminator, quoting=doc.quoting)
     if doc.header is not None:
-        writer.writerow(doc.header)
-    writer.writerows(doc.rows)
+        writer.writerow([_game_safe_cell(c) for c in doc.header])
+    writer.writerows([_game_safe_cell(c) for c in row] for row in doc.rows)
     return buf.getvalue()
 
 

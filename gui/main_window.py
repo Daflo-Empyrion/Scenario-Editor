@@ -250,6 +250,29 @@ class MainWindow(QMainWindow):
         self.action_validate.triggered.connect(self.validate_scenario_dialog)
         self.action_orphans = self.menu_check.addAction(t("menu.verification.orphans"))
         self.action_orphans.triggered.connect(self._open_orphan_dialog)
+        self.action_epb_check = self.menu_check.addAction(t("menu.verification.epb"))
+        self.action_epb_check.triggered.connect(self._open_epb_check_dialog)
+
+    def _open_epb_check_dialog(self):
+        """Controle des blueprints .epb : blocs inconnus du catalogue
+        (scenario + vanille), suppression optionnelle avec backup
+        (core/epb_blueprint.py + gui/epb_check_dialog.py)."""
+        from gui.epb_check_dialog import EpbCheckDialog
+        working = str(self.workspace.working) if self.workspace else ""
+        # dossiers Configuration, DANS L'ORDRE DU JEU : vanille d'abord,
+        # scenario ensuite (la derniere definition d'un id gagne) — le
+        # catalogue reproduit ainsi la fusion du jeu, conflits d'ids compris
+        # (ex: CPUExtenderCVT4 remplace par CPUBrokenCVT4 dans RE2 ATL).
+        catalog_paths = []
+        vanilla = settings.get_vanilla_content_path() or ""
+        if vanilla:
+            catalog_paths.append(str(
+                Path(vanilla) / "Configuration"))
+        if working:
+            catalog_paths.append(str(
+                Path(working) / "Content" / "Configuration"))
+        dlg = EpbCheckDialog(self, catalog_paths=catalog_paths)
+        dlg.exec()
 
     def _build_menu_options(self):
         """Options reorganisees (17/09/2026) : trois groupes lisibles au lieu

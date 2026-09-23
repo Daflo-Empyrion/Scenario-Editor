@@ -123,3 +123,59 @@ def test_localize_generates_key_and_localization_row(trader_scenario,
     loc = tmp_path / "Content" / "Extras" / "Localization.csv"
     # pas de fichier racine Extras dans ce scenario de test : Content/Extras
     assert loc.exists() or (tmp_path / "Extras" / "Localization.csv").exists()
+
+
+def test_menu_dismiss_triggers_nothing_on_other_cells(trader_scenario,
+                                                      monkeypatch):
+    """Vecu 20/09 : fermer le menu (clic a cote) renvoie None de
+    menu.exec ; l'action Localiser valait None aussi sur les cellules non
+    SellingText -> None == None declenchait la localisation. Toute
+    fermeture sans choix ne doit RIEN faire (idem partout dans l'appli)."""
+    window, edit_widget, tmp_path = trader_scenario
+    monkeypatch.setattr(QMenu, "exec",
+                        lambda self, pos, *a, **k: None)
+    localize_calls = []
+    duplicate_calls = []
+    monkeypatch.setattr(edit_widget, "_localize_selling_text",
+                        lambda item: localize_calls.append(item))
+    monkeypatch.setattr(edit_widget, "_duplicate_row_action",
+                        lambda prop: duplicate_calls.append(prop))
+
+    table = edit_widget.props_table
+    fired = False
+    for r in range(table.rowCount()):
+        key_item = table.item(r, 0)
+        # toute cellule SAUT la valeur SellingText : autres valeurs + cles
+        if key_item is None or key_item.text() != "SellingText":
+            for c in (0, 1):
+                it = table.item(r, c)
+                if it is None:
+                    continue
+                rect = table.visualItemRect(it)
+                edit_widget._show_table_context_menu(rect.center())
+                fired = True
+    assert fired, "aucune cellule non-SellingText a tester"
+    assert not localize_calls, "la localisation s'est declenchee au clic droit"
+    assert not duplicate_calls, "la duplication s'est declenchee au clic droit"
+    assert not (tmp_path / "Content" / "Extras" / "Localization.csv").exists()
+
+
+def test_localize_refuses_cell_outside_sellingtext(trader_scenario):
+    """Garde structurelle : _localize_selling_text refuse toute cellule
+    dont la paire n'est pas SellingText de TraderNPCConfig (autre cle,
+    autre fichier) -- le widget est partage par tous les fichiers ECF."""
+    window, edit_widget, tmp_path = trader_scenario
+    table = edit_widget.props_table
+    refused = 0
+    for r in range(table.rowCount()):
+        key_item = table.item(r, 0)
+        if key_item is None or key_item.text() == "SellingText":
+            continue
+        value_item = table.item(r, 1)
+        if value_item is None:
+            continue
+        edit_widget._localize_selling_text(value_item)
+        refused += 1
+        assert not str(value_item.text()).startswith('"scn_Selling_')
+    assert refused, "aucune autre paire a tester"
+    assert not (tmp_path / "Content" / "Extras" / "Localization.csv").exists()
