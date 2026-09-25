@@ -31,7 +31,6 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGroupBox, QWidget,
 )
 
-from gui.busy import busy_guard
 from core.i18n import t
 from gui.theme import icon, icon_size
 
@@ -126,65 +125,77 @@ class HealthCheckDialog(QDialog):
 
     def refresh(self):
         # Retour utilisateur 30/08/2026 : "Tout verifier" peut prendre du
-        # temps -- curseur + boite "en cours" modale a la fenetre.
-        with busy_guard(self):
-            self._refresh_all_checks()
-
-    def _refresh_all_checks(self):
-        total_problems = 0
-
-        # VERIF-001/VERIF-009 : toutes ces verifications lisent le disque --
-        # proposer d'abord d'enregistrer les onglets modifies.
+        # temps ; 23/09/2026 : verifications en worker + gerbe plasma animee
+        # au-dela d'une seconde (gui/busy.py).
+        # VERIF-001/VERIF-009 : ces verifications lisent le disque --
+        # proposer d'abord d'enregistrer les onglets modifies (GUI).
         self.main_window.ensure_analysis_fresh_tabs()
+        from gui.busy import run_long
+        counts = run_long(self, self._collect_all_checks)
+        self._apply_check_results(counts)
 
-        # --- References (les 4 verifications de cross_reference_check.py,
-        # heritage Ref inclus -- meme regroupement que le bouton "Verifier les
-        # references croisees", pour ne jamais compter deux fois la meme chose
-        # separement du menu "Verifier les references" seul) ---
-        from core.ecf.cross_reference_check import CrossRefContext, run_checks, CROSS_REFERENCE_CHECKS
-        ctx = CrossRefContext(ecf_files=self._ecf_files(), yaml_files=[],
-                               scenario_root=self.workspace.working_root)
-        ref_issues = run_checks(ctx, [c.id for c in CROSS_REFERENCE_CHECKS])
-        ok = len(ref_issues) == 0
-        total_problems += len(ref_issues)
-        self.row_refs.set_result(
-            ok, t("health.all_ok") if ok else t("health.n_issues", n=len(ref_issues)),
-            self.main_window.check_cross_references_dialog)
-
-        # --- Regles metier (validation.py) ---
-        from core.ecf.validation import validate_scenario
-        by_file = validate_scenario(self.workspace.working_root)
-        validation_count = sum(len(issues) for issues in by_file.values())
-        ok = validation_count == 0
-        total_problems += validation_count
-        self.row_validation.set_result(
-            ok, t("health.all_ok") if ok else t("health.n_issues", n=validation_count),
-            self.main_window.validate_scenario_dialog)
-
-        # --- Blocs en attente ---
+    def _collect_all_checks(self) -> dict:
+        """Les 4 familles de verifications, SANS toucher aux widgets
+        (executable hors du thread GUI)."""
+        from core.ecf.cross_reference_check import (CROSS_REFERENCE_CHECKS,
+                                                    CrossRefContext,
+                                                    run_checks)
+        from core.ecf.orphan_check import find_unused_tokens
         from core.ecf.pending_conflicts import find_pending_conflicts
         from core.ecf.parser import parse_ecf_file
+        from core.ecf.validation import validate_scenario
+
+        ecf_files = self._ecf_files()
+        ctx = CrossRefContext(ecf_files=ecf_files, yaml_files=[],
+                              scenario_root=self.workspace.working_root)
+        ref_issues = run_checks(ctx, [c.id for c in CROSS_REFERENCE_CHECKS])
+        by_file = validate_scenario(self.workspace.working_root)
         pending_count = 0
-        for path in self._ecf_files():
+        for path in ecf_files:
             try:
                 doc = parse_ecf_file(path)
             except Exception:
                 continue
             pending_count += len(find_pending_conflicts(doc))
-        ok = pending_count == 0
-        total_problems += pending_count
+        unused = find_unused_tokens(ecf_files)
+        return {
+            "refs": len(ref_issues),
+            "validation": sum(len(issues) for issues in by_file.values()),
+            "pending": pending_count,
+            "orphans": len(unused),
+        }
+
+    def _apply_check_results(self, counts: dict):
+        total_problems = (counts["refs"] + counts["validation"]
+                          + counts["pending"])
+
+        # --- References (les 4 verifications de cross_reference_check.py,
+        # heritage Ref inclus -- meme regroupement que le bouton "Verifier les
+        # references croisees", pour ne jamais compter deux fois la meme chose
+        # separement du menu "Verifier les references" seul) ---
+        ok = counts["refs"] == 0
+        self.row_refs.set_result(
+            ok, t("health.all_ok") if ok else t("health.n_issues", n=counts["refs"]),
+            self.main_window.check_cross_references_dialog)
+
+        # --- Regles metier (validation.py) ---
+        ok = counts["validation"] == 0
+        self.row_validation.set_result(
+            ok, t("health.all_ok") if ok else t("health.n_issues", n=counts["validation"]),
+            self.main_window.validate_scenario_dialog)
+
+        # --- Blocs en attente ---
+        ok = counts["pending"] == 0
         self.row_pending.set_result(
-            ok, t("health.all_ok") if ok else t("health.n_issues", n=pending_count),
+            ok, t("health.all_ok") if ok else t("health.n_issues", n=counts["pending"]),
             self.main_window.check_pending_conflicts_dialog)
 
         # --- Jetons non utilises (informatif -- ne compte pas dans le total
         # de "problemes", coherent avec orphan_check.py qui n'est jamais une
         # erreur) ---
-        from core.ecf.orphan_check import find_unused_tokens
-        unused = find_unused_tokens(self._ecf_files())
-        ok = len(unused) == 0
+        ok = counts["orphans"] == 0
         self.row_orphans.set_result(
-            ok, t("health.all_ok") if ok else t("health.n_issues", n=len(unused)),
+            ok, t("health.all_ok") if ok else t("health.n_issues", n=counts["orphans"]),
             self.main_window._open_orphan_dialog)
 
         if total_problems == 0:

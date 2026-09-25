@@ -33,7 +33,6 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
-from gui.busy import busy_guard
 from core.scenario_search import search_scenario, SearchResult
 from core.workspace_undo import FileStateUndo, capture_file
 
@@ -136,11 +135,13 @@ class ScenarioSearchDialog(QDialog):
             return
         ecf_files, yaml_files, csv_files = self._gather_files()
         try:
-            with busy_guard(self):
-                results = search_scenario(
-                    ecf_files, yaml_files, csv_files, query,
-                    case_sensitive=self.case_sensitive_check.isChecked(),
-                    use_regex=self.regex_check.isChecked())
+            from gui.busy import run_long
+            # options capturees AVANT le thread (lecture de widgets)
+            case_sensitive = self.case_sensitive_check.isChecked()
+            use_regex = self.regex_check.isChecked()
+            results = run_long(self, lambda: search_scenario(
+                ecf_files, yaml_files, csv_files, query,
+                case_sensitive=case_sensitive, use_regex=use_regex))
         except re.error as e:
             # Motif regex invalide : signale AVANT toute recherche, la liste
             # precedente reste affichee (pas de resultats vides trompeurs).
@@ -201,11 +202,13 @@ class ScenarioSearchDialog(QDialog):
             undos.append(FileStateUndo(path, capture_file(path),
                                        t("search.replace_undo", file=path.name)))
         try:
-            with busy_guard(self):
-                replaced = replace_in_files(
-                    files, query, self.replace_edit.text(),
-                    case_sensitive=self.case_sensitive_check.isChecked(),
-                    use_regex=self.regex_check.isChecked())
+            from gui.busy import run_long
+            replacement = self.replace_edit.text()
+            case_sensitive = self.case_sensitive_check.isChecked()
+            use_regex = self.regex_check.isChecked()
+            replaced = run_long(self, lambda: replace_in_files(
+                files, query, replacement,
+                case_sensitive=case_sensitive, use_regex=use_regex))
         except re.error as e:
             QMessageBox.warning(self, t("search.title"),
                                 t("search.invalid_regex", error=str(e)))

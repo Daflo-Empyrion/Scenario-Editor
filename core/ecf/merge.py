@@ -41,10 +41,91 @@ Dans les deux cas, un rapport de fusion liste les identités présentes dans plu
 sources (donc "arbitrées" par la priorité), pour revue humaine avant application.
 """
 import copy
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, block_identity, property_lines, normalized_kind, add_property_line
+
+ITEM_PROP_RE = re.compile(r"^Item(\d+)$", re.IGNORECASE)
+
+
+def item_identity(value: str) -> str:
+    """Identite d'un item d'une liste ItemN : le PREMIER CHAMP de la valeur
+    (ex : '"AlienNPCBlocks, mf=0.25-0.5, 3-10, 0, 0"' -> 'AlienNPCBlocks').
+    Vecu 24/09 : deux scenarios n'ordonnent PAS leurs items pareil —
+    apparier Item1<->Item1 ecrasait des items differents."""
+    v = str(value).strip().strip('"')
+    head = v.split(",")[0].strip()
+    return head or v
+
+
+def ordered_items(block: EcfBlock) -> List[Tuple[str, str]]:
+    """Liste [(identite, valeur brute)] des proprietes ItemN d'un bloc,
+    dans l'ordre du fichier, identites dedoublonnees (1re occurrence)."""
+    out: List[Tuple[str, str]] = []
+    seen = set()
+    pairs_list = list(block.pairs)
+    for child in block.children:
+        if isinstance(child, EcfProperty):
+            pairs_list.extend(child.pairs)
+    for k, v in pairs_list:
+        if k and ITEM_PROP_RE.match(str(k)) and v is not None:
+            ident = item_identity(v)
+            key = ident.casefold()
+            if key not in seen:
+                seen.add(key)
+                out.append((ident, v))
+    return out
+
+
+def normalize_item_list(merged: EcfBlock, working: EcfBlock,
+                        source: EcfBlock) -> List[Tuple[str, str]]:
+    """Reconstruit la liste ItemN du bloc FUSIONNE PAR IDENTITE : les items
+    de la copie de travail gardent leur valeur, ceux du scenario source
+    absents de la copie sont AJOUTES a la suite (renumerotes Item1..N sans
+    trou). Retourne la liste finale [(identite, valeur)] = nouveaux slots."""
+    working_items = ordered_items(working)
+    source_items = ordered_items(source)
+    working_ids = {ident.casefold() for ident, _ in working_items}
+    final = list(working_items)
+    for ident, v in source_items:
+        if ident.casefold() not in working_ids:
+            final.append((ident, v))
+    merged.pairs = [(k, v) for (k, v) in merged.pairs
+                    if not (k and ITEM_PROP_RE.match(str(k)))]
+    kept_children = []
+    for child in merged.children:
+        if isinstance(child, EcfProperty) and any(
+                k and ITEM_PROP_RE.match(str(k)) for k, _ in child.pairs if k):
+            continue
+        kept_children.append(child)
+    merged.children = kept_children
+    for i, (_ident, v) in enumerate(final, 1):
+        add_property_line(merged, [(f"Item{i}", v)])
+    return final
+
+
+def renumber_item_lines(block: EcfBlock) -> None:
+    """Renumenrote Item1..N sans trou (apres retrait de lignes ajoutees
+    que l'utilisateur a decochees)."""
+    idx = 0
+    owners = [block] + [c for c in block.children
+                        if isinstance(c, EcfProperty)]
+    for owner in owners:
+        new_pairs = []
+        changed = False
+        for k, v in owner.pairs:
+            if k and ITEM_PROP_RE.match(str(k)):
+                idx += 1
+                nk = f"Item{idx}"
+                changed = changed or nk != k
+                new_pairs.append((nk, v))
+            else:
+                new_pairs.append((k, v))
+        owner.pairs = new_pairs
+        if changed and isinstance(owner, EcfProperty):
+            owner.dirty = True
 
 
 @dataclass
@@ -82,6 +163,10 @@ class IdConflict:
     conflicting_source: str
     conflicting_name: Optional[str]
     block: EcfBlock
+    differences: List[Tuple[str, str, str]] = field(default_factory=list)
+    # (cle, valeur copie de travail, valeur source) — les proprietes
+    # d'identite qui ont declenche le conflit (souvent Model/TemplateRoot
+    # sur des patchs +Block de meme Id ET meme Name)
 
 
 @dataclass
@@ -99,7 +184,7 @@ class MergeResult:
 def _blocks_correspond(base_block: EcfBlock, other_block: EcfBlock) -> bool:
     """Verifie qu'un Id (ou autre identite) partage designe bien le MEME element
     materiel des deux cotes. On compare 'Name' ET plusieurs proprietes revelatrices
-    de l'identite REELLE du bloc (CustomIcon, TemplateRoot, Model).
+    de l'identite REELLE du bloc (CustomIcon, TemplateRoot, Model, IndexName).
 
     Pourquoi pas 'Name' seul : les scenarios recyclent parfois un ancien Id/Name
     vanilla pour un objet completement different (ex: 'InteriorBath' garde son nom
@@ -109,13 +194,23 @@ def _blocks_correspond(base_block: EcfBlock, other_block: EcfBlock) -> bool:
 
     Un mismatch sur N'IMPORTE LAQUELLE de ces cles (quand les deux blocs la definissent)
     suffit a declencher un conflit."""
-    identity_keys = ('Name', 'CustomIcon', 'TemplateRoot', 'Model', 'IndexName')
-    for key in identity_keys:
+    return not _identity_differences(base_block, other_block)
+
+
+def _identity_differences(base_block: EcfBlock,
+                          other_block: EcfBlock) -> List[Tuple[str, str, str]]:
+    """Liste des proprietes d'identite qui DIFFERENT entre deux blocs de meme
+    (kind normalise, Id) : [(cle, valeur_copie, valeur_source)]. Un meme Id +
+    meme Name peut malgre tout differer sur Model/TemplateRoot/CustomIcon/
+    IndexName (vecu 25/09 : patchs +Block d'un autre scenario) — c'est LA
+    difference qu'il faut afficher a l'utilisateur, pas seulement les noms."""
+    diffs: List[Tuple[str, str, str]] = []
+    for key in ('Name', 'CustomIcon', 'TemplateRoot', 'Model', 'IndexName'):
         val_a = base_block.get_property(key)
         val_b = other_block.get_property(key)
         if val_a is not None and val_b is not None and val_a != val_b:
-            return False
-    return True
+            diffs.append((key, val_a, val_b))
+    return diffs
 
 
 def _make_pending_comment_nodes(conflict: IdConflict) -> List:
@@ -161,12 +256,13 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
             key = (normalized_kind(node.kind), block_identity(node))
             if key in grouped:
                 base_label, base_block = grouped[key][0]
-                if key[1] is not None and not _blocks_correspond(base_block, node):
+                diffs = _identity_differences(base_block, node)
+                if key[1] is not None and diffs:
                     id_conflicts.append(IdConflict(
                         kind=node.kind, identity=key[1],
                         base_name=base_block.get_property('Name'), base_source=base_label,
                         conflicting_source=label, conflicting_name=node.get_property('Name'),
-                        block=node,
+                        block=node, differences=diffs,
                     ))
                     continue
             else:
@@ -177,11 +273,14 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
     merged_nodes = []
     report: List[MergeReportEntry] = []
 
+    first_source_label = sources[0][0]
+    prev_was_added = False
     for key in order:
         kind, identity = key
         candidates = grouped[key]  # deja dans l'ordre de priorite (car sources iterees dans cet ordre)
         winning_label, winning_block = candidates[0]
         sources_present = [label for label, _ in candidates]
+        is_added = (winning_label != first_source_label)
 
         if mode == 'block' or len(candidates) == 1:
             merged_block = copy.deepcopy(winning_block)
@@ -192,7 +291,15 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
             entry = MergeReportEntry(kind=kind, identity=identity, sources_present=sources_present,
                                       winning_source=winning_label, property_overrides=overrides)
 
+        # SEPARATEUR de debut de paquet ajoute (demande 25/09/2026) : les
+        # blocs issus uniquement de la source atterrissent APRES ceux de la
+        # copie de travail — sans marque, impossibles a distinguer du
+        # contenu d'origine. Un commentaire ouvre chaque paquet consecutif.
+        if is_added and not prev_was_added:
+            merged_nodes.append(EcfComment(
+                raw=f"# ===== Fusion depuis \"{winning_label}\" : blocs ajoutes ci-dessous =====\r\n"))
         merged_nodes.append(merged_block)
+        prev_was_added = is_added
         report.append(entry)
 
     for conflict in id_conflicts:

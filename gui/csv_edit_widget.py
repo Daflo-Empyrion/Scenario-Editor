@@ -822,7 +822,7 @@ class CsvEditWidget(QWidget):
         from core import spellcheck as sp
         from core import lang_detect
         from core.translation import find_language_aliases, _normalize, repair_mojibake
-        from gui.busy import busy_guard
+        from gui.busy import run_long
 
         if not sp.is_available():
             answer = QMessageBox.question(
@@ -830,28 +830,31 @@ class CsvEditWidget(QWidget):
                 t("spellcheck.not_installed", version=sp.GRAMMALECTE_VERSION),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if answer == QMessageBox.StandardButton.Yes:
-                with busy_guard(self, "busy.downloading"):
-                    sp.download_and_install()
+                run_long(self, sp.download_and_install, "busy.downloading")
             return
 
         targets = self._collect_spellcheck_targets(scope)
         fr_cols = set(self._french_columns())
-        issues = []
-        with busy_guard(self):
+
+        def _scan():
+            found = []
             for row, col, key, text in targets:
                 for iss in sp.check_text(text):
                     iss.update({"row": row, "col": col, "key": key,
                                 "cell_text": text, "is_lang": False})
-                    issues.append(iss)
+                    found.append(iss)
             # Detection "encore en anglais" : uniquement sur les colonnes
             # francaises (les colonnes sources EN sont supposement voulues).
             for row, col, key, text in targets:
                 if col in fr_cols and lang_detect.is_likely_english(text):
-                    issues.append({"row": row, "col": col, "key": key,
-                                   "cell_text": text, "start": 0, "end": 0,
-                                   "orig": "", "s_type": "lang",
-                                   "message": "", "suggestions": [],
-                                   "is_lang": True})
+                    found.append({"row": row, "col": col, "key": key,
+                                  "cell_text": text, "start": 0, "end": 0,
+                                  "orig": "", "s_type": "lang",
+                                  "message": "", "suggestions": [],
+                                  "is_lang": True})
+            return found
+
+        issues = run_long(self, _scan)
 
         if not issues:
             QMessageBox.information(self, t("spellcheck.title"), t("spellcheck.no_issues"))

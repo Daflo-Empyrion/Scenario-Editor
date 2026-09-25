@@ -44,7 +44,7 @@ import os
 import struct
 import zipfile
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -201,6 +201,18 @@ def _skip_block_groups(r: "_BinReader") -> None:
                 _read_string_skip(r)
 
 
+def _7bit_encode(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return bytes(out)
+
+
 def _read_block_id_mapping(r: "_BinReader") -> Dict[int, str]:
     r.u8()                      # version du format (=1)
     count = r.i32()
@@ -219,11 +231,15 @@ class BlockCatalog:
     utilisables comme cible de remplacement) ; `names` = TOUS les noms de
     blocs connus (avec ou sans Id -- les blocs `Ref:` sans Id sont valides,
     le jeu leur attribue un id au chargement) ; `forbidden` = ids avec
-    `AllowedInBlueprint: false` (refuses au spawn des blueprints)."""
+    `AllowedInBlueprint: false` (refuses au spawn des blueprints) ;
+    `forbidden_names` = les memes PAR NOM (la resolution d'un BP avec
+    mapping embarque est par nom, et un bloc interdit peut n'avoir pas
+    d'Id -- ex CoreNoCPU de RE2 ATL)."""
 
     ids: Dict[int, str]
     names: Set[str]
     forbidden: Set[int]
+    forbidden_names: Set[str] = field(default_factory=set)
 
 
 def load_block_catalog(ecf_paths: Iterable[os.PathLike]) -> BlockCatalog:
@@ -253,6 +269,7 @@ def load_block_catalog(ecf_paths: Iterable[os.PathLike]) -> BlockCatalog:
     name_to_id: Dict[str, Optional[int]] = {}
     id_to_name: Dict[int, str] = {}
     forbidden: Set[int] = set()
+    forbidden_names: Set[str] = set()
     for p in paths:
         try:
             doc = parse_ecf_file(p)
@@ -273,9 +290,14 @@ def load_block_catalog(ecf_paths: Iterable[os.PathLike]) -> BlockCatalog:
                     bid = int(str(raw_id).strip())
                 except ValueError:
                     bid = None
+            allowed = node.get_property("AllowedInBlueprint")
+            is_forbidden = (allowed is not None
+                            and allowed.strip().lower() == "false")
             if bid is None:
                 # bloc sans Id : connu par nom (id runtime attribue par le jeu)
                 name_to_id.setdefault(name, None)
+                if is_forbidden:
+                    forbidden_names.add(name)
                 continue
             # l'id change de main : l'ancien nom le perd (comme le jeu)
             old_name = id_to_name.get(bid)
@@ -283,13 +305,14 @@ def load_block_catalog(ecf_paths: Iterable[os.PathLike]) -> BlockCatalog:
                 name_to_id.pop(old_name, None)
             id_to_name[bid] = name
             name_to_id[name] = bid
-            allowed = node.get_property("AllowedInBlueprint")
-            if allowed is not None and allowed.strip().lower() == "false":
+            if is_forbidden:
                 forbidden.add(bid)
+                forbidden_names.add(name)
     ids = {bid: name for name, bid in name_to_id.items()
            if bid is not None and id_to_name.get(bid) == name}
     names = set(name_to_id)
-    result = BlockCatalog(ids=ids, names=names, forbidden=forbidden)
+    result = BlockCatalog(ids=ids, names=names, forbidden=forbidden,
+                          forbidden_names=forbidden_names)
     _catalog_cache[cache_key] = (sig, result)
     return result
 
@@ -324,6 +347,8 @@ class EpbBlueprint:
         self.size: Tuple[int, int, int] = (0, 0, 0)
         self.blocks: List[EpbBlock] = []
         self.id_mapping: Dict[int, str] = {}    # table embarquee du blueprint
+        self._map_span = None                   # (debut, fin) de la section mapping dans _prefix
+        self._map_dirty = False                 # mapping modifie -> re-serialiser au save
         self.id_names: Dict[int, str] = {}      # catalogue ECF (scenario+vanille)
         self.catalog_names: Set[str] = set()    # tous les noms de blocs ECF
         self._prefix = b""
@@ -352,10 +377,12 @@ class EpbBlueprint:
             _skip_properties(r)
         if self.version > 3:
             _skip_statistics(r, self.version)
-        if self.version > 27 and r.boolean():
-            self.id_mapping = _read_block_id_mapping(r)
-        else:
-            self.id_mapping = {}
+        self._map_span = None
+        if self.version > 27:
+            start = r.p                     # octet du booleen de presence
+            if r.boolean():
+                self.id_mapping = _read_block_id_mapping(r)
+            self._map_span = (start, r.p)   # fin = apres le blob mapping
         if self.version >= 9:
             _skip_block_groups(r)
 
@@ -425,12 +452,21 @@ class EpbBlueprint:
 
     # ------------------------------------------------------------- verification
 
-    def forbidden_counts(self, forbidden_ids: Set[int]) -> Dict[int, int]:
-        """Comptage des cellules dont l'id fait partie des blocs interdits
-        (AllowedInBlueprint: false dans les ECF)."""
+    def forbidden_counts(self, forbidden_ids: Set[int],
+                         forbidden_names: Optional[Set[str]] = None
+                         ) -> Dict[int, int]:
+        """Comptage des cellules refusees au spawn (AllowedInBlueprint:
+        false). Avec un mapping embarque les ids des cellules sont LOCAUX :
+        resolution PAR NOM via forbidden_names ; sinon test par id direct."""
         counts: Dict[int, int] = {}
+        by_name = bool(self.id_mapping) and forbidden_names is not None
         for b in self.blocks:
-            if b.block_id in forbidden_ids:
+            if by_name:
+                name = self.id_mapping.get(b.block_id)
+                hit = name is not None and name in forbidden_names
+            else:
+                hit = b.block_id in forbidden_ids
+            if hit:
                 counts[b.block_id] = counts.get(b.block_id, 0) + 1
         return counts
 
@@ -475,10 +511,16 @@ class EpbBlueprint:
         self.blocks = [b for b in self.blocks if b.block_id not in ids]
         return removed
 
-    def replace_ids(self, mapping: Dict[int, int]) -> int:
+    def replace_ids(self, mapping: Dict[int, int],
+                    id_names: Optional[Dict[int, str]] = None) -> int:
         """Remplace un id de bloc par un autre (cle = id actuel, valeur =
         id de remplacement), rotation et autres champs conserves.
-        Retourne le nombre de cellules remplacees (a sauvegarder ensuite)."""
+        Retourne le nombre de cellules remplacees (a sauvegarder ensuite).
+        Si le blueprint embarque un BlockIdMapping (resolution PAR NOM au
+        spawn), il est tenu a jour : entree de l'ancien id retiree, nouvel
+        id mappe vers son nom du catalogue (`id_names`) — sinon la cellule
+        remplacee serait SUPPRIMEE au spawn (id absent du mapping, vecu :
+        CoreNoCPU remplace par Core (558) -> spawn sans coeur)."""
         id_mask = 0x7FF | 0x800000 | 0x1000000
         count = 0
         new_cells = []
@@ -499,6 +541,19 @@ class EpbBlueprint:
         for b in self.blocks:
             if b.block_id in mapping:
                 b.block_id = mapping[b.block_id]
+        if self.id_mapping:
+            touched = False
+            for old in mapping:
+                if self.id_mapping.pop(old, None) is not None:
+                    touched = True
+            if id_names:
+                for new in mapping.values():
+                    name = id_names.get(new)
+                    if name and self.id_mapping.get(new) != name:
+                        self.id_mapping[new] = name
+                        touched = True
+            if touched:
+                self._map_dirty = True
         return count
 
     def export_csv(self, path: os.PathLike, headers: Optional[List[str]] = None,
@@ -517,6 +572,16 @@ class EpbBlueprint:
                             b.rotation, b.hp_field])
         return target
 
+    def _serialize_mapping(self) -> bytes:
+        """Section BlockIdMapping complete (booleen de presence + version du
+        format + entrees), triee par id local pour un fichier deterministe."""
+        out = bytearray([1, 1])             # present + version du format
+        out += struct.pack("<i", len(self.id_mapping))
+        for local_id in sorted(self.id_mapping):
+            name = self.id_mapping[local_id].encode("utf-8")
+            out += _7bit_encode(len(name)) + name + struct.pack("<H", local_id)
+        return bytes(out)
+
     def save(self, path: Optional[os.PathLike] = None, backup: bool = True) -> Path:
         if not self._loaded:
             raise EpbError("blueprint non charge")
@@ -524,6 +589,13 @@ class EpbBlueprint:
         if backup and target.exists():
             backup_path = target.with_suffix(target.suffix + ".bak")
             backup_path.write_bytes(target.read_bytes())
+        prefix = self._prefix
+        if self._map_dirty and self._map_span:
+            # le mapping modifie (remplacement de blocs) doit VRAIMENT
+            # etre ecrit : la resolution du jeu est PAR NOM au spawn
+            start, end = self._map_span
+            prefix = (self._prefix[:start] + self._serialize_mapping()
+                      + self._prefix[end:])
         sx, sy, sz = self.size
         volume = sx * sy * sz
         mask_count = (volume + 7) // 8
@@ -552,7 +624,7 @@ class EpbBlueprint:
         # i32 = taille entree locale + repertoire central (cf. readRest du jeu);
         # les octets posterieurs eventuels (terrain fillers...) sont recopies.
         num = len(local) + len(central)
-        data = self._prefix + struct.pack("<i", num) + self._flags + local + central
+        data = prefix + struct.pack("<i", num) + self._flags + local + central
         target.write_bytes(data)
         return target
 

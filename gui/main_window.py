@@ -218,6 +218,10 @@ class MainWindow(QMainWindow):
         self.action_block_library.triggered.connect(self._open_block_library)
         self.action_modified_files = self.menu_tools.addAction(t("menu.tools.modified_files"))
         self.action_modified_files.triggered.connect(self._open_modified_files)
+        self.action_production_sync = self.menu_tools.addAction(t("menu.tools.production_sync"))
+        self.action_production_sync.triggered.connect(self._open_production_sync)
+        self.action_balance = self.menu_tools.addAction(t("menu.tools.balance"))
+        self.action_balance.triggered.connect(self._open_balance_dialog)
         self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
         self.action_dashboard.triggered.connect(self._open_dashboard)
         self.action_economy_editor = self.menu_tools.addAction(t("menu.tools.economy"))
@@ -253,25 +257,31 @@ class MainWindow(QMainWindow):
         self.action_epb_check = self.menu_check.addAction(t("menu.verification.epb"))
         self.action_epb_check.triggered.connect(self._open_epb_check_dialog)
 
+    def _epb_catalog_paths(self) -> list:
+        """Dossiers Configuration DANS L'ORDRE DU JEU : vanille d'abord,
+        scenario (copie de travail) ensuite — la derniere definition d'un id
+        gagne, le catalogue reproduit la fusion du jeu (ex : CPUExtenderCVT4
+        remplace par CPUBrokenCVT4 dans RE2 ATL).
+        CORRIGE v1.12.0 (vecu 4 fois : lignes CPUExtenderCVT4/CoreNoCPU
+        jamais colorees) : on passait str(workspace.working) — la
+        REPRESENTATION d'un objet WorkingCopy, pas un chemin — donc le
+        repertoire du scenario n'a JAMAIS figure dans le catalogue ;
+        l'analyse tournait en vanille seule (1891 ids au lieu de 1892)."""
+        paths = []
+        vanilla = settings.get_vanilla_content_path() or ""
+        if vanilla:
+            paths.append(str(Path(vanilla) / "Configuration"))
+        if self.workspace:
+            paths.append(str(
+                Path(self.workspace.working_root) / "Content" / "Configuration"))
+        return paths
+
     def _open_epb_check_dialog(self):
         """Controle des blueprints .epb : blocs inconnus du catalogue
         (scenario + vanille), suppression optionnelle avec backup
         (core/epb_blueprint.py + gui/epb_check_dialog.py)."""
         from gui.epb_check_dialog import EpbCheckDialog
-        working = str(self.workspace.working) if self.workspace else ""
-        # dossiers Configuration, DANS L'ORDRE DU JEU : vanille d'abord,
-        # scenario ensuite (la derniere definition d'un id gagne) — le
-        # catalogue reproduit ainsi la fusion du jeu, conflits d'ids compris
-        # (ex: CPUExtenderCVT4 remplace par CPUBrokenCVT4 dans RE2 ATL).
-        catalog_paths = []
-        vanilla = settings.get_vanilla_content_path() or ""
-        if vanilla:
-            catalog_paths.append(str(
-                Path(vanilla) / "Configuration"))
-        if working:
-            catalog_paths.append(str(
-                Path(working) / "Content" / "Configuration"))
-        dlg = EpbCheckDialog(self, catalog_paths=catalog_paths)
+        dlg = EpbCheckDialog(self, catalog_paths=self._epb_catalog_paths())
         dlg.exec()
 
     def _build_menu_options(self):
@@ -1133,11 +1143,8 @@ class MainWindow(QMainWindow):
         from core.property_extractor import extract_properties, build_property_rows, PROPERTY_EXPORT_HEADER
         from core.csv_handler import CsvDocument, render_csv
 
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            usages = extract_properties(source_root)
-        finally:
-            QApplication.restoreOverrideCursor()
+        from gui.busy import run_long
+        usages = run_long(self, lambda: extract_properties(source_root))
 
         if not usages:
             QMessageBox.information(self, t("extract.title"), t("extract.no_ecf_found"))
@@ -1184,9 +1191,9 @@ class MainWindow(QMainWindow):
         if not sectors_files:
             QMessageBox.information(self, t("galaxy.title"), t("galaxy.not_found"))
             return
+        from gui.busy import run_long
         try:
-            with busy_guard(self):
-                doc = parse_yaml_file(sectors_files[0])
+            doc = run_long(self, lambda: parse_yaml_file(sectors_files[0]))
         except Exception as e:
             QMessageBox.critical(self, t("err.title"), f"{t('check.verification_error')} :\n{e}")
             return
@@ -1710,6 +1717,21 @@ class MainWindow(QMainWindow):
         from gui.modified_files_dialog import ModifiedFilesDialog
         self._modified_files_dialog = ModifiedFilesDialog(self)
         self._modified_files_dialog.show()
+
+    def _open_production_sync(self):
+        """Copie (remplace) les fichiers modifies vers le scenario en
+        production (demande 24/09/2026 : finir le copier-coller manuel)."""
+        from gui.production_sync_dialog import ProductionSyncDialog
+        dlg = ProductionSyncDialog(self)
+        dlg.exec()
+
+    def _open_balance_dialog(self):
+        """Equilibrage du scenario (MODULE_EQUILIBRAGE.md) : regles avec
+        politiques, apercu coche des changements, application avec
+        backups + undo espace de travail."""
+        from gui.balance_dialog import BalanceDialog
+        dlg = BalanceDialog(self)
+        dlg.exec()
 
     def _open_dashboard(self):
         """Tableau de bord du scenario (stats + bilan regles metiers)."""
@@ -2363,15 +2385,60 @@ class MainWindow(QMainWindow):
         if nb_files == 0:
             QMessageBox.information(self, t("merge.empty_folder_title"), t("merge.empty_folder_msg"))
             return
-        if not ask_yes_no(self, t("merge.confirm_title"),
-                          t("merge.confirm_folder_msg", n=nb_files, folder=folder.name)):
+        # Fenetre de REVISION (demande 25/09/2026) : les non-ECF (Sectors.yaml,
+        # Playfields/, Prefabs/) etaient copies en aveugle ; desormais plan
+        # coche fichier par fichier + DEPENDANCES (playfields et POIs
+        # references par un Sectors.yaml source et absents de la copie).
+        from gui.folder_merge_review_dialog import FolderMergeReviewDialog
+        review = FolderMergeReviewDialog(self, folder, source_root,
+                                         source_label, parent=self)
+        if review.exec() != QDialog.DialogCode.Accepted:
+            return
+        selected = review.selected_merge_files()
+        dependencies = review.selected_dependencies()
+        units = review.selected_structural_units()
+        if not selected and not dependencies and not units:
+            self.statusBar().showMessage(t("mergeplan.nothing_selected"))
+            return
+
+        # fusion STRUCTURELLE du Sectors.yaml (tranche 2) : insertion des
+        # unites cochees dans NOTRE fichier (jamais d'ecrasement par celui
+        # de la source) — le remplacement brut est exclu de la selection
+        structural_note = ""
+        if units and review.sectors_plan is not None:
+            from core.sectors_merge import apply_structural_units
+            sectors_dest = review.sectors_plan.dest
+            prior = capture_file(sectors_dest)
+            applied = apply_structural_units(sectors_dest, units,
+                                             review.sectors_plan.source)
+            self._push_workspace_undo(FileStateUndo(
+                sectors_dest, prior, t("mergeplan.struct_undo")))
+            selected = [p for p in selected
+                        if p != review.sectors_plan.source]
+            structural_note = " " + t("mergeplan.struct_done", n=applied)
+
+        # dependances : nouveaux fichiers references (copie simple + undo)
+        dep_undos = []
+        for dep in dependencies:
+            dep_undos.append(FileStateUndo(dep.dest, capture_file(dep.dest),
+                                           f"{t('mergeplan.dep_undo')} {dep.dest.name}"))
+            dep.dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dep.source, dep.dest)
+        if dep_undos:
+            self._push_workspace_undo(MultiFileStateUndo(
+                dep_undos, t("mergeplan.dep_undo_group", n=len(dep_undos))))
+
+        if not selected:
+            self.statusBar().showMessage(
+                t("mergeplan.dep_only_done", n=len(dep_undos))
+                + structural_note)
             return
 
         rel = folder.relative_to(source_root)
         working_folder = self.workspace.working_root / rel
         existed_before, prior_files = capture_folder(working_folder)
 
-        progress = QProgressDialog(f"Fusion de {nb_files} fichier(s)...", None, 0, 0, self)
+        progress = QProgressDialog(f"Fusion de {len(selected)} fichier(s)...", None, 0, 0, self)
         progress.setWindowTitle(t("progress.please_wait"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
@@ -2380,7 +2447,8 @@ class MainWindow(QMainWindow):
 
         try:
             highlights, id_conflicts, csv_reports = merge_folder_into_working(
-                self.workspace, folder, source_root, source_label)
+                self.workspace, folder, source_root, source_label,
+                only_files=set(selected))
             self.workspace.rescan_working()
         except Exception as e:
             progress.close()
@@ -2423,8 +2491,9 @@ class MainWindow(QMainWindow):
         memoire -> tableau coche avant/apres -> ecriture des seules lignes
         cochees -> undo + reouverture de l'onglet POSITIONNE sur le premier
         bloc fusionne (plus besoin de le chercher dans l'arbre)."""
-        from gui.merge_preview_dialog import MergePreviewDialog
+        from gui.merge_preview_dialog import MergePreviewDialog, compute_merge_preview
         from core.ecf.merge import merge_documents
+        from gui.busy import run_long
         try:
             working_doc = parse_ecf_file(dest_path)
             source_doc = parse_ecf_file(source_path)
@@ -2439,8 +2508,13 @@ class MainWindow(QMainWindow):
                                 t("mergepreview.dest_modified", name=dest_path.name))
             return
 
-        with busy_guard(self):
-            dialog = MergePreviewDialog(working_doc, source_doc, source_label, parent=self)
+        # Le calcul de l'apercu (diff complet) part en worker avec la gerbe
+        # plasma au-dela d'une seconde ; le dialogue n'aspire que le resultat.
+        precomputed = run_long(
+            self, lambda: compute_merge_preview(working_doc, source_doc,
+                                                source_label))
+        dialog = MergePreviewDialog(working_doc, source_doc, source_label,
+                                    parent=self, precomputed=precomputed)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return  # annule : RIEN n'a ete ecrit
 
@@ -3488,6 +3562,7 @@ class MainWindow(QMainWindow):
         modified = self._modified_tab_widgets()
         if not modified:
             event.accept()
+            self._propose_production_sync()
             return
 
         file_names = "\n".join(
@@ -3516,6 +3591,25 @@ class MainWindow(QMainWindow):
                         self.tabs.indexOf(still_modified[0])).strip()))
                 return
         event.accept()
+        self._propose_production_sync()
+
+    def _propose_production_sync(self):
+        """A la fermeture (demande 24/09/2026) : proposer de copier les
+        fichiers modifies vers le scenario EN PRODUCTION — fini le
+        copier-coller manuel vers Content/Scenarios. Ne propose que si un
+        projet est ouvert, l'utilisateur n'a pas coche « ne plus me
+        proposer », et des fichiers differs de la source existent."""
+        # vars(self) : closeEvent est teste sur une fenetre construite sans
+        # __init__ (wrapper sip) — l'acces d'attribut normal y leve RuntimeError
+        if vars(self).get("workspace") is None:
+            return
+        from core.settings import get_propose_sync_on_close
+        if not get_propose_sync_on_close():
+            return
+        from gui.production_sync_dialog import ProductionSyncDialog
+        dlg = ProductionSyncDialog(self, from_close=True)
+        if dlg.has_files():
+            dlg.exec()
 
 
 

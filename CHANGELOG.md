@@ -4,6 +4,148 @@ Tous les changements notables du projet sont documentes ici.
 Format inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ;
 versionnement [SemVer](https://semver.org/lang/fr/) (`vX.Y.Z`).
 
+## [1.12.0] — Non publiee
+
+### Ajoute
+- **Separateur des blocs ajoutes par fusion** (demande 25/09/2026) : les
+  blocs issus uniquement du scenario source atterrissent apres ceux de la
+  copie de travail — un commentaire `# ===== Fusion depuis "<source>" :
+  blocs ajoutes ci-dessous =====` ouvre chaque paquet consecutif pour les
+  differencier du contenu d'origine
+- **Conflits d'Id visibles dans l'apercu de fusion** (demande 25/09/2026) :
+  meme Id mais identite differente = materiel different — l'apercu
+  affichait seulement un compteur rouge ; desormais UNE LIGNE par conflit
+  (non cochable, informationnelle) avec l'Id en cle, les DEUX noms en
+  Avant (copie de travail) / Apres (source), ET LA PROPRIETE QUI A
+  DECLENCHE le conflit affichee dans la cle (ex : patch +Block de meme
+  Id et meme Name mais Model different — sans elle, le conflit semblait
+  absurde), en plus du bloc ajoute desactive en fin de fichier
+- **Nom du bloc affiche sur TOUTES les lignes de l'apercu de fusion**
+  (demande 25/09/2026) : le libelle devient « Block [412] · HullTest » —
+  valider « MaxCount 32 -> 6 » sans voir le nom du bloc etait impossible
+  quand l'identite n'est qu'un Id numerique
+- **Fusion STRUCTURELLE du Sectors.yaml** (tranche 2, demande 25/09/2026) :
+  dans la fenetre de revision, quand un Sectors.yaml est concerne, section
+  « Fusion structurelle » (recommandee, cochee) listant UNITE PAR UNITE ce
+  que la source apportera — systeme entier, secteur (par coordonnees),
+  ligne de playfield (par nom affiche) — insere dans VOTRE Sectors.yaml
+  via yamllite (commentaires et mise en forme preserves, texte source
+  recopie tel quel) au lieu d'ecraser le fichier ; l'ecrasement brut
+  reste possible en decochant la structure et en cochant le remplacement.
+  Idempotent : apres insertion, une nouvelle analyse ne propose plus rien
+- **Fenetre de revision pour la fusion de DOSSIER + dependances**
+  (demande 25/09/2026) : les non-ECF (Sectors.yaml, Playfields/,
+  Prefabs/) etaient copies EN AVEUGLE par la fusion de dossier — desormais
+  une fenetre de revision liste chaque fichier (nouveau / REMPLACEMENT
+  decoche par defaut avec diff +x −y en info-bulle / fusion ECF / fusion
+  CSV), detecte les DEPENDANCES quand un Sectors.yaml est concerne
+  (dossiers de playfield references — Playfields/<template>/ — et POIs
+  references par leurs playfield_static — Prefabs/<GroupName>.epb —
+  absents de la copie de travail, proposes coches), et n'applique que la
+  selection validee ; un fichier ecrase ne l'est plus jamais sans choix
+  explicite
+- **Fusion ECF : listes ItemN appariees PAR IDENTITE** (TraderNPCConfig,
+  vecu 25/09 : deux scenarios n'ordonnent pas leurs items pareil, l'apercu
+  appariait Item1<->Item1 et la fusion ecrasait des items differents —
+  HeliumBottle remplace par ScienceEquipment) : dans l'apercu de fusion,
+  les items sont apparies par leur NOM (premier champ de la valeur, ex
+  « AlienNPCBlocks ») — lignes « Item1 · AlienNPCBlocks / Item3 · Leather »,
+  (absent) quand sans correspondance ; a l'application, les items communs
+  prennent la valeur source, les ajouts sont appended et la liste est
+  RENUMEROTEE Item1..N sans trou ; les items propres a la copie de
+  travail ne sont jamais touches
+- **Apercu de fusion : cles et libelles CONSCIENTS DU PARENT** (vecu
+  25/09, Templates.ecf : les blocs enfants sans identite — « Child
+  Inputs » de chaque template — partageaient la meme cle et leurs lignes
+  ne disaient pas de quel template elles relevaient) : les lignes
+  affichent desormais « +Template [GoldOre] · Child Inputs » et
+  l'appariement ne croise plus les parents
+- **Équilibrage du scénario en un clic** (Outils > Équilibrage du scénario...,
+  MODULE_EQUILIBRAGE.md, demande 24/09/2026) : moteur de règles
+  (core/balance_rules.py) sur les blocs définis par le scénario — 28
+  propriétés (MaxCount, CPUIn, HitPoints, Damage, Range/RangeSpace,
+  boucliers ShieldCapacity/Recharge/Cooldown/PerCrystal/CapacityBonus/
+  DamagePenFac/HitCooldown, ThrusterForce, RangeAU/LY, CostPerAU/LY,
+  EnergyOut/In/InIdle, SolarPanelEfficiency, MarketPrice, StackSize, Mass,
+  Volume) avec politiques « conservé / valeur vanille / plafonner à /
+  MULTIPLIER PAR % » (demande 24/09 : le % multiplie la valeur ACTUELLE
+  de chaque bloc et preserve les ratios internes, contrairement au
+  plafond) et préréglage « retour aux valeurs vanille » ; APERÇU
+  MODIFIABLE (fichier/bloc/propriété/actuel→nouveau, cases à cocher),
+  application atomique avec backups .bak, undo espace de travail et
+  rechargement des onglets ouverts. Inventaire vanille+scenario avec la
+  règle du jeu « dernière définition gagne » ; n'écrit JAMAIS dans la
+  vanille ; ne propose que les lignes de propriétés déjà présentes au
+  scenario ; liste blanche CPU (MissionContainer) ; pas de proposition
+  sans effet (0→0)
+- **Synchronisation vers le scenario EN PRODUCTION** (demande 24/09/2026) :
+  a la fermeture de l'application (et via Outils > « Copier vers le
+  scenario en production... »), propose de copier (remplacer) tous les
+  fichiers modifies de la copie de travail vers le dossier que charge le
+  jeu (ex : Content/Scenarios/RE2 ATL) — fini le copier-coller manuel.
+  La liste est une DIFFERENCE AVEC LE DOSSIER DE PRODUCTION (corrige le
+  jour meme : une difference vs la source A reproposait a l'infini les
+  memes fichiers) ; apres une copie reussie, plus rien n'est propose.
+  Deduction automatique du dossier par le nom de la copie de travail,
+  mémorise ensuite PAR PROJET (un reglage global unique faisait proposer
+  RE2 ATL pour n'importe quel projet ouvert, et figeait la suite de tests
+  sur un exec modal a la fermeture d'une fenetre de test) ; recalcul quand
+  on change le dossier ; sauvegarde systematique des fichiers ecrases
+  (~/.empyrion_editor/production_sync/<horodatage>/) ; case « ne plus me
+  proposer a la fermeture » ; confirmation puis fermeture automatique du
+  dialogue apres une copie reussie ; copie hors thread GUI (gerbe plasma)
+- **Gerbe plasma animee pendant les operations longues** (gui/plasma_overlay.py,
+  gui/busy.py) : des qu'un chargement, une ouverture, une verification ou un
+  telechargement dure plus d'une seconde, une gerbe d'etincelles bleue
+  radiante sur fond noir (style warp, QPainter pur, ~30 i/s) s'affiche avec
+  fondu ; avant le delai, un bouclier d'entree invisible bloque tout
+  double-declenchement. `run_long()` execute le travail HORS du thread GUI
+  (thread demon + pompe processEvents) : l'animation reste VIVANTE, contra-
+  rairement a l'ancienne boite figee. L'exception du worker est relancee sur
+  le thread appelant
+- **Sites convertis en run_long** : extraction de proprietes, parse du
+  Sectors.yaml (galaxie), validation scenario, references croisees, jetons
+  orphelins, fichiers modifies, recherche/remplacement scenario, scan
+  orthographe Grammalecte + telechargement, verification/test Groq et DeepL,
+  telechargement NLLB, calcul de l'apercu de fusion ECF, collecte des stats
+  dashboard, « Tout verifier » (sante projet)
+- `busy_guard` (blocs touchant aux widgets, donc forcement synchrones :
+  construction du viewer galaxie, arbre technologique, onglets PDA/traders,
+  corrections orthographe) affiche desormais l'ecran plasma des l'entree
+  (image figee apres quelques frames, mais ecran d'attente uniforme)
+
+- **Liste de remplacement triee par nom alphabetique** (demande 24/09/2026)
+  : en tapant « core », tous les blocs contenant core apparaissent groupes
+  dans la completion
+
+### Corrige
+- **Remplacement d'un bloc dans un .epb a mapping embarque : la cellule
+  remplacee disparaissait au spawn** (vecu 24/09 : CoreNoCPU remplace par
+  Core (558) -> « inconnu », blueprint spawnant sans coeur) : la resolution
+  du jeu est PAR NOM — le BlockIdMapping embarque est desormais tenu a jour
+  (entree de l'ancien id retiree, nouvel id mappe vers son nom du
+  catalogue) ET la section mapping est reellement re-serialisee a la
+  sauvegarde (l'entete etait recopiee verbatim depuis v1.11.0, aucun
+  changement du mapping ne pouvait survivre)
+- **LE bug des lignes CPUExtenderCVT4/CoreNoCPU jamais colorees (vecu 4
+  fois, du 23/09)** : le dialogue .epb recevait `str(workspace.working)` —
+  la REPRESENTATION d'un objet WorkingCopy, pas un chemin — donc le
+  repertoire du scenario n'a JAMAIS figure dans le catalogue depuis
+  v1.11.0 : l'analyse tournait en VANILLE SEULE (1891 ids au lieu de 1892),
+  et ces deux blocs, connus de la vanille, n'etaient jamais marques.
+  Corrige via `_epb_catalog_paths()` (working_root reel) + test de
+  regression. La barre de statut affiche desormais toujours le catalogue
+  utilise et avertit « VANILLE SEULE » quand le scenario n'est pas inclus
+- **Rendu des couleurs sous le theme** : le QSS du theme ignore les roles
+  Background/Foreground des items des qu'une regle touche
+  `QTreeWidget::item` -> un delegate peint fond + texte lui-meme ; fonds
+  satures (le premier choix, quasi noir sur theme sombre, etait invisible)
+  ; filtre « problemes uniquement » applique des l'analyse + selection de
+  la premiere ligne probleme + decheck automatique si le blueprint est
+  propre ; detection interdit PAR NOM (ids locaux des mappings embarques)
+- **Statut du dialogue .epb** : `{f}` brut affiche au lieu du nombre de
+  fichiers (la chaine attend n ET f, l'appel ne passait que n)
+
 ## [1.11.0] — Non publiee
 
 ### Ajoute

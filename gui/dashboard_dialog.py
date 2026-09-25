@@ -74,14 +74,20 @@ class DashboardDialog(QDialog):
         if not ws:
             self.summary.setText(t("status.no_project"))
             return
-        from gui.busy import busy_guard
+        from gui.busy import run_long
         try:
-            with busy_guard(self):
-                self._compute(ws)
+            # Collecte (disque : comptage ECF, validation) en worker avec la
+            # gerbe plasma au-dela d'une seconde ; application aux widgets
+            # ensuite, sur le thread GUI.
+            modified = len(self.main_window._modified_tab_widgets())
+            stats = run_long(self, lambda: self._collect_stats(ws, modified))
+            self._apply_stats(stats)
         except Exception as e:
             self.summary.setText(f"{t('err.title')} : {e}")
 
-    def _compute(self, ws):
+    def _collect_stats(self, ws, modified: int) -> dict:
+        """Toutes les mesures du dashboard, SANS toucher aux widgets
+        (executable hors du thread GUI)."""
         working = ws.working
         n_ecf = sum(1 for f in working.configuration if f.extension == '.ecf')
         n_csv = sum(1 for f in working.configuration if f.extension == '.csv')
@@ -90,20 +96,26 @@ class DashboardDialog(QDialog):
                   + sum(1 for f in working.sectors if f.path.suffix.lower() in ('.yaml', '.yml'))
                   + sum(1 for f in working.random_presets
                         if f.path.suffix.lower() in ('.yaml', '.yml')))
-        n_blocks = self._count_ecf_blocks(working.root_path)
-        n_traders = self._count_traders(working.root_path)
         errors, warnings = self._validation_summary(working.root_path)
-        modified = len(self.main_window._modified_tab_widgets())
-        progress = self._translation_progress(working)
+        return {
+            "n_ecf": n_ecf, "n_csv": n_csv, "n_yaml": n_yaml,
+            "n_blocks": self._count_ecf_blocks(working.root_path),
+            "n_traders": self._count_traders(working.root_path),
+            "errors": errors, "warnings": warnings,
+            "modified": modified,
+            "progress": self._translation_progress(working),
+        }
 
+    def _apply_stats(self, stats: dict):
         cells = [
-            (n_ecf, "dash.stat_ecf"),
-            (n_blocks, "dash.stat_blocks"),
-            (n_yaml, "dash.stat_yaml"),
-            (n_csv, "dash.stat_csv"),
-            (n_traders, "dash.stat_traders"),
-            (modified, "dash.stat_modified"),
+            (stats["n_ecf"], "dash.stat_ecf"),
+            (stats["n_blocks"], "dash.stat_blocks"),
+            (stats["n_yaml"], "dash.stat_yaml"),
+            (stats["n_csv"], "dash.stat_csv"),
+            (stats["n_traders"], "dash.stat_traders"),
+            (stats["modified"], "dash.stat_modified"),
         ]
+        progress = stats["progress"]
         summary_extra = ""
         if progress:
             # Progression de traduction (v1.8.0) : % global des CSV de
@@ -121,7 +133,8 @@ class DashboardDialog(QDialog):
         for i, (value, key) in enumerate(cells):
             self._add_stat(i // 3, i % 3, value, t(key))
         self.summary.setText(t("dash.validation_summary",
-                               errors=errors, warnings=warnings)
+                               errors=stats["errors"],
+                               warnings=stats["warnings"])
                              + summary_extra)
 
     def _translation_progress(self, working) -> list:

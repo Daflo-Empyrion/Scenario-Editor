@@ -92,9 +92,9 @@ class ModifiedFilesDialog(QDialog):
         if not ws:
             self.summary.setText(t("status.no_project"))
             return
-        from gui.busy import busy_guard
-        with busy_guard(self):
-            changes = list_changed_files(ws.working_root, ws.source_a_root)
+        from gui.busy import run_long
+        changes = run_long(self, lambda: list_changed_files(
+            ws.working_root, ws.source_a_root))
         for path, state in changes:
             key = "modfiles.state_added" if state == 'added' else "modfiles.state_modified"
             item = QListWidgetItem(f"[{t(key)}] {path.relative_to(ws.working_root)}")

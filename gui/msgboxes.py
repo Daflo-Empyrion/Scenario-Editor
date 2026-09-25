@@ -58,6 +58,31 @@ def ask_yes_no(parent, title: str, text: str) -> bool:
     return box.clickedButton() is btn_yes
 
 
+def info(parent, title: str, text: str) -> None:
+    """Information a bouton APPLICATION t("btn.ok") — meme chaine de
+    traduction que les autres boites, jamais les boutons internes de Qt."""
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setWindowTitle(title)
+    box.setText(text)
+    btn_ok = box.addButton(t("btn.ok"), QMessageBox.ButtonRole.AcceptRole)
+    box.setDefaultButton(btn_ok)
+    box.exec()
+
+
+def critical(parent, title: str, text: str) -> None:
+    """Erreur a bouton APPLICATION t("btn.close") — meme chaine de
+    traduction que les autres boites."""
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Critical)
+    box.setWindowTitle(title)
+    box.setText(text)
+    btn_close = box.addButton(t("btn.close"),
+                              QMessageBox.ButtonRole.AcceptRole)
+    box.setDefaultButton(btn_close)
+    box.exec()
+
+
 def ask_save_discard_cancel(parent, title: str, text: str) -> str:
     """Dialogue a trois choix pour quitter avec des modifications non
     enregistrees : retourne "save" (enregistrer tout), "discard" (abandonner

@@ -30,7 +30,6 @@ from PyQt6.QtWidgets import (
 
 from core import deepl_provider, settings
 from core.i18n import t
-from gui.busy import busy_guard
 from gui.theme import icon
 
 
@@ -125,8 +124,8 @@ class DeepLSetupDialog(QDialog):
             return
         settings.set_deepl_api_key(key)
         try:
-            with busy_guard(self, "deepl.verifying"):
-                usage = _fetch_usage()
+            from gui.busy import run_long
+            usage = run_long(self, _fetch_usage, "deepl.verifying")
         except Exception as e:
             self.verify_status.setStyleSheet("color: #b02a2a;")
             self.verify_status.setText(t("deepl.verify_fail", error=e))
@@ -153,8 +152,9 @@ class DeepLSetupDialog(QDialog):
         self.test_result.setStyleSheet("color: gray;")
         self.test_result.setText(t("deepl.testing"))
         try:
-            with busy_guard(self, "deepl.testing"):
-                result = deepl_provider.quick_check()
+            from gui.busy import run_long
+            result = run_long(self, deepl_provider.quick_check,
+                              "deepl.testing")
         except Exception as e:
             self.test_result.setStyleSheet("color: #b02a2a;")
             self.test_result.setText(t("deepl.test_fail", error=e))

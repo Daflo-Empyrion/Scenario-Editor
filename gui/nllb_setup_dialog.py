@@ -37,7 +37,6 @@ from PyQt6.QtWidgets import (
 
 from core import nllb_provider, settings, translation
 from core.i18n import t
-from gui.busy import busy_guard
 from gui.theme import icon, icon_size
 
 _VARIANT_LABELS = {
@@ -156,8 +155,11 @@ class NllbSetupDialog(QDialog):
     def _download(self, variant: str, button: QPushButton) -> None:
         button.setEnabled(False)
         try:
-            with busy_guard(self, "nllb.downloading"):
-                nllb_provider.download_and_install(variant)
+            from gui.busy import run_long
+            # telechargement de plusieurs Go : la gerbe plasma animee
+            # remplace l'ancienne boite figee (23/09/2026)
+            run_long(self, lambda: nllb_provider.download_and_install(variant),
+                     "nllb.downloading")
             settings.set_nllb_variant(variant)
         finally:
             button.setEnabled(True)

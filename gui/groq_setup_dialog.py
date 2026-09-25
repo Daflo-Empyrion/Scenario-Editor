@@ -31,7 +31,6 @@ from PyQt6.QtWidgets import (
 
 from core import groq_provider, settings
 from core.i18n import t
-from gui.busy import busy_guard
 from gui.theme import icon, icon_size
 
 
@@ -156,8 +155,9 @@ class GroqSetupDialog(QDialog):
             return
         settings.set_groq_api_key(key)
         try:
-            with busy_guard(self, "groq.verifying"):
-                models = groq_provider.list_models()
+            from gui.busy import run_long
+            models = run_long(self, groq_provider.list_models,
+                              "groq.verifying")
         except Exception as e:
             self.verify_status.setStyleSheet("color: #b02a2a;")
             self.verify_status.setText(t("groq.verify_fail", error=e))
@@ -198,8 +198,8 @@ class GroqSetupDialog(QDialog):
         self.test_result.setStyleSheet("color: gray;")
         self.test_result.setText(t("groq.testing"))
         try:
-            with busy_guard(self, "groq.testing"):
-                result = groq_provider.quick_check()
+            from gui.busy import run_long
+            result = run_long(self, groq_provider.quick_check, "groq.testing")
         except Exception as e:
             self.test_result.setStyleSheet("color: #b02a2a;")
             self.test_result.setText(t("groq.test_fail", error=e))

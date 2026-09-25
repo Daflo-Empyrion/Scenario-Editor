@@ -26,9 +26,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                             QListWidgetItem, QMenu, QMessageBox, QCompleter,
-                             QPushButton, QTreeWidget, QTreeWidgetItem,
-                             QVBoxLayout)
+                             QListWidgetItem, QMenu, QMessageBox,
+                             QStyledItemDelegate, QCompleter, QPushButton,
+                             QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from core.epb_blueprint import (EpbBlueprint, load_block_catalog,
                                 scan_epb_files)
@@ -37,21 +37,55 @@ from gui.epb_view_3d import EpbView3D, block_color
 from gui.msgboxes import ask_yes_no
 from gui.window_geometry import track
 
-_UNKNOWN_FG = QBrush(QColor(255, 122, 122))
-_UNKNOWN_BG = QBrush(QColor(72, 26, 26))
-_FORBIDDEN_FG = QBrush(QColor(255, 178, 64))
-_FORBIDDEN_BG = QBrush(QColor(74, 50, 12))
+# RETOUR UTILISATEUR 23/09 (v3) : les fonds « sombres » (72,26,26) etaient
+# quasi noirs sur le theme sombre — invisibles a l'oeil malgre des tests
+# pixel verts. Couleurs SATUREES, lisibles sur theme clair comme sombre.
+_UNKNOWN_FG = QBrush(QColor(255, 200, 200))
+_UNKNOWN_BG = QBrush(QColor(150, 25, 25))
+_FORBIDDEN_FG = QBrush(QColor(255, 235, 180))
+_FORBIDDEN_BG = QBrush(QColor(180, 105, 0))
 
 
 def _tag_row(child, fg: QBrush, bg: QBrush) -> None:
     """Surlignage impossible a rater : fond colore + texte colore + gras
-    sur toutes les colonnes de la ligne."""
+    sur toutes les colonnes de la ligne. NOTE : les roles du modele sont
+    IGNORES par QStyleSheetStyle des qu'une regle QSS touche
+    QTreeWidget::item (padding/border-radius du theme) -- c'est le
+    delegate qui les peint reellement."""
     font = child.font(0)
     font.setBold(True)
     for col in range(child.columnCount()):
         child.setForeground(col, fg)
         child.setBackground(col, bg)
         child.setFont(col, font)
+
+
+class _TagDelegate(QStyledItemDelegate):
+    """Peint LUI-MEME fond + texte des lignes tagguees : sous une feuille
+    de style globale (theme fluent), les roles Background/Foreground du
+    modele ne rendent RIEN (vecu 23/09 : lignes inconnu/interdit blanches
+    dans l'appli alors que les tests hors ecran voyaient le rouge)."""
+
+    def paint(self, painter, option, index):
+        bg = index.data(Qt.ItemDataRole.BackgroundRole)
+        if bg is None:
+            super().paint(painter, option, index)
+            return
+        painter.save()
+        painter.fillRect(option.rect, bg)
+        font = index.data(Qt.ItemDataRole.FontRole)
+        if font is not None:
+            painter.setFont(font)
+        fg = index.data(Qt.ItemDataRole.ForegroundRole)
+        painter.setPen(fg.color() if fg is not None else QColor(0, 0, 0))
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        metrics = painter.fontMetrics()
+        elided = metrics.elidedText(text, Qt.TextElideMode.ElideRight,
+                                    max(12, option.rect.width() - 10))
+        painter.drawText(option.rect.adjusted(5, 0, -5, 0),
+                         Qt.AlignmentFlag.AlignLeft
+                         | Qt.AlignmentFlag.AlignVCenter, elided)
+        painter.restore()
 
 
 class EpbCheckDialog(QDialog):
@@ -105,6 +139,7 @@ class EpbCheckDialog(QDialog):
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._tree_context_menu)
         self.tree.currentItemChanged.connect(self._on_tree_select)
+        self.tree.setItemDelegate(_TagDelegate(self.tree))
         middle.addWidget(self.tree, 5)
 
         right = QVBoxLayout()
@@ -217,7 +252,8 @@ class EpbCheckDialog(QDialog):
                 continue
             unknown = bp.unknown_counts(set(self.catalog.ids),
                                         self.catalog.names)
-            forb = bp.forbidden_counts(self.catalog.forbidden)
+            forb = bp.forbidden_counts(self.catalog.forbidden,
+                                       self.catalog.forbidden_names)
             unknown_total += sum(unknown.values())
             forbidden_total += sum(forb.values())
             if unknown:
@@ -225,11 +261,10 @@ class EpbCheckDialog(QDialog):
             unknown_txt = (t("epb.unknown_count", n=sum(unknown.values()))
                            if unknown else t("epb.file_ok"))
             item = QTreeWidgetItem([str(p), str(len(bp.blocks)), unknown_txt])
-            self._fill_block_children(item, bp, unknown, forb,
-                                      self.catalog.forbidden)
+            self._fill_block_children(item, bp, unknown, forb)
             self.tree.addTopLevelItem(item)
             self._targets.append({"path": p, "bp": bp, "unknown": unknown,
-                                  "item": item, "dirty": False})
+                                  "forb": forb, "item": item, "dirty": False})
 
         self.tree.expandAll()
         self.btn_export.setEnabled(bool(self._targets))
@@ -244,17 +279,69 @@ class EpbCheckDialog(QDialog):
         else:
             self.status_label.setText(t("epb.all_ok"))
         if forbidden_total:
+            # corrige : la chaine attend n ET f (les {f} bruts s'affichaient
+            # depuis v1.11.0 -- l'appel ne passait que n)
+            files_with_forbidden = sum(1 for tg in self._targets
+                                       if tg["forb"])
             self.status_label.setText(
                 self.status_label.text() + " " +
-                t("epb.forbidden_total", n=forbidden_total))
+                t("epb.forbidden_total", n=forbidden_total,
+                  f=files_with_forbidden))
+        # Preuve textuelle de la detection (vecu : l'utilisateur ne savait
+        # pas si l'analyse trouvait quelque chose) : detail des problemes.
+        details = self._problems_detail_text()
+        if details:
+            self.status_label.setText(self.status_label.text() + "  " + details)
+        # Transparence du catalogue (vecu 23/09 : analyse faite avec la
+        # vanille SEULE — le scenario n'etait pas ouvert — et CPUExtenderCVT4
+        # est le nom VANILLE de l'id 2031 : aucun probleme affiche, fausse
+        # impression de bug). Le dialogue dit toujours ce qu'il a compare.
+        n_sources = len([p for p in self.catalog_paths if str(p).strip()])
+        head = t("epb.catalog_sources", n=len(self.catalog.ids))
+        if n_sources < 2:
+            head += " " + t("epb.catalog_vanilla_only")
+        self.status_label.setText(head + "  " + self.status_label.text())
+        # RETOUR UTILISATEUR 23/09 (v2) : les lignes colorees etaient
+        # RENDERED mais INVISIBLES — enterrees en bas de centaines de
+        # lignes triees par quantite (4 cellules d'inconnu contre des
+        # milliers de coques). Le filtre « problemes uniquement » coche
+        # par defaut n'etait JAMAIS applique apres l'analyse.
+        self._apply_filter()
+        if self.chk_problems.isChecked() and not self._any_row_visible():
+            # aucun probleme dans tout l'arbre : le filtre ne laisserait
+            # qu'un arbre vide — decoche pour montrer le resultat complet
+            self.chk_problems.setChecked(False)
+        first = self._first_problem_item()
+        if first is not None:
+            self.tree.setCurrentItem(first)
 
-    def _fill_block_children(self, item, bp, unknown, forbidden=None,
-                             forbidden_ids=None):
+    def _problems_detail_text(self) -> str:
+        """Liste texte des problemes detectes (max 4) : « Nom x4 (inconnu) »
+        — preuve en clair de ce que l'analyse a trouve."""
+        entries = []
+        for tg in self._targets:
+            bp = tg["bp"]
+            for bid, cnt in list(tg["unknown"].items())[:2]:
+                name = (bp.id_mapping.get(bid)
+                        or self.catalog.ids.get(bid) or f"ID_Bloc_{bid}")
+                entries.append(f"{name} x{cnt} ({t('epb.unknown_tag')})")
+            for bid, cnt in list(tg["forb"].items())[:2]:
+                name = (bp.id_mapping.get(bid)
+                        or self.catalog.ids.get(bid) or f"ID_Bloc_{bid}")
+                entries.append(f"{name} x{cnt} ({t('epb.forbidden_tag')})")
+        if not entries:
+            return ""
+        shown = " ; ".join(entries[:4])
+        if len(entries) > 4:
+            shown += " ..."
+        return "(" + shown + ")"
+
+    def _fill_block_children(self, item, bp, unknown, forbidden=None):
         """Enfants du fichier : TOUS les ids distincts (tries par quantite).
         Statuts : inconnu (rouge) = absent du catalogue ; interdit (orange) =
-        AllowedInBlueprint: false dans les ECF."""
+        AllowedInBlueprint: false dans les ECF (resolu PAR NOM si le
+        blueprint embarque un mapping)."""
         forbidden = forbidden or {}
-        forbidden_ids = forbidden_ids or set()
         counts: dict = {}
         for b in bp.blocks:
             counts[b.block_id] = counts.get(b.block_id, 0) + 1
@@ -275,14 +362,15 @@ class EpbCheckDialog(QDialog):
         """Rafraichit l'item d'arbre d'un blueprint modifie en memoire."""
         unknown = target["bp"].unknown_counts(set(self.catalog.ids),
                                               self.catalog.names)
-        forb = target["bp"].forbidden_counts(self.catalog.forbidden)
+        forb = target["bp"].forbidden_counts(self.catalog.forbidden,
+                                             self.catalog.forbidden_names)
         target["unknown"] = unknown
+        target["forb"] = forb
         item = target["item"]
         item.setText(2, (t("epb.unknown_count", n=sum(unknown.values()))
                          if unknown else t("epb.file_ok")))
         item.takeChildren()
-        self._fill_block_children(item, target["bp"], unknown, forb,
-                                  self.catalog.forbidden)
+        self._fill_block_children(item, target["bp"], unknown, forb)
         self._apply_filter()
 
     def _apply_filter(self):
@@ -291,15 +379,39 @@ class EpbCheckDialog(QDialog):
         only = self.chk_problems.isChecked()
         for tg in self._targets:
             item = tg["item"]
+            forb = tg.get("forb") or {}
             for i in range(item.childCount()):
                 child = item.child(i)
                 bid = self._id_of_item(child)
-                has_issue = (bid in tg["unknown"]) or (
-                    bid in self.catalog.forbidden)
+                has_issue = (bid in tg["unknown"]) or (bid in forb)
                 child.setHidden(only and not has_issue)
             visible = any(not item.child(i).isHidden()
                           for i in range(item.childCount()))
             item.setHidden(only and not visible)
+
+    def _any_row_visible(self) -> bool:
+        """Au moins une ligne (fichier ou bloc) visible dans l'arbre ?"""
+        for tg in self._targets:
+            item = tg["item"]
+            if not item.isHidden():
+                return True
+            for i in range(item.childCount()):
+                if not item.child(i).isHidden():
+                    return True
+        return False
+
+    def _first_problem_item(self):
+        """Premiere ligne de bloc probleme (inconnu ou interdit) de l'arbre,
+        visible de preference — pour l'amenner a l'ecran a l'analyse."""
+        for want_visible in (True, False):
+            for tg in self._targets:
+                item = tg["item"]
+                for i in range(item.childCount()):
+                    child = item.child(i)
+                    if child.text(2) and (not want_visible
+                                          or not child.isHidden()):
+                        return child
+        return None
 
     # ------------------------------------------------------------- selection
 
@@ -411,11 +523,14 @@ class EpbCheckDialog(QDialog):
 
     def _populate_replace_combo(self):
         """Remplit le combo (editable + completion contient, insensible a la
-        casse) avec tous les blocs du catalogue. NB : on regle le completer
-        INTERNE du combo (cre par setEditable) -- installer un QCompleter
+        casse) avec tous les blocs du catalogue tries PAR NOM ALPHABETIQUE
+        (demande 24/09/2026 : en tapant « core », tous les blocs contenant
+        core apparaissent groupes dans la liste). NB : on regle le completer
+        INTERNE du combo (cree par setEditable) -- installer un QCompleter
         manuel sur le model du combo crashe nativement (PyQt 6.11)."""
         self.combo_replace.clear()
-        for bid in sorted(self.catalog.ids):
+        for bid in sorted(self.catalog.ids,
+                          key=lambda b: self.catalog.ids[b].lower()):
             self.combo_replace.addItem(
                 t("epb.combo_entry", name=self.catalog.ids[bid], id=bid), bid)
         self.combo_replace.setEditable(True)
@@ -460,7 +575,8 @@ class EpbCheckDialog(QDialog):
                       text=self.combo_replace.currentText()))
             return
         target = self._target_for_item(item)
-        count = target["bp"].replace_ids({old_id: new_id})
+        count = target["bp"].replace_ids({old_id: new_id},
+                                         id_names=self.catalog.ids)
         target["dirty"] = True
         self._refresh_item(target)
         self._show_target(target)

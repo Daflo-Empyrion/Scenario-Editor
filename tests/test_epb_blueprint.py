@@ -241,6 +241,82 @@ def test_forbidden_counts_on_blueprint(tmp_path):
     assert bp.forbidden_counts(set()) == {}
 
 
+def test_forbidden_names_in_catalog_even_without_id(tmp_path):
+    """AllowedInBlueprint: false pose PAR NOM aussi : un bloc interdit sans
+    Id (ex CoreNoCPU de RE2 ATL) doit figurer dans forbidden_names."""
+    ecf = tmp_path / "BlocksConfig.ecf"
+    ecf.write_text(
+        "{ Block Name: CoreNoCPU, AllowedInBlueprint: false\n}\n"
+        "{ Block Id: 2050, Name: PentaxidTest\n}\n",
+        encoding="utf-8")
+    cat = load_block_catalog([ecf])
+    assert cat.forbidden == set()
+    assert cat.forbidden_names == {"CoreNoCPU"}
+
+
+def test_forbidden_counts_by_name_with_mapping(tmp_path):
+    """Vecu RE2 ATL (DT-ANUBIS) : ids de cellules LOCAUX quand un mapping
+    embarque existe -- l'interdit doit etre detecte PAR NOM, pas par
+    l'id numerique (CoreNoCPU masque/_blanc dans l'arbre avant correction)."""
+    ecf = tmp_path / "BlocksConfig.ecf"
+    ecf.write_text(
+        "{ Block Id: 412, Name: HullTest\n}\n"
+        "{ Block Name: CoreNoCPU, AllowedInBlueprint: false\n}\n",
+        encoding="utf-8")
+    cat = load_block_catalog([ecf])
+    p = build_epb(tmp_path / "anubis.epb", cells={0: 7, 5: 999},
+                  mapping={7: "HullTest", 999: "CoreNoCPU"})
+    bp = EpbBlueprint(p).parse()
+    # l'interdit, PAR NOM (l'id 999 local ne peut pas matcher les ECF)
+    assert bp.forbidden_counts(cat.forbidden,
+                               cat.forbidden_names) == {999: 1}
+    # sans l'argument nom : ancien comportement par id (aucun hit ici)
+    assert bp.forbidden_counts(cat.forbidden) == {}
+    # ni inconnu : les deux noms existent dans les ECF
+    assert bp.unknown_counts(set(cat.ids), cat.names) == {}
+
+
+def test_replace_updates_mapping_and_persists(tmp_path):
+    """Vecu 24/09 : CoreNoCPU remplace par Core (558) restait « inconnu »
+    et le blueprint spawnait SANS coeur — le mapping embarque n'etait ni
+    mis a jour (558 absent -> suppression au spawn), ni re-serialise au
+    save (l'entete etait recopiee verbatim)."""
+    ecf = tmp_path / "BlocksConfig.ecf"
+    ecf.write_text("{ Block Id: 412, Name: HullTest\n}\n"
+                   "{ Block Id: 558, Name: Core\n}\n", encoding="utf-8")
+    cat = load_block_catalog([ecf])
+    p = build_epb(tmp_path / "bp.epb", cells={0: 7, 5: 999},
+                  mapping={7: "HullTest", 999: "CoreNoCPU"})
+    bp = EpbBlueprint(p, ecf_paths=[ecf]).parse()
+    assert bp.replace_ids({999: 558}, id_names=cat.ids) == 1
+    # mapping tenu a jour : l'ancien nom parti, le nouveau id -> son nom
+    assert bp.id_mapping == {7: "HullTest", 558: "Core"}
+    assert bp.unknown_counts(set(cat.ids), cat.names) == {}
+    assert bp._map_dirty
+    out = bp.save(backup=False)
+    after = EpbBlueprint(out, ecf_paths=[ecf]).parse()
+    assert after.id_mapping == {7: "HullTest", 558: "Core"}
+    assert sorted(b.block_id for b in after.blocks) == [7, 558]
+    assert after.unknown_counts(set(cat.ids), cat.names) == {}
+
+
+def test_save_without_mapping_change_keeps_section_identical(tmp_path):
+    """Un save SANS modification de mapping ne doit pas toucher l'entete
+    (la section mapping est recopiee a l'identique)."""
+    ecf = tmp_path / "BlocksConfig.ecf"
+    ecf.write_text("{ Block Id: 412, Name: HullTest\n}\n", encoding="utf-8")
+    p = build_epb(tmp_path / "bp.epb", cells={0: 7},
+                  mapping={7: "HullTest"})
+    original = p.read_bytes()
+    bp = EpbBlueprint(p, ecf_paths=[ecf]).parse()
+    bp.save(backup=False)
+    after = p.read_bytes()
+    # meme taille ; la section mapping (offsets) identique octet a octet
+    assert len(after) == len(original)
+    start, end = bp._map_span
+    assert original[start:end] == after[start:end]
+
+
 def test_known_by_mapping_name(tmp_path):
     """Avec mapping embarque : la resolution se fait PAR NOM. Un bloc dont
     le nom existe dans les ECF (bloc Ref: sans Id du scenario) est connu

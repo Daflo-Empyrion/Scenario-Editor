@@ -33,7 +33,6 @@ from PyQt6.QtWidgets import (
     QCheckBox, QPushButton, QHeaderView,
 )
 
-from gui.busy import busy_guard
 from core.i18n import t
 from core.ecf.validation import ValidationIssue, validate_scenario
 from gui.theme import icon, icon_size
@@ -119,20 +118,28 @@ class ValidationDialog(QDialog):
         # d'enregistrer les onglets modifies (meme mecanisme que VERIF-001).
         self.main_window.ensure_analysis_fresh_tabs()
         # Retour utilisateur 30/08/2026 : la validation peut prendre du temps
-        # sur un gros scenario -- curseur + boite "en cours" immediates.
-        with busy_guard(self):
-            self.issues_by_file = validate_scenario(self.scenario_root)
+        # sur un gros scenario ; 23/09/2026 : calcul en worker + gerbe plasma
+        # au-dela d'une seconde (gui/busy.py).
+        from gui.busy import run_long
+
+        def _collect():
+            by_file = validate_scenario(self.scenario_root)
             # Regle trans-fichiers (demande du 10/09/2026) : TraderZone d'un
             # Playfield.yaml vers les marchands de TraderNPCConfig.ecf. Les
             # playfields YAML ne passent pas dans validate_scenario (ECF).
+            extra = []
             try:
                 from core.trader_zone_check import check_trader_zone_references
-                for issue in check_trader_zone_references(self.scenario_root):
-                    self.issues_by_file.setdefault(issue.file_path, []).append(issue)
+                extra = list(check_trader_zone_references(self.scenario_root))
             except Exception:
                 pass  # la validation ECF reste valable sans cette regle
-            self._populate_tree()
-            self._update_summary()
+            return by_file, extra
+
+        self.issues_by_file, extra_issues = run_long(self, _collect)
+        for issue in extra_issues:
+            self.issues_by_file.setdefault(issue.file_path, []).append(issue)
+        self._populate_tree()
+        self._update_summary()
 
     def _populate_tree(self):
         self.tree.clear()

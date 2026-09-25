@@ -231,6 +231,40 @@ def set_fluent_pilot_enabled(enabled: bool) -> None:
     _set('fluent_pilot_enabled', enabled)
 
 
+def get_production_scenario_path(working_root: str = "") -> str:
+    """Repertoire du scenario EN PRODUCTION (celui que le jeu charge, ex :
+    <vanille>/Content/Scenarios/RE2 ATL) — destination de la synchronisation
+    de fin de session. MEMORISE PAR PROJET (vecu 24/09 : un reglage global
+    faisait proposer le scenario RE2 ATL pour N'IMPORTE QUEL projet — y
+    compris dans les tests, ou l'exec modal se figeait)."""
+    paths = _get('production_scenario_paths', {}) or {}
+    if working_root:
+        return paths.get(_prod_key(working_root), '')
+    return ''
+
+
+def set_production_scenario_path(working_root: str, path: str) -> None:
+    paths = _get('production_scenario_paths', {}) or {}
+    paths[_prod_key(working_root)] = path
+    _set('production_scenario_paths', paths)
+
+
+def _prod_key(working_root: str) -> str:
+    import os as _os
+    return _os.path.normcase(_os.path.abspath(str(working_root)))
+
+
+def get_propose_sync_on_close() -> bool:
+    """Proposer la synchronisation vers la production a la fermeture de
+    l'application (demande 24/09/2026). La case « ne plus me proposer » du
+    dialogue passe a False."""
+    return _get('propose_sync_on_close', True)
+
+
+def set_propose_sync_on_close(enabled: bool) -> None:
+    _set('propose_sync_on_close', enabled)
+
+
 def get_press_anim_enabled() -> bool:
     """Animation de pression des boutons (enfoncement subtil, look Relief
     phase 2 du 12/09/2026) : True par defaut (activee), desactivable dans

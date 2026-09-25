@@ -45,7 +45,9 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
-from core.ecf.merge import merge_documents
+from core.ecf.merge import (ITEM_PROP_RE, merge_documents,
+                            normalize_item_list, ordered_items,
+                            renumber_item_lines)
 from core.ecf.model import EcfBlock, EcfProperty, block_identity, normalized_kind
 
 
@@ -60,6 +62,8 @@ class MergePreviewRow:
     merged_value: str            # valeur proposee par la fusion (source)
     merged_block: Optional[EcfBlock] = None   # reference DANS le document fusionne
     working_key_present: bool = True
+    display_key: Optional[str] = None   # libelle lisible (ex 'Item1 · Leather')
+    identity_paired: bool = False       # liste ItemN appariee PAR IDENTITE
 
 
 def compute_merge_preview(working_doc, source_doc, source_label: str):
@@ -71,12 +75,34 @@ def compute_merge_preview(working_doc, source_doc, source_label: str):
     )
     merged_doc = result.document
 
+    # Cles CONSCIENTES DU PARENT : les blocs enfants sans identite (ex
+    # « Child Inputs » de plusieurs templates) partageaient la meme cle et
+    # pouvaient etre apparies au mauvais parent (vecu 25/09 : les lignes
+    # d'ajout ne disaient pas de quel template elles relevaient).
+    def _walk_with_top(doc):
+        """(bloc ancetre racine, bloc) pour tous les blocs du document."""
+        out = []
+
+        def walk(nodes, top):
+            for n in nodes:
+                if isinstance(n, EcfBlock):
+                    out.append((top, n))
+                    walk(n.children, top if top is not None else n)
+
+        walk(doc.nodes, None)
+        return out
+
+    def _pair_key(top, block):
+        top_key = ((normalized_kind(top.kind), block_identity(top))
+                   if top is not None else None)
+        return (top_key, normalized_kind(block.kind),
+                block_identity(block))
     working_index = {}
-    for b in working_doc.iter_blocks():
-        working_index.setdefault((normalized_kind(b.kind), block_identity(b)), b)
+    for top, b in _walk_with_top(working_doc):
+        working_index.setdefault(_pair_key(top, b), b)
     source_index = {}
-    for b in source_doc.iter_blocks():
-        source_index.setdefault((normalized_kind(b.kind), block_identity(b)), b)
+    for top, b in _walk_with_top(source_doc):
+        source_index.setdefault(_pair_key(top, b), b)
 
     def _props(block):
         props = {}
@@ -90,13 +116,28 @@ def compute_merge_preview(working_doc, source_doc, source_label: str):
                         props.setdefault(k, v)
         return props
 
+    def _label_of(block):
+        """Libelle du bloc : kind [identite] + NOM DU BLOC (demande 25/09 :
+        valider 'MaxCount 32 -> 6' sans voir TurretBaseCannonOld est
+        impossible — l'identite seule est souvent un simple Id)."""
+        ident = block_identity(block)
+        name = (block.get("Name") or block.get_property("Name") or "")
+        name = name.strip().strip('"')
+        label = block.kind
+        if ident:
+            label += f" [{ident}]"
+        if name and name != ident:
+            label += f" · {name}"
+        return label
+
+
     rows: List[MergePreviewRow] = []
-    for b in merged_doc.iter_blocks():
-        key = (normalized_kind(b.kind), block_identity(b))
+    for top, b in _walk_with_top(merged_doc):
+        key = _pair_key(top, b)
         wblock = working_index.get(key)
         if wblock is None:
             # Bloc ENTIEREMENT nouveau (vient de la source uniquement).
-            label = b.kind + (f" [{block_identity(b)}]" if block_identity(b) else "")
+            label = (_label_of(top) + " · " + _label_of(b))                 if top is not None and top is not b else _label_of(b)
             rows.append(MergePreviewRow(
                 row_type='added_block', block_key=key, block_label=label,
                 prop_key=None, working_value='(absent)', merged_value=b.kind,
@@ -105,8 +146,20 @@ def compute_merge_preview(working_doc, source_doc, source_label: str):
         working_props = _props(wblock)
         source_block = source_index.get(key)
         source_props = _props(source_block) if source_block is not None else {}
-        label = b.kind + (f" [{block_identity(b)}]" if block_identity(b) else "")
+        label = (_label_of(top) + " · " + _label_of(b))             if top is not None and top is not b else _label_of(b)
+        # Listes ItemN (TraderNPCConfig...) : appariement PAR IDENTITE
+        # (le nom d'item en debut de valeur), pas par numero — deux
+        # scenarios n'ordonnent pas leurs items pareil, et apparier
+        # Item1<->Item1 ecrasait des items differents (vecu 25/09).
+        w_items = ordered_items(wblock)
+        s_items = ordered_items(source_block) if source_block is not None else []
+        identity_block = bool(w_items) and bool(s_items)
+        final_slots = None
+        if identity_block:
+            final_slots = normalize_item_list(b, wblock, source_block)
         for k, mv in _props(b).items():
+            if identity_block and k and ITEM_PROP_RE.match(str(k)):
+                continue              # geres par identite ci-dessous
             if k not in working_props:
                 rows.append(MergePreviewRow(
                     row_type='added_property', block_key=key, block_label=label,
@@ -122,6 +175,49 @@ def compute_merge_preview(working_doc, source_doc, source_label: str):
                     prop_key=k, working_value=working_props[k],
                     merged_value=source_props[k],
                     merged_block=b, working_key_present=True))
+        if identity_block and final_slots:
+            working_map = {ident.casefold(): wval
+                           for ident, wval in w_items}
+            source_map = {ident.casefold(): sval
+                          for ident, sval in s_items}
+            for i, (ident, mval) in enumerate(final_slots, 1):
+                skey = ident.casefold()
+                if skey not in source_map:
+                    continue          # item uniquement dans la copie de travail
+                sval = source_map[skey]
+                slot = f"Item{i}"
+                display = f"{slot} · {ident}"
+                if skey not in working_map:
+                    rows.append(MergePreviewRow(
+                        row_type='added_property', block_key=key,
+                        block_label=label, prop_key=slot,
+                        working_value='(absent)', merged_value=sval,
+                        merged_block=b, working_key_present=False,
+                        display_key=display, identity_paired=True))
+                elif sval != mval:
+                    rows.append(MergePreviewRow(
+                        row_type='changed_property', block_key=key,
+                        block_label=label, prop_key=slot,
+                        working_value=mval, merged_value=sval,
+                        merged_block=b, working_key_present=True,
+                        display_key=display, identity_paired=True))
+    # Conflits d'Id (meme Id, identite differente) : une ligne par conflit
+    # affichant les DEUX noms ET la propriete qui a declenche le conflit —
+    # vecu 25/09 : memes Id+Name mais Model/TemplateRoot differents sur des
+    # patchs +Block, le conflit semblait absurde sans la raison (le bloc est
+    # de toute facon ajoute DESACTIVE en fin de fichier, ligne informative).
+    for c in result.id_conflicts:
+        diff_txt = " ; ".join(f"{k} : {va} -> {vb}"
+                              for k, va, vb in c.differences)
+        rows.append(MergePreviewRow(
+            row_type='id_conflict',
+            block_key=(normalized_kind(c.kind), c.identity),
+            block_label=f"{normalized_kind(c.kind)} [{c.identity}]",
+            prop_key=(f"Id {c.identity} — {diff_txt}" if diff_txt
+                      else str(c.identity)),
+            working_value=c.base_name or '(absent)',
+            merged_value=c.conflicting_name or '(absent)',
+            merged_block=None, working_key_present=True))
     return result, rows
 
 
@@ -132,14 +228,21 @@ class MergePreviewDialog(QDialog):
 
     COL_CHECK, COL_TYPE, COL_BLOCK, COL_KEY, COL_BEFORE, COL_AFTER = range(6)
 
-    def __init__(self, working_doc, source_doc, source_label: str, parent=None):
+    def __init__(self, working_doc, source_doc, source_label: str, parent=None,
+                 precomputed=None):
         super().__init__(parent)
         self.setWindowTitle(t("mergepreview.title"))
         self.setMinimumSize(860, 560)
         from gui.window_geometry import track
         track(self, "merge_preview")
 
-        result, rows = compute_merge_preview(working_doc, source_doc, source_label)
+        # precomputed = resultat de compute_merge_preview deja calcule hors
+        # du thread GUI (run_long, gerbe plasma) ; calcule ici sinon.
+        if precomputed is not None:
+            result, rows = precomputed
+        else:
+            result, rows = compute_merge_preview(working_doc, source_doc,
+                                                 source_label)
         self.result = result
         self.rows = rows
 
@@ -165,15 +268,25 @@ class MergePreviewDialog(QDialog):
             'added_block': t("mergepreview.type_added_block"),
             'added_property': t("mergepreview.type_added_property"),
             'changed_property': t("mergepreview.type_changed_property"),
+            'id_conflict': t("mergepreview.type_id_conflict"),
         }
         for r, row in enumerate(rows):
             check = QTableWidgetItem()
-            check.setFlags(check.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            if row.row_type != 'id_conflict':
+                check.setFlags(check.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            else:
+                # les flags PAR DEFAUT incluent UserCheckable : retire
+                # explicitement pour les lignes informatives (conflit d'Id)
+                check.setFlags(check.flags()
+                               & ~Qt.ItemFlag.ItemIsUserCheckable)
             # Blocs et proprietes AJOUTES : coches par defaut (la fusion les
             # apporte). Proprietes DIFFERENTES : decochees (la copie de
             # travail reste prioritaire tant que l'utilisateur ne choisit pas
-            # explicitement la valeur source).
-            check.setCheckState(Qt.CheckState.Checked if row.row_type != 'changed_property'
+            # explicitement la valeur source). Conflits d'Id : PAS de case
+            # (informationnels — le bloc est ajoute desactive en fin de
+            # fichier, avec son nom visible dans les colonnes Avant/Apres).
+            check.setCheckState(Qt.CheckState.Checked if row.row_type == 'added_block'
+                                or row.row_type == 'added_property'
                                 else Qt.CheckState.Unchecked)
             self.table.setItem(r, self.COL_CHECK, check)
 
@@ -185,7 +298,7 @@ class MergePreviewDialog(QDialog):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(r, self.COL_BLOCK, item)
 
-            item = QTableWidgetItem(row.prop_key or "")
+            item = QTableWidgetItem(row.display_key or row.prop_key or "")
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(r, self.COL_KEY, item)
 
@@ -194,7 +307,11 @@ class MergePreviewDialog(QDialog):
             self.table.setItem(r, self.COL_BEFORE, item)
 
             after = row.merged_value if row.row_type != 'added_block' else ""
-            self.table.setItem(r, self.COL_AFTER, QTableWidgetItem(after))
+            item_after = QTableWidgetItem(after)
+            if row.row_type in ('added_block', 'id_conflict'):
+                item_after.setFlags(item_after.flags()
+                                    & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(r, self.COL_AFTER, item_after)
         layout.addWidget(self.table, 1)
 
         note = QLabel(t("mergepreview.note"))
@@ -228,7 +345,9 @@ class MergePreviewDialog(QDialog):
     def _set_all_checks(self, state: bool) -> None:
         cs = Qt.CheckState.Checked if state else Qt.CheckState.Unchecked
         for r in range(self.table.rowCount()):
-            self.table.item(r, self.COL_CHECK).setCheckState(cs)
+            item = self.table.item(r, self.COL_CHECK)
+            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                item.setCheckState(cs)
 
     def _on_accept(self) -> None:
         self.apply_selected()
@@ -243,7 +362,10 @@ class MergePreviewDialog(QDialog):
         Les blocs ajoutes decoches retirent aussi leurs proprietes (deja
         couverts : le bloc entier part)."""
         blocks_to_remove = []
+        identity_blocks = {}
         for r, row in enumerate(self.rows):
+            if row.row_type == 'id_conflict':
+                continue            # informatif : rien a appliquer
             checked = self.table.item(r, self.COL_CHECK).checkState() == Qt.CheckState.Checked
             after = self.table.item(r, self.COL_AFTER).text()
             if row.row_type == 'added_block':
@@ -252,6 +374,8 @@ class MergePreviewDialog(QDialog):
                 continue
             if row.merged_block is None or not row.prop_key:
                 continue
+            if row.identity_paired and row.merged_block is not None:
+                identity_blocks[id(row.merged_block)] = row.merged_block
             if checked:
                 row.merged_block.set_property(row.prop_key, after)
             else:
@@ -274,8 +398,17 @@ class MergePreviewDialog(QDialog):
                 self.result.document.nodes.remove(block)
             except ValueError:
                 pass  # deja retire (ligne bloquee en double dans le rapport)
+        # listes ItemN appariees par identite : renumerote sans trou apres
+        # les retraits d'ajouts decoches (Item1..N contigu pour le jeu)
+        for block in identity_blocks.values():
+            renumber_item_lines(block)
 
     def rejected_summary(self) -> int:
         """Nombre de lignes laissees decochees (pour le message de statut)."""
-        return sum(1 for r in range(self.table.rowCount())
-                   if self.table.item(r, self.COL_CHECK).checkState() != Qt.CheckState.Checked)
+        count = 0
+        for r in range(self.table.rowCount()):
+            item = self.table.item(r, self.COL_CHECK)
+            if (item.flags() & Qt.ItemFlag.ItemIsUserCheckable
+                    and item.checkState() != Qt.CheckState.Checked):
+                count += 1
+        return count

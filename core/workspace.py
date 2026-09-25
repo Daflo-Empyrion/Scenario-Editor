@@ -239,7 +239,8 @@ def merge_file_into_working(workspace: Workspace, source_file: Path, source_root
 
 
 def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_root: Path,
-                               source_label: str) -> Tuple[dict, list, dict]:
+                               source_label: str,
+                               only_files: Optional[set] = None) -> Tuple[dict, list, dict]:
     """
     Fusionne recursivement TOUS les fichiers d'un dossier (et sous-dossiers) source vers
     la copie de travail, fichier par fichier -- meme logique que merge_file_into_working
@@ -247,13 +248,17 @@ def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_
     .csv existants, simple copie sinon). Utile pour importer plusieurs fichiers d'un
     coup sans fusionner tout le scenario.
 
+    only_files : sous-ensemble (chemins absolus) selectionne par la fenetre de
+    revision ; None = tous les fichiers du dossier.
+
     Retourne (dict {chemin: MergeHighlight} pour les .ecf, liste de tous les conflits
     d'Id, dict {chemin: rapport} pour les .csv).
     """
     highlights = {}
     all_conflicts = []
     csv_reports = {}
-    files = [p for p in source_folder.rglob('*') if p.is_file()]
+    files = [p for p in source_folder.rglob('*') if p.is_file()
+             and (only_files is None or p in only_files)]
     for f in files:
         dest, highlight, conflicts, csv_report = merge_file_into_working(workspace, f, source_root, source_label)
         if highlight:
