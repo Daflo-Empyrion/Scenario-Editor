@@ -146,31 +146,56 @@ def _overwrite_plan(source: Path, dest: Path, rel: str) -> FilePlan:
 _GROUP_RE = re.compile(r"GroupName:\s*(.+)")
 
 
+def _split_flow(value: str) -> List[str]:
+    """Eclate une liste flow yaml en champs en respectant les guillemets
+    (le champ coordonnees contient lui-meme des virgules)."""
+    value = value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]          # retire les crochets de la liste flow
+    fields, buf, quote = [], "", None
+    for c in value:
+        if quote:
+            buf += c
+            if c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+            buf += c
+        elif c == ",":
+            fields.append(buf.strip())
+            buf = ""
+        else:
+            buf += c
+    if buf.strip():
+        fields.append(buf.strip())
+    return [f.strip().strip("'\"") for f in fields]
+
+
 def collect_sector_dependencies(sector_yaml: Path, source_root: Path,
                                 working_root: Path) -> List[DependencyFile]:
     """Playfields references par le Sectors.yaml source et absents de la
     copie de travail (dossier Playfields/<template>/ complet), puis POIs
     (Prefabs/<GroupName>.epb) references par ces playfields et absents de
-    la copie de travail."""
+    la copie de travail.
+
+    PAS de PyYAML ici (absent des requirements et donc de l'installeur,
+    vecu CI v1.12.0 : import silencieux avale -> dependances vides) : les
+    lignes playfield sont des listes flow UNE-LIGNE
+    (convention Empyrion : - ['x,y,z', Nom, Template, ...])."""
     deps: List[DependencyFile] = []
     source_root, working_root = Path(source_root), Path(working_root)
     try:
-        import yaml
-        data = yaml.safe_load(sector_yaml.read_text(encoding="utf-8"))
-    except Exception:                       # noqa: BLE001 - yaml exotique
-        return deps
-    if not isinstance(data, dict):
+        text = sector_yaml.read_text(encoding="utf-8")
+    except OSError:
         return deps
     templates: set = set()
-    for system in data.get("SolarSystems") or []:
-        if not isinstance(system, dict):
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("- ["):
             continue
-        for sector in system.get("Sectors") or []:
-            if not isinstance(sector, dict):
-                continue
-            for row in sector.get("Playfields") or []:
-                if isinstance(row, list) and len(row) > 2 and row[2]:
-                    templates.add(str(row[2]).strip())
+        fields = _split_flow(stripped[2:].strip())
+        if len(fields) > 2 and fields[2]:
+            templates.add(fields[2])
     for template in sorted(templates):
         src_dir = source_root / "Playfields" / template
         dest_dir = working_root / "Playfields" / template

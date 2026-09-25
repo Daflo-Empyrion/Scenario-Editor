@@ -44,6 +44,10 @@ versionnement [SemVer](https://semver.org/lang/fr/) (`vX.Y.Z`).
   absents de la copie de travail, proposes coches), et n'applique que la
   selection validee ; un fichier ecrase ne l'est plus jamais sans choix
   explicite
+  explicite ; extraction des templates SANS PyYAML (scan
+  ligne des listes flow — PyYAML absent des
+  requirements/installeur, vecu CI v1.12.0 : dependances
+  vides silencieuses)
 - **Fusion ECF : listes ItemN appariees PAR IDENTITE** (TraderNPCConfig,
   vecu 25/09 : deux scenarios n'ordonnent pas leurs items pareil, l'apercu
   appariait Item1<->Item1 et la fusion ecrasait des items differents —

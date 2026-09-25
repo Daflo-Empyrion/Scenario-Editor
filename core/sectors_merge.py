@@ -61,6 +61,9 @@ def _split_flow(value: str) -> List[str]:
     """Eclate une liste flow yaml ('['0,0,0', Nom, Template, '']') en
     champs, en respectant les guillemets (le champ coordonnees contient
     lui-meme des virgules)."""
+    value = value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]          # retire les crochets de la liste flow
     fields, buf, quote = [], "", None
     for c in value:
         if quote:
