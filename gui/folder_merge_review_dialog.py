@@ -103,6 +103,22 @@ class FolderMergeReviewDialog(QDialog):
                 self, lambda: analyze_sectors_merge(
                     working_root / self.sectors_plan.rel,
                     self.sectors_plan.source))
+        # fusion structurelle GENERIQUE des autres YAML (demande 26/09/2026 :
+        # un PDA.yaml existant etait propose en REMPLACEMENT brut seulement)
+        self.yaml_plans = []             # [(FilePlan, [YamlUnit])]
+        if working_root is not None:
+            targets = [p for p in self.plan.files
+                       if p.status == STATUS_OVERWRITE and p.dest is not None
+                       and p.dest.suffix.lower() in (".yaml", ".yml")
+                       and p is not self.sectors_plan]
+            if targets:
+                from core.yaml_merge import analyze_yaml_merge
+
+                def _analyze_all():
+                    return [(p, analyze_yaml_merge(p.dest, p.source))
+                            for p in targets]
+                self.yaml_plans = [(p, u) for p, u in run_long(
+                    self, _analyze_all) if u]
         self._fill()
 
     # ------------------------------------------------------------- contenu
@@ -131,6 +147,23 @@ class FolderMergeReviewDialog(QDialog):
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(0, Qt.CheckState.Checked)
                 item.setData(0, Qt.ItemDataRole.UserRole, unit)
+                self.tree.addTopLevelItem(item)
+        for plan, units in self.yaml_plans:
+            header = QTreeWidgetItem(
+                ["", t("mergeplan.yaml_header", rel=plan.rel, n=len(units)),
+                 plan.rel, t("mergeplan.struct_hint")])
+            header.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            self.tree.addTopLevelItem(header)
+            for unit in units:
+                kind_label = t("yamlmerge.kind_key") if unit.kind == "key" \
+                    else t("yamlmerge.kind_item")
+                label = unit.name if unit.kind == "key" \
+                    else f"{unit.name}  ·  {unit.root}"
+                item = QTreeWidgetItem(["", kind_label, label, unit.detail])
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(0, Qt.CheckState.Checked)
+                item.setData(0, Qt.ItemDataRole.UserRole,
+                             ("yamlunit", plan, unit))
                 self.tree.addTopLevelItem(item)
         for plan in self.plan.files:
             item = QTreeWidgetItem(["", status_i18n[plan.status],
@@ -164,7 +197,8 @@ class FolderMergeReviewDialog(QDialog):
     def _refresh_buttons(self):
         n = (len(self.selected_merge_files())
              + len(self.selected_dependencies())
-             + len(self.selected_structural_units()))
+             + len(self.selected_structural_units())
+             + len(self.selected_yaml_picks()))
         self.btn_apply.setText(t("mergeplan.btn_apply_n", n=n))
 
     def _set_all_checks(self, state: bool):
@@ -197,6 +231,19 @@ class FolderMergeReviewDialog(QDialog):
             if isinstance(unit, SectorUnit) \
                     and item.checkState(0) == Qt.CheckState.Checked:
                 out.append(unit)
+        return out
+
+    def selected_yaml_picks(self):
+        """Unites de fusion structurelle generique cochees :
+        [(FilePlan, YamlUnit)]."""
+        out = []
+        for i in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(i)
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(data, tuple) and len(data) == 3 \
+                    and data[0] == "yamlunit" \
+                    and item.checkState(0) == Qt.CheckState.Checked:
+                out.append((data[1], data[2]))
         return out
 
     def selected_dependencies(self):

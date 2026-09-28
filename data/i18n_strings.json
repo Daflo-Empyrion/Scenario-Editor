@@ -7742,5 +7742,153 @@
  "mergepreview.type_id_conflict": {
   "fr": "Conflit d'Id",
   "en": "Id conflict"
+ },
+ "yamlmerge.title": {
+  "fr": "Fusion YAML — {file}",
+  "en": "YAML merge — {file}"
+ },
+ "yamlmerge.intro": {
+  "fr": "Fusion depuis {source} : éléments du fichier source absents de votre copie de travail. Cochez ceux à insérer — votre copie reste prioritaire, les éléments présents des deux côtés ne sont JAMAIS modifiés.",
+  "en": "Merging from {source}: elements of the source file missing from your working copy. Check the ones to insert — your copy keeps priority, elements present on both sides are NEVER modified."
+ },
+ "yamlmerge.col_kind": {
+  "fr": "Type",
+  "en": "Kind"
+ },
+ "yamlmerge.col_name": {
+  "fr": "Élément",
+  "en": "Element"
+ },
+ "yamlmerge.kind_key": {
+  "fr": "Clé racine",
+  "en": "Root key"
+ },
+ "yamlmerge.kind_item": {
+  "fr": "Élément ajouté",
+  "en": "Added element"
+ },
+ "yamlmerge.btn_replace": {
+  "fr": "Remplacer tout le fichier…",
+  "en": "Replace whole file…"
+ },
+ "yamlmerge.identical_file": {
+  "fr": "{name} : la source est identique à la copie de travail, rien à fusionner.",
+  "en": "{name}: source is identical to the working copy, nothing to merge."
+ },
+ "yamlmerge.summary": {
+  "fr": "{n} élément(s) proposé(s) depuis {name}.",
+  "en": "{n} element(s) proposed from {name}."
+ },
+ "yamlmerge.done": {
+  "fr": "Fusion YAML : {n} élément(s) inséré(s) dans {name}.",
+  "en": "YAML merge: {n} element(s) inserted into {name}."
+ },
+ "yamlmerge.replaced": {
+  "fr": "{name} remplacé par la version source (choix explicite).",
+  "en": "{name} replaced with the source version (explicit choice)."
+ },
+ "csvmerge.title": {
+  "fr": "Fusion CSV — {file}",
+  "en": "CSV merge — {file}"
+ },
+ "csvmerge.intro": {
+  "fr": "Fusion depuis {source} : lignes que la source apporterait. Vos lignes restent prioritaires — seules des cellules VIDES peuvent être complétées, jamais l'inverse.",
+  "en": "Merging from {source}: rows the source would bring. Your rows keep priority — only EMPTY cells can be filled, never the other way around."
+ },
+ "csvmerge.col_action": {
+  "fr": "Action",
+  "en": "Action"
+ },
+ "csvmerge.col_key": {
+  "fr": "Clé",
+  "en": "Key"
+ },
+ "csvmerge.action_added": {
+  "fr": "Ligne ajoutée",
+  "en": "Added row"
+ },
+ "csvmerge.action_completed": {
+  "fr": "Cellules complétées",
+  "en": "Empty cells filled"
+ },
+ "csvmerge.summary": {
+  "fr": "{n} changement(s) proposé(s) depuis {name}.",
+  "en": "{n} change(s) proposed from {name}."
+ },
+ "csvmerge.nothing": {
+  "fr": "{name} : la source n'apporte aucune ligne ni cellule nouvelle.",
+  "en": "{name}: the source brings no new row or cell."
+ },
+ "csvmerge.done": {
+  "fr": "Fusion CSV : {n} changement(s) appliqué(s) dans {name}.",
+  "en": "CSV merge: {n} change(s) applied to {name}."
+ },
+ "mergeplan.yaml_header": {
+  "fr": "— Fusion STRUCTURELLE de {rel} ({n} élément(s), recommandé : insère sans écraser) —",
+  "en": "— STRUCTURAL merge of {rel} ({n} element(s), recommended: inserts instead of overwriting) —"
+ },
+ "mergeplan.yaml_undo": {
+  "fr": "Fusion structurelle YAML : {name}",
+  "en": "Structural YAML merge: {name}"
+ },
+ "mergeplan.yaml_done": {
+  "fr": "{n} élément(s) inséré(s) dans votre {name}.",
+  "en": "{n} element(s) inserted into your {name}."
+ },
+ "yamlmerge.btn_apply_n": {
+  "fr": "Insérer ({n} élément(s))",
+  "en": "Insert ({n} element(s))"
+ },
+ "csvmerge.btn_apply_n": {
+  "fr": "Appliquer ({n} changement(s))",
+  "en": "Apply ({n} change(s))"
+ },
+ "pending.replace_btn": {
+  "fr": "Remplacer le bloc actif (même nom)",
+  "en": "Replace the active block (same name)"
+ },
+ "pending.replace_failed_msg": {
+  "fr": "Impossible de remplacer ce bloc (contenu non re-parsable).",
+  "en": "Could not replace this block (content cannot be re-parsed)."
+ },
+ "pending.replaced_status": {
+  "fr": "Bloc remplacé dans {file} : {name}.",
+  "en": "Block replaced in {file}: {name}."
+ },
+ "pending.replaced_msg": {
+  "fr": "Le bloc actif « {name} » a été remplacé par la version en attente dans {file} (ordre de chargement préservé, annulable).",
+  "en": "The active block \"{name}\" was replaced by the pending version in {file} (load order preserved, undoable)."
+ },
+ "pending.unbalanced_msg": {
+  "fr": "Ce bloc en attente est incomplet (accolades non équilibrées) : il a été endommagé par une manipulation antérieure. Il ne peut pas être activé tel quel — supprimez-le du fichier et ré-importez l'élément depuis la source (refusionnez le fichier concerné).",
+  "en": "This pending block is incomplete (unbalanced braces): it was damaged by an earlier manipulation. It cannot be activated as is — delete it from the file and re-import the element from the source (re-merge the file)."
+ },
+ "pending.nameonly_btn": {
+  "fr": "Activer sans Id (nom seul — POIs)",
+  "en": "Activate without Id (name-only — POIs)"
+ },
+ "pending.nameonly_failed": {
+  "fr": "Impossible d'activer ce bloc sans Id : un bloc actif porte déjà ce nom, ou le contenu est illisible.",
+  "en": "Could not activate this block without Id: an active block already uses this name, or the content cannot be parsed."
+ },
+ "pending.nameonly_status": {
+  "fr": "Bloc activé sans Id (nom seul) dans {file} : {name}.",
+  "en": "Block activated without Id (name-only) in {file}: {name}."
+ },
+ "pending.nameonly_msg": {
+  "fr": "Le bloc « {name} » a été activé SANS Id (identification par son nom seul, comme les blocs Id-less du RE2). Référencable par les POIs par son nom.",
+  "en": "The block \"{name}\" was activated WITHOUT an Id (identified by its name alone, like RE2's Id-less blocks). POIs can reference it by name."
+ },
+ "bbcode.fix_colors": {
+  "fr": "Corriger les balises couleur ([color=#] → jeu)",
+  "en": "Fix color tags ([color=#] → game format)"
+ },
+ "bbcode.colors_fixed": {
+  "fr": "{n} balise(s) couleur convertie(s) au format du jeu ([c][hex]…).",
+  "en": "{n} color tag(s) converted to the game format ([c][hex]…)."
+ },
+ "bbcode.no_color_tags": {
+  "fr": "Aucune balise [color=#] à convertir trouvée.",
+  "en": "No [color=#] tag found to convert."
  }
 }

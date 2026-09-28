@@ -195,10 +195,16 @@ class BBCodeToolDialog(QDialog):
             btn.setToolTip(name)
             text_color = "#000000" if hexcode == "#FFFFFF" else "#FFFFFF"
             btn.setStyleSheet(f"background-color: {hexcode}; border: 1px solid #555; color: {text_color};")
-            btn.clicked.connect(lambda checked, c=hexcode: self._wrap_selection(f"[color={c}]", "[/color]"))
+            btn.clicked.connect(lambda checked, c=hexcode: self._wrap_selection(
+                f"[c][{c.lstrip(chr(35))}]", "[/color]"))
             palette_row.addWidget(btn)
         palette_row.addStretch()
         layout.addLayout(palette_row)
+
+        btn_fix = QPushButton(t("bbcode.fix_colors"))
+        btn_fix.setObjectName("secondaryButton")
+        btn_fix.clicked.connect(self._fix_legacy_color_tags)
+        layout.addWidget(btn_fix)
 
         buttons = QHBoxLayout()
         btn_apply = QPushButton(t("bbcode.apply_to_cell"))
@@ -209,6 +215,26 @@ class BBCodeToolDialog(QDialog):
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
         layout.addLayout(buttons)
+
+    def _fix_legacy_color_tags(self):
+        """Convertit les balises [color=#rrggbb]...[/color] (BBCode standard,
+        non acceptees par le jeu) au dialecte Empyrion [c][rrggbb]...[/color]
+        -- vecu 27/09 : des textes de scenarios deja faits portaient
+        l'ancien format et le jeu les affichait bruts."""
+        import re
+        text = self.text_edit.toPlainText()
+
+        def _convert(m):
+            return f"[c][{m.group(1).upper()}]{m.group(2)}[/color]"
+
+        fixed, n = re.subn(
+            r"\[color=#([0-9A-Fa-f]{6})\](.*?)\[/color\]",
+            _convert, text, flags=re.DOTALL)
+        if not n:
+            self._flash_hint(t("bbcode.no_color_tags"))
+            return
+        self.text_edit.setPlainText(fixed)
+        self._flash_hint(t("bbcode.colors_fixed", n=n))
 
     def _wrap_selection(self, open_tag: str, close_tag: str):
         cursor = self.text_edit.textCursor()

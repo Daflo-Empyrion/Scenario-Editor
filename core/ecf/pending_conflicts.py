@@ -67,11 +67,18 @@ def find_pending_conflicts(doc: EcfDocument) -> List[PendingConflict]:
                     break
                 lines.append(uncommented)
                 stripped = uncommented.strip()
-                if stripped.startswith('{'):
-                    depth += 1
-                    started = True
-                if stripped.endswith('}'):
-                    depth -= 1
+                # une ligne RE-commentee (le bloc source contenait lui-meme
+                # du commente, ex: '#   # }' -- vecu 26/09 sur les items
+                # vanille a enfant desactive) RESTE un commentaire : ses
+                # accolades ne comptent pas, sinon le groupe est tronque a
+                # la premiere fermeture commentee et l'activation produisait
+                # un bloc jamais referme
+                if not stripped.startswith('#'):
+                    if stripped.startswith('{'):
+                        depth += 1
+                        started = True
+                    if stripped.endswith('}'):
+                        depth -= 1
                 j += 1
                 if started and depth <= 0:
                     break
@@ -126,9 +133,89 @@ def suggest_free_ids(used_ids: set, count: int = 10) -> List[int]:
     return list(range(start, start + count))
 
 
+def pending_has_numeric_id(conflict: "PendingConflict") -> bool:
+    """Le bloc en attente porte-t-il un Id NUMERIQUE ? Les blocs identifies
+    par leur nom (GalaxyConfig : etoiles 'Neutron Star'...) n'ont pas d'Id
+    assignable -- vecu 26/09 : 'Activer avec cet Id' echouait sur eux avec
+    'motif Id: introuvable' ; ils demandent un REMPLACEMENT du bloc actif."""
+    return re.search(r'\bId:\s*\d', conflict.block_text) is not None
+
+
+def _balanced(conflict: "PendingConflict") -> bool:
+    """Un groupe aux accolades non equilibrees (endommage, vecu 26/09)
+    produirait un bloc jamais referme qui avalerait tout le fichier au
+    re-parse : refuse par les deux operations d'activation."""
+    return conflict.block_text.count('{') == conflict.block_text.count('}')
+
+
+def replace_pending_conflict(doc: EcfDocument, conflict: PendingConflict) -> bool:
+    """Blocs SANS Id numerique (identifies par leur Name) : remplace le bloc
+    actif de meme identite par le bloc en attente (sur place -- l'ordre de
+    chargement est preserve) ; si aucun bloc actif de meme identite n'est
+    trouve, insere le bloc en attente a la place des commentaires.
+    Retourne False si le texte du bloc n'est pas re-parsable."""
+    if not _balanced(conflict):
+        return False
+    parsed = parse_ecf_text(conflict.block_text)
+    new_blocks = [n for n in parsed.nodes if isinstance(n, EcfBlock)]
+    if len(new_blocks) != 1:
+        return False
+    new_block = new_blocks[0]
+
+    del doc.nodes[conflict.header_index:conflict.end_index + 1]
+
+    from .model import block_identity, normalized_kind
+    ident = block_identity(new_block)
+    target = None
+    if ident is not None:
+        nkind = normalized_kind(new_block.kind)
+        for idx, node in enumerate(doc.nodes):
+            if not isinstance(node, EcfBlock) or block_identity(node) != ident:
+                continue
+            if normalized_kind(node.kind) == nkind:
+                target = idx
+                break
+            if target is None:
+                target = idx          # repli : meme identite, kind different
+    if target is not None:
+        doc.nodes[target] = new_block
+    else:
+        doc.nodes.insert(conflict.header_index, new_block)
+    return True
+
+
+def activate_pending_conflict_name_only(doc: EcfDocument,
+                                        conflict: PendingConflict) -> bool:
+    """Active le bloc en attente SANS son Id : identification par Name seul
+    (demande 26/09 -- meme convention que les 1335 blocs Id-less du RE2,
+    references par les POIs via le mapping de noms). Aucune collision d'Id
+    possible. Refuse si un bloc actif porte deja ce Name."""
+    if not _balanced(conflict):
+        return False
+    text = re.sub(r'\bId:\s*\d+\s*,?\s*', '', conflict.block_text, count=1)
+    if text == conflict.block_text:
+        return False
+    parsed = parse_ecf_text(text)
+    new_blocks = [n for n in parsed.nodes if isinstance(n, EcfBlock)]
+    if len(new_blocks) != 1:
+        return False
+    new_block = new_blocks[0]
+    name = new_block.get_property('Name')
+    if not name:
+        return False
+    for n in doc.nodes:
+        if isinstance(n, EcfBlock) and n.get_property('Name') == name:
+            return False          # un bloc actif porte deja ce nom
+    del doc.nodes[conflict.header_index:conflict.end_index + 1]
+    doc.nodes.insert(conflict.header_index, new_block)
+    return True
+
+
 def activate_pending_conflict(doc: EcfDocument, conflict: PendingConflict, new_id: str) -> bool:
     """Remplace la sequence de commentaires par un VRAI bloc actif, avec le nouvel Id
     fourni. Retourne False si le remplacement de l'Id n'a pas pu se faire."""
+    if not _balanced(conflict):
+        return False
     new_text = re.sub(r'(Id:\s*)[^\s,]+', r'\g<1>' + new_id, conflict.block_text, count=1)
     if new_text == conflict.block_text:
         return False
@@ -143,3 +230,31 @@ def activate_pending_conflict(doc: EcfDocument, conflict: PendingConflict, new_i
     del doc.nodes[conflict.header_index:conflict.end_index + 1]
     doc.nodes.insert(conflict.header_index, new_block)
     return True
+
+
+def prune_already_imported_conflicts(doc: EcfDocument) -> int:
+    """Supprime les groupes de conflit dont le bloc en attente existe DEJA
+    actif dans le document sous un autre Id (importe precedemment avec un
+    Id libre -- vecu 26/09 : chaque refusion re-proposait ces items, la
+    garde anti-collision ne comparant que l'Id, jamais le Name).
+    Retourne le nombre de groupes supprimes."""
+    from .model import normalized_kind
+
+    active_names = set()
+    for node in doc.nodes:
+        if isinstance(node, EcfBlock):
+            name = node.get_property('Name')
+            if name:
+                active_names.add((normalized_kind(node.kind), name))
+
+    to_delete = []
+    for conflict in find_pending_conflicts(doc):
+        pending = parse_pending_block(conflict)
+        if pending is None:
+            continue
+        name = pending.get_property('Name')
+        if name and (normalized_kind(pending.kind), name) in active_names:
+            to_delete.append(conflict)
+    for conflict in sorted(to_delete, key=lambda c: -c.header_index):
+        del doc.nodes[conflict.header_index:conflict.end_index + 1]
+    return len(to_delete)

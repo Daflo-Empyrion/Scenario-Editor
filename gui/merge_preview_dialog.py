@@ -382,15 +382,27 @@ class MergePreviewDialog(QDialog):
                 if row.working_key_present:
                     row.merged_block.set_property(row.prop_key, row.working_value)
                 else:
-                    # Retire la propriete ajoutee non voulue : vide les paires
-                    # porteuses puis supprime les noeuds vidés (directs ou
-                    # enfants) pour ne laisser AUCUNE ligne residuelle.
-                    row.merged_block.pairs = [
-                        (k, v) for (k, v) in row.merged_block.pairs if k != row.prop_key]
+                    # Retire la propriete ajoutee non voulue : la paire
+                    # porteuse ET ses paires d'attributs qui suivent (type/
+                    # display/formatter decrivent la propriete precedente) --
+                    # sinon il resterait une ligne d'attributs orpheline que
+                    # le jeu rejette au chargement (vecu 27/09 : 97 lignes
+                    # orphelines dans BlocksConfig, blocs rejetes a la volee).
+                    def _strip(pairs):
+                        out, skip = [], False
+                        for k, v in pairs:
+                            if k == row.prop_key:
+                                skip = True
+                                continue
+                            if skip and k in ('type', 'display', 'formatter'):
+                                continue
+                            skip = False
+                            out.append((k, v))
+                        return out
+                    row.merged_block.pairs = _strip(row.merged_block.pairs)
                     for child in list(row.merged_block.children):
                         if isinstance(child, EcfProperty):
-                            child.pairs = [
-                                (k, v) for (k, v) in child.pairs if k != row.prop_key]
+                            child.pairs = _strip(child.pairs)
                             if not child.pairs:
                                 row.merged_block.children.remove(child)
         for block in blocks_to_remove:

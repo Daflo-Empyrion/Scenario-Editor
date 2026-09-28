@@ -17,8 +17,11 @@
 """Synchronisation de la copie de travail vers le scenario EN PRODUCTION
 (demande utilisateur 24/09/2026 : eviter de copier a la main, a chaque
 fermeture, les fichiers modifies vers le repertoire Scenarios de la
-vanille). La liste des fichiers vient de list_changed_files (diff vs
-source A, meme semantique que le dialogue « Fichiers modifies »)."""
+vanille). La liste des fichiers est une DIFFERENCE AVEC LE DOSSIER DE
+PRODUCTION passe en argument (le dialogue passe le dossier de production,
+PAS la source A -- docstring erronee corrigee le 26/09/2026 apres vecu :
+un sync vs source A n'aurait jamais liste les fichiers identiques a A
+mais absents ou anciens dans la production)."""
 import shutil
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
@@ -46,7 +49,9 @@ def sync_to_production(files: Sequence[Tuple], working_root, prod_root,
     """Copie (remplace) `files` — [(chemin_source, etat), ...] produits par
     list_changed_files — vers prod_root en conservant l'arborescence.
     Chaque fichier ecrase est sauvegarde au prealable sous backup_dir
-    (meme arborescence relative). Retourne (copies, racine_sauvegarde)."""
+    (meme arborescence relative). Retourne (copies, racine_sauvegarde).
+    Une erreur OSError est re-levee AVEC le fichier fautif (vecu 26/09 :
+    l'utilisateur ne voyait PAS quel fichier faisait echouer la copie)."""
     working_root, prod_root = Path(working_root), Path(prod_root)
     copied = 0
     saved_root: Optional[Path] = None
@@ -54,12 +59,15 @@ def sync_to_production(files: Sequence[Tuple], working_root, prod_root,
         src = Path(src)
         rel = src.relative_to(working_root)
         dest = prod_root / rel
-        if backup_dir is not None and dest.exists():
-            backup_path = Path(backup_dir) / rel
-            backup_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(dest, backup_path)
-            saved_root = Path(backup_dir)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+        try:
+            if backup_dir is not None and dest.exists():
+                backup_path = Path(backup_dir) / rel
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(dest, backup_path)
+                saved_root = Path(backup_dir)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+        except OSError as e:
+            raise OSError(f"{src} -> {dest} : {e}") from e
         copied += 1
     return copied, saved_root

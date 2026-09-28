@@ -104,11 +104,16 @@ def find_disabled_blocks(doc: EcfDocument) -> List[DisabledBlock]:
                     break
                 lines.append(uncommented)
                 stripped = uncommented.strip()
-                if stripped.startswith('{'):
-                    depth += 1
-                    started = True
-                if stripped.endswith('}'):
-                    depth -= 1
+                # une ligne RE-commentee (le bloc contenait lui-meme du
+                # commente, ex: '#   # }') reste un commentaire : ses
+                # accolades ne comptent pas (meme correctif que
+                # find_pending_conflicts, vecu 26/09)
+                if not stripped.startswith('#'):
+                    if stripped.startswith('{'):
+                        depth += 1
+                        started = True
+                    if stripped.endswith('}'):
+                        depth -= 1
                 j += 1
                 if started and depth <= 0:
                     break
@@ -156,7 +161,13 @@ class NativeCommentedBlock:
 def find_native_commented_blocks(doc) -> List[NativeCommentedBlock]:
     """Trouve les blocs commentes NATIFS : un run de commentaires qui ouvre une
     accolade ('#{ +Block', '# { +Item'...) et se ferme par un commentaire avec
-    '}'. Les lignes vides intercalees font partie du bloc. Ne modifie rien."""
+    '}'. Les lignes vides intercalees font partie du bloc. Ne modifie rien.
+
+    La fin du bloc est detectee par PROFONDEUR d'accolades (vecu 26/09 : les
+    blocs desactives par la fusion contiennent des ENFANTS imbriques
+    '{ Child ... }' -- couper au premier '}' fragmentait l'Item en 'Item [6]'
+    + 'Child [?]' et reactiver le premier fragment produisait un fichier
+    casse, bloc jamais referme)."""
     from .model import EcfComment
 
     def _body(raw: str) -> str:
@@ -165,9 +176,10 @@ def find_native_commented_blocks(doc) -> List[NativeCommentedBlock]:
     found: List[NativeCommentedBlock] = []
     run: list = []
     in_block = False
+    depth = 0
 
     def _flush():
-        nonlocal run, in_block
+        nonlocal run, in_block, depth
         if in_block and run:
             text = " ".join(_body(n.raw) for n in run if hasattr(n, 'raw'))
             m_id = re.search(r'\bId:\s*(\d+)', text)
@@ -178,6 +190,7 @@ def find_native_commented_blocks(doc) -> List[NativeCommentedBlock]:
             found.append(NativeCommentedBlock(label=f"{label} [{ident}]", nodes=list(run)))
         run = []
         in_block = False
+        depth = 0
 
     for node in doc.nodes:
         if isinstance(node, EcfComment):
@@ -185,12 +198,10 @@ def find_native_commented_blocks(doc) -> List[NativeCommentedBlock]:
             if not in_block and '{' in body:
                 _flush()
                 in_block = True
+            if in_block:
                 run.append(node)
-                if '}' in body:
-                    _flush()
-            elif in_block:
-                run.append(node)
-                if '}' in body:
+                depth += body.count('{') - body.count('}')
+                if depth <= 0:
                     _flush()
             else:
                 _flush()

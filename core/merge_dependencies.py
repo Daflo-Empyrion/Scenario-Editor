@@ -40,7 +40,10 @@ _TEXT_SUFFIXES = {".yaml", ".yml", ".ecf", ".csv", ".txt", ".md", ".json",
                   ".ecf.bak"}
 
 
-@dataclass
+@dataclass(eq=False)      # identite (pas de valeur) : objet porte par les
+                          # items de l'arbre de revision, utilisable en cle
+                          # de dict -- dataclass mutable par defaut = NON
+                          # hashable (TypeError vecu en fusion de dossier)
 class FilePlan:
     source: Path
     dest: Path

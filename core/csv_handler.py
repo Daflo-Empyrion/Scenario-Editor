@@ -210,3 +210,54 @@ def merge_single_csv_row(working_doc: CsvDocument, row: List[str]) -> "Tuple[Csv
             return working_doc, 'unchanged'
     working_doc.rows.append(list(row))
     return working_doc, 'added'
+
+
+@dataclass
+class CsvMergeChange:
+    """Un changement propose par une fusion CSV (revision ligne par ligne,
+    demande 26/09/2026 : la fusion CSV etait aveugle)."""
+    key: str
+    action: str          # 'added' | 'completed'
+    detail: str          # colonnes completees ('' pour une ligne ajoutee)
+    row: List[str]       # ligne source (rejouee a l'application)
+
+
+def plan_csv_merge(working_doc: "CsvDocument",
+                   incoming_doc: "CsvDocument") -> List[CsvMergeChange]:
+    """Les changements que merge_csv_documents apporterait, SANS ecrire :
+    une ligne de changement par ligne ajoutee ou completee (meme logique,
+    meme priorite copie de travail)."""
+    changes: List[CsvMergeChange] = []
+    keys = {row[0] for row in working_doc.rows if row}
+    for inc_row in incoming_doc.rows:
+        if not inc_row:
+            continue
+        key = inc_row[0]
+        if key not in keys:
+            changes.append(CsvMergeChange(key=key, action="added",
+                                          detail="", row=list(inc_row)))
+            continue
+        existing = next(r for r in working_doc.rows if r and r[0] == key)
+        changed_cols = [c for c in range(max(len(existing), len(inc_row)))
+                        if not (existing[c] if c < len(existing) else "").strip()
+                        and (inc_row[c] if c < len(inc_row) else "").strip()]
+        if changed_cols:
+            cols = ", ".join(
+                working_doc.header[c] if working_doc.header and c < len(working_doc.header)
+                else str(c) for c in changed_cols)
+            changes.append(CsvMergeChange(key=key, action="completed",
+                                          detail=cols, row=list(inc_row)))
+    return changes
+
+
+def apply_csv_changes(working_doc: "CsvDocument",
+                      changes: List[CsvMergeChange]) -> int:
+    """Applique les changements COCHES au document (en memoire) via la
+    meme logique que merge_single_csv_row ; retourne le nombre reellement
+    applique ('added' ou 'merged', pas 'unchanged')."""
+    applied = 0
+    for change in changes:
+        _, status = merge_single_csv_row(working_doc, change.row)
+        if status != 'unchanged':
+            applied += 1
+    return applied

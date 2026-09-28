@@ -22,8 +22,8 @@ manuel. Les fichiers ecrases sont sauvegardes avant remplacement."""
 import time
 from pathlib import Path
 
-from PyQt6.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout,
-                             QLabel, QListWidget, QListWidgetItem,
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QDialog, QFileDialog,
+                             QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                              QPushButton, QVBoxLayout)
 
 from core.i18n import t
@@ -119,6 +119,7 @@ class ProductionSyncDialog(QDialog):
         from gui.busy import run_long
         self._files = []
         self.list_files.clear()
+        self.hint_label.setStyleSheet("color: gray;")
         if self._working_root is None:
             self.files_label.setText(t("prodsync.no_project"))
             self._refresh_buttons()
@@ -203,6 +204,13 @@ class ProductionSyncDialog(QDialog):
                                                  self._working_root,
                                                  prod, backup))
         except Exception as e:  # noqa: BLE001 - message et dialogue ouvert
+            # vecu 26/09 : l'erreur ne restait que dans une boite de
+            # dialogue, la fenetre semblait ne "rien faire" -- afficher
+            # l'erreur EN PLACE (fichier fautif inclus par le core)
+            self.hint_label.setStyleSheet("color: #ff7070;")
+            self.hint_label.setText(t("prodsync.copy_failed", error=e))
+            self.hint_label.repaint()
+            QApplication.processEvents()
             critical(self, t("err.title"),
                      t("prodsync.copy_failed", error=e))
             return

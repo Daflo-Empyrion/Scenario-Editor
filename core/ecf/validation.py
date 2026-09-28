@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from .model import EcfBlock, EcfProperty
+from .model import EcfBlock, EcfProperty, block_identity
 
 
 @dataclass
@@ -130,8 +130,12 @@ _BLOCKCOLOR_PATTERN = re.compile(r'^"?(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d
 # API principale
 # ============================================================================
 
-def validate_document(doc, file_path: Optional[Path] = None) -> List[ValidationIssue]:
+def validate_document(doc, file_path: Optional[Path] = None,
+                      materials: Optional[Set[str]] = None) -> List[ValidationIssue]:
     """Valide un document ECF complet (descend dans les sous-blocs).
+
+    materials : identites des materiaux du MaterialConfig.ecf du scenario
+    (cf. load_scenario_materials) -- complete la liste figee pour W007.
 
     Certaines regles (Material, VolumeCapacity des conteneurs, doublons de
     Name) ne sont fiables que dans le contexte precis ou elles ont ete
@@ -156,17 +160,21 @@ def validate_document(doc, file_path: Optional[Path] = None) -> List[ValidationI
             name_index[name] = block
 
     issues.extend(_check_duplicates(all_blocks, check_name_duplicates=blocks_scoped))
+    if blocks_scoped:
+        issues.extend(_check_techtree_cycles(all_blocks))
+    issues.extend(_check_orphan_attribute_lines(all_blocks))
 
     for block in all_blocks:
         issues.extend(validate_block(block, name_index=name_index,
-                                      blocks_scoped=blocks_scoped, items_scoped=items_scoped))
+                                      blocks_scoped=blocks_scoped, items_scoped=items_scoped,
+                                      materials=materials))
 
     for issue in issues:
         issue.file_path = file_path
     return issues
 
 
-def validate_file(path: Path) -> List[ValidationIssue]:
+def validate_file(path: Path, materials: Optional[Set[str]] = None) -> List[ValidationIssue]:
     """Valide un fichier ECF unique."""
     from .parser import parse_ecf_file
     try:
@@ -175,25 +183,27 @@ def validate_file(path: Path) -> List[ValidationIssue]:
         return [ValidationIssue(code='E000', level='error',
                                  message=f"Impossible de parser le fichier : {e}",
                                  file_path=path)]
-    return validate_document(doc, file_path=path)
+    return validate_document(doc, file_path=path, materials=materials)
 
 
 def validate_scenario(root: Path) -> Dict[Path, List[ValidationIssue]]:
     """Valide tous les fichiers .ecf de Content/Configuration d'un scenario.
     Retourne un dict {chemin: [issues]} (seuls les fichiers avec des issues)."""
+    materials = load_scenario_materials(root)
     config_dir = root / 'Content' / 'Configuration'
     if not config_dir.exists():
         config_dir = root
     results: Dict[Path, List[ValidationIssue]] = {}
     for ecf in sorted(config_dir.glob('*.ecf')):
-        issues = validate_file(ecf)
+        issues = validate_file(ecf, materials=materials)
         if issues:
             results[ecf] = issues
     return results
 
 
 def validate_block(block: EcfBlock, name_index: Optional[Dict[str, EcfBlock]] = None,
-                    blocks_scoped: bool = True, items_scoped: bool = True) -> List[ValidationIssue]:
+                    blocks_scoped: bool = True, items_scoped: bool = True,
+                    materials: Optional[Set[str]] = None) -> List[ValidationIssue]:
     """Valide un bloc ECF unique (hors doublons, verifies au niveau document).
     blocks_scoped=False desactive Material/VolumeCapacity (fiables uniquement
     sur BlocksConfig.ecf) ; items_scoped=False desactive HoldType (fiable
@@ -204,7 +214,8 @@ def validate_block(block: EcfBlock, name_index: Optional[Dict[str, EcfBlock]] = 
     d'appeler chaque _check_* en dur ici -- ajouter une regle se fait
     desormais en l'ajoutant au registre, sans toucher a cette fonction."""
     issues: List[ValidationIssue] = []
-    context = {'name_index': name_index or {}, 'blocks_scoped': blocks_scoped, 'items_scoped': items_scoped}
+    context = {'name_index': name_index or {}, 'blocks_scoped': blocks_scoped,
+               'items_scoped': items_scoped, 'materials': materials or set()}
     for rule in _BLOCK_RULES:
         if rule.applies(context):
             issues.extend(rule.run(block, context))
@@ -265,6 +276,89 @@ def _resolve_ref_chain(block: EcfBlock, name_index: Dict[str, EcfBlock],
 # ============================================================================
 # Regles au niveau du document
 # ============================================================================
+
+_ATTR_ONLY_KEYS = {'type', 'display', 'formatter'}
+
+
+def _check_orphan_attribute_lines(all_blocks: List[EcfBlock]) -> List[ValidationIssue]:
+    """Detecte les LIGNES D'ATTRIBUTS ORPHELINES : une ligne de propriete qui
+    COMMENCE par un attribut (type:/display:/formatter:) au lieu d'une
+    propriete. Ces lignes n'existent pas dans les fichiers sains (0 dans le
+    RE2 original recursif) -- ce sont des residus d'edition/merge ; le jeu
+    les rejette en chaine au chargement (vecu 27/09 : 97 lignes orphelines
+    dans BlocksConfig apres application d'une fusion, blocs rejetes)."""
+    issues: List[ValidationIssue] = []
+
+    def walk(blocks: List[EcfBlock]) -> None:
+        for block in blocks:
+            for child in block.children:
+                if isinstance(child, EcfProperty) and child.pairs \
+                        and child.pairs[0][0] in _ATTR_ONLY_KEYS:
+                    issues.append(ValidationIssue(
+                        code='E008', level='error', block=block,
+                        property_key=child.pairs[0][0],
+                        message=("Ligne d'attributs orpheline (commence par "
+                                 f"'{child.pairs[0][0]}:') -- le jeu rejette "
+                                 "le bloc au chargement. Supprimez cette "
+                                 "ligne ou restituez la propriete qui la "
+                                 "precedait.")))
+            walk([c for c in block.children if isinstance(c, EcfBlock)])
+
+    walk(all_blocks)
+    return issues
+
+
+def _check_techtree_cycles(all_blocks: List[EcfBlock]) -> List[ValidationIssue]:
+    """Detecte les CYCLES dans la chaine TechTreeParent (bloc A -> parent B
+    -> parent A...). Vecu 26/09 : une fusion qui a ajoute TechTreeParent sur
+    PassengerSeatMS alors que CockpitBlocksCV (1253) pointait deja vers lui
+    a fait planter le jeu au chargement du scenario (ConfigTree recursion
+    error), sans aucun message explicite côté utilisateur."""
+    issues: List[ValidationIssue] = []
+    parent: Dict[str, str] = {}
+    edges: Dict[str, Set[str]] = {}
+    block_by_name: Dict[str, EcfBlock] = {}
+    for block in all_blocks:
+        name = block.get_property('Name')
+        tp = block.get_property('TechTreeParent')
+        if name and tp:
+            parent[name.strip()] = tp.strip()
+            block_by_name[name.strip()] = block
+            # plusieurs blocs peuvent porter le meme Name (doublons vecus) :
+            # toutes les aretes comptent pour la detection
+            edges.setdefault(name.strip(), set()).add(tp.strip())
+    reported: set = set()
+    color: Dict[str, int] = {}
+
+    def _dfs(u: str, chain: List[str]) -> None:
+        color[u] = 1
+        chain.append(u)
+        for v in edges.get(u, ()):      # noqa: B023 - chain capture voulue
+            if color.get(v) == 1:
+                cycle = chain[chain.index(v):] + [v]
+                key = frozenset(cycle)
+                if key not in reported:
+                    reported.add(key)
+                    for member in cycle[:-1]:
+                        issues.append(ValidationIssue(
+                            code='E006', level='error',
+                            block=block_by_name.get(member, block_by_name[chain[0]]),
+                            property_key='TechTreeParent',
+                            message=("Cycle dans la chaine TechTreeParent : "
+                                     + ' -> '.join(cycle)
+                                     + " -- le jeu plante au chargement du "
+                                       "scenario (recursion TechTree). Retirez "
+                                       "un des liens.")))
+            elif color.get(v, 0) == 0:
+                _dfs(v, chain)
+        chain.pop()
+        color[u] = 2
+
+    for start in list(edges):
+        if color.get(start, 0) == 0:
+            _dfs(start, [])
+    return issues
+
 
 def _check_duplicates(all_blocks: List[EcfBlock], check_name_duplicates: bool = True) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
@@ -361,10 +455,47 @@ def _check_unquoted_commas(block: EcfBlock) -> List[ValidationIssue]:
     return issues
 
 
-def _check_material(block: EcfBlock) -> List[ValidationIssue]:
+def load_scenario_materials(root: Path) -> Set[str]:
+    """Identites des materiaux DEFINIS par le MaterialConfig.ecf du scenario
+    (en minuscules). Vecu 26/09 : la liste figee VALID_MATERIALS (vanille +
+    Eden) ignore les materiaux du scenario lui-meme (woodsoft, woodblock,
+    hullcombat, metalweapon...) et generait des W007 sur des references
+    valides -- l'arbre MaterialConfig les montrait, la validation les
+    refusait. Fichier absent/illisible -> ensemble vide (retombe sur la
+    liste figee)."""
+    from .parser import parse_ecf_file
+    root = Path(root)
+    candidates = [root / 'Content' / 'Configuration' / 'MaterialConfig.ecf']
+    candidates.extend(sorted(root.rglob('MaterialConfig.ecf')))
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            doc = parse_ecf_file(path)
+        except Exception:                    # noqa: BLE001 - fichier illisible
+            continue
+        materials = set()
+        for node in doc.nodes:
+            if not isinstance(node, EcfBlock):
+                continue
+            ident = block_identity(node)
+            if not ident:
+                ident = node.get_property('Name')
+            if ident:
+                materials.add(ident.strip().lower())
+        if materials:
+            return materials
+    return set()
+
+
+def _check_material(block: EcfBlock, ctx: Optional[dict] = None) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
     material = block.get_property('Material')
-    if material and material not in VALID_MATERIALS:
+    if not material:
+        return issues
+    known = {m.lower() for m in VALID_MATERIALS}
+    known.update(ctx.get('materials', ()) if ctx else ())
+    if material.lower() not in known:
         issues.append(ValidationIssue(
             code='W007', level='warning', block=block, property_key='Material',
             message=f"Materiau '{material}' non reconnu (peut-etre specifique a ce scenario)."))
@@ -486,7 +617,7 @@ _BLOCK_RULES: List[_BlockRule] = [
     _BlockRule('maxcount', lambda block, ctx: _check_maxcount(block)),
     _BlockRule('container_volume', lambda block, ctx: _check_container_volume(block, ctx['name_index']),
                 condition=lambda ctx: ctx['blocks_scoped']),
-    _BlockRule('material', lambda block, ctx: _check_material(block),
+    _BlockRule('material', lambda block, ctx: _check_material(block, ctx),
                 condition=lambda ctx: ctx['blocks_scoped']),
     _BlockRule('hold_type', lambda block, ctx: _check_hold_type(block),
                 condition=lambda ctx: ctx['items_scoped']),

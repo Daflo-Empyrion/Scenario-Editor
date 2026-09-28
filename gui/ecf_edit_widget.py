@@ -304,6 +304,8 @@ class PendingConflictsDialog(QDialog):
         self.used_ids = used_ids
         self.chosen_new_id: Optional[str] = None
         self.chosen_entry: Optional[dict] = None
+        self.chosen_replace = False
+        self.chosen_name_only = False
 
         layout = QVBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -326,7 +328,8 @@ class PendingConflictsDialog(QDialog):
         right_layout.addWidget(self.diff_view)
 
         id_row = QHBoxLayout()
-        id_row.addWidget(QLabel(t("pending.new_id_label")))
+        self.id_label = QLabel(t("pending.new_id_label"))
+        id_row.addWidget(self.id_label)
         self.id_edit = QLineEdit()
         id_row.addWidget(self.id_edit)
         right_layout.addLayout(id_row)
@@ -340,9 +343,12 @@ class PendingConflictsDialog(QDialog):
         layout.addWidget(splitter)
 
         buttons = QHBoxLayout()
-        btn_activate = QPushButton(t("pending.activate"))
-        btn_activate.clicked.connect(self._on_activate)
-        buttons.addWidget(btn_activate)
+        self.btn_activate = QPushButton(t("pending.activate"))
+        self.btn_activate.clicked.connect(self._on_activate)
+        buttons.addWidget(self.btn_activate)
+        self.btn_name_only = QPushButton(t("pending.nameonly_btn"))
+        self.btn_name_only.clicked.connect(self._on_activate_name_only)
+        buttons.addWidget(self.btn_name_only)
         btn_cancel = QPushButton(t("btn.close"))
         btn_cancel.clicked.connect(self.reject)
         buttons.addWidget(btn_cancel)
@@ -357,6 +363,25 @@ class PendingConflictsDialog(QDialog):
         entry = self.entries[row]
         pending = entry['pending_block']
         base = entry['base_block']
+
+        # blocs identifies par leur NOM (sans Id numerique, ex: GalaxyConfig)
+        # : pas d'Id a assigner, l'action est un REMPLACEMENT du bloc actif
+        import re as _re
+        from core.ecf.pending_conflicts import pending_has_numeric_id
+        self.chosen_replace = False
+        self.chosen_name_only = False
+        has_id = bool(pending is not None and entry['conflict'] is not None
+                      and pending_has_numeric_id(entry['conflict']))
+        self.id_label.setVisible(has_id)
+        self.id_edit.setVisible(has_id)
+        self.suggestions_label.setVisible(has_id)
+        self.btn_activate.setText(t("pending.activate") if has_id
+                                  else t("pending.replace_btn"))
+        # bouton "sans Id (nom seul)" : uniquement pour les BLOCS (les items
+        # de l'inventaire exigent un Id)
+        is_block = bool(pending is not None
+                        and 'block' in (pending.kind or '').lower())
+        self.btn_name_only.setVisible(is_block)
 
         lines = []
         if base is None:
@@ -384,15 +409,27 @@ class PendingConflictsDialog(QDialog):
 
         self.diff_view.setPlainText("\n".join(lines))
 
-        suggestions = suggest_free_ids(self.used_ids, 8)
-        self.suggestions_label.setText(
-            t("pending.suggestions_label", ids=", ".join(str(s) for s in suggestions))
-        )
-        self.id_edit.setText(str(suggestions[0]))
+        if has_id:
+            suggestions = suggest_free_ids(self.used_ids, 8)
+            self.suggestions_label.setText(
+                t("pending.suggestions_label", ids=", ".join(str(s) for s in suggestions))
+            )
+            self.id_edit.setText(str(suggestions[0]))
 
     def _on_activate(self):
         row = self.list_widget.currentRow()
         if row < 0:
+            return
+        entry = self.entries[row]
+        from core.ecf.pending_conflicts import pending_has_numeric_id
+        if entry['conflict'] is not None \
+                and not pending_has_numeric_id(entry['conflict']):
+            # bloc par NOM : remplacement du bloc actif de meme identite
+            self.chosen_entry = entry
+            self.chosen_replace = True
+            self.chosen_name_only = False
+            self.chosen_new_id = None
+            self.accept()
             return
         new_id = self.id_edit.text().strip()
         if not new_id:
@@ -402,9 +439,22 @@ class PendingConflictsDialog(QDialog):
             if not ask_yes_no(self, t("pending.id_already_used"),
                               t("pending.id_already_used_confirm", id=new_id)):
                 return
-
-        self.chosen_entry = self.entries[row]
+        self.chosen_entry = entry
+        self.chosen_replace = False
+        self.chosen_name_only = False
         self.chosen_new_id = new_id
+        self.accept()
+
+    def _on_activate_name_only(self):
+        """Activer le bloc SANS son Id : identification par Name seul (meme
+        convention que les blocs Id-less du RE2, references par les POIs)."""
+        row = self.list_widget.currentRow()
+        if row < 0:
+            return
+        self.chosen_entry = self.entries[row]
+        self.chosen_replace = False
+        self.chosen_name_only = True
+        self.chosen_new_id = None
         self.accept()
 
 

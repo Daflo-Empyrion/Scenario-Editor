@@ -269,6 +269,31 @@ def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_
     return highlights, all_conflicts, csv_reports
 
 
+def plan_csv_merge_file(dest: Path, source_file: Path) -> List:
+    """Les changements qu'une fusion CSV apporterait, SANS ecrire
+    (revision cochee ligne par ligne -- demande 26/09/2026)."""
+    from .csv_handler import CsvHandler, plan_csv_merge
+
+    handler = CsvHandler()
+    working_doc = handler.parse(handler.load(Path(dest)))
+    incoming_doc = handler.parse(handler.load(Path(source_file)))
+    return plan_csv_merge(working_doc, incoming_doc)
+
+
+def apply_csv_changes_file(workspace: "Workspace", dest: Path, changes: List) -> int:
+    """Applique les changements COCHES au CSV de la copie de travail
+    (meme logique que merge_single_csv_row, jamais d'ecrasement) et ecrit
+    en atomique ; retourne le nombre reellement applique."""
+    from .csv_handler import CsvHandler, apply_csv_changes, render_csv
+
+    handler = CsvHandler()
+    doc = handler.parse(handler.load(Path(dest)))
+    applied = apply_csv_changes(doc, changes)
+    if applied:
+        atomic_write_text(Path(dest), render_csv(doc))
+    return applied
+
+
 def merge_csv_row_into_working(workspace: Workspace, working_relative_path: Path,
                                 row: list) -> Tuple[Path, str]:
     """Fusionne UNE SEULE ligne CSV (venant d'une source) dans le fichier correspondant

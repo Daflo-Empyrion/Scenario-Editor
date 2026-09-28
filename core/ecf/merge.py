@@ -245,9 +245,43 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
     if not sources:
         raise ValueError("au moins une source est requise")
 
+    # Garde-fou (vecu 26/09, GalaxyConfig corrompu) : la fusion suppose des
+    # identites UNIQUES (kind + Id/Name) dans la copie de travail. Un fichier
+    # a noms REPETES (GalaxyConfig : instances d'etoiles, 47 cles dupliquees
+    # dans le RE2 original) serait silencieusement DEDUPLIQUE -- des
+    # definitions entieres disparaissent et le jeu plante. On refuse.
+    base_seen = set()
+    base_dup = 0
+    for node in sources[0][1].nodes:
+        if not isinstance(node, EcfBlock):
+            continue
+        key = (normalized_kind(node.kind), block_identity(node))
+        if key in base_seen:
+            base_dup += 1
+        base_seen.add(key)
+    if base_dup:
+        raise ValueError(
+            f"{base_dup} bloc(s) en doublon d'identite dans la copie de "
+            f"travail : la fusion ECF suppose des identites uniques et "
+            f"CORROMPRAIT ce fichier (cas typique : GalaxyConfig.ecf). "
+            f"Copiez le fichier sans fusion.")
+
     grouped: Dict[Tuple[str, Optional[str]], List[Tuple[str, EcfBlock]]] = {}
     order: List[Tuple[str, Optional[str]]] = []
     id_conflicts: List[IdConflict] = []
+
+    # Noms deja presents dans la source PRIORITAIRE (la copie de travail) --
+    # vecu 26/09 : un bloc importe puis reactiver avec un Id LIBELLE existe
+    # desormais dans la copie sous un AUTRE Id ; la garde anti-collision qui
+    # ne regardait que l'Id re-proposait le meme element a chaque refusion
+    # (107 doublons sur ItemsConfig). Si le Name existe deja : pas de
+    # conflit, la copie de travail est prioritaire, on ne re-ajoute pas.
+    base_names = set()
+    for _node in sources[0][1].nodes:
+        if isinstance(_node, EcfBlock):
+            _name = _node.get_property('Name')
+            if _name:
+                base_names.add((normalized_kind(_node.kind), _name))
 
     for label, doc in sources:
         for node in doc.nodes:
@@ -258,6 +292,11 @@ def merge_documents(sources: List[Tuple[str, EcfDocument]], mode: str = 'block')
                 base_label, base_block = grouped[key][0]
                 diffs = _identity_differences(base_block, node)
                 if key[1] is not None and diffs:
+                    _name = node.get_property('Name')
+                    if label != sources[0][0] and _name \
+                            and _name != base_block.get_property('Name') \
+                            and (normalized_kind(node.kind), _name) in base_names:
+                        continue        # deja importe (autre Id) : pas de doublon
                     id_conflicts.append(IdConflict(
                         kind=node.kind, identity=key[1],
                         base_name=base_block.get_property('Name'), base_source=base_label,
@@ -318,12 +357,34 @@ def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock,
     base_lines = property_lines(merged)
     overrides = []
 
+    # Cles DEJA presentes dans le bloc fusionne (entete + toutes les lignes) :
+    # le jeu rejette un bloc dont une CLE apparait deux fois (vecu 27/09 :
+    # l'ajout de lignes sources multi-paires comme
+    # 'Hardness: 0.35, type: float, display: false' dupliquait 'type'/'display'
+    # deja definis sur une autre ligne du bloc -- centaines de
+    # 'Block ecf error' au chargement, blocs rejetes).
+    existing_keys = set()
+    for pairs in base_lines.values():
+        for k, _ in pairs:
+            if k:
+                existing_keys.add(k)
+
     for label, block in candidates[1:]:
         other_lines = property_lines(block)
         for ident, pairs in other_lines.items():
             if ident in base_lines:
                 continue  # une source plus prioritaire definit deja cette ligne
-            add_property_line(merged, pairs)
+            # Ne garde que les paires a cle NOUVELLE (les paires secondaires
+            # deja definies ailleurs dans le bloc sont filtrees ; les paires
+            # sans cle, restes de virgules non protegees, sont ignorees).
+            new_pairs = [(k, v) for k, v in pairs
+                         if k is not None and k not in existing_keys]
+            if not new_pairs:
+                base_lines[ident] = pairs
+                continue
+            add_property_line(merged, new_pairs)
+            for k, _ in new_pairs:
+                existing_keys.add(k)
             base_lines[ident] = pairs
             overrides.append(f"{ident} (depuis {label})")
 

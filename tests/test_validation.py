@@ -362,3 +362,101 @@ def test_edenvoidiumt2_no_longer_flagged_as_unrecognized():
     manquait de la liste par manque de couverture de l'echantillon initial."""
     from core.ecf.validation import VALID_MATERIALS
     assert 'edenvoidiumt2' in VALID_MATERIALS
+
+
+def test_scenario_materials_from_materialconfig(tmp_path):
+    """Vecu 26/09 (RE2 ATL) : la liste figee VALID_MATERIALS ignorait les
+    materiaux DEFINIS par le MaterialConfig.ecf du scenario lui-meme
+    (woodsoft, woodblock, hullcombat...) -- 62 W007 sur des references
+    valides, alors que l'arbre MaterialConfig les montrait. Desormais la
+    validation charge les materiaux du scenario (insensible a la casse)."""
+    from core.ecf.validation import (validate_file,
+                                     load_scenario_materials)
+    config = tmp_path / "Content" / "Configuration"
+    config.mkdir(parents=True)
+    (config / "MaterialConfig.ecf").write_text(
+        "{ Material Name: woodsoft\n  Color: 1,1,1\n}\n"
+        "{ Material Name: hullcombat\n}\n", encoding="utf-8")
+    (config / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 733, Name: TestBloc\n"
+        "  Material: woodsoft\n"
+        "}\n"
+        "{ Block Id: 734, Name: TestBloc2\n"
+        "  Material: HULLCOMBAT\n"      # casse differente : reconnu quand meme
+        "}\n"
+        "{ Block Id: 735, Name: TestBloc3\n"
+        "  Material: materiauinconnu\n"  # inconnu partout : reste signale
+        "}\n", encoding="utf-8")
+    materials = load_scenario_materials(tmp_path)
+    assert {'woodsoft', 'hullcombat'} <= materials
+    issues = validate_file(config / "BlocksConfig.ecf", materials=materials)
+    w007 = [i for i in issues if i.code == 'W007']
+    assert len(w007) == 1 and 'materiauinconnu' in w007[0].message
+
+
+def test_no_materialconfig_falls_back_to_static_list(tmp_path):
+    from core.ecf.validation import (validate_file,
+                                     load_scenario_materials)
+    config = tmp_path / "Content" / "Configuration"
+    config.mkdir(parents=True)
+    (config / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 1, Name: B\n"
+        "  Material: human\n"            # casse differente de 'Human' fige
+        "}\n"
+        "{ Block Id: 2, Name: C\n"
+        "  Material: nimportequoi\n"
+        "}\n", encoding="utf-8")
+    assert load_scenario_materials(tmp_path) == set()
+    issues = validate_file(config / "BlocksConfig.ecf", materials=set())
+    w007 = [i for i in issues if i.code == 'W007']
+    assert len(w007) == 1 and 'nimportequoi' in w007[0].message
+
+
+def test_techtree_parent_cycle_is_reported(tmp_path):
+    """Vecu 26/09 : une fusion a ajoute TechTreeParent: CockpitBlocksCV sur
+    PassengerSeatMS alors que CockpitBlocksCV pointait deja vers lui --
+    le jeu plantait au chargement (recursion TechTree), sans message clair.
+    La validation signale desormais le cycle en erreur."""
+    config = tmp_path / "Content" / "Configuration"
+    config.mkdir(parents=True)
+    (config / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 266, Name: PassengerSeatMS\n"
+        "  TechTreeParent: CockpitBlocksCV\n"
+        "}\n"
+        "{ Block Id: 1253, Name: CockpitBlocksCV\n"
+        "  TechTreeParent: PassengerSeatMS\n"
+        "}\n"
+        "{ Block Id: 300, Name: SansParent\n"
+        "  TechTreeParent: PassengerSeatMS\n"
+        "}\n", encoding="utf-8")
+    from core.ecf.validation import validate_file
+    issues = validate_file(config / "BlocksConfig.ecf")
+    e006 = [i for i in issues if i.code == 'E006']
+    names = {i.block.get_property('Name') for i in e006 if i.block is not None}
+    assert names == {'PassengerSeatMS', 'CockpitBlocksCV'}   # SansParent exclu
+    assert all('Cycle' in i.message for i in e006)
+
+
+def test_orphan_attribute_line_is_reported(tmp_path):
+    """Vecu 27/09 : l'application d'une fusion avec proprietes decochees
+    laissait des LIGNES D'ATTRIBUTS ORPHELINES ('type: float, display: ...'
+    sans la propriete) -- le jeu rejetait les blocs en chaine au
+    chargement. La validation signale desormais chaque ligne orpheline."""
+    config = tmp_path / "Content" / "Configuration"
+    config.mkdir(parents=True)
+    (config / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 1, Name: Sain\n"
+        "  Mass: 4.2, type: float, display: true, formatter: Kilogram\n"
+        "}\n"
+        "{ Block Id: 2, Name: Casse\n"
+        "  type: float, display: false, formatter: Hardness\n"
+        "  display: false\n"
+        "}\n", encoding="utf-8")
+    from core.ecf.validation import validate_file
+    issues = validate_file(config / "BlocksConfig.ecf")
+    e008 = [i for i in issues if i.code == 'E008']
+    assert len(e008) == 2
+    assert all('orpheline' in i.message for i in e008)
+    # le bloc sain ne genere rien
+    assert all((i.block.get_property('Name') if i.block else '') == 'Casse'
+               for i in e008)

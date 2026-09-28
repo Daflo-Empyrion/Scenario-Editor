@@ -1036,6 +1036,8 @@ class MainWindow(QMainWindow):
         self.workspace.set_scenario_b(new_root)
         self._refresh_all_trees()
         self._refresh_scenario_b_menu_text()
+        self._remember_current_project()    # sinon le projet recent garde
+        # l'ANCIEN scenario B au prochain lancement (vecu 26/09/2026)
         self.statusBar().showMessage(t("status.scenario_b_set", name=new_root.name))
 
     def _remove_scenario_b(self):
@@ -1048,6 +1050,7 @@ class MainWindow(QMainWindow):
         self.workspace.set_scenario_b(None)
         self._refresh_all_trees()
         self._refresh_scenario_b_menu_text()
+        self._remember_current_project()    # meme persistance que le changement
         self.statusBar().showMessage(t("status.scenario_b_removed"))
 
     def _open_backup_dialog(self, kind: str):
@@ -1787,12 +1790,13 @@ class MainWindow(QMainWindow):
         dialog = PendingConflictsDialog(entries, used_ids, self)
         if dialog.exec() != PendingConflictsDialog.DialogCode.Accepted:
             return
-        if not dialog.chosen_entry or not dialog.chosen_new_id:
+        if not dialog.chosen_entry:
+            return
+        if not dialog.chosen_replace and not dialog.chosen_new_id:
             return
 
         target_path = dialog.chosen_entry['path']
         target_conflict = dialog.chosen_entry['conflict']
-        new_id = dialog.chosen_new_id
 
         try:
             doc = parse_ecf_file(target_path)
@@ -1802,10 +1806,38 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, t("err.title"), t("pending.not_found_msg"))
                 return
 
-            success = activate_pending_conflict(doc, match, new_id)
-            if not success:
-                QMessageBox.critical(self, t("err.title"), t("pending.cannot_activate_msg"))
+            # vecu 26/09 : un groupe endommage (accolades non equilibrees,
+            # sequelle d'anciennes manipulations) produisait une insertion
+            # jamais refermee qui avalait tout le fichier au re-parse
+            if match.block_text.count('{') != match.block_text.count('}'):
+                QMessageBox.critical(self, t("err.title"), t("pending.unbalanced_msg"))
                 return
+
+            if dialog.chosen_replace:
+                # bloc identifie par son NOM (sans Id numerique) : remplacer
+                # le bloc actif de meme identite par celui en attente
+                from core.ecf.pending_conflicts import replace_pending_conflict
+                if not replace_pending_conflict(doc, match):
+                    QMessageBox.critical(self, t("err.title"),
+                                         t("pending.replace_failed_msg"))
+                    return
+            elif dialog.chosen_name_only:
+                # bloc actif SANS Id, identifie par son Name seul (meme
+                # convention que les blocs Id-less du RE2) : refuse si un
+                # bloc actif porte deja ce nom
+                from core.ecf.pending_conflicts import \
+                    activate_pending_conflict_name_only
+                if not activate_pending_conflict_name_only(doc, match):
+                    QMessageBox.critical(self, t("err.title"),
+                                         t("pending.nameonly_failed"))
+                    return
+            else:
+                from core.ecf.pending_conflicts import activate_pending_conflict
+                new_id = dialog.chosen_new_id
+                success = activate_pending_conflict(doc, match, new_id)
+                if not success:
+                    QMessageBox.critical(self, t("err.title"), t("pending.cannot_activate_msg"))
+                    return
 
             prior = capture_file(target_path)
             from core.fsutil import atomic_write_text
@@ -1822,6 +1854,27 @@ class MainWindow(QMainWindow):
             if self.tabs.tabToolTip(i) == str(target_path):
                 self.tabs.removeTab(i)
 
+        if dialog.chosen_name_only:
+            name = ""
+            if dialog.chosen_entry.get('pending_block') is not None:
+                name = dialog.chosen_entry['pending_block'].get_property('Name') or ""
+            self.statusBar().showMessage(
+                t("pending.nameonly_status", file=target_path.name, name=name))
+            QMessageBox.information(self, t("pending.activated_title"),
+                                     t("pending.nameonly_msg", name=name, file=target_path.name))
+            return
+
+        if dialog.chosen_replace:
+            name = ""
+            if dialog.chosen_entry.get('pending_block') is not None:
+                name = dialog.chosen_entry['pending_block'].get_property('Name') or ""
+            self.statusBar().showMessage(
+                t("pending.replaced_status", file=target_path.name, name=name))
+            QMessageBox.information(self, t("pending.activated_title"),
+                                     t("pending.replaced_msg", file=target_path.name, name=name))
+            return
+
+        new_id = dialog.chosen_new_id
         self.statusBar().showMessage(t("status.block_activated", id=new_id, file=target_path.name))
         QMessageBox.information(self, t("pending.activated_title"),
                                  t("pending.activated_msg", id=new_id, file=target_path.name))
@@ -2417,6 +2470,27 @@ class MainWindow(QMainWindow):
                         if p != review.sectors_plan.source]
             structural_note = " " + t("mergeplan.struct_done", n=applied)
 
+        # fusion structurelle GENERIQUE des autres YAML (PDA.yaml, playfield
+        # static...) : insertion des unites cochees dans NOS fichiers
+        yaml_picks = review.selected_yaml_picks()
+        if yaml_picks:
+            from core.yaml_merge import apply_yaml_units
+            by_dest = {}
+            for plan, unit in yaml_picks:
+                # FilePlan non hashable (dataclass mutable) : on groupe par
+                # chemin destination (un seul FilePlan par fichier)
+                by_dest.setdefault(plan.dest, (plan, []))[1].append(unit)
+            for plan, units in by_dest.values():
+                prior = capture_file(plan.dest)
+                applied = apply_yaml_units(plan.dest, plan.source, units)
+                if applied:
+                    self._push_workspace_undo(FileStateUndo(
+                        plan.dest, prior,
+                        t("mergeplan.yaml_undo", name=plan.dest.name)))
+                selected = [p for p in selected if p != plan.source]
+                structural_note += " " + t("mergeplan.yaml_done",
+                                           n=applied, name=plan.dest.name)
+
         # dependances : nouveaux fichiers references (copie simple + undo)
         dep_undos = []
         for dep in dependencies:
@@ -2484,6 +2558,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             t("status.folder_merged", n=nb_files, ecf=len(highlights), csv=len(csv_reports),
               rows=n_csv_rows, conflicts=len(id_conflicts))
+            + structural_note
         )
 
     def _merge_ecf_with_preview(self, source_path: Path, dest_path: Path, source_label: str):
@@ -2510,9 +2585,17 @@ class MainWindow(QMainWindow):
 
         # Le calcul de l'apercu (diff complet) part en worker avec la gerbe
         # plasma au-dela d'une seconde ; le dialogue n'aspire que le resultat.
-        precomputed = run_long(
-            self, lambda: compute_merge_preview(working_doc, source_doc,
-                                                source_label))
+        try:
+            precomputed = run_long(
+                self, lambda: compute_merge_preview(working_doc, source_doc,
+                                                    source_label))
+        except ValueError as e:
+            # ex: fichier a identites dupliquees (GalaxyConfig) -- la fusion
+            # ECF refuserait de toute facon ; message explicite plutot que
+            # laisser filer vers un crash natif (PyQt 6.11)
+            QMessageBox.critical(self, t("err.title"),
+                                 f"{t('merge.file_error', file=dest_path.name)} :\n{e}")
+            return
         dialog = MergePreviewDialog(working_doc, source_doc, source_label,
                                     parent=self, precomputed=precomputed)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -2566,17 +2649,113 @@ class MainWindow(QMainWindow):
                 break
         self.statusBar().showMessage(t("mergepreview.status_done", file=dest_path.name))
 
+    def _merge_yaml_with_review(self, source_path: Path, dest_path: Path,
+                                source_label: str):
+        """Fusion YAML avec fenetre de revision (demande 26/09/2026 : un
+        PDA.yaml existant etait ecrase en aveugle) : unites structurelles
+        cochees (chapitres PDA par Id, cles racines...) ; l'ecrasement
+        complet reste possible via le bouton explicite 'Remplacer'."""
+        from gui.yaml_merge_review_dialog import YamlMergeReviewDialog
+        from core.yaml_merge import apply_yaml_units
+        from gui.busy import run_long
+        dialog = YamlMergeReviewDialog(dest_path, source_path, source_label,
+                                       parent=self)
+        if dialog.identical:
+            self.statusBar().showMessage(
+                t("yamlmerge.identical_file", name=source_path.name))
+            return
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return                      # annule : RIEN n'a ete ecrit
+        prior = capture_file(dest_path)
+        if dialog.replace_all:
+            from core.fsutil import clear_readonly
+            clear_readonly(dest_path)
+            shutil.copyfile(source_path, dest_path)
+        else:
+            units = dialog.selected_units()
+            if not units:
+                self.statusBar().showMessage(t("mergeplan.nothing_selected"))
+                return
+            applied = run_long(self, lambda: apply_yaml_units(
+                dest_path, source_path, units))
+            if not applied:
+                self.statusBar().showMessage(t("mergeplan.nothing_selected"))
+                return
+        self._push_workspace_undo(FileStateUndo(
+            dest_path, prior, t("wsundo.merge_file", name=dest_path.name)))
+        self.workspace.rescan_working()
+        self._populate_tree(self.tree_working, self.workspace.working)
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest_path):
+                self.tabs.removeTab(i)
+                self.open_working_file_tab(dest_path)
+                break
+        if dialog.replace_all:
+            self.statusBar().showMessage(
+                t("yamlmerge.replaced", name=dest_path.name))
+        else:
+            self.statusBar().showMessage(
+                t("yamlmerge.done", n=applied, name=dest_path.name))
+
+    def _merge_csv_with_preview(self, source_path: Path, dest_path: Path,
+                                source_label: str):
+        """Fusion CSV avec apercu coche (demande 26/09/2026 : lignes
+        ajoutees et cellules completees en aveugle avant) ; la copie de
+        travail reste prioritaire, jamais d'ecrasement."""
+        from gui.csv_merge_preview_dialog import CsvMergePreviewDialog
+        from core.workspace import apply_csv_changes_file
+        from gui.busy import run_long
+        dialog = CsvMergePreviewDialog(dest_path, source_path, source_label,
+                                       parent=self)
+        if not dialog.changes:
+            self.statusBar().showMessage(
+                t("csvmerge.nothing", name=source_path.name))
+            return
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        changes = dialog.selected_changes()
+        if not changes:
+            self.statusBar().showMessage(t("mergeplan.nothing_selected"))
+            return
+        prior = capture_file(dest_path)
+        applied = run_long(self, lambda: apply_csv_changes_file(
+            self.workspace, dest_path, changes))
+        if not applied:
+            self.statusBar().showMessage(t("mergeplan.nothing_selected"))
+            return
+        self._push_workspace_undo(FileStateUndo(
+            dest_path, prior, t("wsundo.merge_file", name=dest_path.name)))
+        self.workspace.rescan_working()
+        self._populate_tree(self.tree_working, self.workspace.working)
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest_path):
+                self.tabs.removeTab(i)
+                self.open_working_file_tab(dest_path)
+                break
+        self.statusBar().showMessage(
+            t("csvmerge.done", n=applied, name=dest_path.name))
+
     def _copy_into_working(self, path: Path, source_root: Path, source_label: str):
         rel = path.relative_to(source_root)
         dest_before = self.workspace.working_root / rel
         prior = capture_file(dest_before)
 
-        # ECF-030/FUS-010 : pour un ECF DEJA PRESENT dans la copie de travail,
-        # la fusion est desormais CALCULEE EN MEMOIRE et soumise a un apercu
-        # MODIFIABLE (ligne par ligne, avant/apres) AVANT toute ecriture.
-        if dest_before.suffix.lower() == '.ecf' and dest_before.exists() and settings.get_merge_enabled():
-            self._merge_ecf_with_preview(path, dest_before, source_label)
-            return
+        # Fenetres de revision par TYPE (ECF-030/FUS-010 + demande 26/09/2026) :
+        # tout fichier DEJA PRESENT ayant un moteur de fusion passe par une
+        # fenetre avant ecriture -- ECF (apercu ligne a ligne), YAML (unites
+        # structurelles cochees, ex: PDA.yaml), CSV (lignes ajoutees/
+        # completees cochees). Les autres restent une copie simple.
+        if dest_before.exists() and settings.get_merge_enabled():
+            suffix = dest_before.suffix.lower()
+            if suffix == '.ecf':
+                self._merge_ecf_with_preview(path, dest_before, source_label)
+                return
+            if suffix in ('.yaml', '.yml'):
+                self._merge_yaml_with_review(path, dest_before, source_label)
+                return
+            if suffix == '.csv':
+                self._merge_csv_with_preview(path, dest_before, source_label)
+                return
 
         try:
             dest, highlight, id_conflicts, csv_report = merge_file_into_working(

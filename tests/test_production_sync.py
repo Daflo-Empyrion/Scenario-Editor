@@ -213,3 +213,19 @@ def test_close_proposal_respects_setting(qapp, monkeypatch):
                         lambda: True)
     mw.MainWindow._propose_production_sync(win)
     assert built == ["built", "exec"]
+
+
+def test_sync_failure_names_the_file(tmp_path):
+    """Vecu 26/09 : une copie qui echouait ne disait PAS quel fichier
+    bloquait (fenetre de sync semblant ne rien faire). L'erreur OSError
+    nomme desormais source ET destination."""
+    working = tmp_path / "w"
+    _tree(working, {"Content/X.ecf": "data"})
+    prod = tmp_path / "prod"
+    prod.write_text("un FICHIER occupe la place du dossier", encoding="utf-8")
+    files = [(working / "Content" / "X.ecf", "modified")]
+    with pytest.raises(OSError) as excinfo:
+        sync_to_production(files, working, prod,
+                           backup_dir=tmp_path / "bak")
+    msg = str(excinfo.value)
+    assert "X.ecf" in msg and "prod" in msg
