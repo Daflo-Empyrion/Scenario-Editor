@@ -8,7 +8,9 @@ qtawesome>=1.2,<2.0
 # (voir gui/fluent_pilot.py).
 PyQt6-Fluent-Widgets>=1.11,<2.0
 
-# Optionnel : lecture des bundles Unity (menu Outils > Comparer des
-# bundles, tools/compare_bundles.py). Si absent, le dialogue affiche
-# comment l installer ; le reste de l editeur n en depend pas.
-# UnityPy>=1.25
+# Lecture des bundles Unity (menu Outils > Comparer des bundles,
+# tools/compare_bundles.py) — embarquee dans l'installeur depuis v1.14.0.
+# Le repli gracieux reste en place : si le paquet manque malgre tout, le
+# dialogue affiche la commande d'installation (core/unity_bundles.py) et
+# le reste de l'editeur n'en depend pas.
+UnityPy>=1.25,<2.0

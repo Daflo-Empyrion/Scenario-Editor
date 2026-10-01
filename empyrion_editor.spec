@@ -33,6 +33,23 @@ _certifi_datas, _certifi_binaries, _certifi_hiddenimports = collect_all('certifi
 # qframelesswindow est la dependance fenetre sans bordure de qfluentwidgets.
 _qfw_datas, _qfw_binaries, _qfw_hiddenimports = collect_all('qfluentwidgets')
 _qfwl_datas, _qfwl_binaries, _qfwl_hiddenimports = collect_all('qframelesswindow')
+# Lecture des bundles Unity (menu Outils > Comparer des bundles, v1.14.0) :
+# UnityPy importe ses codecs en BINAIRES (.pyd : lz4, brotli, astc-encoder,
+# texture2ddecoder, etcpak...) et embarque des donnees — collect_all du
+# paquet ET de ses codecs, sinon l'analyse statique rate les imports
+# fonction-level (core/unity_bundles.py) et les extensions manquent a
+# l'execution. try par paquet : collect_all leve si le paquet est absent.
+_ug_datas, _ug_binaries, _ug_hiddenimports = [], [], []
+for _ug_pkg in ('UnityPy', 'lz4', 'brotli', 'texture2ddecoder',
+                'astc_encoder', 'etcpak', 'fmod_toolkit', 'fsspec',
+                'tpk_ar', 'tpk_arc'):
+    try:
+        _d, _b, _h = collect_all(_ug_pkg)
+        _ug_datas += _d
+        _ug_binaries += _b
+        _ug_hiddenimports += _h
+    except Exception:
+        pass  # paquet non installe : repli gracieux dans le dialogue
 # Traduction hors ligne Argos (v1.6.6) : pip embarque pour installer
 # argostranslate DEPUIS l'exe -- en frozen, `sys.executable -m pip`
 # relancerait l'application, donc le moteur s'installe via pip IN-PROCESS
@@ -111,7 +128,7 @@ a = Analysis(
     ['run_gui.py'],
     pathex=[str(project_root)],
     binaries=[*_dt_binaries, *_bs4_binaries, *_requests_binaries, *_certifi_binaries,
-              *_pip_binaries],
+              *_qfw_binaries, *_qfwl_binaries, *_ug_binaries, *_pip_binaries],
     datas=[
         # Les wikis et autres fichiers markdown doivent etre embarques tels quels --
         # lus a l'execution via un chemin relatif au dossier du projet, pas importes
@@ -121,7 +138,7 @@ a = Analysis(
         (str(project_root / 'assets'), 'assets'),
         (str(project_root / 'data'), 'data'),
         *_dt_datas, *_bs4_datas, *_requests_datas, *_certifi_datas,
-        *_qfw_datas, *_qfwl_datas, *_pip_datas,
+        *_qfw_datas, *_qfwl_datas, *_ug_datas, *_pip_datas,
     ],
     hiddenimports=[
         # PyQt6 charge certains sous-modules dynamiquement (non detectes par
@@ -136,7 +153,7 @@ a = Analysis(
         'PyQt6.QtPdfWidgets',
         *_dt_hiddenimports, *_bs4_hiddenimports, *_requests_hiddenimports,
         *_certifi_hiddenimports, *_qfw_hiddenimports, *_qfwl_hiddenimports,
-        *_pip_hiddenimports,
+        *_ug_hiddenimports, *_pip_hiddenimports,
     ],
     hookspath=[],
     hooksconfig={},
