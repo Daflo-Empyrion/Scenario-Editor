@@ -77,7 +77,7 @@ def _capture_menu(monkeypatch):
     def fake_exec(self, pos, *a, **k):
         captured["menu"] = self
         for action in self.actions():
-            if action.text() and "Localiser" in action.text():
+            if action.text() and "localisation" in action.text().lower():
                 return action
         return None
     monkeypatch.setattr(QMenu, "exec", fake_exec)
@@ -92,7 +92,7 @@ def test_context_menu_shows_and_runs_localize(trader_scenario, monkeypatch,
 
     captured = _capture_menu(monkeypatch)
     localize_results = []
-    monkeypatch.setattr(edit_widget, "_localize_selling_text",
+    monkeypatch.setattr(edit_widget, "_create_localization",
                         lambda item: localize_results.append(item.text()))
 
     rect = edit_widget.props_table.visualItemRect(value_item)
@@ -101,12 +101,34 @@ def test_context_menu_shows_and_runs_localize(trader_scenario, monkeypatch,
     menu = captured["menu"]
     assert menu is not None
     texts = [a.text() for a in menu.actions() if a.text()]
-    localize_actions = [t for t in texts if "Localiser" in t]
+    localize_actions = [t for t in texts if "localisation" in t.lower()]
     print("ACTIONS DU MENU :", texts)
     print("PAIR_KEY ligne SellingText :",
           value_item.data(Qt.ItemDataRole.UserRole))
     assert localize_actions, f"entree absente du menu : {texts}"
     assert localize_results, "l'action n'a pas declenche la localisation"
+
+
+def _accept_dialog_automatically(monkeypatch, forced_en=None):
+    """Le vrai dialogue avec exec() -> True (champs pre-remplis par le
+    flux, texte English complete si fourni). Retourne la liste des
+    instances ouvertes pour inspecter les pre-remplissages."""
+    from gui import ecf_edit_widget as mod
+    opened = []
+
+    class FakeDlg(mod.LocalizationEntryDialog):
+        def __init__(self, key, english_text, replaces_cell, loc_path,
+                     parent=None):
+            super().__init__(key, english_text, replaces_cell, loc_path,
+                             parent)
+            if forced_en is not None and not self.en_edit.text():
+                self.en_edit.setText(forced_en)
+            opened.append(self)
+
+        def exec(self):
+            return True
+    monkeypatch.setattr(mod, "LocalizationEntryDialog", FakeDlg)
+    return opened
 
 
 def test_localize_generates_key_and_localization_row(trader_scenario,
@@ -117,8 +139,12 @@ def test_localize_generates_key_and_localization_row(trader_scenario,
     from PyQt6.QtWidgets import QMessageBox
     monkeypatch.setattr(QMessageBox, "information", staticmethod(
         lambda *a, **k: None))
-    edit_widget._localize_selling_text(value_item)
+    opened = _accept_dialog_automatically(monkeypatch, forced_en="Hi")
+    edit_widget._create_localization(value_item)
 
+    # pre-remplissage historique : cle scn_Selling_<Nom> + texte libre
+    assert opened[0].key_edit.text() == "scn_Selling_QuantumSTAR"
+    assert opened[0]._replaces_cell is True
     assert value_item.text() == '"scn_Selling_QuantumSTAR"'
     loc = tmp_path / "Content" / "Extras" / "Localization.csv"
     # pas de fichier racine Extras dans ce scenario de test : Content/Extras
@@ -136,7 +162,7 @@ def test_menu_dismiss_triggers_nothing_on_other_cells(trader_scenario,
                         lambda self, pos, *a, **k: None)
     localize_calls = []
     duplicate_calls = []
-    monkeypatch.setattr(edit_widget, "_localize_selling_text",
+    monkeypatch.setattr(edit_widget, "_create_localization",
                         lambda item: localize_calls.append(item))
     monkeypatch.setattr(edit_widget, "_duplicate_row_action",
                         lambda prop: duplicate_calls.append(prop))
@@ -160,22 +186,34 @@ def test_menu_dismiss_triggers_nothing_on_other_cells(trader_scenario,
     assert not (tmp_path / "Content" / "Extras" / "Localization.csv").exists()
 
 
-def test_localize_refuses_cell_outside_sellingtext(trader_scenario):
-    """Garde structurelle : _localize_selling_text refuse toute cellule
-    dont la paire n'est pas SellingText de TraderNPCConfig (autre cle,
-    autre fichier) -- le widget est partage par tous les fichiers ECF."""
+def test_localize_offered_on_every_body_cell(trader_scenario, monkeypatch):
+    """Generalisation 30/09 : l'action est proposee sur TOUTES les
+    proprietes de corps (plus seulement SellingText de TraderNPCConfig).
+    Une valeur deja-cle (SellingGoods: trwFood) pre-remplit CETTE cle et
+    ne touche PAS a la cellule ; seule la ligne CSV est ajoutee."""
+    from PyQt6.QtWidgets import QMessageBox
     window, edit_widget, tmp_path = trader_scenario
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(
+        lambda *a, **k: None))
     table = edit_widget.props_table
-    refused = 0
+    row, key_item, value_item = _selling_row(edit_widget)
+    goods_row = None
     for r in range(table.rowCount()):
-        key_item = table.item(r, 0)
-        if key_item is None or key_item.text() == "SellingText":
-            continue
-        value_item = table.item(r, 1)
-        if value_item is None:
-            continue
-        edit_widget._localize_selling_text(value_item)
-        refused += 1
-        assert not str(value_item.text()).startswith('"scn_Selling_')
-    assert refused, "aucune autre paire a tester"
-    assert not (tmp_path / "Content" / "Extras" / "Localization.csv").exists()
+        ki = table.item(r, 0)
+        if ki is not None and ki.text() == "SellingGoods":
+            goods_row = r
+    assert goods_row is not None, "SellingGoods absente du fixture"
+    opened = _accept_dialog_automatically(monkeypatch, forced_en="Food")
+    edit_widget._create_localization(table.item(goods_row, 1))
+
+    assert opened[0].key_edit.text() == "trwFood"     # valeur deja une cle
+    assert opened[0]._replaces_cell is False
+    assert table.item(goods_row, 1).text().strip('"') == "trwFood"
+    loc = tmp_path / "Content" / "Extras" / "Localization.csv"
+    # creation a la racine du scenario en priorite (convention scanner),
+    # comme le flux historique SellingText
+    if not loc.exists():
+        loc = tmp_path / "Extras" / "Localization.csv"
+    assert loc.exists(), "la ligne trwFood devait etre creee"
+    content = loc.read_text(encoding="utf-8")
+    assert "trwFood" in content and "Food" in content

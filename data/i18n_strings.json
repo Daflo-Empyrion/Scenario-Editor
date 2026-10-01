@@ -152,8 +152,8 @@
   "en": "POI Inspector..."
  },
  "galaxy.title": {
-  "fr": "Carte de la galaxie",
-  "en": "Galaxy map"
+  "fr": "Fusion GalaxyConfig",
+  "en": "GalaxyConfig merge"
  },
  "galaxy.not_found": {
   "fr": "Aucun fichier Sectors.yaml trouve dans ce scenario.",
@@ -1588,8 +1588,8 @@
   "en": "This block shares an Id already used by a DIFFERENT element in the working copy. It was NOT merged -- added at the end of the file, disabled (commented out), to be handled manually."
  },
  "ecf.header_property_tooltip": {
-  "fr": "Propriete d'en-tete du bloc (ex: Id, Name)",
-  "en": "Block header property (e.g. Id, Name)"
+  "fr": "Propriete de la ligne d'ouverture du bloc (identite : Id, Name...). Elle reste distinguee du corps : un meme Name de corps (nom d'affichage vanille, notamment dans StatusEffects) n'est PAS un doublon.",
+  "en": "Property of the block opening line (identity: Id, Name...). It stays distinct from the body: a same body Name (vanilla display name, notably in StatusEffects) is NOT a duplicate."
  },
  "bbcode.select_text_hint": {
   "fr": "Selectionne d'abord une portion de texte dans la zone ci-dessus.",
@@ -7492,8 +7492,8 @@
   "en": "Scenario balancing"
  },
  "balance.intro": {
-  "fr": "Règles appliquées aux blocs définis dans le scénario (jamais la vanille). Analyse puis coche les changements à appliquer.",
-  "en": "Rules applied to blocks defined in the scenario (never vanilla). Analyze then check the changes to apply."
+  "fr": "Règles appliquées aux blocs et items définis dans le scénario (BlocksConfig et ItemsConfig — jamais la vanille). Analyse puis coche les changements à appliquer.",
+  "en": "Rules applied to blocks and items defined in the scenario (BlocksConfig and ItemsConfig — never vanilla). Analyze then check the changes to apply."
  },
  "balance.preset_label": {
   "fr": "Préréglage :",
@@ -7890,5 +7890,281 @@
  "bbcode.no_color_tags": {
   "fr": "Aucune balise [color=#] à convertir trouvée.",
   "en": "No [color=#] tag found to convert."
+ },
+ "balance.new_tip": {
+  "fr": "Double-clique (ou F2) pour ajuster la valeur à appliquer. Vide = la proposition est ignorée.",
+  "en": "Double-click (or F2) to adjust the value to apply. Empty = the proposal is skipped."
+ },
+ "menu.tools.bundles": {
+  "fr": "Comparer des bundles Unity...",
+  "en": "Compare Unity bundles..."
+ },
+ "bundles.title": {
+  "fr": "Comparer des bundles Unity",
+  "en": "Compare Unity bundles"
+ },
+ "bundles.intro": {
+  "fr": "Liste les différences entre deux bundles Unity de scénarios (decals, eden_decalmodels...). Les bundles ne se fusionnent pas en binaire : cet outil sert à décider avant une fusion de dossier.",
+  "en": "Lists the differences between two scenario Unity bundles (decals, eden_decalmodels...). Bundles cannot be merged as binaries: use this to decide before a folder merge."
+ },
+ "bundles.path_a": {
+  "fr": "Bundle A :",
+  "en": "Bundle A:"
+ },
+ "bundles.path_b": {
+  "fr": "Bundle B :",
+  "en": "Bundle B:"
+ },
+ "bundles.path_hint": {
+  "fr": "Fichier bundle ou dossier extrait...",
+  "en": "Bundle file or extracted folder..."
+ },
+ "bundles.browse": {
+  "fr": "Parcourir...",
+  "en": "Browse..."
+ },
+ "bundles.filter": {
+  "fr": "Bundles Unity (*)",
+  "en": "Unity bundles (*)"
+ },
+ "bundles.compare": {
+  "fr": "Comparer",
+  "en": "Compare"
+ },
+ "bundles.col_status": {
+  "fr": "Statut",
+  "en": "Status"
+ },
+ "bundles.col_path": {
+  "fr": "Chemin de l’asset",
+  "en": "Asset path"
+ },
+ "bundles.col_type_a": {
+  "fr": "Type A",
+  "en": "Type A"
+ },
+ "bundles.col_type_b": {
+  "fr": "Type B",
+  "en": "Type B"
+ },
+ "bundles.added": {
+  "fr": "Ajouté dans B",
+  "en": "Added in B"
+ },
+ "bundles.removed": {
+  "fr": "Retiré (A seul)",
+  "en": "Removed (A only)"
+ },
+ "bundles.changed": {
+  "fr": "Type différent",
+  "en": "Different type"
+ },
+ "bundles.summary": {
+  "fr": "A : {na} assets — B : {nb} — ajouts {added}, retraits {removed}, types différents {changed}, identiques {same}. Seules les différences sont listées.",
+  "en": "A: {na} assets — B: {nb} — added {added}, removed {removed}, different types {changed}, identical {same}. Only differences are listed."
+ },
+ "bundles.need_paths": {
+  "fr": "Indique les deux chemins à comparer.",
+  "en": "Provide both paths to compare."
+ },
+ "bundles.need_unitypy": {
+  "fr": "UnityPy n’est pas installé : lance « pip install UnityPy » (dépendance optionnelle, le reste de l’éditeur n’en dépend pas).",
+  "en": "UnityPy is not installed: run \"pip install UnityPy\" (optional dependency, the rest of the editor does not need it)."
+ },
+ "bundles.err_read": {
+  "fr": "Bundle illisible : {err}",
+  "en": "Unreadable bundle: {err}"
+ },
+ "bundles.export": {
+  "fr": "Exporter le diff en CSV",
+  "en": "Export diff as CSV"
+ },
+ "bundles.exported": {
+  "fr": "Diff exporté : {path}",
+  "en": "Diff exported: {path}"
+ },
+ "bundles.empty": {
+  "fr": "ATTENTION : 0 asset lu dans un des deux fichiers — ce n'est probablement pas un bundle Unity.",
+  "en": "WARNING: 0 assets read from one of the two files — it is probably not a Unity bundle."
+ },
+ "loc.create_action": {
+  "fr": "Créer une localisation...",
+  "en": "Create localization..."
+ },
+ "loc.title": {
+  "fr": "Créer une localisation",
+  "en": "Create localization"
+ },
+ "loc.note": {
+  "fr": "La ligne sera écrite dans le Localization.csv du scénario ({path}). Les autres langues se traduisent ensuite via le flux CSV.",
+  "en": "The row will be written to the scenario Localization.csv ({path}). Other languages are translated afterwards through the CSV flow."
+ },
+ "loc.key_label": {
+  "fr": "Clé :",
+  "en": "Key:"
+ },
+ "loc.en_label": {
+  "fr": "Texte English :",
+  "en": "English text:"
+ },
+ "loc.replace_cell": {
+  "fr": "La cellule ECF sera remplacée par la clé (le jeu résout la clé au chargement).",
+  "en": "The ECF cell will be replaced by the key (the game resolves the key at load time)."
+ },
+ "loc.keep_cell": {
+  "fr": "La cellule pointe déjà sur cette clé : seule la ligne du CSV sera créée/complétée.",
+  "en": "The cell already points to this key: only the CSV row will be created/filled."
+ },
+ "loc.need_text": {
+  "fr": "Rien à localiser : la valeur est vide.",
+  "en": "Nothing to localize: the value is empty."
+ },
+ "loc.need_key": {
+  "fr": "Impossible de générer une clé : le bloc n’a ni Name ni propriété exploitable.",
+  "en": "Cannot generate a key: the block has neither a Name nor a usable property."
+ },
+ "loc.need_both": {
+  "fr": "La clé et le texte English sont requis.",
+  "en": "Both the key and the English text are required."
+ },
+ "loc.created": {
+  "fr": "Clé « {key} » ajoutée au Localization.csv du scénario — traduisez les autres langues via ce CSV.",
+  "en": "Key “{key}” added to the scenario Localization.csv — translate the other languages through that CSV."
+ },
+ "loc.updated": {
+  "fr": "Colonne English remplie pour la clé « {key} » (elle existait avec une traduction vide).",
+  "en": "English column filled for key “{key}” (it existed with an empty translation)."
+ },
+ "loc.exists": {
+  "fr": "La clé « {key} » avait déjà une traduction : rien n’a été écrasé.",
+  "en": "Key “{key}” already had a translation: nothing was overwritten."
+ },
+ "loc.path": {
+  "fr": "Fichier à traduire : {path}",
+  "en": "File to translate: {path}"
+ },
+ "loc.fail": {
+  "fr": "Localisation impossible : {error}",
+  "en": "Localization failed: {error}"
+ },
+ "galaxy.merge_action": {
+  "fr": "Fusion GalaxyConfig (spécialisée)...",
+  "en": "Merge GalaxyConfig (specialized)..."
+ },
+ "galaxy.intro": {
+  "fr": "Fusion spécialisée : apparie les classes de systèmes par Nom + StarClass (noms répétés légitimes), bloc General du working prioritaire, dépendances (presets SolarSystemConfig, playfields) copiées depuis la source.",
+  "en": "Specialized merge: matches system classes by Name + StarClass (legitimate repeated names), working General block wins, dependencies (SolarSystemConfig presets, playfields) copied from the source."
+ },
+ "galaxy.working": {
+  "fr": "GalaxyConfig de travail :",
+  "en": "Working GalaxyConfig:"
+ },
+ "galaxy.source": {
+  "fr": "GalaxyConfig source :",
+  "en": "Source GalaxyConfig:"
+ },
+ "galaxy.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "galaxy.col_item": {
+  "fr": "Élément",
+  "en": "Item"
+ },
+ "galaxy.col_detail": {
+  "fr": "Détail",
+  "en": "Detail"
+ },
+ "galaxy.group_add": {
+  "fr": "Systèmes à ajouter depuis la source",
+  "en": "Systems to add from the source"
+ },
+ "galaxy.group_same": {
+  "fr": "Déjà présents (ignorés)",
+  "en": "Already present (ignored)"
+ },
+ "galaxy.group_deps": {
+  "fr": "Dépendances à copier",
+  "en": "Dependencies to copy"
+ },
+ "galaxy.group_general": {
+  "fr": "Bloc General — coche les propriétés à prendre de la source (décoché = le working garde sa valeur)",
+  "en": "General block — check the properties to take from the source (unchecked = working keeps its value)"
+ },
+ "galaxy.group_warn": {
+  "fr": "Avertissements",
+  "en": "Warnings"
+ },
+ "galaxy.warn_sector": {
+  "fr": "Système à placer manuellement, absent du Sectors.yaml : {name}",
+  "en": "Manually placed system, missing from Sectors.yaml: {name}"
+ },
+ "galaxy.warn_playfield": {
+  "fr": "Playfield référencé introuvable (résolu par le jeu ?) : {name}",
+  "en": "Referenced playfield not found (resolved by the game?): {name}"
+ },
+ "galaxy.apply": {
+  "fr": "Appliquer les lignes cochées",
+  "en": "Apply checked lines"
+ },
+ "galaxy.done": {
+  "fr": "{b} système(s) ajouté(s), {d} dépendance(s) copiée(s).",
+  "en": "{b} system(s) added, {d} dependency(ies) copied."
+ },
+ "galaxy.done_title": {
+  "fr": "Fusion GalaxyConfig appliquée",
+  "en": "GalaxyConfig merge applied"
+ },
+ "galaxy.savegame_note": {
+  "fr": "Important : le jeu lit la COPIE du GalaxyConfig dans la sauvegarde (Saves/<partie>/Content/Configuration/). Une partie en cours ne verra les changements qu’après remplacement de cette copie ou nouvelle partie.",
+  "en": "Important: the game reads the COPY of GalaxyConfig inside the savegame (Saves/<game>/Content/Configuration/). A running game only sees the changes after replacing that copy or starting a new game."
+ },
+ "galaxy.none": {
+  "fr": "Rien à ajouter : tout est déjà fusionné.",
+  "en": "Nothing to add: everything is already merged."
+ },
+ "galaxy.need_project": {
+  "fr": "Aucun projet ouvert : pas de GalaxyConfig de travail.",
+  "en": "No project open: no working GalaxyConfig."
+ },
+ "galaxy.no_source": {
+  "fr": "Ouvrez ce dialogue depuis le clic droit sur un GalaxyConfig.ecf source.",
+  "en": "Open this dialog from a right-click on a source GalaxyConfig.ecf."
+ },
+ "galaxy.group_indexed": {
+  "fr": "Régions / territoires indexés (format vanille) — renumérotation contiguëe à l’application",
+  "en": "Indexed regions / territories (vanilla format) — contiguous renumbering on apply"
+ },
+ "galaxy.group_factions": {
+  "fr": "Factions custom requises (Factions.ecf du scénario complété)",
+  "en": "Custom factions required (scenario Factions.ecf completed)"
+ },
+ "galaxy.indexed_detail": {
+  "fr": "Renuméroté automatiquement en séquence contiguë (plus de trous ni doublons d’index)",
+  "en": "Renumbered automatically as a contiguous sequence (no gaps or duplicate indexes)"
+ },
+ "galaxy.faction_detail": {
+  "fr": "Bloc ajouté à Factions.ecf + réputations propagées si déjà définies",
+  "en": "Block added to Factions.ecf + reputations propagated where already defined"
+ },
+ "galaxy.warn_warfare": {
+  "fr": "Faction pilotée par FactionWarfare chez la source : vérifie les règles de combat : {name}",
+  "en": "Faction driven by FactionWarfare in the source: check combat rules: {name}"
+ },
+ "galaxy.warn_unknown_faction": {
+  "fr": "Faction introuvable chez la source : {name}",
+  "en": "Faction not found in the source: {name}"
+ },
+ "galaxy.warn_limit": {
+  "fr": "Dépassement de la limite du jeu : {lim}",
+  "en": "Beyond the game limit: {lim}"
+ },
+ "galaxy.group_egroups": {
+  "fr": "Groupes d’ennemis requis par les playfields importés (EGroupsConfig complété)",
+  "en": "Enemy groups required by imported playfields (EGroupsConfig completed)"
+ },
+ "galaxy.egroup_detail": {
+  "fr": "Bloc ajouté à EGroupsConfig.ecf du scénario (référencé par les Entities des playfields importés)",
+  "en": "Block added to the scenario EGroupsConfig.ecf (referenced by imported playfield Entities)"
  }
 }

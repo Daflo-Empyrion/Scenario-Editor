@@ -53,10 +53,22 @@ def ecf_trees(tmp_path):
         "  EnergyOut: 0\n"
         "  HitPoints: 3200\n"
         "  Volume: 31.25\n}\n"
-        "{ Block Id: 901, Name: GeneratorX\n"
+        "{ +Block Id: 901, Name: GeneratorX\n"
         "  EnergyOut: 2000\n}\n"
         "{ Block Id: 902, Name: MissionContainer\n"
         "  CPUIn: 10000000\n}\n",
+        encoding="utf-8")
+    (van / "ItemsConfig.ecf").write_text(
+        "{ Item Id: 2100, Name: RifleX\n"
+        "  MarketPrice: 1000\n"
+        "  StackSize: 5\n"
+        "  Mass: 20\n}\n",
+        encoding="utf-8")
+    (scen / "ItemsConfig.ecf").write_text(
+        "{ +Item Id: 2100, Name: RifleX\n"
+        "  MarketPrice: 2500\n"
+        "  StackSize: 10\n"
+        "  Mass: 20\n}\n",
         encoding="utf-8")
     return van, scen
 
@@ -64,10 +76,39 @@ def ecf_trees(tmp_path):
 def test_inventory_last_definition_wins(ecf_trees):
     van, scen = ecf_trees
     inv = load_inventory([van], [scen])
-    assert set(inv.vanilla) == {"TurretX", "GeneratorX"}
+    assert set(inv.vanilla) == {"TurretX", "GeneratorX", "RifleX"}
     final = inv.final_def("TurretX")
     assert final is not None and final.value("MaxCount") == "32"
     assert inv.final_def("Absent") is None
+
+
+def test_expand_scans_blocks_and_items(tmp_path):
+    """Demande 28/09 : l'equilibrage scanne aussi les ItemsConfig ; les
+    sauvegardes + (ex « +Backup ItemsConfig.ecf ») restent exclues."""
+    from core.balance_rules import _expand
+    for name in ("BlocksConfig.ecf", "ItemsConfig.ecf",
+                 "+Backup ItemsConfig.ecf"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    assert [p.name for p in _expand([tmp_path])] == \
+        ["BlocksConfig.ecf", "ItemsConfig.ecf"]
+
+
+def test_items_and_plus_patches_proposed(ecf_trees):
+    """Les ITEMS (ItemsConfig.ecf) et les patchs +Block/+Item sont
+    inventories : GeneratorX scenario est un +Block, RifleX un +Item."""
+    van, scen = ecf_trees
+    inv = load_inventory([van], [scen])
+    props = propose_changes(inv, BalanceConfig.preset_vanille())
+    got = {(p.block, p.prop): (p.old, p.new) for p in props}
+    # GeneratorX passe par le chemin +Block comme avant
+    assert got[("GeneratorX", "EnergyOut")] == ("2000", "1500")
+    # RifleX (item, patch +Item) : prix et pile reviennent a la vanille,
+    # Mass identique -> aucune proposition
+    assert got[("RifleX", "MarketPrice")] == ("2500", "1000")
+    assert got[("RifleX", "StackSize")] == ("10", "5")
+    assert all(p.prop != "Mass" for p in props if p.block == "RifleX")
+    assert all(p.path.name == "ItemsConfig.ecf"
+               for p in props if p.block == "RifleX")
 
 
 def test_propose_vanille(ecf_trees):
@@ -166,6 +207,41 @@ def test_conserve_makes_no_proposal(ecf_trees):
     van, scen = ecf_trees
     inv = load_inventory([van], [scen])
     assert propose_changes(inv, BalanceConfig()) == []
+
+
+def test_dialog_edit_new_value(qapp, ecf_trees, monkeypatch):
+    """Demande 29/09 : la colonne « Nouveau » est editable ligne par
+    ligne ; la valeur saisie remplace la proposition, vide = ignoree."""
+    from PyQt6.QtCore import Qt
+    from gui.balance_dialog import BalanceDialog
+    van, scen = ecf_trees
+    main = types.SimpleNamespace(workspace=types.SimpleNamespace(
+        working_root=scen.parent.parent))
+    monkeypatch.setattr("core.settings.get_vanilla_content_path",
+                        lambda: str(van.parent))
+    monkeypatch.setattr("gui.msgboxes.info", lambda *a, **k: None)
+    dlg = BalanceDialog(main)
+    dlg.combo_preset.setCurrentIndex(1)
+    dlg._analyze()
+
+    def find(prop):
+        for i in range(dlg.tree.topLevelItemCount()):
+            it = dlg.tree.topLevelItem(i)
+            p = it.data(0, Qt.ItemDataRole.UserRole)
+            if p.block == "TurretX" and p.prop == prop:
+                return it
+        raise AssertionError(f"proposition introuvable : {prop}")
+
+    vol, maxc = find("Volume"), find("MaxCount")
+    assert bool(vol.flags() & Qt.ItemFlag.ItemIsEditable)
+    vol.setText(4, "99")                 # valeur ajustee a la main
+    maxc.setText(4, "")                  # videe -> proposition ignoree
+    main._push_workspace_undo = lambda undo: None
+    main._reload_tab_if_open_and_unmodified = lambda path: None
+    dlg._apply()
+    txt = (scen / "BlocksConfig.ecf").read_text(encoding="utf-8")
+    assert "Volume: 99" in txt, "la valeur EDITÉE doit être écrite"
+    assert "MaxCount: 32" in txt, "la proposition vidée doit être ignorée"
 
 
 def test_dialog_analyze_and_apply(qapp, ecf_trees, monkeypatch):

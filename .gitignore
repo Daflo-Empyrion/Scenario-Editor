@@ -27,3 +27,6 @@ AGENTS.md
 # Documentation PDA du jeu (Doxygen Eleon.PdaScript) -- fichier du jeu, local
 # uniquement, jamais a versionner ni redistribuer.
 PdaScriptDoc/
+
+# Copie de travail d'un scenario (jouable) : jamais committee
+ATL/

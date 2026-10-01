@@ -126,3 +126,27 @@ def test_no_tooltip_when_no_glossary_and_no_comment(tmp_path, qapp):
             assert key_item.toolTip() == ""
             return
     raise AssertionError("ligne 'ProprieteSansDoc' non trouvee")
+
+
+def test_header_pairs_styled_bold_italic(qapp, tmp_path):
+    """Vecu 30/09 : StatusEffects a un Name d'EN-TETE et un Name de CORPS
+    (nom d'affichage vanille) — l'utilisateur y voyait un DOUBLON. Le
+    panneau distingue desormais les paires d'en-tete (gras+italique)."""
+    from gui.ecf_edit_widget import EcfEditWidget
+    f = tmp_path / "StatusEffects.ecf"
+    f.write_text(
+        '{ StatusEffect Name: MedikitApplied2\n'
+        '  Name: "MedikitApplied"\n'
+        '  Type: healthup\n'
+        '}\n', encoding="utf-8")
+    w = EcfEditWidget(f)
+    block = next(iter(w.doc.iter_blocks()))
+    w._current_block = block
+    w._refresh_props_table()
+    table = w.props_table
+    assert table.rowCount() >= 3          # Name (en-tete) + Name + Type (corps)
+    hdr, body = table.item(0, 0), table.item(1, 0)
+    assert hdr.text() == body.text() == "Name"
+    assert hdr.font().bold() and hdr.font().italic()
+    assert not (body.font().bold() or body.font().italic())
+    assert "n'est PAS un doublon" in hdr.toolTip()

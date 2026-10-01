@@ -15,8 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Moteur de regles d'EQUILIBRAGE de scenario (conception :
-MODULE_EQUILIBRAGE.md, demande du 24/09/2026). Inventorie les blocs des
-ECF (vanille + scenario, « derniere definition gagne »), propose des
+MODULE_EQUILIBRAGE.md, demande du 24/09/2026). Inventorie les blocs ET les
+items (BlocksConfig*.ecf + ItemsConfig*.ecf, vanille + scenario, y compris
+les patchs +Block/+Item, « derniere definition gagne »), propose des
 changements par regles (une regle = une propriete) avec politiques
 « conserve / vanille / plafond / pourcentage » — le pourcentage (x80 %,
 x120 %...) multiplie la valeur ACTUELLE de chaque bloc et preserve ainsi
@@ -28,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from core.ecf.model import EcfBlock, EcfDocument
+from core.ecf.model import EcfBlock, EcfDocument, normalized_kind
 from core.ecf.parser import parse_ecf_file
 from core.fsutil import atomic_write_text
 
@@ -170,7 +171,8 @@ def _expand(paths) -> List[Path]:
     for p in paths or []:
         pp = Path(p)
         if pp.is_dir():
-            out.extend(sorted(pp.glob("BlocksConfig*.ecf")))
+            for pat in ("BlocksConfig*.ecf", "ItemsConfig*.ecf"):
+                out.extend(sorted(pp.glob(pat)))
         elif pp.is_file():
             out.append(pp)
     return out
@@ -179,7 +181,11 @@ def _expand(paths) -> List[Path]:
 def _read_defs(path: Path, doc: EcfDocument) -> Dict[str, BlockDef]:
     defs: Dict[str, BlockDef] = {}
     for node in doc.nodes:
-        if not isinstance(node, EcfBlock) or getattr(node, "kind", "") != "Block":
+        if not isinstance(node, EcfBlock):
+            continue
+        # +Block/+Item = patch du meme bloc (convention Empyrion) ; les
+        # items portent les memes regles economiques que les blocs
+        if normalized_kind(getattr(node, "kind", "")) not in ("Block", "Item"):
             continue
         name = (node.get("Name") or "").strip().strip('"')
         if not name:

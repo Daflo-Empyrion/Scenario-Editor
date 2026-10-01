@@ -21,15 +21,28 @@ backups, undo espace de travail et rechargement des onglets ouverts."""
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
-                             QPushButton, QDoubleSpinBox, QTreeWidget,
-                             QTreeWidgetItem, QVBoxLayout)
+from PyQt6.QtWidgets import (QAbstractItemView, QComboBox, QDialog,
+                             QHBoxLayout, QLabel, QPushButton,
+                             QDoubleSpinBox, QStyledItemDelegate,
+                             QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from core.balance_rules import (POLICIES, RULE_CATALOG, BalanceConfig,
                                 apply_proposals, load_inventory,
                                 propose_changes)
 from core.i18n import t
 from gui.window_geometry import track
+
+COL_NEW = 4
+
+
+class _NewValueDelegate(QStyledItemDelegate):
+    """Seule la colonne « Nouveau » accepte l'edition (les flags
+    QTreeWidgetItem sont valables pour TOUTES les colonnes)."""
+
+    def createEditor(self, parent, option, index):
+        if index.column() != COL_NEW:
+            return None
+        return super().createEditor(parent, option, index)
 
 
 class BalanceDialog(QDialog):
@@ -114,6 +127,11 @@ class BalanceDialog(QDialog):
                                    t("balance.col_prop"),
                                    t("balance.col_old"),
                                    t("balance.col_new")])
+        self.tree.setItemDelegate(_NewValueDelegate(self.tree))
+        self.tree.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed)
+        self.tree.headerItem().setToolTip(COL_NEW, t("balance.new_tip"))
         self.tree.setColumnWidth(0, 220)
         self.tree.setColumnWidth(1, 240)
         self.tree.setColumnWidth(2, 160)
@@ -184,9 +202,11 @@ class BalanceDialog(QDialog):
         for pr in self._proposals:
             item = QTreeWidgetItem([pr.path.name, f"{pr.block} ({pr.block_id})",
                                     pr.prop, pr.old, pr.new])
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable
+                          | Qt.ItemFlag.ItemIsEditable)
             item.setCheckState(0, Qt.CheckState.Checked)
             item.setData(0, Qt.ItemDataRole.UserRole, pr)
+            item.setToolTip(COL_NEW, t("balance.new_tip"))
             self.tree.addTopLevelItem(item)
         self.btn_apply.setEnabled(bool(self._proposals))
         self.status_label.setText(
@@ -201,11 +221,20 @@ class BalanceDialog(QDialog):
     # ------------------------------------------------------------- application
 
     def _checked(self):
+        """Lignes cochees, avec la valeur « Nouveau » REELLE (l'utilisateur
+        peut avoir edite la cellule). Vide = proposition ignoree."""
         out = []
         for i in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(i)
-            if item.checkState(0) == Qt.CheckState.Checked:
-                out.append(item.data(0, Qt.ItemDataRole.UserRole))
+            if item.checkState(0) != Qt.CheckState.Checked:
+                continue
+            pr = item.data(0, Qt.ItemDataRole.UserRole)
+            val = item.text(COL_NEW).strip()
+            if not val:
+                continue
+            if val != pr.new:
+                pr.new = val
+            out.append(pr)
         return out
 
     def _apply(self):

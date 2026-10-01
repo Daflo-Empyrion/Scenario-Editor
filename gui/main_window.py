@@ -222,6 +222,8 @@ class MainWindow(QMainWindow):
         self.action_production_sync.triggered.connect(self._open_production_sync)
         self.action_balance = self.menu_tools.addAction(t("menu.tools.balance"))
         self.action_balance.triggered.connect(self._open_balance_dialog)
+        self.action_bundles = self.menu_tools.addAction(t("menu.tools.bundles"))
+        self.action_bundles.triggered.connect(self._open_bundles_dialog)
         self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
         self.action_dashboard.triggered.connect(self._open_dashboard)
         self.action_economy_editor = self.menu_tools.addAction(t("menu.tools.economy"))
@@ -1736,6 +1738,22 @@ class MainWindow(QMainWindow):
         dlg = BalanceDialog(self)
         dlg.exec()
 
+    def _open_bundles_dialog(self):
+        """Comparer deux bundles Unity de scenarios (ajouts/retraits) :
+        les bundles ne se fusionnent pas en binaire, on decide AVANT la
+        fusion de dossier."""
+        from gui.bundles_dialog import BundlesDialog
+        dlg = BundlesDialog(self)
+        dlg.exec()
+
+    def _open_galaxy_merge(self, source_path: Path):
+        """Fusion SPECIALISEE du GalaxyConfig source vers la copie de
+        travail : appariement (Name, StarClass), dependances presets et
+        playfields (core/galaxy_merge.py)."""
+        from gui.galaxy_merge_dialog import GalaxyMergeDialog
+        dlg = GalaxyMergeDialog(self, Path(source_path))
+        dlg.exec()
+
     def _open_dashboard(self):
         """Tableau de bord du scenario (stats + bilan regles metiers)."""
         from gui.dashboard_dialog import DashboardDialog
@@ -2334,13 +2352,22 @@ class MainWindow(QMainWindow):
 
         if data[0] == "file":
             path: Path = data[1]
+            # Fusion SPECIALISEE GalaxyConfig (01/10/2026) : appariement
+            # par (Name, StarClass) + dependances, hors fusion generique
+            action_galaxy = menu.addAction(
+                t("galaxy.merge_action")) \
+                if path.name.lower() == "galaxyconfig.ecf" else None
             action_merge = menu.addAction(t("file.merge_action", name=path.name))
             if not merge_enabled:
                 action_merge.setEnabled(False)
                 action_merge.setToolTip(t("merge.disabled_msg"))
             action_dup = menu.addAction(t("file.duplicate_action", name=path.name))
             chosen = menu.exec(tree.viewport().mapToGlobal(pos))
-            if chosen == action_merge and merge_enabled:
+            if chosen is None:
+                return                  # ferme sans choix : None == None piege
+            if chosen == action_galaxy:
+                self._open_galaxy_merge(path)
+            elif chosen == action_merge and merge_enabled:
                 self._copy_into_working(path, source_root, source_label)
             elif chosen == action_dup:
                 self._duplicate_file_into_working(path, source_root, source_label)

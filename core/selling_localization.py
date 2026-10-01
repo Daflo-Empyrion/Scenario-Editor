@@ -55,6 +55,34 @@ def build_key(trader_name: str) -> str:
     return f"scn_Selling_{safe}"
 
 
+def looks_like_key(text: str) -> bool:
+    """La valeur ECF ressemble-t-elle deja a une CLE de localisation ?
+    (igmEffectMedikitApplied, TmpEff_MedikitSmall, scn_Selling_X...) :
+    lettres/chiffres/underscore uniquement, pas d'espace, au moins 3
+    caracteres. Dans ce cas la localisation CREE LA LIGNE pour cette cle
+    sans toucher a la cellule ; un texte libre recoit une cle generee."""
+    return re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{2,}", (text or "").strip()) \
+        is not None
+
+
+def suggest_key(block_name: str, prop_key: str) -> str:
+    """Cle candidate pour localiser un TEXTE LIBRE (generalisation du
+    30/09/2026 a tous les fichiers) : scn_<Bloc>_<Propriete>, avec le cas
+    historique SellingText -> scn_Selling_<Bloc> (v1.10.0). Vide si ni le
+    bloc ni la propriete ne donnent de matiere."""
+    base = re.sub(r"[^A-Za-z0-9]", "", block_name or "")
+    prop = re.sub(r"[^A-Za-z0-9]", "", prop_key or "")
+    if prop == "SellingText" and base:
+        return f"scn_Selling_{base}"
+    if base and prop:
+        return f"scn_{base}_{prop}"
+    if base:
+        return f"scn_{base}"
+    if prop:
+        return f"scn_{prop}"
+    return ""
+
+
 def localization_csv_path(ecf_path: Path, root: Path = None) -> Path:
     """Chemin du Localization.csv du scenario pour un ECF de
     Configuration.

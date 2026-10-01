@@ -164,3 +164,29 @@ def test_ensure_uses_root_location(ecf_path, tmp_path):
     doc = parse_csv_text(root_loc.read_text(encoding="utf-8"))
     assert doc.rows[-1][0] == "scn_Selling_X"
     assert not (ecf_path.parent.parent / "Extras" / "Localization.csv").exists()
+
+
+def test_looks_like_key():
+    """Generalisation 30/09 : distinguer une valeur qui EST deja une cle
+    de localisation (ligne CSV a creer, cellule intacte) d'un texte libre
+    (cle a generer + cellule remplacee)."""
+    from core.selling_localization import looks_like_key
+    assert looks_like_key("igmEffectMedikitApplied")
+    assert looks_like_key("TmpEff_MedikitSmall")
+    assert looks_like_key("scn_Selling_QuantumSTAR")
+    assert looks_like_key(' "trwFood" '.strip().strip('"'))
+    assert not looks_like_key("Hi, I am trader <NAME>.")
+    assert not looks_like_key("Radiation Immunity")
+    assert not looks_like_key("")
+    assert not looks_like_key("ab")          # trop court
+
+
+def test_suggest_key():
+    from core.selling_localization import suggest_key
+    # cas historique v1.10.0 preserve
+    assert suggest_key("QuantumSTAR", "SellingText") == "scn_Selling_QuantumSTAR"
+    assert suggest_key("IronResource", "Description") == "scn_IronResource_Description"
+    assert suggest_key("Block-01 ", "Max Count!") == "scn_Block01_MaxCount"
+    assert suggest_key("", "Icon") == "scn_Icon"
+    assert suggest_key("Core", "") == "scn_Core"
+    assert suggest_key("", "") == ""
