@@ -43,11 +43,15 @@ def _hash(path: Path) -> bytes:
 def list_changed_files(working_root: Path, source_root: Path):
     """Retourne [(chemin_copie, 'added'|'modified')] tries par chemin. Les
     fichiers presents seulement dans A sont ignores (suppressions
-    volontaires rares -- et les signaler doublerait la liste)."""
+    volontaires rares -- et les signaler doublerait la liste). Les *.bak
+    (sauvegardes internes des operations de l'editeur) ne sont JAMAIS
+    proposes a la synchronisation."""
     changes = []
     for path in sorted(Path(working_root).rglob('*')):
         if not path.is_file():
             continue
+        if path.suffix.lower() == '.bak':
+            continue          # sauvegarde interne : jamais a synchroniser
         rel = path.relative_to(working_root)
         counterpart = Path(source_root) / rel
         if not counterpart.exists():

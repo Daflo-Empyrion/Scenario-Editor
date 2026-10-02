@@ -460,3 +460,44 @@ def test_egroups_of_imported_playfields_proposed_and_applied(tmp_path):
     plan2 = build_plan(gcf, s / "Content/Configuration/GalaxyConfig.ecf",
                        working_root=w, source_root=s, vanilla_content=None)
     assert plan2.egroups_to_import == []
+
+
+def test_repair_stray_junk_after_flow(tmp_path):
+    """Vecu 01/10 : presets SolarSystemConfig corrompus —
+    'Faction: [Pirates, None]s' faisait crasher le parseur YAML du jeu
+    (« did not find expected key »). Le junk apres le crochet est retire,
+    le commentaire de fin de ligne preserve, les commentaires seuls
+    intouches."""
+    from core.fsutil import repair_stray_junk_after_flow
+    text = ("  Faction: [Pirates, None]s                   #Sigma\n"
+            "  Color: [0.49, 0.49, 0.49]\n"
+            "      # - ['500,300,-6000', Omicron Moon, OmicronMoon]\n"
+            "  Names: [A, B]\n")
+    fixed, n = repair_stray_junk_after_flow(text)
+    assert n == 1
+    assert "Faction: [Pirates, None]                   #Sigma" in fixed
+    assert "Color: [0.49, 0.49, 0.49]" in fixed          # intact
+    assert "Omicron Moon" in fixed                        # commentaire intact
+    assert "Names: [A, B]" in fixed                       # crochet interne OK
+
+
+def test_copy_dir_repairing_yaml(tmp_path):
+    """La copie d'un dossier de playfield source REPARE les *.yaml
+    parasites et copie le reste tel quel."""
+    from core.fsutil import copy_dir_repairing_yaml
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    (src / "sub").mkdir(parents=True)
+    (src / "playfield.yaml").write_text(
+        "Faction: [Pirates, None]s\n", encoding="utf-8")
+    (src / "sub" / "other.yaml").write_text("Clean: ok\n", encoding="utf-8")
+    (src / "icon.png").write_bytes(b"\x89PNG")
+    copied, fixed = copy_dir_repairing_yaml(src, dst)
+    assert copied == 3 and fixed == 1
+    assert (dst / "playfield.yaml").read_text(
+        encoding="utf-8").strip().endswith("[Pirates, None]")
+    assert (dst / "sub" / "other.yaml").read_text(
+        encoding="utf-8") == "Clean: ok\n"
+    assert (dst / "icon.png").read_bytes() == b"\x89PNG"
+    # re-copie sur l'existant : idempotent
+    copied2, fixed2 = copy_dir_repairing_yaml(src, dst)
+    assert copied2 == 3 and fixed2 == 1

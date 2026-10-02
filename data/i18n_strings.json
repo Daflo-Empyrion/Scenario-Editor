@@ -8166,5 +8166,169 @@
  "galaxy.egroup_detail": {
   "fr": "Bloc ajouté à EGroupsConfig.ecf du scénario (référencé par les Entities des playfields importés)",
   "en": "Block added to the scenario EGroupsConfig.ecf (referenced by imported playfield Entities)"
+ },
+ "galaxy.sectors_action": {
+  "fr": "Fusionner aussi le Sectors.yaml de la source...",
+  "en": "Also merge the source Sectors.yaml..."
+ },
+ "galaxy.sectors_title": {
+  "fr": "Fusion Sectors.yaml",
+  "en": "Sectors.yaml merge"
+ },
+ "galaxy.sectors_hint": {
+  "fr": "{n} unite(s) du Sectors.yaml source absentes de la copie de travail : systemes entiers, secteurs (par coordonnees), lignes de playfield. Decoche ce que tu ne veux pas.",
+  "en": "{n} unit(s) of the source Sectors.yaml missing from the working copy: whole systems, sectors (by coordinates), playfield lines. Uncheck what you do not want."
+ },
+ "galaxy.sectors_none": {
+  "fr": "Aucune unite a fusionner : le Sectors.yaml de la source n'apporte rien de nouveau.",
+  "en": "Nothing to merge: the source Sectors.yaml brings nothing new."
+ },
+ "galaxy.sectors_apply": {
+  "fr": "Inserer les unites cochees",
+  "en": "Insert checked units"
+ },
+ "galaxy.done_sectors": {
+  "fr": "{n} unite(s) inseree(s) dans Sectors.yaml (backups .bak, Ctrl+Z disponible).",
+  "en": "{n} unit(s) inserted into Sectors.yaml (.bak backups, Ctrl+Z available)."
+ },
+ "galaxy.sectors_undo": {
+  "fr": "Fusion Sectors.yaml : {n} unite(s)",
+  "en": "Sectors.yaml merge: {n} unit(s)"
+ },
+ "galaxy.sectors_col_kind": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "galaxy.sectors_col_unit": {
+  "fr": "Unite · systeme",
+  "en": "Unit · system"
+ },
+ "galaxy.sectors_col_coords": {
+  "fr": "Coordonnees",
+  "en": "Coordinates"
+ },
+ "galaxy.sectors_conflict": {
+  "fr": "Playfield deja utilise par le working : {pf} — sera exclu de l'insertion",
+  "en": "Playfield already used by the working copy: {pf} — will be excluded from insertion"
+ },
+ "galaxy.sectors_conflict_tip": {
+  "fr": "Le jeu refuse un playfield en double (crash « Duplicate playfield name »). L'unite peut rester cochee : les secteurs en conflit seront exclus a l'insertion.",
+  "en": "The game rejects a duplicated playfield (\"Duplicate playfield name\" crash). The unit may stay checked: conflicting sectors will be excluded on insertion."
+ },
+ "galaxy.group_pf_deps": {
+  "fr": "Playfields à copier depuis la source (dossiers requis par les systèmes importés)",
+  "en": "Playfields to copy from the source (folders required by imported systems)"
+ },
+ "galaxy.pf_dep_label": {
+  "fr": "Playfield : {name}",
+  "en": "Playfield: {name}"
+ },
+ "galaxy.pf_dep_detail": {
+  "fr": "Dossier complet copié depuis le scénario source",
+  "en": "Whole folder copied from the source scenario"
+ },
+ "galaxy.group_pf_missing": {
+  "fr": "Types de playfield INTRouvables (working, vanille et source) — le chargement plantera pour les playfields concernés",
+  "en": "Playfield types NOT FOUND (working, vanilla and source) — loading will crash for the playfields using them"
+ },
+ "galaxy.pf_missing_detail": {
+  "fr": "introuvable partout",
+  "en": "not found anywhere"
+ },
+ "galaxy.pf_missing_tip": {
+  "fr": "Aucun dossier Playfields/{name} trouvé dans la copie de travail, la vanille ou la source. Choisis une source qui fournit ce playfield, ou retire les lignes concernées du Sectors.yaml.",
+  "en": "No Playfields/{name} folder found in the working copy, vanilla or source. Pick a source providing that playfield, or remove the matching Sectors.yaml lines."
+ },
+ "galaxy.done_pf": {
+  "fr": "{n} dossier(s) de playfield copié(s).",
+  "en": "{n} playfield folder(s) copied."
+ },
+ "galaxy.sectors_dups_warn": {
+  "fr": "ATTENTION : des playfields de ta copie de travail sont déclarés dans PLUSIEURS systèmes — le jeu crashe dessus ({n} en double) :",
+  "en": "WARNING: some playfields of your working copy are declared in MORE THAN ONE system — the game crashes on them ({n} duplicated):"
+ },
+ "galaxy.sectors_dup_item": {
+  "fr": "{pf} — déclaré dans : {systems} (le PREMIER système sera gardé)",
+  "en": "{pf} — declared in: {systems} (the FIRST system will be kept)"
+ },
+ "galaxy.sectors_fix_dups": {
+  "fr": "Corriger : garder le premier système et retirer les doublons du working",
+  "en": "Fix: keep the first system and remove the working duplicates"
+ },
+ "galaxy.done_dups": {
+  "fr": "{n} doublon(s) de playfield retiré(s) du working.",
+  "en": "{n} duplicated playfield(s) removed from the working copy."
+ },
+ "namemerge.title": {
+  "fr": "Fusion par noms",
+  "en": "Merge by names"
+ },
+ "namemerge.intro": {
+  "fr": "Fusion pour les fichiers à blocs identifiés par leur NOM sans Id (EGroupsConfig = groupes de créatures, EClassConfig = entités/classes). Ajoute les blocs de la source absents de ta copie de travail ; les blocs de même nom restent à ta version (jamais écrasés).",
+  "en": "Merge for files whose blocks are identified by NAME without Id (EGroupsConfig = creature groups, EClassConfig = entities/classes). Adds source blocks missing from your working copy; same-name blocks keep your version (never overwritten)."
+ },
+ "namemerge.working": {
+  "fr": "Fichier de travail :",
+  "en": "Working file:"
+ },
+ "namemerge.source": {
+  "fr": "Fichier source :",
+  "en": "Source file:"
+ },
+ "namemerge.col_name": {
+  "fr": "Nom du bloc",
+  "en": "Block name"
+ },
+ "namemerge.col_kind": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "namemerge.group_add": {
+  "fr": "Blocs à ajouter depuis la source",
+  "en": "Blocks to add from the source"
+ },
+ "namemerge.group_same": {
+  "fr": "Déjà présents dans le working (ignorés)",
+  "en": "Already in the working copy (ignored)"
+ },
+ "namemerge.group_working_dupes": {
+  "fr": "Noms en double DANS le working (informatif — laissés tels quels)",
+  "en": "Names duplicated WITHIN the working copy (informational — left as is)"
+ },
+ "namemerge.same_detail": {
+  "fr": "déjà présent : ta version est conservée",
+  "en": "already present: your version is kept"
+ },
+ "namemerge.dupe_detail": {
+  "fr": "{n} blocs portent ce nom dans le working",
+  "en": "{n} blocks carry this name in the working copy"
+ },
+ "namemerge.apply": {
+  "fr": "Ajouter les blocs cochés",
+  "en": "Add checked blocks"
+ },
+ "namemerge.done": {
+  "fr": "{n} bloc(s) ajouté(s) (.bak créé, Ctrl+Z disponible).",
+  "en": "{n} block(s) added (.bak created, Ctrl+Z available)."
+ },
+ "namemerge.done_title": {
+  "fr": "Fusion par noms appliquée",
+  "en": "Merge by names applied"
+ },
+ "namemerge.none": {
+  "fr": "Rien à ajouter : tout est déjà fusionné.",
+  "en": "Nothing to add: everything is already merged."
+ },
+ "namemerge.undo": {
+  "fr": "Fusion par noms : {file}",
+  "en": "Merge by names: {file}"
+ },
+ "namemerge.found": {
+  "fr": "{n} bloc(s) à ajouter ({same} déjà présents ignorés). Décoche ce que tu ne veux pas.",
+  "en": "{n} block(s) to add ({same} already present ignored). Uncheck what you do not want."
+ },
+ "namemerge.merge_action": {
+  "fr": "Fusion par noms (créatures/classes)...",
+  "en": "Merge by names (creatures/classes)..."
  }
 }

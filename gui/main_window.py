@@ -1754,6 +1754,15 @@ class MainWindow(QMainWindow):
         dlg = GalaxyMergeDialog(self, Path(source_path))
         dlg.exec()
 
+    def _open_name_merge(self, source_path: Path):
+        """Fusion PAR NOMS d'un fichier ECF a blocs Name sans Id
+        (EGroupsConfig = creatures/groupes, EClassConfig = entites) :
+        ajoute les blocs sources absents, le working n'est jamais
+        ecrase (core/name_merge.py)."""
+        from gui.name_merge_dialog import NameMergeDialog
+        dlg = NameMergeDialog(self, Path(source_path))
+        dlg.exec()
+
     def _open_dashboard(self):
         """Tableau de bord du scenario (stats + bilan regles metiers)."""
         from gui.dashboard_dialog import DashboardDialog
@@ -2357,6 +2366,10 @@ class MainWindow(QMainWindow):
             action_galaxy = menu.addAction(
                 t("galaxy.merge_action")) \
                 if path.name.lower() == "galaxyconfig.ecf" else None
+            from core.name_merge import NAME_MERGE_FILES
+            action_namemerge = menu.addAction(
+                t("namemerge.merge_action")) \
+                if path.name.lower() in NAME_MERGE_FILES else None
             action_merge = menu.addAction(t("file.merge_action", name=path.name))
             if not merge_enabled:
                 action_merge.setEnabled(False)
@@ -2367,6 +2380,8 @@ class MainWindow(QMainWindow):
                 return                  # ferme sans choix : None == None piege
             if chosen == action_galaxy:
                 self._open_galaxy_merge(path)
+            elif chosen == action_namemerge:
+                self._open_name_merge(path)
             elif chosen == action_merge and merge_enabled:
                 self._copy_into_working(path, source_root, source_label)
             elif chosen == action_dup:

@@ -488,16 +488,18 @@ def build_plan(working_path, source_path, working_root=None,
         except Exception as e:                              # noqa: BLE001
             plan.errors.append(f"preset illisible {src.name} : {e}")
             continue
+        from core.fsutil import dirs_differ
         for nm in sorted(refs):
-            in_working = (working_root / "Playfields" / nm).is_dir()
-            in_vanilla = False
-            if vanilla_content:
-                in_vanilla = (Path(vanilla_content) / "Playfields"
-                              / nm).is_dir()
-            src_pf = source_root / "Playfields" / nm
-            if in_working or in_vanilla:
+            if (working_root / "Playfields" / nm).is_dir():
                 continue
+            src_pf = source_root / "Playfields" / nm
+            van_pf = (Path(vanilla_content) / "Playfields" / nm)                 if vanilla_content else None
             if src_pf.is_dir():
+                # copier si le scenario source a MODIFIE le playfield
+                # (contenu different de la vanille = a preserver) ou si
+                # la vanille ne le fournit pas
+                if van_pf is not None and van_pf.is_dir()                         and not dirs_differ(src_pf, van_pf):
+                    continue        # identique vanille : fallback equivalente
                 plan.deps.append(GalaxyDependency(
                     relative=f"Playfields/{nm}", source_path=src_pf,
                     reason=f"playfield du preset {src.name}"))
@@ -639,6 +641,7 @@ def apply_plan(plan: GalaxyPlan, working_path, working_root=None,
 
     # --- 4) dependances (presets/playfields), avec .bak si ecrasement
     if copy_deps:
+        from core.fsutil import copy_dir_repairing_yaml,             repair_stray_junk_after_flow
         for dep in plan.deps:
             dst = working_root / dep.relative
             if dst.exists():
@@ -646,9 +649,16 @@ def apply_plan(plan: GalaxyPlan, working_path, working_root=None,
                 continue
             dst.parent.mkdir(parents=True, exist_ok=True)
             if dep.source_path.is_dir():
-                shutil.copytree(dep.source_path, dst)
-            else:
-                shutil.copy2(dep.source_path, dst)
+                # playfield : dossiers entiers, *.yaml reparés (junk
+                # apres crochet de liste flow — vecu 01/10)
+                _c, fixed = copy_dir_repairing_yaml(dep.source_path, dst)
+                stats["deps"] += 1
+                continue
+            # preset SolarSystemConfig : fichier texte reparé a l'ecriture
+            text = dep.source_path.read_text(encoding="utf-8",
+                                             errors="replace")
+            fixed_text, _n = repair_stray_junk_after_flow(text)
+            atomic_write_text(dst, fixed_text)
             stats["deps"] += 1
 
     # --- 5) factions requises : completer Factions.ecf du working

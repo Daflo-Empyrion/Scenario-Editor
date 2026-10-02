@@ -19,6 +19,7 @@ apercu cochable des systemes a ajouter (apparies par Name + StarClass)
 et des dependances a copier, General du working prioritaire avec diff
 informatif, avertissements Sectors/playfields. Application via
 core/galaxy_merge.py (idempotent, .bak)."""
+import shutil
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
@@ -86,6 +87,9 @@ class GalaxyMergeDialog(QDialog):
         self.btn_apply.setEnabled(False)
         self.btn_apply.clicked.connect(self._apply)
         bottom.addWidget(self.btn_apply, 1)
+        self.btn_sectors = QPushButton(t("galaxy.sectors_action"))
+        self.btn_sectors.clicked.connect(self._merge_sectors)
+        bottom.addWidget(self.btn_sectors)
         self.btn_close = QPushButton(t("btn.close"))
         self.btn_close.clicked.connect(self.reject)
         bottom.addWidget(self.btn_close)
@@ -94,6 +98,24 @@ class GalaxyMergeDialog(QDialog):
         if self.working_path is None:
             self.btn_analyze.setEnabled(False)
             self.status_label.setText(t("galaxy.need_project"))
+        self._update_sectors_button()
+
+    def _sectors_pair(self):
+        """(working Sectors.yaml, source Sectors.yaml) si les deux
+        existent, sinon (None, None)."""
+        ws = getattr(self.main_window, "workspace", None) if \
+            self.main_window else None
+        if ws is None or not getattr(ws, "working_root", None):
+            return None, None
+        w = Path(ws.working_root) / "Sectors" / "Sectors.yaml"
+        s = self._source_root() / "Sectors" / "Sectors.yaml"
+        if w.exists() and s.exists():
+            return w, s
+        return None, None
+
+    def _update_sectors_button(self):
+        w, s = self._sectors_pair()
+        self.btn_sectors.setEnabled(w is not None)
 
     # ------------------------------------------------------------- analyse
 
@@ -308,8 +330,192 @@ class GalaxyMergeDialog(QDialog):
             t("balance.undo_label",
               file=Path(self.working_path).name))
 
+    # ------------------------------------------------- fusion Sectors.yaml
+
+    def _merge_sectors(self):
+        """Fusion STRUCTURELLE du Sectors.yaml de la source (moteur
+        core/sectors_merge.py deja existant) : systemes entiers, secteurs
+        par coordonnees, lignes de playfield — proposes cochables, inserts
+        dans le Sectors.yaml du working, JAMAIS d'ecrasement. Plus les
+        dossiers Playfields/<Type> references par les unites importees."""
+        from core.sectors_merge import (analyze_sectors_merge,
+                                        collect_playfield_type_deps,
+                                        drop_duplicate_playfields,
+                                        find_duplicate_playfields)
+        from gui.busy import run_long
+        from gui.msgboxes import info
+        working_sectors, source_sectors = self._sectors_pair()
+        if working_sectors is None:
+            return
+        ws = self.main_window.workspace
+        units = run_long(self, lambda: analyze_sectors_merge(
+            working_sectors, source_sectors))
+        duplicates = run_long(self, lambda: find_duplicate_playfields(
+            working_sectors))
+        deps, missing = ([], [])
+        identical = []
+        if units:
+            deps, missing, identical = run_long(
+                self, lambda: collect_playfield_type_deps(
+                    working_sectors, source_sectors, units,
+                    working_root=ws.working_root,
+                    source_root=self._source_root()))
+        if not units and not deps and not duplicates:
+            info(self, t("galaxy.sectors_title"), t("galaxy.sectors_none"))
+            return
+        dlg = SectorsUnitsDialog(units, deps, missing, duplicates,
+                                 parent=self)
+        if not dlg.exec():
+            return
+        checked = dlg.checked_units()
+        checked_deps = dlg.checked_deps()
+        fix_dups = (dlg.chk_fix_dups is not None
+                    and dlg.chk_fix_dups.isChecked())
+        if not checked and not checked_deps and not fix_dups:
+            return
+        from core.sectors_merge import (apply_structural_units,
+                                        copy_playfield_type_deps,
+                                        drop_duplicate_playfields)
+        from core.workspace_undo import FileStateUndo, capture_file
+        prior = capture_file(working_sectors)
+        applied = run_long(self, lambda: apply_structural_units(
+            working_sectors, checked, source_sectors))
+        copied = run_long(self, lambda: copy_playfield_type_deps(
+            checked_deps, ws.working_root))
+        dups_fixed, dups_details = (run_long(
+            self, lambda: drop_duplicate_playfields(working_sectors))
+            if fix_dups and duplicates else (0, []))
+        if applied:
+            bak = working_sectors.with_suffix(
+                working_sectors.suffix + ".bak")
+            shutil.copy2(working_sectors, bak)
+            if self.main_window is not None:
+                self.main_window._push_workspace_undo(FileStateUndo(
+                    working_sectors, prior,
+                    t("galaxy.sectors_undo", n=applied)))
+                reload_tab = getattr(
+                    self.main_window,
+                    "_reload_tab_if_open_and_unmodified", None)
+                if reload_tab:
+                    reload_tab(working_sectors)
+        msg = t("galaxy.done_sectors", n=applied)
+        if copied:
+            msg += " " + t("galaxy.done_pf", n=copied)
+        if dups_fixed:
+            msg += " " + t("galaxy.done_dups", n=dups_fixed)
+        info(self, t("galaxy.sectors_title"), msg)
+
 
 def _all_indexed_keys(indexed_add) -> set:
     """Toutes les cles indexees d'un plan DEJA filtre par cochage."""
     return {f"{family}|{ib.index}"
             for family, lst in indexed_add.items() for ib in lst}
+
+
+class SectorsUnitsDialog(QDialog):
+    """Revue cochable des unites STRUCTURELLES du Sectors.yaml source
+    (systemes entiers, secteurs par coordonnees, lignes de playfield) +
+    dossiers Playfields/<Type> a copier — moteur core/sectors_merge.py,
+    meme principe que la fenetre de fusion de dossier. OK = retourne les
+    unites et deps cochees."""
+
+    def __init__(self, units, deps=(), missing=(), duplicates=None,
+                 parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("galaxy.sectors_title"))
+        self.setMinimumSize(760, 480)
+        self.chk_fix_dups = None
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(t("galaxy.sectors_hint", n=len(units))))
+        if duplicates:
+            lay.addWidget(QLabel(t("galaxy.sectors_dups_warn",
+                                   n=len(duplicates))))
+            for pf, systems in sorted(duplicates.items()):
+                it = QLabel(t("galaxy.sectors_dup_item", pf=pf,
+                              systems=", ".join(systems)))
+                it.setWordWrap(True)
+                lay.addWidget(it)
+            from PyQt6.QtWidgets import QCheckBox
+            self.chk_fix_dups = QCheckBox(t("galaxy.sectors_fix_dups"))
+            self.chk_fix_dups.setChecked(True)
+            lay.addWidget(self.chk_fix_dups)
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels([t("galaxy.sectors_col_kind"),
+                                   t("galaxy.sectors_col_unit"),
+                                   t("galaxy.sectors_col_coords")])
+        self.tree.setColumnWidth(0, 140)
+        self.tree.setColumnWidth(1, 420)
+        for unit in units:
+            kind_label = t("mergeplan.struct_system") \
+                if unit.kind == "system" \
+                else (t("mergeplan.struct_sector")
+                      if unit.kind == "sector"
+                      else t("mergeplan.struct_playfield"))
+            coords = unit.coordinates
+            if unit.conflict:
+                # playfield(s) deja presents dans le working : DECOCHEE
+                # par defaut ; l'application exclura les secteurs en
+                # doublon de toute facon (double securite)
+                coords = (t("galaxy.sectors_conflict", pf=unit.conflict)
+                          + ("\n" + coords if coords else ""))
+            item = QTreeWidgetItem([kind_label,
+                                    f"{unit.name}  ·  {unit.system}",
+                                    coords])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.CheckState.Unchecked if unit.conflict
+                               else Qt.CheckState.Checked)
+            if unit.conflict:
+                item.setToolTip(2, t("galaxy.sectors_conflict_tip",
+                                     pf=unit.conflict))
+            item.setData(0, Qt.ItemDataRole.UserRole, unit)
+            self.tree.addTopLevelItem(item)
+        self._deps_items = []
+        if deps:
+            g = QTreeWidgetItem(["", t("galaxy.group_pf_deps"), ""])
+            g.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            self.tree.addTopLevelItem(g)
+            for dep in deps:
+                item = QTreeWidgetItem(
+                    ["", t("galaxy.pf_dep_label", name=dep.name),
+                     t("galaxy.pf_dep_detail")])
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(0, Qt.CheckState.Checked)
+                item.setData(0, Qt.ItemDataRole.UserRole, dep)
+                g.addChild(item)
+                self._deps_items.append(item)
+        if missing:
+            g = QTreeWidgetItem(["", t("galaxy.group_pf_missing"), ""])
+            g.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            self.tree.addTopLevelItem(g)
+            for name in missing:
+                it = QTreeWidgetItem(
+                    ["", name, t("galaxy.pf_missing_detail")])
+                it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                it.setToolTip(2, t("galaxy.pf_missing_tip", name=name))
+                g.addChild(it)
+        self.tree.expandAll()
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton(t("galaxy.sectors_apply"))
+        btn_ok.setObjectName("primaryButton")
+        btn_ok.clicked.connect(self.accept)
+        buttons.addWidget(btn_ok, 1)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.clicked.connect(self.reject)
+        buttons.addWidget(btn_cancel)
+        lay.addLayout(buttons)
+
+    def checked_units(self):
+        out = []
+        for i in range(self.tree.topLevelItemCount()):
+            it = self.tree.topLevelItem(i)
+            if (it.flags() & Qt.ItemFlag.ItemIsUserCheckable
+                    and it.checkState(0) == Qt.CheckState.Checked):
+                data = it.data(0, Qt.ItemDataRole.UserRole)
+                if data is not None and not isinstance(data, str):
+                    out.append(data)
+        return out
+
+    def checked_deps(self):
+        return [it.data(0, Qt.ItemDataRole.UserRole)
+                for it in self._deps_items
+                if it.checkState(0) == Qt.CheckState.Checked]

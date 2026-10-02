@@ -118,3 +118,42 @@ def test_dialog_structural_section(qapp, yaml_paths, monkeypatch):
     assert dlg.selected_structural_units() == []
     dlg._set_all_checks(True)
     assert len(dlg.selected_structural_units()) == 2
+
+
+def test_merge_preserves_system_coordinates_block(tmp_path):
+    """Vecu 01-02/10 : les Coordinates de SYSTEME en bloc vertical sont le
+    format que le jeu LIT (carte + chargement) — une conversion en flow
+    rendait le Sectors.yaml inparsable par YamlDotNet du jeu (« Expected
+    'SequenceStart', got 'MappingStart' »). Garde-fou anti-regression : le
+    round-trip yamllite preserve le bloc vertical ET son commentaire."""
+    from core.yamllite.parser import parse_yaml_file
+    src = tmp_path / "Sectors.yaml"
+    src.write_text(
+        "SolarSystems:\n"
+        "  - Name: Hyperion System\n"
+        "    StarClass: S\n"
+        "    Coordinates:\n"
+        "      - 110  # original: 190\n"
+        "      - 1\n"
+        "      - 140\n"
+        "    Sectors:\n"
+        "      - Coordinates:\n"
+        "          - 0\n"
+        "          - 0\n"
+        "          - 0\n"
+        "        Playfields:\n"
+        "          - ['0,0,0', Hyperion System, SunRandom, '']\n",
+        encoding="utf-8")
+    doc = parse_yaml_file(src)
+    rendered = doc.render()
+    assert "- 110  # original: 190" in rendered, \
+        "le bloc vertical Coordinates et son commentaire doivent rester"
+    assert "Coordinates:\n" in rendered or "- 110" in rendered
+
+
+def test_normalize_system_coordinates_removed():
+    """La normalisation flow (nuisible, vecu 02/10 : le jeu ne parsait plus
+    le Sectors.yaml) a ete retiree du moteur."""
+    import core.sectors_merge as m
+    assert not hasattr(m, "normalize_system_coordinates"), \
+        "normalize_system_coordinates ne doit plus exister"
