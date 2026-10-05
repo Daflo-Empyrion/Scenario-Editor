@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional, Set
 
+from core.yamllite.parser import parse_yaml_file
 from .parser import parse_ecf_file
 from .model import block_identity, EcfBlock, EcfProperty
 
@@ -316,6 +317,132 @@ def _check_dialogue_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
 # cocher, dans cet ordre
 # ============================================================================
 
+# ============================================================================
+# Verification 5 : materiaux references par les blocs (`Material: X`) presents
+# dans MaterialConfig.ecf ? (vecu 04/10 : bloc 872 ->
+# 'hullcombatcharged' absent du MaterialConfig du scénario -> la table des
+# blocs chargeait morte, cascade « No template found » + NRE au demarrage)
+# ============================================================================
+
+def _check_material_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
+    materials_file = _find_file(ctx.ecf_files, 'MaterialConfig.ecf')
+    if materials_file is None:
+        # Scenario sans MaterialConfig propre : les materiaux viennent du jeu
+        # de base, on n'a rien a comparer localement.
+        return []
+    defined: Set[str] = set()
+    try:
+        doc = parse_ecf_file(materials_file)
+    except Exception:
+        return []
+    for block in doc.iter_blocks():
+        if block.kind.lstrip('+').rstrip(',').casefold() == 'material':
+            name = block.get_property('Name')
+            if name:
+                defined.add(name)
+    issues: List[CrossRefIssue] = []
+    for path in ctx.ecf_files:
+        if path == materials_file:
+            continue
+        try:
+            doc = parse_ecf_file(path)
+        except Exception:
+            continue
+        for top_block, _node, key, value in _all_property_pairs(doc):
+            if key != 'Material':
+                continue
+            mat = (value or '').split(',')[0].strip().strip('"')
+            if mat and mat not in defined:
+                issues.append(CrossRefIssue(
+                    source_file=path,
+                    source_kind=top_block.kind,
+                    source_identity=block_identity(top_block) or '?',
+                    ref_key='Material',
+                    ref_value=mat,
+                    check_id="material_refs",
+                    display_path=_relative_display_path(path, ctx.scenario_root),
+                ))
+    return issues
+
+
+# ============================================================================
+# Verification 6 : POIs cibles des missions du PDA (NearPoi/PoiDiscovered)
+# presents dans les playfields du scenario ? (vecu 05/10 : la mission locale
+# Masperon de Random EXP cible des cages qui ne spawnaient pas dans le
+# scenario hote — mission bloquee sans aucun indice en jeu)
+# ============================================================================
+
+_PDA_POI_CHECKS = ('NearPoi', 'PoiDiscovered')
+
+
+def _check_pda_poi_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
+    """Chaque POI cible par une action de mission du PDA.yaml
+    (Check: NearPoi / PoiDiscovered, propriete Names) doit correspondre a
+    un POI spawnable dans les playfields du scenario (GroupName, Name ou
+    Prefab). Collecte GENEREUSE du pool (toute profondeur, tous les yamls
+    de Playfields/) pour minimiser les faux positifs ; les noms avec
+    joker '*' sont ignores. Scenario sans PDA.yaml ou sans Playfields ->
+    rien a verifier."""
+    if ctx.scenario_root is None:
+        return []
+    pda_path = Path(ctx.scenario_root) / 'Extras' / 'PDA' / 'PDA.yaml'
+    if not pda_path.is_file():
+        return []
+    try:
+        pda_doc = parse_yaml_file(pda_path)
+    except Exception:
+        return []
+
+    pool_cf: Set[str] = set()
+    pf_dir = Path(ctx.scenario_root) / 'Playfields'
+    for f in sorted(pf_dir.glob('*/*.yaml')) if pf_dir.is_dir() else []:
+        try:
+            pf_doc = parse_yaml_file(f)
+        except Exception:
+            continue
+
+        def collect(nodes):
+            for node in nodes:
+                k = getattr(node, 'key', None)
+                v = (getattr(node, 'value', '') or '').strip().strip("'\"")
+                if k in ('GroupName', 'Name', 'Prefab') and v:
+                    pool_cf.add(v.casefold())
+                collect(getattr(node, 'children', None) or [])
+        collect(pf_doc.nodes)
+
+    issues: List[CrossRefIssue] = []
+
+    def walk_actions(nodes):
+        for node in nodes:
+            if getattr(node, 'key', None) == 'ActionTitle':
+                check_val = names = None
+                for ch in getattr(node, 'children', []) or []:
+                    ck = getattr(ch, 'key', None)
+                    if ck == 'Check':
+                        check_val = (getattr(ch, 'value', '') or '').strip()
+                    elif ck == 'Names':
+                        names = ch
+                if check_val in _PDA_POI_CHECKS and names is not None:
+                    for c in getattr(names, 'children', []) or []:
+                        nm = (getattr(c, 'value', '') or '').strip().strip("'\"")
+                        if not nm or '*' in nm:
+                            continue
+                        if nm.casefold() not in pool_cf:
+                            issues.append(CrossRefIssue(
+                                source_file=pda_path,
+                                source_kind='PDA',
+                                source_identity=str(getattr(node, 'value', '') or '?'),
+                                ref_key=check_val,
+                                ref_value=nm,
+                                check_id='pda_poi_refs',
+                                display_path='Extras/PDA/PDA.yaml',
+                            ))
+            walk_actions(getattr(node, 'children', []) or [])
+
+    walk_actions(pda_doc.nodes)
+    return issues
+
+
 CROSS_REFERENCE_CHECKS: List[CrossRefCheck] = [
     CrossRefCheck(
         id="ref_inheritance",
@@ -363,6 +490,33 @@ CROSS_REFERENCE_CHECKS: List[CrossRefCheck] = [
                         "reserved keywords, never checked as a reference.",
         enabled_by_default=True,
         run=_check_dialogue_refs,
+    ),
+    CrossRefCheck(
+        id="material_refs",
+        label_fr="Materiaux (Material: defini dans MaterialConfig.ecf)",
+        label_en="Materials (Material: defined in MaterialConfig.ecf)",
+        description_fr="Chaque propriete 'Material:' d'un bloc correspond-elle "
+                        "a un materiau defini dans MaterialConfig.ecf ? (vecu : "
+                        "un bloc au materiau absent casse toute la table des "
+                        "blocs au chargement)",
+        description_en="Does each block 'Material:' property match a material "
+                        "defined in MaterialConfig.ecf? (a block with a missing "
+                        "material breaks the whole block table at load)",
+        enabled_by_default=True,
+        run=_check_material_refs,
+    ),
+    CrossRefCheck(
+        id="pda_poi_refs",
+        label_fr="POIs des missions PDA (spawn dans les playfields)",
+        label_en="PDA mission POIs (spawn in playfields)",
+        description_fr="Chaque POI cible d'une action de mission (NearPoi/"
+                        "PoiDiscovered) correspond-il a un GroupName/Name/"
+                        "Prefab des playfields du scenario ?",
+        description_en="Does each mission action target POI (NearPoi/"
+                        "PoiDiscovered) match a playfield GroupName/Name/"
+                        "Prefab?",
+        enabled_by_default=True,
+        run=_check_pda_poi_refs,
     ),
 ]
 

@@ -19,7 +19,6 @@ apercu cochable des systemes a ajouter (apparies par Name + StarClass)
 et des dependances a copier, General du working prioritaire avec diff
 informatif, avertissements Sectors/playfields. Application via
 core/galaxy_merge.py (idempotent, .bak)."""
-import shutil
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
@@ -386,9 +385,10 @@ class GalaxyMergeDialog(QDialog):
             self, lambda: drop_duplicate_playfields(working_sectors))
             if fix_dups and duplicates else (0, []))
         if applied:
-            bak = working_sectors.with_suffix(
-                working_sectors.suffix + ".bak")
-            shutil.copy2(working_sectors, bak)
+            # backup CENTRAL : jamais de .bak a cote du fichier, le jeu
+            # charge tous les .yaml du dossier Sectors/ (vecu 02/10)
+            from core.fsutil import central_backup
+            central_backup(working_sectors)
             if self.main_window is not None:
                 self.main_window._push_workspace_undo(FileStateUndo(
                     working_sectors, prior,
@@ -445,6 +445,9 @@ class SectorsUnitsDialog(QDialog):
                                    t("galaxy.sectors_col_coords")])
         self.tree.setColumnWidth(0, 140)
         self.tree.setColumnWidth(1, 420)
+        # vecu 04/10 : l'arbre n'etait JAMAIS ajoute au layout — la fenetre
+        # s'affichait vide (le contenu existait, invisible pour l'usage)
+        lay.addWidget(self.tree, 1)
         for unit in units:
             kind_label = t("mergeplan.struct_system") \
                 if unit.kind == "system" \

@@ -2,7 +2,8 @@ from pathlib import Path
 
 from core.ecf.cross_reference_check import (
     CrossRefContext, CROSS_REFERENCE_CHECKS, run_checks,
-    _check_ref_inheritance, _check_item_block_pool, _check_token_refs,
+    _check_material_refs, _check_pda_poi_refs, _check_ref_inheritance,
+    _check_item_block_pool, _check_token_refs,
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "cross_ref_scenario"
@@ -20,7 +21,8 @@ def test_registry_has_three_checks_with_expected_ids():
     # plutot que corrige davantage. Verification dialogues ajoutee ensuite
     # (voir test_registry_has_four_checks_including_dialogues plus bas).
     ids = [c.id for c in CROSS_REFERENCE_CHECKS]
-    assert ids == ["ref_inheritance", "item_block_pool", "token_refs", "dialogue_refs"]
+    assert ids == ["ref_inheritance", "item_block_pool", "token_refs",
+                   "dialogue_refs", "material_refs", "pda_poi_refs"]
 
 
 def test_all_checks_enabled_by_default():
@@ -101,7 +103,8 @@ def _dialogue_ctx():
 
 def test_registry_has_four_checks_including_dialogues():
     ids = [c.id for c in CROSS_REFERENCE_CHECKS]
-    assert ids == ["ref_inheritance", "item_block_pool", "token_refs", "dialogue_refs"]
+    assert ids == ["ref_inheritance", "item_block_pool", "token_refs",
+                   "dialogue_refs", "material_refs", "pda_poi_refs"]
 
 
 def test_dialogue_refs_enabled_by_default():
@@ -166,3 +169,84 @@ def test_dialogue_refs_empty_when_no_dialogue_blocks():
     ctx = CrossRefContext(ecf_files=[FIXTURE_DIR / "ItemsConfig.ecf"], yaml_files=[], scenario_root=None)
     from core.ecf.cross_reference_check import _check_dialogue_refs
     assert _check_dialogue_refs(ctx) == []
+
+
+# ============================================================================
+# Verification 5 : materiaux (vecu 04/10 : bloc 872 ->
+# 'hullcombatcharged' absent du MaterialConfig -> table des blocs morte ->
+# cascade « No template found » + NRE au demarrage du jeu)
+# ============================================================================
+
+def test_material_refs_flags_missing_material(tmp_path):
+    (tmp_path / "MaterialConfig.ecf").write_text(
+        "{ Material Name: SteelHull\n  damage_category: metal\n}\n",
+        encoding="utf-8")
+    (tmp_path / "BlocksConfig.ecf").write_text(
+        "{ +Block Id: 1, Name: BonBloc\n  Material: SteelHull\n}\n"
+        "{ +Block Id: 2, Name: BlocCassee\n  Material: GhostMat\n}\n",
+        encoding="utf-8")
+    ctx = CrossRefContext(ecf_files=[tmp_path / "MaterialConfig.ecf",
+                                     tmp_path / "BlocksConfig.ecf"],
+                          yaml_files=[], scenario_root=tmp_path)
+    issues = _check_material_refs(ctx)
+    assert len(issues) == 1
+    assert issues[0].ref_value == "GhostMat"
+    assert issues[0].check_id == "material_refs"
+    assert issues[0].source_identity == "2"
+
+
+def test_material_refs_silent_without_materialconfig(tmp_path):
+    """Scenario sans MaterialConfig propre : les materiaux viennent du jeu
+    de base, rien a verifier localement."""
+    (tmp_path / "BlocksConfig.ecf").write_text(
+        "{ +Block Id: 1, Name: B\n  Material: X\n}\n", encoding="utf-8")
+    ctx = CrossRefContext(ecf_files=[tmp_path / "BlocksConfig.ecf"],
+                          yaml_files=[], scenario_root=tmp_path)
+    assert _check_material_refs(ctx) == []
+
+
+# ============================================================================
+# Verification 6 : POIs cibles des missions PDA (vecu 05/10 : la mission
+# locale Masperon de Random EXP cible des cages absentes du scenario hote)
+# ============================================================================
+
+PDA_Y = """- ChapterTitle: pda_t1
+  Tasks:
+    - TaskTitle: pda_t2
+      Actions:
+        - ActionTitle: pda_a1
+          Check: NearPoi
+          Names:
+            - MyCage
+        - ActionTitle: pda_a2
+          Check: NearPoi
+          Names:
+            - GhostPoi
+"""
+
+PF_Y = """POIs:
+    Random:
+        - GroupName: MyCage
+          Faction: Abyssal
+"""
+
+
+def test_pda_poi_refs_flags_missing_poi(tmp_path):
+    (tmp_path / "Playfields" / "GS_X").mkdir(parents=True)
+    (tmp_path / "Playfields" / "GS_X" / "playfield_static.yaml").write_text(
+        PF_Y, encoding="utf-8")
+    (tmp_path / "Extras" / "PDA").mkdir(parents=True)
+    (tmp_path / "Extras" / "PDA" / "PDA.yaml").write_text(PDA_Y, encoding="utf-8")
+    ctx = CrossRefContext(ecf_files=[], yaml_files=[], scenario_root=tmp_path)
+    issues = _check_pda_poi_refs(ctx)
+    values = {i.ref_value for i in issues}
+    assert values == {"GhostPoi"}
+    assert all(i.check_id == "pda_poi_refs" for i in issues)
+
+
+def test_pda_poi_refs_silent_without_pda(tmp_path):
+    (tmp_path / "Playfields" / "GS_X").mkdir(parents=True)
+    (tmp_path / "Playfields" / "GS_X" / "playfield_static.yaml").write_text(
+        PF_Y, encoding="utf-8")
+    ctx = CrossRefContext(ecf_files=[], yaml_files=[], scenario_root=tmp_path)
+    assert _check_pda_poi_refs(ctx) == []

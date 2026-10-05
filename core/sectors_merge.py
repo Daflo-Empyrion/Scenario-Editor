@@ -108,6 +108,16 @@ def _sector_playfield_types(sector_entry: YamlEntry) -> set:
     return types
 
 
+def _is_sun_type(type_field: str) -> bool:
+    """Le TYPE de playfield designe-t-il un soleil (Sun, SunRandom,
+    SunBltSe...) ? Un systeme sans playfield soleil est injoignable."""
+    return (type_field or "").strip().casefold().startswith("sun")
+
+
+def _sector_has_sun(sector_entry: YamlEntry) -> bool:
+    return any(_is_sun_type(t) for t in _sector_playfield_types(sector_entry))
+
+
 def _system_playfield_types(system_entry: YamlEntry) -> set:
     out: set = set()
     sectors = _find_child(system_entry, "Sectors")
@@ -164,7 +174,7 @@ def collect_playfield_type_deps(working_yaml: Path, source_yaml: Path,
             continue
         ckey = _coords_key(unit.coordinates)
         source_sector = next((c for c in _seq_items(source_sectors_entry)
-                              if _coords_key(c.value) == ckey), None)
+                              if _coords_key(_coords_text(c)) == ckey), None)
         if source_sector is None:
             continue
         types |= _sector_playfield_types(source_sector)
@@ -229,8 +239,13 @@ def find_duplicate_playfields(working_yaml: Path) -> Dict[str, List[str]]:
 def drop_duplicate_playfields(working_yaml: Path) -> Tuple[int, List[str]]:
     """CORRIGE les doublons : pour chaque playfield declare plusieurs
     fois, garde la PREMIERE occurrence (ordre du document) et retire les
-    suivantes ; les secteurs structur devenus sans playfield sont
-    retires. Ecrit en atomique (l'appelant gere backup et undo).
+    suivantes ; retire aussi du MEME secteur les LIGNES ORPHELINES de la
+    planete retiree ('<Planete> Moon', '<Planete> Orbit' — vecu 04/10 :
+    'Zeyhines Orbit' reste seul sans sa planete) et les secteurs devenus
+    vides ; un systeme qui perd son DERNIER soleil est retire ENTIEREMENT
+    (un systeme sans soleil est casse — vecu 04/10 : 'Symos' importe de
+    Default Akua-Omicron dont le soleil etait un doublon du 'Symos'
+    d'Ellyon). Ecrit en atomique (l'appelant gere backup et undo).
     Retourne (nombre de lignes retirees, details)."""
     doc = parse_yaml_file(Path(working_yaml))
     solar = _find_solar_systems(doc)
@@ -238,11 +253,12 @@ def drop_duplicate_playfields(working_yaml: Path) -> Tuple[int, List[str]]:
         return 0, []
     retired, details = 0, []
     seen: Dict[str, str] = {}
-    for system in _systems(solar):
+    for system in list(_systems(solar)):
         sname = _strip_quotes(system.value)
         sectors_entry = _find_child(system, "Sectors")
         if sectors_entry is None:
             continue
+        sun_removed = sun_kept = False
         for sector in list(_seq_items(sectors_entry)):
             pf_entry = _find_child(sector, "Playfields")
             if pf_entry is not None:
@@ -251,28 +267,69 @@ def drop_duplicate_playfields(working_yaml: Path) -> Tuple[int, List[str]]:
             else:
                 # format flow : LE secteur est la ligne playfield
                 rows = [sector]
-            removed = 0
+            removed_names: List[str] = []
             for row in list(rows):
                 fields = _split_flow(row.value) if row.value else []
                 if len(fields) > 1 and fields[1]:
                     nm = fields[1]
+                    is_sun = len(fields) > 2 and _is_sun_type(fields[2])
                     if nm in seen:
                         (pf_entry if pf_entry is not None
                          else sectors_entry).children.remove(row)
-                        removed += 1
                         retired += 1
                         details.append(f"{nm} retire de {sname} "
                                        f"(garde dans {seen[nm]})")
+                        removed_names.append(nm)
+                        if is_sun:
+                            sun_removed = True
                     else:
                         seen[nm] = sname
+                        if is_sun:
+                            sun_kept = True
+            # orphelines : lunes/orbites de la planete retiree, MEME secteur
+            if pf_entry is not None and removed_names:
+                for row in list(_seq_items(pf_entry)):
+                    fields = _split_flow(row.value) if row.value else []
+                    nm = fields[1] if len(fields) > 1 else ""
+                    if nm and any(nm.startswith(f"{r} ")
+                                  for r in removed_names):
+                        pf_entry.children.remove(row)
+                        retired += 1
+                        details.append(f"{nm} orphelin retire de {sname}")
             # secteur structure devenu sans playfield : supprime
-            if pf_entry is not None and removed                     and not _seq_items(pf_entry):
+            if pf_entry is not None and removed_names \
+                    and not _seq_items(pf_entry):
                 sectors_entry.children.remove(sector)
                 details.append(f"secteur vide supprime dans {sname}")
+        if sun_removed and not sun_kept:
+            solar.children.remove(system)
+            details.append(f"systeme {sname} retire entierement (son "
+                           f"soleil etait un doublon : sans soleil il est "
+                           f"injoignable)")
     if retired:
         from core.fsutil import atomic_write_text
         atomic_write_text(Path(working_yaml), doc.render())
     return retired, details
+
+
+def find_broken_systems(working_yaml: Path) -> List[str]:
+    """Systemes declares avec des secteurs mais SANS AUCUN playfield de
+    type soleil : le jeu ne peut pas les joindre (vecu 04/10 : le systeme
+    'Symos' importe dont le soleil etait un doublon). Retourne les noms
+    dans l'ordre du document ; les formats sans liste Sectors (Pos des
+    anciens scenarios) ne sont pas jugeables et sont ignores."""
+    doc = parse_yaml_file(Path(working_yaml))
+    solar = _find_solar_systems(doc)
+    if solar is None:
+        return []
+    broken: List[str] = []
+    for system in _systems(solar):
+        sectors_entry = _find_child(system, "Sectors")
+        if sectors_entry is None or not _seq_items(sectors_entry):
+            continue
+        if not any(_sector_has_sun(s) for s in _seq_items(sectors_entry)):
+            broken.append(_strip_quotes(system.value))
+    return broken
 
 
 def _all_playfields(solar_entry: YamlEntry) -> set:
@@ -329,6 +386,23 @@ def _coords_key(value: str) -> tuple:
     return tuple(_COORD_RE.findall(value or ""))
 
 
+def _coords_text(entry: YamlEntry) -> str:
+    """Representation des coordonnees d'un secteur : la valeur inline
+    (flow « Coordinates: [x, y, z] ») OU, format EVO 1.19.6, le BLOC
+    VERTICAL (l'entree « - Coordinates: » a une valeur VIDE et les
+    nombres en enfants). Vecu 04/10 : sectors.value vide pour TOUS les
+    secteurs -> toutes les unites semblaient aux memes coordonnees
+    (regroupement cassé, secteurs dupliques a l'affichage et mauvais
+    contenus a l'insertion fine)."""
+    if entry.value and entry.value.strip():
+        return entry.value
+    parts = []
+    for c in entry.children:
+        if isinstance(c, YamlEntry) and c.is_sequence_item and c.value:
+            parts.append(c.value.strip())
+    return "[" + ",".join(parts) + "]" if parts else ""
+
+
 def _strip_quotes(v: str) -> str:
     return v.strip().strip("'\"")
 
@@ -345,9 +419,17 @@ def _systems(solar: YamlEntry) -> List[YamlEntry]:
 
 
 def analyze_sectors_merge(working_yaml: Path,
-                          source_yaml: Path) -> List[SectorUnit]:
-    """Unites du Sectors.yaml SOURCE absentes du Sectors.yaml de la copie
-    de travail : systemes entiers, secteurs, lignes de playfield."""
+                          source_yaml: Path,
+                          detailed: bool = False) -> List[SectorUnit]:
+    """Unites du Sectors.yaml SOURCE absentes de la copie de travail :
+    systemes entiers, secteurs, lignes de playfield.
+
+    detailed=True : pour un systeme ABSENT, emet aussi les unites ENFANTS
+    (secteur par coordonnees, ligne de playfield) — l'arbre de fusion fine
+    (SectorsFineDialog) les coche unitairement. Les unites « system »
+    servent alors de bascule parent, seules les FEUILLES portent les
+    conflits (sinon les enfants paraitraient en conflit avec leur propre
+    parent)."""
     working_doc = parse_yaml_file(working_yaml)
     source_doc = parse_yaml_file(source_yaml)
     working_solar = _find_solar_systems(working_doc)
@@ -365,19 +447,41 @@ def analyze_sectors_merge(working_yaml: Path,
                 playfields=tuple(sorted(_system_playfields(system))),
                 playfield_types=tuple(sorted(
                     _system_playfield_types(system)))))
+            if detailed:
+                source_sectors_entry = _find_child(system, "Sectors")
+                for sector in (_seq_items(source_sectors_entry)
+                               if source_sectors_entry else []):
+                    units.append(SectorUnit(
+                        kind="sector", system=sname,
+                        coordinates=_coords_text(sector), name=sname,
+                        playfields=tuple(sorted(
+                            _sector_playfield_names(sector))),
+                        playfield_types=tuple(sorted(
+                            _sector_playfield_types(sector)))))
+                    pf_entry = _find_child(sector, "Playfields")
+                    for row in (_seq_items(pf_entry) if pf_entry is not None
+                                else [sector]):
+                        fields = _split_flow(row.value) if row.value else []
+                        if len(fields) > 1 and fields[1]:
+                            units.append(SectorUnit(
+                                kind="playfield", system=sname,
+                                coordinates=_coords_text(sector), name=fields[1],
+                                playfields=(fields[1],),
+                                playfield_types=(fields[2],)
+                                if len(fields) > 2 and fields[2] else ()))
             continue
         # systeme commun : secteurs (par coordonnees) puis lignes playfield
         source_sectors_entry = _find_child(system, "Sectors")
         working_sectors_entry = _find_child(wsystem, "Sectors")
         if source_sectors_entry is None or working_sectors_entry is None:
             continue
-        working_coords = {_coords_key(c.value) for c in
+        working_coords = {_coords_key(_coords_text(c)) for c in
                           _seq_items(working_sectors_entry)}
         for sector in _seq_items(source_sectors_entry):
-            ckey = _coords_key(sector.value)
+            ckey = _coords_key(_coords_text(sector))
             if ckey not in working_coords:
                 units.append(SectorUnit(
-                    kind="sector", system=sname, coordinates=sector.value,
+                    kind="sector", system=sname, coordinates=_coords_text(sector),
                     name=sname,
                     playfields=tuple(sorted(
                         _sector_playfield_names(sector))),
@@ -385,7 +489,7 @@ def analyze_sectors_merge(working_yaml: Path,
                         _sector_playfield_types(sector)))))
                 continue
             wsector = next((c for c in _seq_items(working_sectors_entry)
-                            if _coords_key(c.value) == ckey), None)
+                            if _coords_key(_coords_text(c)) == ckey), None)
             if wsector is None:
                 continue
             source_pf = _find_child(sector, "Playfields")
@@ -403,7 +507,7 @@ def analyze_sectors_merge(working_yaml: Path,
                     row_type = fields[2] if len(fields) > 2 else ""
                     units.append(SectorUnit(
                         kind="playfield", system=sname,
-                        coordinates=sector.value, name=row_name,
+                        coordinates=_coords_text(sector), name=row_name,
                         playfields=(row_name,),
                         playfield_types=(row_type,) if row_type else ()))
 
@@ -414,19 +518,229 @@ def analyze_sectors_merge(working_yaml: Path,
     # les unites en conflit sont MARQUEES (decochees par l'UI) et
     # l'application exclura les secteurs conflictuels.
     global_pf = {_n.casefold() for _n in _all_playfields(working_solar)}
+    conflicted_cf: set = set()
     for unit in units:
+        if detailed and unit.kind in ("system", "sector"):
+            continue        # parents : conflits calcules depuis les LIGNES
         conflicts = sorted(n for n in unit.playfields
                            if n.casefold() in global_pf)
         if conflicts:
             unit.conflict = ", ".join(conflicts)
+            conflicted_cf.update(n.casefold() for n in conflicts)
         else:
             global_pf |= {n.casefold() for n in unit.playfields}
+    if detailed:
+        for unit in units:
+            if unit.kind in ("system", "sector"):
+                c = sorted(n for n in unit.playfields
+                           if n.casefold() in conflicted_cf)
+                if c:
+                    unit.conflict = ", ".join(c)
     return units
 
 
 def _copy_entry(entry: YamlEntry) -> YamlEntry:
     clone = copy.deepcopy(entry)
     return clone
+
+
+@dataclass(frozen=True)
+class FineRequest:
+    """Demande de fusion FINE (SectorsFineDialog) : systeme + secteur
+    (representation brute des coordonnees SOURCE) + lignes demandees.
+    rows=None = secteur ENTIER (toutes ses lignes absentes du working)."""
+    system: str
+    coordinates: str
+    rows: Optional[Tuple[str, ...]] = None
+
+
+def _filtered_sector_copy(sector: YamlEntry, want_rows: Optional[set],
+                          global_pf: set, details: List[str], sname: str
+                          ) -> Tuple[Optional[YamlEntry], List[str], bool]:
+    """Clone d'un secteur source filtre par les lignes demandees
+    (want_rows=None = toutes) et SANS celles deja dans le working
+    (exclues, jamais un doublon). Retourne (clone ou None, noms inseres,
+    le clone porte-t-il un soleil)."""
+    pf_entry = _find_child(sector, "Playfields")
+    if pf_entry is None:
+        # format flow ancien : LE secteur est la ligne de playfield
+        fields = _split_flow(sector.value) if sector.value else []
+        if len(fields) < 2 or not fields[1]:
+            return None, [], False
+        nm = fields[1]
+        if want_rows is not None and nm not in want_rows:
+            return None, [], False
+        if nm.casefold() in global_pf:
+            details.append(f"{nm} exclu de {sname} (deja dans le working)")
+            return None, [], False
+        global_pf.add(nm.casefold())
+        return (_copy_entry(sector), [nm],
+                len(fields) > 2 and _is_sun_type(fields[2]))
+    clone = _copy_entry(sector)
+    clone_pf = _find_child(clone, "Playfields")
+    inserted: List[str] = []
+    sun = False
+    for row in list(_seq_items(clone_pf)):
+        fields = _split_flow(row.value) if row.value else []
+        nm = fields[1] if len(fields) > 1 else ""
+        if not nm:
+            continue
+        if want_rows is not None and nm not in want_rows:
+            clone_pf.children.remove(row)
+            continue
+        if nm.casefold() in global_pf:
+            clone_pf.children.remove(row)
+            details.append(f"{nm} exclu de {sname} (deja dans le working)")
+            continue
+        global_pf.add(nm.casefold())
+        inserted.append(nm)
+        if len(fields) > 2 and _is_sun_type(fields[2]):
+            sun = True
+    if not inserted:
+        return None, [], False
+    return clone, inserted, sun
+
+
+def apply_fine_selection(working_yaml: Path, requests, source_yaml: Path
+                         ) -> Tuple[int, List[str]]:
+    """Application FINE (dialogue SectorsFineDialog) : insere EXACTEMENT
+    les lignes demandees — un systeme absent recoit une copie filtree de
+    la source (coquille + secteurs/lignes choisis), un systeme commun
+    recoit les lignes manquantes de ses secteurs. Unicite globale
+    reverifiee a l'insertion (lignes en conflit exclues, jamais un
+    doublon), regle du soleil (un systeme qui n'aurait aucun soleil n'est
+    pas insere), rendu yamllite (commentaires preserves). Idempotent.
+    Retourne (lignes de playfield inserees, details)."""
+    if not requests:
+        return 0, []
+    working_doc = parse_yaml_file(working_yaml)
+    source_doc = parse_yaml_file(source_yaml)
+    working_solar = _find_solar_systems(working_doc)
+    source_solar = _find_solar_systems(source_doc)
+    if working_solar is None or source_solar is None:
+        return 0, []
+    eol = "\r\n" if working_solar.raw.endswith("\r\n") else "\n"
+    global_pf = {_n.casefold() for _n in _all_playfields(working_solar)}
+
+    # demandes groupees par systeme puis coordonnees de secteur
+    # (None = secteur entier) ; l'ordre d'arrivee est conserve
+    by_system: Dict[str, Dict[tuple, Optional[set]]] = {}
+    for req in requests:
+        sysmap = by_system.setdefault(req.system, {})
+        ckey = _coords_key(req.coordinates)
+        want = set(req.rows) if req.rows is not None else None
+        if ckey not in sysmap:
+            sysmap[ckey] = want
+        elif sysmap[ckey] is not None and want is None:
+            sysmap[ckey] = None
+        elif sysmap[ckey] is not None and want is not None:
+            sysmap[ckey] |= want
+
+    applied_rows = 0
+    details: List[str] = []
+    for sname, coords_map in by_system.items():
+        source_system = next(
+            (c for c in _systems(source_solar)
+             if _strip_quotes(c.value).casefold() == sname.casefold()), None)
+        if source_system is None:
+            continue
+        source_sectors_entry = _find_child(source_system, "Sectors")
+        if source_sectors_entry is None:
+            continue
+        working_system = next(
+            (c for c in _systems(working_solar)
+             if _strip_quotes(c.value).casefold() == sname.casefold()), None)
+
+        if working_system is None:
+            # ---- systeme absent : coquille clonee + secteurs choisis
+            pf_before = set(global_pf)      # restore si le systeme est refuse
+            clone = _copy_entry(source_system)
+            clone_sectors = _find_child(clone, "Sectors")
+            if clone_sectors is None:
+                continue
+            kept: List[YamlEntry] = []
+            rows_kept = 0
+            sys_had_sun = any(_sector_has_sun(s)
+                              for s in _seq_items(source_sectors_entry))
+            kept_sun = False
+            for sector in _seq_items(source_sectors_entry):
+                ckey = _coords_key(_coords_text(sector))
+                if ckey not in coords_map:
+                    continue
+                new_sector, names_in, sun_here = _filtered_sector_copy(
+                    sector, coords_map[ckey], global_pf, details, sname)
+                if new_sector is None:
+                    continue
+                kept.append(new_sector)
+                kept_sun = kept_sun or sun_here
+                rows_kept += len(names_in)
+            if not kept:
+                continue
+            if sys_had_sun and not kept_sun:
+                global_pf.clear()
+                global_pf.update(pf_before)  # refuse : rien n'a ete reserve
+                details.append(f"systeme {sname} NON insere : aucun "
+                               f"playfield de type soleil parmi les lignes "
+                               f"disponibles — un systeme sans soleil est "
+                               f"injoignable")
+                continue
+            applied_rows += rows_kept
+            # commentaires/blancs du bloc source + secteurs retenus
+            clone_sectors.children = [
+                c for c in clone_sectors.children
+                if not (isinstance(c, YamlEntry) and c.is_sequence_item)
+            ] + kept
+            _ensure_blank_before(working_solar.children, eol)
+            working_solar.children.append(clone)
+            continue
+
+        # ---- systeme commun : secteurs et lignes manquants
+        working_sectors_entry = _find_child(working_system, "Sectors")
+        if working_sectors_entry is None:
+            continue
+        for sector in _seq_items(source_sectors_entry):
+            ckey = _coords_key(_coords_text(sector))
+            if ckey not in coords_map:
+                continue
+            want_rows = coords_map[ckey]
+            working_sector = next(
+                (c for c in _seq_items(working_sectors_entry)
+                 if _coords_key(_coords_text(c)) == ckey), None)
+            if working_sector is None:
+                new_sector, names_in, _sun = _filtered_sector_copy(
+                    sector, want_rows, global_pf, details, sname)
+                if new_sector is None:
+                    continue
+                _ensure_blank_before(working_sectors_entry.children, eol)
+                working_sectors_entry.children.append(new_sector)
+                applied_rows += len(names_in)
+                continue
+            src_pf = _find_child(sector, "Playfields")
+            work_pf = _find_child(working_sector, "Playfields")
+            if src_pf is None or work_pf is None:
+                continue
+            existing = set()
+            for c in _seq_items(work_pf):
+                f = _split_flow(c.value) if c.value else []
+                if len(f) > 1:
+                    existing.add(f[1].casefold())
+            for row in _seq_items(src_pf):
+                fields = _split_flow(row.value) if row.value else []
+                if len(fields) < 2 or not fields[1]:
+                    continue
+                nm = fields[1]
+                if want_rows is not None and nm not in want_rows:
+                    continue
+                if nm.casefold() in global_pf or nm.casefold() in existing:
+                    continue
+                _ensure_blank_before(work_pf.children, eol)
+                work_pf.children.append(_copy_entry(row))
+                global_pf.add(nm.casefold())
+                applied_rows += 1
+    if applied_rows:
+        from core.fsutil import atomic_write_text
+        atomic_write_text(Path(working_yaml), working_doc.render())
+    return applied_rows, details
 
 
 def _ensure_blank_before(children: List[YamlNode], eol: str) -> None:
@@ -486,6 +800,13 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
                 if not inserted and source_sectors is not None \
                         and _seq_items(source_sectors):
                     continue    # tous ses secteurs etaient en conflit
+                if source_sectors is not None \
+                        and any(_sector_has_sun(s)
+                                for s in _seq_items(source_sectors)) \
+                        and not any(_sector_has_sun(s) for s in kept
+                                    if isinstance(s, YamlEntry)
+                                    and s.is_sequence_item):
+                    continue    # son seul soleil est en conflit : casse
             else:
                 inserted = set()
             _ensure_blank_before(working_solar.children, eol)
@@ -501,9 +822,9 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
             continue
         ckey = _coords_key(unit.coordinates)
         source_sector = next((c for c in _seq_items(source_sectors_entry)
-                              if _coords_key(c.value) == ckey), None)
+                              if _coords_key(_coords_text(c)) == ckey), None)
         working_sector = next((c for c in _seq_items(working_sectors_entry)
-                               if _coords_key(c.value) == ckey), None)
+                               if _coords_key(_coords_text(c)) == ckey), None)
         if unit.kind == "sector":
             if source_sector is None or working_sector is not None:
                 continue

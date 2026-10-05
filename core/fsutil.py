@@ -107,6 +107,25 @@ def atomic_write_text(path: Path, text: str, encoding: str = 'utf-8') -> None:
     atomic_write_bytes(path, text.encode(encoding))
 
 
+def central_backup(path: Path, kind: str = "sectors") -> Path:
+    """Copie de secours vers ~/.empyrion_editor/backups/<kind>/ — JAMAIS
+    un *.bak a cote du fichier : le jeu charge TOUS les .yaml du dossier
+    Sectors/ et un Sectors.yaml.bak y est FATAL (vecu 02/10/2026, le jeu
+    le parse comme une liste de secteurs -> galaxie vide)."""
+    import time
+    src = Path(path)
+    dst_dir = Path.home() / ".empyrion_editor" / "backups" / kind
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    dst = dst_dir / f"{src.stem}-{stamp}{src.suffix}.bak"
+    n = 0                                    # deux sauvegardes la meme seconde
+    while dst.exists():
+        n += 1
+        dst = dst_dir / f"{src.stem}-{stamp}-{n}{src.suffix}.bak"
+    shutil.copy2(src, dst)
+    return dst
+
+
 # Caracteres parasites colles APRES le crochet fermant d'une liste flow
 # en fin de valeur ('[Pirates, None]s' -> vecu 01/10/2026 : corruption de
 # presets SolarSystemConfig qui faisait crasher le parseur YAML du jeu

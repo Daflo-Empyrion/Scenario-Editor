@@ -8330,5 +8330,97 @@
  "namemerge.merge_action": {
   "fr": "Fusion par noms (créatures/classes)...",
   "en": "Merge by names (creatures/classes)..."
+ },
+ "sectorsflow.title": {
+  "fr": "Fusion du Sectors.yaml",
+  "en": "Sectors.yaml merge"
+ },
+ "sectorsflow.none": {
+  "fr": "Rien à fusionner : ce Sectors.yaml source n'apporte aucune unité nouvelle (et aucun doublon à corriger).",
+  "en": "Nothing to merge: this source Sectors.yaml brings no new unit (and no duplicate to fix)."
+ },
+ "sectorsflow.broken_only": {
+  "fr": "Systèmes sans soleil (injoignables) dans la copie de travail : {systems} — à réparer avant de jouer.",
+  "en": "Sunless (unreachable) systems in the working copy: {systems} — repair before playing."
+ },
+ "sectorsflow.undo": {
+  "fr": "Fusion Sectors.yaml : {n} ligne(s)",
+  "en": "Sectors.yaml merge: {n} line(s)"
+ },
+ "sectorsflow.done": {
+  "fr": "{n} ligne(s) de playfield insérée(s) dans le Sectors.yaml.",
+  "en": "{n} playfield line(s) inserted into Sectors.yaml."
+ },
+ "sectorsflow.done_pf": {
+  "fr": "{n} dossier(s) Playfields/<Type> copié(s).",
+  "en": "{n} Playfields/<Type> folder(s) copied."
+ },
+ "sectorsflow.done_dups": {
+  "fr": "{n} doublon(s) de playfields corrigé(s).",
+  "en": "{n} duplicate playfield(s) fixed."
+ },
+ "sectorsflow.post_warn": {
+  "fr": "ATTENTION après application : {dups} doublon(s) de playfields restant(s), système(s) sans soleil : {broken} — à corriger avant de jouer.",
+  "en": "WARNING after apply: {dups} remaining duplicate playfield(s), sunless system(s): {broken} — fix before playing."
+ },
+ "fine.hint": {
+  "fr": "Coche ce que tu veux fusionner — un système entier, un secteur ou une seule ligne de playfield. Ce qui existe déjà dans la copie de travail est grisé et exclu. Le parent suit ses enfants (coche/décoche en cascade).",
+  "en": "Check what you want to merge — a whole system, a sector or a single playfield line. Entries already in the working copy are greyed out and excluded. Parents follow children (cascade check/uncheck)."
+ },
+ "fine.col_type": {
+  "fr": "Type",
+  "en": "Kind"
+ },
+ "fine.col_name": {
+  "fr": "Nom / unité",
+  "en": "Name / unit"
+ },
+ "fine.col_change": {
+  "fr": "Ce qui change",
+  "en": "What changes"
+ },
+ "fine.kind_system": {
+  "fr": "Système",
+  "en": "System"
+ },
+ "fine.kind_system_group": {
+  "fr": "Système (existant)",
+  "en": "System (existing)"
+ },
+ "fine.kind_sector": {
+  "fr": "Secteur",
+  "en": "Sector"
+ },
+ "fine.kind_row": {
+  "fr": "Playfield",
+  "en": "Playfield"
+ },
+ "fine.system_detail": {
+  "fr": "{sec} secteur(s) · {pf} ligne(s) de playfield",
+  "en": "{sec} sector(s) · {pf} playfield line(s)"
+ },
+ "fine.sector_kids": {
+  "fr": "{n} ligne(s) de playfield à ajouter",
+  "en": "{n} playfield line(s) to add"
+ },
+ "fine.row_detail": {
+  "fr": "type : {type}",
+  "en": "type: {type}"
+ },
+ "fine.row_conflict": {
+  "fr": "déjà dans le working — exclu",
+  "en": "already in working copy — excluded"
+ },
+ "prodsync.state_delete": {
+  "fr": "À supprimer",
+  "en": "To delete"
+ },
+ "prodsync.delete_box": {
+  "fr": "Supprimer de la production les fichiers absents de la copie de travail (miroir, sauvegardés)",
+  "en": "Delete from production the files absent from the working copy (mirror, backed up)"
+ },
+ "prodsync.done_extra": {
+  "fr": "{d} fichier(s) supprimé(s), {b} cache(s) de jeu invalidé(s) (*.yaml.bin recompilés par le jeu).",
+  "en": "{d} file(s) deleted, {b} game cache(s) invalidated (*.yaml.bin recompiled by the game)."
  }
 }

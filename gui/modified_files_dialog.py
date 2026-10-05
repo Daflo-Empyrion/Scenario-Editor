@@ -44,7 +44,9 @@ def list_changed_files(working_root: Path, source_root: Path):
     """Retourne [(chemin_copie, 'added'|'modified')] tries par chemin. Les
     fichiers presents seulement dans A sont ignores (suppressions
     volontaires rares -- et les signaler doublerait la liste). Les *.bak
-    (sauvegardes internes des operations de l'editeur) ne sont JAMAIS
+    (sauvegardes internes des operations de l'editeur) et les *.yaml.bin
+    (caches compiles du JEU, derives des yaml — vecu 05/10 : un cache
+    synchronise peut resservir un playfield perime) ne sont JAMAIS
     proposes a la synchronisation."""
     changes = []
     for path in sorted(Path(working_root).rglob('*')):
@@ -52,6 +54,8 @@ def list_changed_files(working_root: Path, source_root: Path):
             continue
         if path.suffix.lower() == '.bak':
             continue          # sauvegarde interne : jamais a synchroniser
+        if path.name.lower().endswith('.yaml.bin'):
+            continue          # cache compile du jeu : derive du yaml
         rel = path.relative_to(working_root)
         counterpart = Path(source_root) / rel
         if not counterpart.exists():

@@ -46,6 +46,7 @@ class ProductionSyncDialog(QDialog):
         self.main_window = main_window
         self._from_close = from_close
         self._files = []
+        self._extras = []
         self._backup_root = None
         track(self, "production_sync", (760, 520))
         self._build_ui()
@@ -82,6 +83,14 @@ class ProductionSyncDialog(QDialog):
         self.chk_backup.setChecked(True)
         lay.addWidget(self.chk_backup)
 
+        # vecu 05/10 : la production gardait des fichiers de l'ANCIEN etat
+        # du scenario (et le jeu servait des caches .bin perimes) — miroir
+        # demande par l'utilisateur : supprimer ce qui ne vient plus du
+        # working, sauvegarde a l'appui.
+        self.chk_delete = QCheckBox(t("prodsync.delete_box"))
+        self.chk_delete.setChecked(True)
+        lay.addWidget(self.chk_delete)
+
         row_btn = QHBoxLayout()
         self.btn_copy = QPushButton(t("prodsync.copy_btn"))
         self.btn_copy.setObjectName("primaryButton")
@@ -112,12 +121,14 @@ class ProductionSyncDialog(QDialog):
     # ------------------------------------------------------------- donnees
 
     def _scan(self):
-        """Liste les fichiers DIFFERENTS DU DOSSIER DE PRODUCTION (hors
-        thread GUI). Vecu 24/09 : une difference vs la source A listait a
+        """Liste les fichiers DIFFERENTS DU DOSSIER DE PRODUCTION + ceux
+        presents en production SEULEMENT (miroir, a supprimer) — hors
+        thread GUI. Vecu 24/09 : une difference vs la source A listait a
         l'infini les memes fichiers — apres une copie reussie, production
         == copie de travail, donc plus rien a proposer."""
         from gui.busy import run_long
         self._files = []
+        self._extras = []
         self.list_files.clear()
         self.hint_label.setStyleSheet("color: gray;")
         if self._working_root is None:
@@ -131,15 +142,23 @@ class ProductionSyncDialog(QDialog):
             self._refresh_buttons()
             return
         from gui.modified_files_dialog import list_changed_files
-        self._files = run_long(
-            self, lambda: list_changed_files(self._working_root,
-                                             Path(target)))
+        from core.production_sync import list_extra_files
+        self._files, self._extras = run_long(
+            self, lambda: (list_changed_files(self._working_root,
+                                              Path(target)),
+                           list_extra_files(self._working_root,
+                                            Path(target))))
         for src, state in self._files:
             key = ("prodsync.state_added" if state == "added"
                    else "prodsync.state_modified")
             rel = Path(src).relative_to(self._working_root)
             self.list_files.addItem(QListWidgetItem(f"[{t(key)}] {rel}"))
-        self.files_label.setText(t("prodsync.files", n=len(self._files)))
+        for path in self._extras:
+            rel = Path(path).relative_to(Path(target))
+            self.list_files.addItem(
+                QListWidgetItem(f"[{t('prodsync.state_delete')}] {rel}"))
+        self.files_label.setText(
+            t("prodsync.files", n=len(self._files) + len(self._extras)))
         self._refresh_buttons()
 
     def _autodetect_target(self):
@@ -170,12 +189,13 @@ class ProductionSyncDialog(QDialog):
             self._scan()
 
     def has_files(self) -> bool:
-        return bool(self._files)
+        return bool(self._files or self._extras)
 
     def _refresh_buttons(self):
         target = self.target_edit.text().strip()
         self.btn_copy.setEnabled(
-            bool(self._files) and target
+            self.has_files()
+            and target
             and Path(target).is_dir()
             and Path(target).resolve() != (
                 self._working_root.resolve()
@@ -184,9 +204,11 @@ class ProductionSyncDialog(QDialog):
     # ------------------------------------------------------------- action
 
     def _do_copy(self):
-        """Copie (remplace) vers la production, hors du thread GUI, avec
-        sauvegarde prealable des fichiers ecrases. A la reussite : message
-        de confirmation puis fermeture du dialogue (demande 24/09/2026)."""
+        """Copie (remplace) vers la production + suppression (miroir) des
+        fichiers presents en production seulement, hors du thread GUI, avec
+        sauvegarde prealable des fichiers ecrases ET supprimes ; les caches
+        .bin perimes sont invalides par le core. A la reussite : message de
+        confirmation puis fermeture du dialogue (demande 24/09/2026)."""
         from core.production_sync import sync_to_production
         from core.settings import set_production_scenario_path
         from gui.busy import run_long
@@ -199,10 +221,11 @@ class ProductionSyncDialog(QDialog):
             backup = (Path.home() / ".empyrion_editor" / "production_sync"
                       / time.strftime("%Y%m%d_%H%M%S"))
         try:
-            copied, saved = run_long(
-                self, lambda: sync_to_production(self._files,
-                                                 self._working_root,
-                                                 prod, backup))
+            copied, deleted, bins, saved = run_long(
+                self, lambda: sync_to_production(
+                    self._files, self._working_root, prod, backup,
+                    delete_files=self._extras if self.chk_delete.isChecked()
+                    else ()))
         except Exception as e:  # noqa: BLE001 - message et dialogue ouvert
             # vecu 26/09 : l'erreur ne restait que dans une boite de
             # dialogue, la fenetre semblait ne "rien faire" -- afficher
@@ -218,6 +241,8 @@ class ProductionSyncDialog(QDialog):
         self.files_label.setText(t("prodsync.done", n=copied))
         msg = t("prodsync.done_msg", n=copied,
                 target=prod)
+        if deleted or bins:
+            msg += "\n" + t("prodsync.done_extra", d=deleted, b=bins)
         if saved is not None:
             self.hint_label.setText(t("prodsync.saved_to", path=saved))
             msg += "\n" + t("prodsync.saved_to", path=saved)

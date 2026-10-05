@@ -398,3 +398,63 @@ def test_yaml_picks_grouping_by_plan_after_qvariant_roundtrip(qapp, tmp_path):
     plan, units = next(iter(by_plan.items()))
     assert plan.dest.name == "pf.yaml"
     assert {u.name for u in units} == {"333", "NewSection"}
+
+
+# ============================================================================
+# Racines a SOUS-cles (vecu 05/10 : playfield_static — POIs: -> Random:/
+# Fixed:/FixedPlayerStart: — le moteur ne descendait pas : 0 unite proposee
+# pour les POIs d'histoire de Random EXP)
+# ============================================================================
+
+NESTED_W = """POIs:
+    Random:
+        - GroupName: NullPOI
+          CountMinMax: [ 1, 1 ]
+    FixedPlayerStart:
+        - Type: SV_Player
+          Name: Rescue Pod
+"""
+
+NESTED_S = """POIs:
+    Random:
+        - GroupName: NullPOI
+          CountMinMax: [ 1, 1 ]
+        - GroupName: MasperonAbyssalMission
+          Faction: Abyssal
+    Fixed:
+        - Type: SV_Player
+          Name: OtherPod
+"""
+
+
+def test_nested_root_proposes_missing_items(tmp_path):
+    working = tmp_path / "playfield_static.yaml"
+    source = tmp_path / "src.yaml"
+    working.write_text(NESTED_W, encoding="utf-8")
+    source.write_text(NESTED_S, encoding="utf-8")
+    units = analyze_yaml_merge(working, source)
+    roots = {u.root for u in units}
+    assert "POIs/Random" in roots
+    # la sous-cle Fixed absente du working n'est PAS proposee (convention
+    # du scenario hote : ex Fixed: chez REX = son propre pod de depart)
+    assert not any(u.root and "Fixed" in u.root for u in units)
+    names = {u.name for u in units}
+    assert "MasperonAbyssalMission" in names
+
+
+def test_nested_root_apply_and_idempotence(tmp_path):
+    working = tmp_path / "playfield_static.yaml"
+    source = tmp_path / "src.yaml"
+    working.write_text(NESTED_W, encoding="utf-8")
+    source.write_text(NESTED_S, encoding="utf-8")
+    units = analyze_yaml_merge(working, source)
+    n = apply_yaml_units(working, source, units)
+    assert n == 1
+    txt = working.read_text(encoding="utf-8")
+    assert "MasperonAbyssalMission" in txt
+    assert "NullPOI" in txt
+    assert "OtherPod" not in txt          # Fixed: de REX non cree
+    # idempotent : re-analyse = plus rien, re-apply = 0
+    units2 = analyze_yaml_merge(working, source)
+    assert units2 == []
+    assert apply_yaml_units(working, source, units2) == 0

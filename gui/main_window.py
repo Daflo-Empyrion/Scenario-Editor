@@ -2697,6 +2697,14 @@ class MainWindow(QMainWindow):
         PDA.yaml existant etait ecrase en aveugle) : unites structurelles
         cochees (chapitres PDA par Id, cles racines...) ; l'ecrasement
         complet reste possible via le bouton explicite 'Remplacer'."""
+        from gui.sectors_merge_flow import is_sectors_yaml, open_sectors_merge
+        if is_sectors_yaml(dest_path):
+            # un Sectors.yaml ne passe JAMAIS par la fusion generique :
+            # elle ignore l'unicite globale des playfields (vecu 04/10 :
+            # « Duplicate playfield name 'Zeyhines' », 5 doublons apres
+            # fusion de Default Akua-Omicron dans Vanilla EVO)
+            open_sectors_merge(self, self, dest_path, source_path)
+            return
         from gui.yaml_merge_review_dialog import YamlMergeReviewDialog
         from core.yaml_merge import apply_yaml_units
         from gui.busy import run_long

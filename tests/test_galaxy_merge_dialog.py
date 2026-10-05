@@ -19,6 +19,7 @@ demande du 01/10/2026) : regle projet = test de CONSTRUCTION + flux
 analyze -> coche -> applique sur VRAIS fichiers temporaires (pas de
 mock du moteur)."""
 import shutil
+from pathlib import Path
 
 from core.galaxy_merge import build_plan
 
@@ -185,6 +186,9 @@ def test_dialog_sectors_merge_flow(qapp, tmp_path, monkeypatch):
     assert dlg.btn_sectors.isEnabled()
 
     opened = []
+    backups = []
+    monkeypatch.setattr("core.fsutil.central_backup",
+                        lambda p, kind="sectors": backups.append(Path(p)))
 
     class FakeSectorsDlg(SectorsUnitsDialog):
         def __init__(self, units, deps=(), missing=(), duplicates=None,
@@ -204,7 +208,11 @@ def test_dialog_sectors_merge_flow(qapp, tmp_path, monkeypatch):
     sectors = w / "Sectors/Sectors.yaml"
     txt = sectors.read_text(encoding="utf-8")
     assert "New System" in txt and "Other System" in txt
-    assert sectors.with_suffix(".yaml.bak").exists()
+    # backup CENTRAL : jamais de .bak a cote du fichier, le jeu charge
+    # tous les .yaml du dossier Sectors/ (vecu 02/10) ; les tests n'ecrivent
+    # JAMAIS dans le vrai dossier de backups
+    assert not list(sectors.parent.glob("*.bak"))
+    assert backups == [sectors]
     # idempotence : re-analyse = plus rien a fusionner
     infos = []
     monkeypatch.setattr("gui.msgboxes.info",
@@ -406,3 +414,16 @@ def test_list_changed_files_excludes_bak(tmp_path):
     (s / "Sectors/Sectors.yaml").write_text("a\n", encoding="utf-8")
     changes = list_changed_files(w, s)
     assert changes == [], "working == prod : aucun fichier a proposer"
+
+
+def test_sectors_units_dialog_tree_in_layout(qapp):
+    """Regression 04/10 : l'arbre de SectorsUnitsDialog n'etait jamais
+    ajoute au layout — la fenetre de fusion Sectors s'affichait VIDE
+    (unites presentes mais invisibles, vecu sur Vanilla EVO)."""
+    from core.sectors_merge import SectorUnit
+    from gui.galaxy_merge_dialog import SectorsUnitsDialog
+    units = [SectorUnit(kind="system", system="Beta", coordinates="",
+                        name="Beta")]
+    dlg = SectorsUnitsDialog(units)
+    assert dlg.tree.parent() is not None     # ajoute au layout = affiche
+    assert dlg.tree.topLevelItemCount() == 1

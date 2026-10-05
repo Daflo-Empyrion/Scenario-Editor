@@ -193,6 +193,22 @@ def analyze_yaml_merge(working_yaml: Path,
                                   or _detail(s_entry)))
             continue
         _scan_list(key, w_entry, s_entry)
+        # NOUVEAU (05/10) : racines a SOUS-cles (playfield_static :
+        # 'POIs:' -> Random:/Fixed:/FixedPlayerStart:) — descendre d'un
+        # niveau, unites en root='Cle/SousCle'. Les sous-cles absentes de
+        # la working ne sont pas proposees (convention du scenario hote :
+        # ex Fixed: chez REX = son propre pod de depart).
+        if key is None:
+            continue
+        for sub in _child_entries(s_entry):
+            if not _seq_items(sub) or sub.key is None:
+                continue
+            w_sub = next((c for c in _child_entries(w_entry)
+                          if not c.is_sequence_item and c.key == sub.key),
+                         None)
+            if w_sub is None:
+                continue
+            _scan_list(f"{key}/{sub.key}", w_sub, sub)
     # document racine = liste de blocs (pas de mappings top-level) : meme
     # comparaison au niveau du document
     source_items = [e for e in source_top if e.is_sequence_item]
@@ -264,12 +280,25 @@ def apply_yaml_units(working_yaml: Path, source_yaml: Path,
             applied += 1
             continue
         if unit.root:
+            root_key, _, sub_key = unit.root.partition('/')
             w_list = next((e for e in working_top
-                           if not e.is_sequence_item and e.key == unit.root),
+                           if not e.is_sequence_item and e.key == root_key),
                           None)
             s_list = next((e for e in source_top
-                           if not e.is_sequence_item and e.key == unit.root),
+                           if not e.is_sequence_item and e.key == root_key),
                           None)
+            if sub_key:
+                # racine imbriquee (ex : 'POIs/Random' dans les
+                # playfield_static — vecu 05/10) : descendre vers la
+                # sous-cle des deux cotes
+                w_list = next((c for c in _child_entries(w_list)
+                               if not c.is_sequence_item
+                               and c.key == sub_key),
+                              None) if w_list is not None else None
+                s_list = next((c for c in _child_entries(s_list)
+                               if not c.is_sequence_item
+                               and c.key == sub_key),
+                              None) if s_list is not None else None
             w_items = _seq_items(w_list) if w_list is not None else []
             s_items = _seq_items(s_list) if s_list is not None else []
             attach = w_list.children if w_list is not None else None

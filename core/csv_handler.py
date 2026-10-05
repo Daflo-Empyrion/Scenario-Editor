@@ -60,6 +60,16 @@ def _detect_dialect(raw_text: str) -> csv.Dialect:
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
     except csv.Error:
+        dialect = None
+    # Le Sniffer choisit parfois quotechar=' sur les CSV Empyrion (a cause
+    # des '' d'echappement des textes) — et tout le pipeline parse+render
+    # derive alors dans ce dialecte : guillemets litteraux dans les
+    # cellules, fichier re-ecrit illisible pour le jeu, cles brutes
+    # partout dans le PDA (vecu 04-05/10, Vanilla EVO + Serveur-MP). Les
+    # fichiers officiels (MP, Random EXP, base) sont tous en quoting
+    # standard " : on FORCE donc quotechar/doublequote, seul le
+    # delimiteur reste sniffe.
+    if dialect is None:
         class _Default(csv.Dialect):
             delimiter = ','
             quotechar = '"'
@@ -68,6 +78,7 @@ def _detect_dialect(raw_text: str) -> csv.Dialect:
             lineterminator = '\r\n'
             quoting = csv.QUOTE_MINIMAL
         return _Default
+    dialect.quotechar = '"'
     dialect.doublequote = True
     return dialect
 
@@ -81,9 +92,28 @@ def _detect_has_header(raw_text: str, dialect: csv.Dialect) -> bool:
     return True
 
 
-def parse_csv_text(raw_text: str) -> CsvDocument:
+class _PdaDialect(csv.Dialect):
+    """Dialecte VERIFIE des PDA.csv officiels (MP, Random EXP) : quoting
+    standard. A FORCER sur ce fichier : le Sniffer y choisit quotechar=' '
+    (a cause des '' d'echappement) et tout le pipeline parse+render derape
+    alors (guillemets litteraux dans les cellules, fichier illisible pour
+    le jeu, cles brutes partout dans le PDA — vecu 04-05/10)."""
+    delimiter = ','
+    quotechar = '"'
+    doublequote = True
+    skipinitialspace = False
+    lineterminator = '\r\n'
+    quoting = csv.QUOTE_MINIMAL
+
+
+def parse_pda_csv_text(raw_text: str) -> CsvDocument:
+    """Parse un PDA.csv avec le dialecte standard force (voir _PdaDialect)."""
+    return parse_csv_text(raw_text, dialect=_PdaDialect())
+
+
+def parse_csv_text(raw_text: str, dialect: Optional[csv.Dialect] = None) -> CsvDocument:
     lineterminator = _detect_lineterminator(raw_text)
-    dialect = _detect_dialect(raw_text)
+    dialect = dialect if dialect is not None else _detect_dialect(raw_text)
     has_header = _detect_has_header(raw_text, dialect)
 
     reader = csv.reader(io.StringIO(raw_text), dialect)
@@ -108,6 +138,28 @@ def _game_safe_cell(cell: str) -> str:
     sur le PDA.csv de RE2 ATL). Convention du jeu et du vanille : le
     litteral \n dans la cellule, jamais de vrai retour."""
     return cell.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n")
+
+
+def unwrap_game_style_cell(cell: str) -> str:
+    """Defait le dialecte « game-style » d'un cellule CSV Empyrion : texte
+    enveloppe dans '...' avec apostrophes doublees ('') — tel que livre par
+    certains fichiers de scenario (Random EXP, vecu 05/10). Ingere
+    litteralement par le parseur standard, ce dialecte re-rendu tel quel
+    rendait le fichier illisible pour le jeu (cles brutes partout dans le
+    PDA). Signature non ambigue : commence ET finit par ', contient ''."""
+    if len(cell) >= 3 and cell.startswith("'") and cell.endswith("'")             and "''" in cell:
+        return cell[1:-1].replace("''", "'")
+    return cell
+
+
+def sanitize_pda_game_dialect(doc: CsvDocument) -> CsvDocument:
+    """PDA.csv uniquement (le jeu attend le quoting standard — les fichiers
+    officiels MP/Random EXP le prouvent) : defeait le dialecte game-style
+    sur toutes les cellules. Retourne le doc pour chainer."""
+    for row in doc.rows:
+        for c, cell in enumerate(row):
+            row[c] = unwrap_game_style_cell(cell)
+    return doc
 
 
 def render_csv(doc: CsvDocument) -> str:

@@ -22,7 +22,7 @@ import types
 import pytest
 
 from core.production_sync import (find_default_production_root,
-                                  sync_to_production)
+                                  list_extra_files, sync_to_production)
 
 
 def _tree(root, files):
@@ -44,7 +44,8 @@ def trio(tmp_path):
                     "Extras/Localization.csv": "loc",
                     "Extras/Nouveau.csv": "ajoute"})
     _tree(vanilla, {"Scenarios/re2 atl/Content/Configuration/BlocksConfig.ecf":
-                    "PRODUCTION"})
+                    "PRODUCTION",
+                    "Scenarios/re2 atl/Content/Old/stale.ecf": "PERIME"})
     return source, working, vanilla
 
 
@@ -72,11 +73,13 @@ def test_sync_replaces_added_and_backs_up(trio, tmp_path):
                       "Nouveau.csv": "added"}
 
     backup = tmp_path / "sauvegardes"
-    copied, saved = sync_to_production(files, working,
-                                       vanilla / "Scenarios" / "re2 atl",
-                                       backup_dir=backup)
+    copied, deleted, bins, saved = sync_to_production(files, working,
+                                                     vanilla / "Scenarios"
+                                                     / "re2 atl",
+                                                     backup_dir=backup)
     prod = vanilla / "Scenarios" / "re2 atl"
     assert copied == 2
+    assert (deleted, bins) == (0, 0)
     assert saved == backup
     assert (prod / "Content/Configuration/BlocksConfig.ecf").read_text(
         encoding="utf-8") == "MODIFIE"
@@ -86,6 +89,68 @@ def test_sync_replaces_added_and_backs_up(trio, tmp_path):
     assert (backup / "Content/Configuration/BlocksConfig.ecf").read_text(
         encoding="utf-8") == "PRODUCTION"
     assert not (backup / "Extras/Nouveau.csv").exists()
+
+
+def test_sync_excludes_bin_and_invalidates_playfield_cache(tmp_path):
+    """Vecu 05/10 : copy2 conserve le vieux mtime du yaml — le jeu jugeait
+    son .bin « plus frais » et servait un playfield PERIME (missions
+    cassees jusqu'a la suppression manuelle du dossier de production). Les
+    .yaml.bin ne sont plus jamais proposes/copies, le cache d'un yaml
+    Playfields copie est supprime, les caches orphelins (yaml absent)
+    aussi ; le cache d'un yaml INTACT est conserve."""
+    working = tmp_path / "w"
+    _tree(working, {"Playfields/Akua/playfield_static.yaml": "NOUVEAU",
+                    "Playfields/Akua/playfield_static.yaml.bin": "CACHE-W",
+                    "Configuration/X.ecf": "A"})
+    prod = tmp_path / "prod"
+    _tree(prod, {"Playfields/Akua/playfield_static.yaml": "ANCIEN",
+                 "Playfields/Akua/playfield_static.yaml.bin": "CACHE-PERIME",
+                 "Playfields/Old/playfield_static.yaml.bin": "ORPHELIN",
+                 "Playfields/Keep/playfield_static.yaml": "COMMUN",
+                 "Playfields/Keep/playfield_static.yaml.bin": "CACHE-VALIDE"})
+    from gui.modified_files_dialog import list_changed_files
+    files = list_changed_files(working, prod)
+    # le .yaml.bin du working n'est JAMAIS propose (cache derive du jeu)
+    assert sorted(p.name for p, _s in files) == ["X.ecf",
+                                                 "playfield_static.yaml"]
+    copied, deleted, bins, _saved = sync_to_production(files, working, prod)
+    assert (copied, deleted, bins) == (2, 0, 2)
+    assert (prod / "Playfields/Akua/playfield_static.yaml").read_text(
+        encoding="utf-8") == "NOUVEAU"
+    assert not (prod / "Playfields/Akua/playfield_static.yaml.bin").exists()
+    assert not (prod / "Playfields/Old/playfield_static.yaml.bin").exists()
+    # yaml intact -> cache garde (pas de recompilation inutile au chargement)
+    assert (prod / "Playfields/Keep/playfield_static.yaml.bin").read_text(
+        encoding="utf-8") == "CACHE-VALIDE"
+
+
+def test_sync_deletes_extra_files_with_backup(tmp_path):
+    """Miroir demande 05/10 : les fichiers presents en production SEULEMENT
+    sont supprimes (avec sauvegarde prealable). Les *.yaml.bin (caches du
+    jeu, regeneres) et *.bak (sauvegardes internes) en sont exclus."""
+    working = tmp_path / "w"
+    _tree(working, {"Playfields/Akua/playfield_static.yaml": "YAML"})
+    prod = tmp_path / "prod"
+    _tree(prod, {"Playfields/Akua/playfield_static.yaml": "ANCIEN",
+                 "Playfields/Akua/playfield_static.yaml.bin": "CACHE",
+                 "Content/Old/stale.ecf": "PERIME",
+                 "Content/Old/old.bak": "SAUVEGARDE",
+                 "Playfields/Ghost/playfield_static.yaml.bin": "SANS-YAML"})
+    extras = list_extra_files(working, prod)
+    assert [p.name for p in extras] == ["stale.ecf"]
+    backup = tmp_path / "sauv"
+    copied, deleted, bins, saved = sync_to_production(
+        [(working / "Playfields/Akua/playfield_static.yaml", "modified")],
+        working, prod, backup_dir=backup, delete_files=extras)
+    assert (copied, deleted) == (1, 1)
+    assert bins == 2          # cache Akua invalide + cache Ghost orphelin
+    assert saved == backup
+    assert not (prod / "Content/Old/stale.ecf").exists()
+    assert (backup / "Content/Old/stale.ecf").read_text(
+        encoding="utf-8") == "PERIME"
+    # un .bak n'est JAMAIS supprime ; le cache orphelin non plus sans la
+    # liste (hors Playfields ou .bak = intouchables hors invalidation)
+    assert (prod / "Content/Old/old.bak").exists()
 
 
 def test_settings_roundtrip(tmp_path, monkeypatch):
@@ -130,8 +195,9 @@ def test_dialog_construction_lists_files_and_copy(qapp, trio, tmp_path,
                         lambda parent, title, text: seen.append((title,
                                                                  text)))
     dlg = ProductionSyncDialog(main)
-    # vs production : BlocksConfig modifie + Localization et Nouveau absents
-    assert dlg.has_files() and dlg.list_files.count() == 3
+    # vs production : BlocksConfig modifie + Localization et Nouveau
+    # absents + stale.ecf present en production SEULEMENT (miroir)
+    assert dlg.has_files() and dlg.list_files.count() == 4
     assert dlg.target_edit.text().lower().endswith("re2 atl")
     dlg.chk_backup.setChecked(False)     # n'ecrit pas dans le home
     dlg._do_copy()
@@ -141,8 +207,11 @@ def test_dialog_construction_lists_files_and_copy(qapp, trio, tmp_path,
         encoding="utf-8") == "ajoute"
     assert (prod_dir / "Extras/Localization.csv").read_text(
         encoding="utf-8") == "loc"
-    # confirmation affichee puis dialogue FERME (accepte)
+    # le fichier de l'ANCIEN etat de la production a ete supprime (miroir)
+    assert not (prod_dir / "Content/Old/stale.ecf").exists()
+    # confirmation affichee (suppression comprise) puis dialogue FERME
     assert len(seen) == 1 and "3" in seen[0][1]
+    assert "supprimé" in seen[0][1]
     assert dlg.result() == QDialog.DialogCode.Accepted
     # NOUVELLE SESSION : plus aucune difference -> plus aucune proposition
     dlg2 = ProductionSyncDialog(main)

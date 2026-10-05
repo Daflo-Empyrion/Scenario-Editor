@@ -47,3 +47,11 @@ def qapp():
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+@pytest.fixture(autouse=True)
+def _no_real_central_backups(tmp_path, monkeypatch):
+    """Aucun test n'ecrit dans ~/.empyrion_editor/backups/ (vecu 04/10 :
+    les fixtures de test polluaient le dossier reel de sauvegardes)."""
+    monkeypatch.setattr("core.fsutil.central_backup",
+                        lambda p, kind="sectors": tmp_path / "backup.yaml")

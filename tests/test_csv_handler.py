@@ -12,7 +12,9 @@ contournee pour has_header().
 """
 from pathlib import Path
 
-from core.csv_handler import parse_csv_text, render_csv
+from core.csv_handler import (parse_csv_text, parse_pda_csv_text,
+                              render_csv, sanitize_pda_game_dialect,
+                              unwrap_game_style_cell)
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "pda_scenario" / "PDA.csv"
 
@@ -73,3 +75,56 @@ def test_render_escapes_real_newlines_in_cells():
     doc2 = parse_csv_text(rendered)
     assert doc2.rows == [["pda_x", "line1\\nline2", "ligne3"]]
     assert render_csv(doc2) == rendered
+
+
+# ============================================================================
+# Dialecte game-style du PDA.csv (vecu 05/10 : fusion Random EXP — cellules
+# « '...''apostrophes''...' » ingerees litteralement, fichier re-rendu
+# illisible pour le jeu, cles brutes partout dans le PDA)
+# ============================================================================
+
+from core.csv_handler import sanitize_pda_game_dialect, unwrap_game_style_cell
+from core.workspace import plan_csv_merge_file, apply_csv_changes_file
+
+
+def test_unwrap_game_style_cell_strips_wrapper_and_doubles():
+    cell = "'Text with ''apostrophes'' inside'"
+    assert unwrap_game_style_cell(cell) == "Text with 'apostrophes' inside"
+
+
+def test_unwrap_game_style_cell_untouched_cases():
+    assert unwrap_game_style_cell("Texte normal") == "Texte normal"
+    # enveloppe sans doublement : signature incompleten, on ne touche pas
+    assert unwrap_game_style_cell("'Texte simple'") == "'Texte simple'"
+    assert unwrap_game_style_cell("") == ""
+
+
+def test_sanitize_pda_game_dialect_full_document():
+    # parse avec le dialecte PDA FORCE (comme dans plan/apply_csv_changes_file)
+    doc = parse_pda_csv_text(
+        'KEY,English\r\n'
+        'pda_ok,"Texte propre"\r\n'
+        "pda_ko,\"'Texte ''special'' a defaire'\"\r\n",
+        )
+    doc = sanitize_pda_game_dialect(doc)
+    assert doc.rows[1] == ["pda_ko", "Texte 'special' a defaire"]
+    assert doc.rows[0] == ["pda_ok", "Texte propre"]
+
+
+def test_plan_and_apply_unwrap_game_dialect(tmp_path):
+    dest = tmp_path / "PDA.csv"
+    src = tmp_path / "SRC" / "PDA.csv"
+    src.parent.mkdir(parents=True)
+    dest.write_text(
+        "KEY,English\r\npda_base,\"Base text\"\r\n", encoding="utf-8")
+    src.write_text(
+        "KEY,English\r\n"
+        "pda_new,\"'A REX ''dialogue'' line'\"\r\n",
+        encoding="utf-8")
+    changes = plan_csv_merge_file(dest, src)
+    assert len(changes) == 1
+    applied = apply_csv_changes_file(None, dest, changes)
+    assert applied == 1
+    txt = dest.read_text(encoding="utf-8")
+    assert "A REX 'dialogue' line" in txt
+    assert "''" not in txt

@@ -272,11 +272,22 @@ def merge_folder_into_working(workspace: Workspace, source_folder: Path, source_
 def plan_csv_merge_file(dest: Path, source_file: Path) -> List:
     """Les changements qu'une fusion CSV apporterait, SANS ecrire
     (revision cochee ligne par ligne -- demande 26/09/2026)."""
-    from .csv_handler import CsvHandler, plan_csv_merge
+    from .csv_handler import (CsvHandler, parse_pda_csv_text, plan_csv_merge,
+                              sanitize_pda_game_dialect)
 
     handler = CsvHandler()
-    working_doc = handler.parse(handler.load(Path(dest)))
-    incoming_doc = handler.parse(handler.load(Path(source_file)))
+    is_pda = Path(dest).name.lower() == 'pda.csv'
+    if is_pda:
+        # le PDA.csv attend le quoting standard : dialecte FORCE (le Sniffer
+        # y choisit quotechar=' a cause des '' d'echappement, et tout le
+        # pipeline derape — vecu 04-05/10, Random EXP : cles brutes partout)
+        working_doc = parse_pda_csv_text(handler.load(Path(dest)))
+        incoming_doc = parse_pda_csv_text(handler.load(Path(source_file)))
+        sanitize_pda_game_dialect(working_doc)
+        sanitize_pda_game_dialect(incoming_doc)
+    else:
+        working_doc = handler.parse(handler.load(Path(dest)))
+        incoming_doc = handler.parse(handler.load(Path(source_file)))
     return plan_csv_merge(working_doc, incoming_doc)
 
 
@@ -284,10 +295,15 @@ def apply_csv_changes_file(workspace: "Workspace", dest: Path, changes: List) ->
     """Applique les changements COCHES au CSV de la copie de travail
     (meme logique que merge_single_csv_row, jamais d'ecrasement) et ecrit
     en atomique ; retourne le nombre reellement applique."""
-    from .csv_handler import CsvHandler, apply_csv_changes, render_csv
+    from .csv_handler import (CsvHandler, apply_csv_changes, parse_pda_csv_text,
+                              render_csv, sanitize_pda_game_dialect)
 
     handler = CsvHandler()
-    doc = handler.parse(handler.load(Path(dest)))
+    if Path(dest).name.lower() == 'pda.csv':
+        doc = parse_pda_csv_text(handler.load(Path(dest)))
+        sanitize_pda_game_dialect(doc)
+    else:
+        doc = handler.parse(handler.load(Path(dest)))
     applied = apply_csv_changes(doc, changes)
     if applied:
         atomic_write_text(Path(dest), render_csv(doc))

@@ -177,8 +177,7 @@ class CrossReferenceDialog(QDialog):
         from core.ecf.cross_reference_check import (
             collect_dialogue_names, closest_dialogue_name,
         )
-        from core.fsutil import capture_file
-        from core.workspace_undo import FileStateUndo
+        from core.workspace_undo import FileStateUndo, capture_file
 
         ecf_files = [f.path for f in self.workspace.working.configuration
                      if f.extension == '.ecf']
