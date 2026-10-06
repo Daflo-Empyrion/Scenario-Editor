@@ -435,11 +435,12 @@ def test_nested_root_proposes_missing_items(tmp_path):
     units = analyze_yaml_merge(working, source)
     roots = {u.root for u in units}
     assert "POIs/Random" in roots
-    # la sous-cle Fixed absente du working n'est PAS proposee (convention
-    # du scenario hote : ex Fixed: chez REX = son propre pod de depart)
-    assert not any(u.root and "Fixed" in u.root for u in units)
-    names = {u.name for u in units}
-    assert "MasperonAbyssalMission" in names
+    # YAML-009 : la sous-cle Fixed absente du working est VISIBLE et
+    # cochenable (avant 06/10 : skip silencieux « convention de l'hote »)
+    subkeys = [u for u in units if u.kind == "subkey"]
+    assert [(u.name, u.root) for u in subkeys] == [("Fixed", "POIs")]
+    assert subkeys[0].path == (("key", "POIs"),)
+    assert "MasperonAbyssalMission" in {u.name for u in units}
 
 
 def test_nested_root_apply_and_idempotence(tmp_path):
@@ -449,12 +450,147 @@ def test_nested_root_apply_and_idempotence(tmp_path):
     source.write_text(NESTED_S, encoding="utf-8")
     units = analyze_yaml_merge(working, source)
     n = apply_yaml_units(working, source, units)
-    assert n == 1
+    assert n == 2            # l'item MasperonAbyssalMission + la sous-cle Fixed
     txt = working.read_text(encoding="utf-8")
     assert "MasperonAbyssalMission" in txt
     assert "NullPOI" in txt
-    assert "OtherPod" not in txt          # Fixed: de REX non cree
+    assert "OtherPod" in txt             # Fixed: cree (unite cochenable)
     # idempotent : re-analyse = plus rien, re-apply = 0
     units2 = analyze_yaml_merge(working, source)
     assert units2 == []
     assert apply_yaml_units(working, source, units2) == 0
+
+
+def test_subkey_selective_apply_leaves_host_convention(tmp_path):
+    """La sous-cle est une PROPOSITION : decochee, la convention de l'hote
+    prime (le Fixed: de REX n'est pas cree)."""
+    working = tmp_path / "playfield_static.yaml"
+    source = tmp_path / "src.yaml"
+    working.write_text(NESTED_W, encoding="utf-8")
+    source.write_text(NESTED_S, encoding="utf-8")
+    units = analyze_yaml_merge(working, source)
+    keep = [u for u in units if u.kind == "item"]
+    assert apply_yaml_units(working, source, keep) == 1
+    txt = working.read_text(encoding="utf-8")
+    assert "MasperonAbyssalMission" in txt
+    assert "OtherPod" not in txt
+
+
+# ============================================================================
+# COMPLEMENT des blocs presents des deux cotes (vecu 06/10 : une mission
+# PDA avec une tache EN PLUS chez la source, meme ChapterTitle — invisible
+# avant : la fusion ne connaissait que les identites absentes)
+# ============================================================================
+
+CHAP_W = """Chapters:
+  - ChapterTitle: MissionAkua
+    Category: Histoire
+    Tasks:
+      - TaskTitle: Etape1
+        Actions:
+          - ActionTitle: Aller au hub
+      - TaskTitle: Etape2
+  - ChapterTitle: MissionOmicron
+    Category: Histoire
+    Tasks:
+      - TaskTitle: EtapeOm
+"""
+
+CHAP_S = """Chapters:
+  - ChapterTitle: MissionAkua
+    Category: Histoire
+    Tasks:
+      - TaskTitle: Etape1
+        Actions:
+          - ActionTitle: Aller au hub
+          - ActionTitle: Parler au PNJ
+      - TaskTitle: Etape2
+      - TaskTitle: Etape3
+    Rewards:
+      - Item: MedKit
+  - ChapterTitle: MissionOmicron
+    Category: Histoire
+    Tasks:
+      - TaskTitle: EtapeOm
+"""
+
+
+def _chap_files(tmp_path):
+    working = tmp_path / "PDA.yaml"
+    source = tmp_path / "PDA_src.yaml"
+    working.write_text(CHAP_W, encoding="utf-8")
+    source.write_text(CHAP_S, encoding="utf-8")
+    return working, source
+
+
+def test_completion_proposes_deep_missing_items(tmp_path):
+    working, source = _chap_files(tmp_path)
+    units = analyze_yaml_merge(working, source)
+    got = {(u.kind, u.root, u.name) for u in units}
+    # tache en plus dans la mission connue
+    assert ("item", "Chapters/MissionAkua/Tasks", "Etape3") in got
+    # action en plus dans une tache DEJA presente (recursion profonde)
+    assert ("item", "Chapters/MissionAkua/Tasks/Etape1/Actions",
+            "Parler au PNJ") in got
+    # sous-liste entiere absente du chapitre connu (YAML-009)
+    assert ("subkey", "Chapters/MissionAkua", "Rewards") in got
+    # la mission Omicron est identique : AUCUNE unite la concernant
+    assert not any("Omicron" in r for _k, r, _n in got)
+    # les paths permettent l'application exacte
+    etape3 = next(u for u in units if u.name == "Etape3")
+    assert etape3.path == (("key", "Chapters"),
+                           ("item", "ChapterTitle", "MissionAkua"),
+                           ("key", "Tasks"))
+    assert etape3.idkey == "TaskTitle"
+
+
+def test_completion_apply_targets_right_block_and_idempotent(tmp_path):
+    working, source = _chap_files(tmp_path)
+    units = analyze_yaml_merge(working, source)
+    assert apply_yaml_units(working, source, units) == 3
+    txt = working.read_text(encoding="utf-8")
+    assert "Etape3" in txt and "Parler au PNJ" in txt
+    assert "Item: MedKit" in txt
+    # l'ajout est alle dans la BONNE mission (Omicron intact, Etape3
+    # APRES Etape2 dans MissionAkua)
+    omicron = txt[txt.index("MissionOmicron"):]
+    assert "Etape3" not in omicron and "MedKit" not in omicron
+    akua = txt[:txt.index("MissionOmicron")]
+    assert akua.index("Etape2") < akua.index("Etape3") \
+        < akua.index("Rewards")
+    # idempotent
+    assert analyze_yaml_merge(working, source) == []
+    assert apply_yaml_units(working, source,
+                            analyze_yaml_merge(working, source)) == 0
+
+
+def test_completion_document_racine(tmp_path):
+    """Blocs a la RACINE du document (style RE2) : un bloc present avec
+    une liste interne enrichie chez la source est complete."""
+    working = tmp_path / "doc.yaml"
+    source = tmp_path / "doc_src.yaml"
+    working.write_text("- Id: bloc1\n  Items:\n    - Name: A\n",
+                       encoding="utf-8")
+    source.write_text("- Id: bloc1\n  Items:\n    - Name: A\n    - Name: B\n"
+                      "- Id: bloc2\n  Items:\n    - Name: C\n",
+                      encoding="utf-8")
+    units = analyze_yaml_merge(working, source)
+    got = {(u.kind, u.root, u.name) for u in units}
+    assert ("item", "bloc1/Items", "B") in got
+    assert ("item", "", "bloc2") in got
+    assert apply_yaml_units(working, source, units) == 2
+    txt = working.read_text(encoding="utf-8")
+    assert "Name: B" in txt and "bloc2" in txt
+    assert analyze_yaml_merge(working, source) == []
+
+
+def test_yaml_review_dialog_shows_subkey_kind(qapp, tmp_path):
+    """Le dialogue de revision affiche les sous-cles avec leur libelle
+    propre (construction testee — regle projet)."""
+    from gui.yaml_merge_review_dialog import YamlMergeReviewDialog
+    working, source = _chap_files(tmp_path)
+    dlg = YamlMergeReviewDialog(working, source, "source", parent=None)
+    assert dlg.units
+    labels = {dlg.tree.topLevelItem(i).text(1)
+              for i in range(dlg.tree.topLevelItemCount())}
+    assert "Sous-clé ajoutée" in labels

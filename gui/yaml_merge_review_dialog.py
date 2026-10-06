@@ -105,9 +105,11 @@ class YamlMergeReviewDialog(QDialog):
             self.btn_none.setEnabled(False)
             return
         self.intro_label.setText(t("yamlmerge.intro", source=self.source_label))
+        _KINDS = {"key": t("yamlmerge.kind_key"),
+                  "item": t("yamlmerge.kind_item"),
+                  "subkey": t("yamlmerge.kind_subkey")}
         for unit in self.units:
-            kind = t("yamlmerge.kind_key") if unit.kind == "key" \
-                else t("yamlmerge.kind_item")
+            kind = _KINDS.get(unit.kind, unit.kind)
             label = unit.name if unit.kind == "key" \
                 else f"{unit.name}  ·  {unit.root}"
             item = QTreeWidgetItem(["", kind, label, unit.detail])

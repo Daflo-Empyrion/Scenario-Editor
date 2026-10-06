@@ -8422,5 +8422,9 @@
  "prodsync.done_extra": {
   "fr": "{d} fichier(s) supprimé(s), {b} cache(s) de jeu invalidé(s) (*.yaml.bin recompilés par le jeu).",
   "en": "{d} file(s) deleted, {b} game cache(s) invalidated (*.yaml.bin recompiled by the game)."
+ },
+ "yamlmerge.kind_subkey": {
+  "fr": "Sous-clé ajoutée",
+  "en": "Added sub-key"
  }
 }

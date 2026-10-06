@@ -155,8 +155,10 @@ class FolderMergeReviewDialog(QDialog):
             header.setFlags(Qt.ItemFlag.ItemIsEnabled)
             self.tree.addTopLevelItem(header)
             for unit in units:
-                kind_label = t("yamlmerge.kind_key") if unit.kind == "key" \
-                    else t("yamlmerge.kind_item")
+                _KINDS = {"key": t("yamlmerge.kind_key"),
+                          "item": t("yamlmerge.kind_item"),
+                          "subkey": t("yamlmerge.kind_subkey")}
+                kind_label = _KINDS.get(unit.kind, unit.kind)
                 label = unit.name if unit.kind == "key" \
                     else f"{unit.name}  ·  {unit.root}"
                 item = QTreeWidgetItem(["", kind_label, label, unit.detail])

@@ -25,10 +25,15 @@ copie de travail --
   - un ELEMENT d'une liste de blocs sous une cle commune aux deux
     fichiers (chapitre PDA identifie par son Id, bloc identifie par son
     Name...) -- identite = premiere cle renseignee parmi
-    Id/Name/IndexName/Index/Key chez les ENFANTS de l'element.
-Les elements presents des deux cotes ne sont JAMAIS modifies (copie de
-travail prioritaire, comme la fusion ECF en mode 'properties') ; le
-rendu yamllite preserve commentaires et mise en forme."""
+    Id/Name/IndexName/Index/Key chez les ENFANTS de l'element ;
+  - une SOUS-CLE (liste) absente d'un bloc present (YAML-009 : visible
+    et cochenable, plus de skip silencieux) ;
+  - les elements des SOUS-LISTES d'un bloc present des deux cotes
+    (complement recursif : taches, actions, POIs... ajoutes chez la
+    source dans un bloc deja connu).
+Les blocs presents ne sont jamais REECRITS : seuls des ajouts y sont
+inseres, et seulement si coches ; le rendu yamllite preserve commentaires
+et mise en forme."""
 import copy
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,18 +45,25 @@ from core.yamllite.parser import parse_yaml_file
 _IDENTITY_KEYS = ("Id", "Name", "GroupName", "ChapterTitle", "IndexName",
                   "Index", "Key")
 _DETAIL_KEYS = ("Title", "Category", "Description", "Name")
+_MAX_DEPTH = 12        # garde-fou anti-boucle sur des imbrications pathologiques
 
 
 @dataclass
 class YamlUnit:
-    """Une unite fusionnable : cle racine entiere ou element d'une liste
-    de blocs."""
-    kind: str            # 'key' | 'item'
-    root: str            # '' pour une cle top-level, sinon la cle qui porte la liste
-    name: str            # cle (kind='key') ou identite de l'element (kind='item')
+    """Une unite fusionnable : cle racine entiere, element d'une liste de
+    blocs, ou sous-cle absente d'un bloc present (YAML-009)."""
+    kind: str            # 'key' | 'item' | 'subkey'
+    root: str            # '' pour une cle top-level, sinon le chemin lisible
+                         # qui porte la liste ('POIs/Random',
+                         # 'Chapters/MaMission/Tasks')
+    name: str            # cle (kind='key'/'subkey') ou identite de
+                         # l'element (kind='item')
     detail: str = ""     # info complementaire (titre, categorie...)
     idkey: str = ""      # cle d'identite de l'element ('Id', 'ChapterTitle'...)
                          # pour un appariement exact a l'application
+    path: tuple = None   # segments de navigation exacts a l'application :
+                         # ('key', cle) | ('item', cle_identite, valeur) —
+                         # None = derive de root (compat anciens appels)
 
 
 def _top_entries(doc) -> List[YamlEntry]:
@@ -163,9 +175,13 @@ def analyze_yaml_merge(working_yaml: Path,
     working_keys = {e.key: e for e in working_top if not e.is_sequence_item}
     source_keys = {e.key: e for e in source_top if not e.is_sequence_item}
 
-    def _scan_list(root: str, wlist: Optional[YamlEntry],
-                   slist: YamlEntry) -> None:
-        if wlist is None:
+    def _scan_list(root_label: str, wlist: Optional[YamlEntry],
+                   slist: YamlEntry, path: tuple, depth: int) -> None:
+        """Elements absents d'une liste de blocs -> unites 'item' ; un
+        element PRESENT des deux cotes est explore recursivement (taches,
+        actions... ajoutees chez la source, vecu 06/10 : mission PDA
+        completee invisible)."""
+        if wlist is None or depth > _MAX_DEPTH:
             return
         working_ids = {_identity(c) for c in _seq_items(wlist)}
         # listes a identites NON uniques dans la source (ex : plusieurs
@@ -181,9 +197,41 @@ def analyze_yaml_merge(working_yaml: Path,
             if ident is None or source_counts[ident] > 1:
                 continue
             if ident not in working_ids:
-                units.append(YamlUnit(kind="item", root=root,
+                units.append(YamlUnit(kind="item", root=root_label,
                                       name=ident[1], detail=_detail(item),
-                                      idkey=ident[0]))
+                                      idkey=ident[0], path=path))
+                continue
+            w_item = next((c for c in _seq_items(wlist)
+                           if _identity(c) == ident), None)
+            if w_item is None:
+                continue
+            _scan_children(f"{root_label}/{ident[1]}", w_item, item,
+                           path + (("item", ident[0], ident[1]),),
+                           depth + 1)
+
+    def _scan_children(root_label: str, w_entry: YamlEntry,
+                       s_entry: YamlEntry, path: tuple, depth: int) -> None:
+        """Sous-listes d'un bloc : absentes de la working -> unite
+        'subkey' VISIBLE et cochenable (YAML-009 — avant : skip
+        silencieux « convention de l'hote ») ; presentes -> _scan_list."""
+        if depth > _MAX_DEPTH:
+            return
+        for sub in _child_entries(s_entry):
+            if sub.is_sequence_item or sub.key is None:
+                continue
+            if not _seq_items(sub):
+                continue
+            w_sub = next((c for c in _child_entries(w_entry)
+                          if not c.is_sequence_item and c.key == sub.key),
+                         None)
+            if w_sub is None:
+                units.append(YamlUnit(kind="subkey", root=root_label,
+                                      name=sub.key,
+                                      detail=_list_summary(sub),
+                                      path=path))
+                continue
+            _scan_list(f"{root_label}/{sub.key}", w_sub, sub,
+                       path + (("key", sub.key),), depth + 1)
 
     for key, s_entry in source_keys.items():
         w_entry = working_keys.get(key)
@@ -192,23 +240,8 @@ def analyze_yaml_merge(working_yaml: Path,
                                   detail=_list_summary(s_entry)
                                   or _detail(s_entry)))
             continue
-        _scan_list(key, w_entry, s_entry)
-        # NOUVEAU (05/10) : racines a SOUS-cles (playfield_static :
-        # 'POIs:' -> Random:/Fixed:/FixedPlayerStart:) — descendre d'un
-        # niveau, unites en root='Cle/SousCle'. Les sous-cles absentes de
-        # la working ne sont pas proposees (convention du scenario hote :
-        # ex Fixed: chez REX = son propre pod de depart).
-        if key is None:
-            continue
-        for sub in _child_entries(s_entry):
-            if not _seq_items(sub) or sub.key is None:
-                continue
-            w_sub = next((c for c in _child_entries(w_entry)
-                          if not c.is_sequence_item and c.key == sub.key),
-                         None)
-            if w_sub is None:
-                continue
-            _scan_list(f"{key}/{sub.key}", w_sub, sub)
+        _scan_list(key, w_entry, s_entry, (("key", key),), 0)
+        _scan_children(key, w_entry, s_entry, (("key", key),), 0)
     # document racine = liste de blocs (pas de mappings top-level) : meme
     # comparaison au niveau du document
     source_items = [e for e in source_top if e.is_sequence_item]
@@ -217,8 +250,15 @@ def analyze_yaml_merge(working_yaml: Path,
         working_ids = {_identity(c) for c in working_items}
         for item in source_items:
             ident = _identity(item)
-            if ident is not None and ident not in working_ids \
-                    and working_items:
+            if ident is None:
+                continue
+            if ident in working_ids:
+                w_item = next((c for c in working_items
+                               if _identity(c) == ident), None)
+                _scan_children(ident[1], w_item, item,
+                               (("item", ident[0], ident[1]),), 0)
+                continue
+            if working_items:
                 units.append(YamlUnit(kind="item", root="", name=ident[1],
                                       detail=_detail(item)))
     return units
@@ -247,6 +287,34 @@ def _ensure_blank_before(children: List, eol: str) -> None:
 
 def _copy_entry(entry: YamlEntry) -> YamlEntry:
     return copy.deepcopy(entry)
+
+
+def _segments(unit: YamlUnit) -> tuple:
+    """Segments de navigation d'une unite : son path exact, ou derive de
+    root (cles uniquement) pour les unites sans path (compat)."""
+    if unit.path is not None:
+        return unit.path
+    return tuple(("key", s) for s in unit.root.split("/") if s)
+
+
+def _walk(entries: List[YamlEntry], segments: tuple) -> Optional[YamlEntry]:
+    """Descend des segments ('key', cle) / ('item', cle_identite, valeur)
+    depuis des entrees top-level ; retourne l'entree atteinte ou None."""
+    cur_list = entries
+    cur = None
+    for seg in segments:
+        if seg[0] == "key":
+            cur = next((e for e in cur_list
+                        if not e.is_sequence_item and e.key == seg[1]), None)
+        else:
+            cur = next((e for e in cur_list
+                        if e.is_sequence_item
+                        and _same_identity(_identity(e), seg[1], seg[2])),
+                       None)
+        if cur is None:
+            return None
+        cur_list = _child_entries(cur)
+    return cur
 
 
 def apply_yaml_units(working_yaml: Path, source_yaml: Path,
@@ -279,33 +347,37 @@ def apply_yaml_units(working_yaml: Path, source_yaml: Path,
             working_top.append(clone)
             applied += 1
             continue
-        if unit.root:
-            root_key, _, sub_key = unit.root.partition('/')
-            w_list = next((e for e in working_top
-                           if not e.is_sequence_item and e.key == root_key),
-                          None)
-            s_list = next((e for e in source_top
-                           if not e.is_sequence_item and e.key == root_key),
-                          None)
-            if sub_key:
-                # racine imbriquee (ex : 'POIs/Random' dans les
-                # playfield_static — vecu 05/10) : descendre vers la
-                # sous-cle des deux cotes
-                w_list = next((c for c in _child_entries(w_list)
-                               if not c.is_sequence_item
-                               and c.key == sub_key),
-                              None) if w_list is not None else None
-                s_list = next((c for c in _child_entries(s_list)
-                               if not c.is_sequence_item
-                               and c.key == sub_key),
-                              None) if s_list is not None else None
-            w_items = _seq_items(w_list) if w_list is not None else []
-            s_items = _seq_items(s_list) if s_list is not None else []
-            attach = w_list.children if w_list is not None else None
-        else:
+        if unit.kind == "subkey":
+            # sous-liste absente d'un bloc present (YAML-009) : le path
+            # designe le bloc PARENT, on y clone la sous-cle entiere
+            w_parent = _walk(working_top, _segments(unit))
+            s_parent = _walk(source_top, _segments(unit))
+            if w_parent is None or s_parent is None:
+                continue
+            already = any(not c.is_sequence_item and c.key == unit.name
+                          for c in _child_entries(w_parent))
+            if already:
+                continue
+            src = next((c for c in _child_entries(s_parent)
+                        if not c.is_sequence_item and c.key == unit.name),
+                       None)
+            if src is None:
+                continue
+            clone = _copy_entry(src)
+            _ensure_blank_before(w_parent.children, eol)
+            w_parent.children.append(clone)
+            applied += 1
+            continue
+        if unit.root == "" and unit.path is None:
             w_items = [e for e in working_top if e.is_sequence_item]
             s_items = [e for e in source_top if e.is_sequence_item]
             attach = working_doc.nodes
+        else:
+            w_list = _walk(working_top, _segments(unit))
+            s_list = _walk(source_top, _segments(unit))
+            w_items = _seq_items(w_list) if w_list is not None else []
+            s_items = _seq_items(s_list) if s_list is not None else []
+            attach = w_list.children if w_list is not None else None
         if not s_items or attach is None:
             continue
         src = next((c for c in s_items
