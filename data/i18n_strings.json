@@ -7748,8 +7748,8 @@
   "en": "YAML merge — {file}"
  },
  "yamlmerge.intro": {
-  "fr": "Fusion depuis {source} : éléments du fichier source absents de votre copie de travail. Cochez ceux à insérer — votre copie reste prioritaire, les éléments présents des deux côtés ne sont JAMAIS modifiés.",
-  "en": "Merging from {source}: elements of the source file missing from your working copy. Check the ones to insert — your copy keeps priority, elements present on both sides are NEVER modified."
+  "fr": "Fusion depuis {source} : ce qui est NOUVEAU est coche (ajouts), ce qui est MODIFIE reste decoche (votre copie de travail est prioritaire). Double-clic sur un « Bloc modifie (lignes) » pour voir chaque ligne avant/apres et choisir ce qui passe.",
+  "en": "Merge from {source}: NEW items are checked (additions), CHANGED ones unchecked (your working copy has priority). Double-click a « Modified block (lines) » to see every line before/after and choose what applies."
  },
  "yamlmerge.col_kind": {
   "fr": "Type",
@@ -8426,5 +8426,1445 @@
  "yamlmerge.kind_subkey": {
   "fr": "Sous-clé ajoutée",
   "en": "Added sub-key"
+ },
+ "menu.server": {
+  "fr": "&Serveur",
+  "en": "&Server"
+ },
+ "menu.server.admin": {
+  "fr": "Administrer le serveur...",
+  "en": "Administer server..."
+ },
+ "menu.server.config": {
+  "fr": "Configuration de la connexion...",
+  "en": "Connection settings..."
+ },
+ "menu.server.install": {
+  "fr": "Guide d'installation EWA...",
+  "en": "EWA installation guide..."
+ },
+ "ewa.cfg.title": {
+  "fr": "Connexion au serveur dédié (EWA)",
+  "en": "Dedicated server connection (EWA)"
+ },
+ "ewa.cfg.group_ewa": {
+  "fr": "API EWA (mod EmpyrionWebAccess)",
+  "en": "EWA API (EmpyrionWebAccess mod)"
+ },
+ "ewa.cfg.url": {
+  "fr": "URL",
+  "en": "URL"
+ },
+ "ewa.cfg.url_placeholder": {
+  "fr": "https://IP_DU_SERVEUR:5001",
+  "en": "https://SERVER_IP:5001"
+ },
+ "ewa.cfg.user": {
+  "fr": "Identifiant",
+  "en": "Username"
+ },
+ "ewa.cfg.password": {
+  "fr": "Mot de passe",
+  "en": "Password"
+ },
+ "ewa.cfg.remember": {
+  "fr": "Se souvenir des mots de passe (API, SFTP, telnet — stockés en clair dans les réglages locaux)",
+  "en": "Remember passwords (API, SFTP, telnet — stored in clear in local settings)"
+ },
+ "ewa.cfg.selfsigned": {
+  "fr": "Accepter le certificat auto-signé (HTTPS dédié)",
+  "en": "Accept self-signed certificate (dedicated HTTPS)"
+ },
+ "ewa.cfg.selfsigned_tip": {
+  "fr": "Le serveur web d'EWA utilise par défaut un certificat auto-signé : laisser coché sauf si un vrai certificat (Let's Encrypt) est installé.",
+  "en": "The EWA web server uses a self-signed certificate by default: keep checked unless a real certificate (Let's Encrypt) is installed."
+ },
+ "ewa.cfg.timeout": {
+  "fr": "Délai d'attente",
+  "en": "Timeout"
+ },
+ "ewa.cfg.test_btn": {
+  "fr": "Tester la connexion",
+  "en": "Test connection"
+ },
+ "ewa.cfg.test_need_fields": {
+  "fr": "URL, identifiant et mot de passe requis pour tester.",
+  "en": "URL, username and password are required to test."
+ },
+ "ewa.cfg.testing": {
+  "fr": "Test en cours...",
+  "en": "Testing..."
+ },
+ "ewa.cfg.test_ok": {
+  "fr": "Connexion réussie : {name}",
+  "en": "Connection successful: {name}"
+ },
+ "ewa.cfg.test_fail": {
+  "fr": "Échec : {error}",
+  "en": "Failed: {error}"
+ },
+ "ewa.cfg.group_sftp": {
+  "fr": "SFTP (déploiement du scénario)",
+  "en": "SFTP (scenario deployment)"
+ },
+ "ewa.cfg.sftp_host": {
+  "fr": "Hôte",
+  "en": "Host"
+ },
+ "ewa.cfg.sftp_port": {
+  "fr": "Port",
+  "en": "Port"
+ },
+ "ewa.cfg.sftp_user": {
+  "fr": "Identifiant",
+  "en": "Username"
+ },
+ "ewa.cfg.sftp_password": {
+  "fr": "Mot de passe",
+  "en": "Password"
+ },
+ "ewa.cfg.sftp_path": {
+  "fr": "Chemin distant du scénario",
+  "en": "Remote scenario path"
+ },
+ "ewa.cfg.sftp_path_placeholder": {
+  "fr": "ex : /.../Saves/Scenarios/Serveur-MP",
+  "en": "e.g. /.../Saves/Scenarios/MyScenario"
+ },
+ "ewa.cfg.group_telnet": {
+  "fr": "Console telnet (secours)",
+  "en": "Telnet console (fallback)"
+ },
+ "ewa.cfg.tel_host": {
+  "fr": "Hôte",
+  "en": "Host"
+ },
+ "ewa.cfg.tel_port": {
+  "fr": "Port",
+  "en": "Port"
+ },
+ "ewa.cfg.tel_password": {
+  "fr": "Mot de passe telnet",
+  "en": "Telnet password"
+ },
+ "ewa.install.title": {
+  "fr": "Installation du mod EWA sur le serveur dédié",
+  "en": "Installing the EWA mod on the dedicated server"
+ },
+ "ewa.install.intro": {
+  "fr": "EmpyrionWebAccess (EWA) est le mod serveur dont l'éditeur devient le client : il expose l'API REST qui pilote le serveur de jeu. Installation sur un dédié hébergé :",
+  "en": "EmpyrionWebAccess (EWA) is the server mod this editor acts as a client for: it exposes the REST API that drives the game server. Installation on a hosted dedicated server:"
+ },
+ "ewa.install.step1": {
+  "fr": "Téléchargez la dernière release d'EmpyrionWebAccess (GitHub : GitHub-TC/EmpyrionWebAccess) et décompressez-la.",
+  "en": "Download the latest EmpyrionWebAccess release (GitHub: GitHub-TC/EmpyrionWebAccess) and unzip it."
+ },
+ "ewa.install.step2": {
+  "fr": "Copiez le dossier du mod dans le savegame du serveur : <Savegame>/Mods/EWA (via le SFTP fourni par votre hébergeur).",
+  "en": "Copy the mod folder into the server savegame: <Savegame>/Mods/EWA (using the SFTP access provided by your host)."
+ },
+ "ewa.install.step3": {
+  "fr": "Faites charger le mod au démarrage (start.txt du dossier Mods, voir la doc du mod : au 1er boot le serveur crée xstart.txt).",
+  "en": "Make the server load the mod at startup (start.txt in the Mods folder, see the mod documentation: on first boot the server creates xstart.txt)."
+ },
+ "ewa.install.step4": {
+  "fr": "Ouvrez le port HTTPS d'EWA chez votre hébergeur (par défaut 5001, configurable dans <Savegame>/Mods/EWA/appsettings.json). Les ports du panel (SFTP, telnet, jeu) ne sont PAS le port web.",
+  "en": "Open EWA's HTTPS port with your host (default 5001, configurable in <Savegame>/Mods/EWA/appsettings.json). The panel ports (SFTP, telnet, game) are NOT the web port."
+ },
+ "ewa.install.step5": {
+  "fr": "Redémarrez le serveur de jeu.",
+  "en": "Restart the game server."
+ },
+ "ewa.install.step6": {
+  "fr": "Vérifiez https://IP:PORT dans un navigateur (certificat auto-signé : acceptez l'avertissement).",
+  "en": "Open https://IP:PORT in a browser (self-signed certificate: accept the warning)."
+ },
+ "ewa.install.step7": {
+  "fr": "Première connexion : si la base d'utilisateurs est vide, le compte créé devient ADMIN (bootstrap officiel d'EWA).",
+  "en": "First connection: if the user database is empty, the account you create becomes ADMIN (official EWA bootstrap)."
+ },
+ "ewa.install.step8": {
+  "fr": "Renseignez l'URL et le compte dans « Configuration de la connexion » de l'éditeur, puis utilisez « Diagnostiquer » ci-dessous.",
+  "en": "Enter the URL and account in the editor's « Connection settings », then use « Diagnose » below."
+ },
+ "ewa.install.bootstrap": {
+  "fr": "Rappel : la 1re connexion crée automatiquement le compte admin si la base EWA est vide.",
+  "en": "Reminder: the first connection automatically creates the admin account if the EWA database is empty."
+ },
+ "ewa.install.diag_hint": {
+  "fr": "« Diagnostiquer » éprouve la connexion réelle : joignabilité, authentification, présence du mod loader.",
+  "en": "« Diagnose » runs a real connection test: reachability, authentication, mod loader presence."
+ },
+ "ewa.install.diag_btn": {
+  "fr": "Diagnostiquer",
+  "en": "Diagnose"
+ },
+ "ewa.install.diag_no_config": {
+  "fr": "Renseignez d'abord l'URL EWA dans la configuration.",
+  "en": "Enter the EWA URL in the settings first."
+ },
+ "ewa.install.diag_running": {
+  "fr": "Diagnostic en cours...",
+  "en": "Running diagnosis..."
+ },
+ "ewa.install.diag_ok": {
+  "fr": "Serveur web EWA joignable.",
+  "en": "EWA web server reachable."
+ },
+ "ewa.install.diag_unreachable": {
+  "fr": "Serveur web EWA INJOIGNABLE : vérifiez le port ouvert chez l'hébergeur et l'URL.",
+  "en": "EWA web server UNREACHABLE: check the port opened with your host and the URL."
+ },
+ "ewa.install.diag_error": {
+  "fr": "Erreur : {error}",
+  "en": "Error: {error}"
+ },
+ "ewa.install.diag_auth": {
+  "fr": "Authentification : OK.",
+  "en": "Authentication: OK."
+ },
+ "ewa.install.diag_server": {
+  "fr": "Serveur de jeu : {name}",
+  "en": "Game server: {name}"
+ },
+ "ewa.install.diag_loader_ok": {
+  "fr": "Mod loader : installé.",
+  "en": "Mod loader: installed."
+ },
+ "ewa.install.diag_loader_missing": {
+  "fr": "Mod loader : ABSENT — le mod n'est pas encore chargé (étapes 2 à 5).",
+  "en": "Mod loader: MISSING — the mod is not loaded yet (steps 2 to 5)."
+ },
+ "ewa.install.diag_no_auth": {
+  "fr": "Authentification impossible : créez le compte (1re connexion = admin) puis renseignez-le dans la configuration.",
+  "en": "Authentication failed: create the account (first login = admin) then enter it in the settings."
+ },
+ "ewa.main.title": {
+  "fr": "Administration du serveur (EWA)",
+  "en": "Server administration (EWA)"
+ },
+ "ewa.main.disconnected": {
+  "fr": "Non connecté.",
+  "en": "Not connected."
+ },
+ "ewa.main.connect": {
+  "fr": "Se connecter",
+  "en": "Connect"
+ },
+ "ewa.main.config": {
+  "fr": "Configurer...",
+  "en": "Configure..."
+ },
+ "ewa.main.connecting": {
+  "fr": "Connexion...",
+  "en": "Connecting..."
+ },
+ "ewa.main.connected_as": {
+  "fr": "Connecté : {user}",
+  "en": "Connected: {user}"
+ },
+ "ewa.main.connect_fail": {
+  "fr": "Connexion impossible : {error}",
+  "en": "Connection failed: {error}"
+ },
+ "ewa.main.bad_credentials": {
+  "fr": "Identifiants refusés par le serveur.",
+  "en": "Credentials rejected by the server."
+ },
+ "ewa.main.error": {
+  "fr": "Erreur : {error}",
+  "en": "Error: {error}"
+ },
+ "ewa.main.not_connected": {
+  "fr": "Non connecté à l'API EWA.",
+  "en": "Not connected to the EWA API."
+ },
+ "ewa.dash.server": {
+  "fr": "Serveur",
+  "en": "Server"
+ },
+ "ewa.dash.online": {
+  "fr": "État",
+  "en": "State"
+ },
+ "ewa.dash.version": {
+  "fr": "Version du jeu",
+  "en": "Game version"
+ },
+ "ewa.dash.players": {
+  "fr": "Joueurs actifs",
+  "en": "Active players"
+ },
+ "ewa.dash.playfields": {
+  "fr": "Playfields (actifs / total)",
+  "en": "Playfields (active / total)"
+ },
+ "ewa.dash.cpu": {
+  "fr": "CPU",
+  "en": "CPU"
+ },
+ "ewa.dash.ram": {
+  "fr": "RAM utilisée",
+  "en": "RAM used"
+ },
+ "ewa.dash.disk": {
+  "fr": "Disque (utilisé / total)",
+  "en": "Disk (used / total)"
+ },
+ "ewa.dash.ewa_mem": {
+  "fr": "Mémoire EWA",
+  "en": "EWA memory"
+ },
+ "ewa.dash.refresh": {
+  "fr": "Rafraîchir",
+  "en": "Refresh"
+ },
+ "ewa.dash.na": {
+  "fr": "—",
+  "en": "—"
+ },
+ "ewa.tab.dashboard": {
+  "fr": "Tableau de bord",
+  "en": "Dashboard"
+ },
+ "ewa.tab.chat": {
+  "fr": "Chat",
+  "en": "Chat"
+ },
+ "ewa.tab.players": {
+  "fr": "Joueurs",
+  "en": "Players"
+ },
+ "ewa.tab.structures": {
+  "fr": "Structures",
+  "en": "Structures"
+ },
+ "ewa.tab.restore": {
+  "fr": "Restauration",
+  "en": "Restore"
+ },
+ "ewa.tab.timetable": {
+  "fr": "Planificateur",
+  "en": "Timetable"
+ },
+ "ewa.tab.server": {
+  "fr": "Réglages serveur",
+  "en": "Server settings"
+ },
+ "ewa.tab.users": {
+  "fr": "Utilisateurs EWA",
+  "en": "EWA users"
+ },
+ "ewa.tab.console": {
+  "fr": "Console",
+  "en": "Console"
+ },
+ "ewa.tab.deploy": {
+  "fr": "Déploiement",
+  "en": "Deployment"
+ },
+ "ewa.players.refresh": {
+  "fr": "Rafraîchir",
+  "en": "Refresh"
+ },
+ "ewa.players.filter": {
+  "fr": "Filtrer (pseudo ou SteamId)...",
+  "en": "Filter (name or SteamId)..."
+ },
+ "ewa.players.col.name": {
+  "fr": "Pseudo",
+  "en": "Name"
+ },
+ "ewa.players.col.online": {
+  "fr": "En ligne",
+  "en": "Online"
+ },
+ "ewa.players.col.playfield": {
+  "fr": "Playfield",
+  "en": "Playfield"
+ },
+ "ewa.players.col.ping": {
+  "fr": "Ping",
+  "en": "Ping"
+ },
+ "ewa.players.col.faction": {
+  "fr": "Faction",
+  "en": "Faction"
+ },
+ "ewa.players.col.credits": {
+  "fr": "Crédits",
+  "en": "Credits"
+ },
+ "ewa.players.col.steamid": {
+  "fr": "SteamId",
+  "en": "SteamId"
+ },
+ "ewa.players.online_yes": {
+  "fr": "oui",
+  "en": "yes"
+ },
+ "ewa.players.online_no": {
+  "fr": "non",
+  "en": "no"
+ },
+ "ewa.players.d_health": {
+  "fr": "Santé",
+  "en": "Health"
+ },
+ "ewa.players.d_food": {
+  "fr": "Nourriture",
+  "en": "Food"
+ },
+ "ewa.players.d_oxygen": {
+  "fr": "Oxygène",
+  "en": "Oxygen"
+ },
+ "ewa.players.d_stamina": {
+  "fr": "Endurance",
+  "en": "Stamina"
+ },
+ "ewa.players.d_kills": {
+  "fr": "Kills",
+  "en": "Kills"
+ },
+ "ewa.players.d_deaths": {
+  "fr": "Morts",
+  "en": "Deaths"
+ },
+ "ewa.players.d_exp": {
+  "fr": "Expérience",
+  "en": "Experience"
+ },
+ "ewa.players.d_last": {
+  "fr": "Dernière connexion",
+  "en": "Last online"
+ },
+ "ewa.players.note": {
+  "fr": "Note (persistée sur le serveur)",
+  "en": "Note (stored on the server)"
+ },
+ "ewa.players.note_save": {
+  "fr": "Enregistrer la note",
+  "en": "Save note"
+ },
+ "ewa.players.kick": {
+  "fr": "Kick",
+  "en": "Kick"
+ },
+ "ewa.players.ban1h": {
+  "fr": "Ban 1 h",
+  "en": "Ban 1h"
+ },
+ "ewa.players.ban1d": {
+  "fr": "Ban 1 j",
+  "en": "Ban 1d"
+ },
+ "ewa.players.unban": {
+  "fr": "Unban",
+  "en": "Unban"
+ },
+ "ewa.players.wipe": {
+  "fr": "Wipe",
+  "en": "Wipe"
+ },
+ "ewa.players.credits": {
+  "fr": "Crédits...",
+  "en": "Credits..."
+ },
+ "ewa.players.item": {
+  "fr": "Donner un item...",
+  "en": "Give an item..."
+ },
+ "ewa.players.wipe_title": {
+  "fr": "Wipe du joueur",
+  "en": "Player wipe"
+ },
+ "ewa.players.wipe_confirm": {
+  "fr": "Wiper {name} (personnage remis à zéro) ?",
+  "en": "Wipe {name} (character reset)?"
+ },
+ "ewa.players.kick_title": {
+  "fr": "Kick du joueur",
+  "en": "Kick player"
+ },
+ "ewa.players.kick_confirm": {
+  "fr": "Kicker {name} (déconnexion forcée) ?",
+  "en": "Kick {name} (forced disconnect)?"
+ },
+ "ewa.players.ban_title": {
+  "fr": "Ban du joueur",
+  "en": "Ban player"
+ },
+ "ewa.players.ban_confirm": {
+  "fr": "Bannir {name} ?",
+  "en": "Ban {name}?"
+ },
+ "ewa.players.unban_title": {
+  "fr": "Unban du joueur",
+  "en": "Unban player"
+ },
+ "ewa.players.unban_confirm": {
+  "fr": "Débannir {name} ?",
+  "en": "Unban {name}?"
+ },
+ "ewa.players.credits_title": {
+  "fr": "Crédits",
+  "en": "Credits"
+ },
+ "ewa.players.credits_ask": {
+  "fr": "Nouveaux crédits :",
+  "en": "New credits:"
+ },
+ "ewa.players.item_title": {
+  "fr": "Donner un item",
+  "en": "Give an item"
+ },
+ "ewa.players.item_id": {
+  "fr": "Id de l'item :",
+  "en": "Item id:"
+ },
+ "ewa.players.item_count": {
+  "fr": "Quantité :",
+  "en": "Quantity:"
+ },
+ "ewa.chat.hide_serv": {
+  "fr": "Masquer les messages SERV",
+  "en": "Hide SERV messages"
+ },
+ "ewa.chat.hide_cmd": {
+  "fr": "Masquer les commandes (\\, /)",
+  "en": "Hide commands (\\, /)"
+ },
+ "ewa.chat.hint": {
+  "fr": "Lecture par polling de l'API EWA ; l'envoi passe par le telnet (SAY serveur). L'impersonnalisation « chat-as » reste propre au web EWA.",
+  "en": "Reading polls the EWA API; sending goes through telnet (server SAY). « Chat-as » impersonation remains specific to the EWA web UI."
+ },
+ "ewa.chat.placeholder": {
+  "fr": "Message à envoyer en SAY serveur...",
+  "en": "Message to send as a server SAY..."
+ },
+ "ewa.chat.send": {
+  "fr": "Envoyer",
+  "en": "Send"
+ },
+ "ewa.chat.send_fail": {
+  "fr": "Envoi impossible : {error} (telnet configuré ?)",
+  "en": "Send failed: {error} (telnet configured?)"
+ },
+ "ewa.struct.refresh": {
+  "fr": "Rafraîchir",
+  "en": "Refresh"
+ },
+ "ewa.struct.filter": {
+  "fr": "Filtrer (nom ou playfield)...",
+  "en": "Filter (name or playfield)..."
+ },
+ "ewa.struct.col.name": {
+  "fr": "Nom",
+  "en": "Name"
+ },
+ "ewa.struct.col.id": {
+  "fr": "Id",
+  "en": "Id"
+ },
+ "ewa.struct.col.type": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "ewa.struct.col.faction": {
+  "fr": "Faction",
+  "en": "Faction"
+ },
+ "ewa.struct.col.blocks": {
+  "fr": "Blocs",
+  "en": "Blocks"
+ },
+ "ewa.struct.col.pos": {
+  "fr": "Position",
+  "en": "Position"
+ },
+ "ewa.struct.touch": {
+  "fr": "Toucher (anti-decay)",
+  "en": "Touch (anti-decay)"
+ },
+ "ewa.struct.delete": {
+  "fr": "Supprimer",
+  "en": "Delete"
+ },
+ "ewa.struct.faction": {
+  "fr": "Changer la faction",
+  "en": "Change faction"
+ },
+ "ewa.struct.warp": {
+  "fr": "Téléporter...",
+  "en": "Teleport..."
+ },
+ "ewa.struct.delete_title": {
+  "fr": "Suppression d'une structure",
+  "en": "Structure deletion"
+ },
+ "ewa.struct.delete_confirm": {
+  "fr": "Supprimer « {name} » ? DÉFINITIF.",
+  "en": "Delete « {name} »? PERMANENT."
+ },
+ "ewa.struct.no_factions": {
+  "fr": "Factions non chargées : rafraîchissez d'abord.",
+  "en": "Factions not loaded: refresh first."
+ },
+ "ewa.struct.faction_title": {
+  "fr": "Changer la faction",
+  "en": "Change faction"
+ },
+ "ewa.struct.faction_ask": {
+  "fr": "Nouvelle faction pour « {name} » :",
+  "en": "New faction for « {name} »:"
+ },
+ "ewa.struct.warp_title": {
+  "fr": "Téléporter la structure",
+  "en": "Teleport structure"
+ },
+ "ewa.struct.warp_pf": {
+  "fr": "Playfield cible :",
+  "en": "Target playfield:"
+ },
+ "ewa.struct.warp_coords": {
+  "fr": "Coordonnées X, Y, Z :",
+  "en": "Coordinates X, Y, Z:"
+ },
+ "ewa.struct.warp_bad_coords": {
+  "fr": "Coordonnées invalides (X, Y, Z attendus).",
+  "en": "Invalid coordinates (expected X, Y, Z)."
+ },
+ "ewa.restore.backup": {
+  "fr": "Backup :",
+  "en": "Backup:"
+ },
+ "ewa.restore.reload": {
+  "fr": "Recharger",
+  "en": "Reload"
+ },
+ "ewa.restore.mark_placeholder": {
+  "fr": "Nom du nouveau backup...",
+  "en": "New backup name..."
+ },
+ "ewa.restore.mark_btn": {
+  "fr": "Créer le backup",
+  "en": "Create backup"
+ },
+ "ewa.restore.tab_players": {
+  "fr": "Joueurs",
+  "en": "Players"
+ },
+ "ewa.restore.tab_playfields": {
+  "fr": "Playfields",
+  "en": "Playfields"
+ },
+ "ewa.restore.col.name": {
+  "fr": "Pseudo",
+  "en": "Name"
+ },
+ "ewa.restore.col.steamid": {
+  "fr": "SteamId",
+  "en": "SteamId"
+ },
+ "ewa.restore.col.playfield": {
+  "fr": "Playfield",
+  "en": "Playfield"
+ },
+ "ewa.restore.player_btn": {
+  "fr": "Restaurer ce joueur",
+  "en": "Restore this player"
+ },
+ "ewa.restore.playfield_btn": {
+  "fr": "Restaurer ce playfield",
+  "en": "Restore this playfield"
+ },
+ "ewa.restore.player_title": {
+  "fr": "Restauration joueur",
+  "en": "Player restore"
+ },
+ "ewa.restore.player_confirm": {
+  "fr": "Restaurer {name} depuis ce backup (écrase l'état actuel) ?",
+  "en": "Restore {name} from this backup (overwrites the current state)?"
+ },
+ "ewa.restore.playfield_title": {
+  "fr": "Restauration playfield",
+  "en": "Playfield restore"
+ },
+ "ewa.restore.playfield_confirm": {
+  "fr": "Restaurer le playfield « {name} » depuis ce backup ? NOUVELLE PARTIE requise sur ce playfield.",
+  "en": "Restore playfield « {name} » from this backup? NEW GAME required on this playfield."
+ },
+ "ewa.restore.warn": {
+  "fr": "Attention : un playfield restauré (ou modifié) exige une NOUVELLE PARTIE dessus — les POIs statiques ne spawnent qu'à la génération du playfield.",
+  "en": "Warning: a restored (or modified) playfield requires a NEW GAME on it — static POIs only spawn when the playfield is generated."
+ },
+ "ewa.timetable.refresh": {
+  "fr": "Rafraîchir",
+  "en": "Refresh"
+ },
+ "ewa.timetable.run": {
+  "fr": "Exécuter la sélection",
+  "en": "Run selection"
+ },
+ "ewa.timetable.col.repeat": {
+  "fr": "Répétition",
+  "en": "Repeat"
+ },
+ "ewa.timetable.col.next": {
+  "fr": "Prochaine exécution",
+  "en": "Next execution"
+ },
+ "ewa.timetable.col.active": {
+  "fr": "Active",
+  "en": "Active"
+ },
+ "ewa.timetable.col.action": {
+  "fr": "Action",
+  "en": "Action"
+ },
+ "ewa.timetable.col.data": {
+  "fr": "Données",
+  "en": "Data"
+ },
+ "ewa.timetable.yes": {
+  "fr": "oui",
+  "en": "yes"
+ },
+ "ewa.timetable.no": {
+  "fr": "non",
+  "en": "no"
+ },
+ "ewa.timetable.save": {
+  "fr": "Enregistrer le JSON",
+  "en": "Save JSON"
+ },
+ "ewa.timetable.bad_json_title": {
+  "fr": "JSON invalide",
+  "en": "Invalid JSON"
+ },
+ "ewa.timetable.bad_json": {
+  "fr": "JSON invalide : {error}",
+  "en": "Invalid JSON: {error}"
+ },
+ "ewa.server.group_power": {
+  "fr": "Démarrage / arrêt / redémarrage",
+  "en": "Start / stop / restart"
+ },
+ "ewa.server.delay": {
+  "fr": "Délai d'avertissement :",
+  "en": "Warning delay:"
+ },
+ "ewa.server.delay_suffix": {
+  "fr": " min",
+  "en": " min"
+ },
+ "ewa.server.start": {
+  "fr": "Démarrer",
+  "en": "Start"
+ },
+ "ewa.server.stop": {
+  "fr": "Arrêter",
+  "en": "Stop"
+ },
+ "ewa.server.restart": {
+  "fr": "Redémarrer",
+  "en": "Restart"
+ },
+ "ewa.server.group_config": {
+  "fr": "Configuration (SystemConfig)",
+  "en": "Configuration (SystemConfig)"
+ },
+ "ewa.server.version": {
+  "fr": "Version",
+  "en": "Version"
+ },
+ "ewa.server.build": {
+  "fr": "Build du jeu",
+  "en": "Game build"
+ },
+ "ewa.server.startcmd": {
+  "fr": "Commande de démarrage",
+  "en": "Start command"
+ },
+ "ewa.server.welcome": {
+  "fr": "Message de bienvenue",
+  "en": "Welcome message"
+ },
+ "ewa.server.save_cfg": {
+  "fr": "Enregistrer la configuration",
+  "en": "Save configuration"
+ },
+ "ewa.server.saved_title": {
+  "fr": "Enregistré",
+  "en": "Saved"
+ },
+ "ewa.server.saved": {
+  "fr": "Configuration enregistrée.",
+  "en": "Configuration saved."
+ },
+ "ewa.server.confirm_title": {
+  "fr": "Confirmation",
+  "en": "Confirmation"
+ },
+ "ewa.server.stop_q": {
+  "fr": "Arrêter le serveur de jeu après {minutes} min d'avertissement aux joueurs ?",
+  "en": "Stop the game server after {minutes} min of warning to players?"
+ },
+ "ewa.server.restart_q": {
+  "fr": "Redémarrer le serveur de jeu après {minutes} min d'avertissement aux joueurs ?",
+  "en": "Restart the game server after {minutes} min of warning to players?"
+ },
+ "ewa.users.col.id": {
+  "fr": "Id",
+  "en": "Id"
+ },
+ "ewa.users.col.name": {
+  "fr": "Identifiant",
+  "en": "Username"
+ },
+ "ewa.users.col.role": {
+  "fr": "Rôle",
+  "en": "Role"
+ },
+ "ewa.users.reload": {
+  "fr": "Recharger",
+  "en": "Reload"
+ },
+ "ewa.users.add": {
+  "fr": "Créer un compte...",
+  "en": "Create account..."
+ },
+ "ewa.users.delete": {
+  "fr": "Supprimer",
+  "en": "Delete"
+ },
+ "ewa.users.password": {
+  "fr": "Changer le mot de passe...",
+  "en": "Change password..."
+ },
+ "ewa.users.add_title": {
+  "fr": "Nouveau compte EWA",
+  "en": "New EWA account"
+ },
+ "ewa.users.add_name": {
+  "fr": "Identifiant :",
+  "en": "Username:"
+ },
+ "ewa.users.add_password": {
+  "fr": "Mot de passe :",
+  "en": "Password:"
+ },
+ "ewa.users.add_role": {
+  "fr": "Rôle :",
+  "en": "Role:"
+ },
+ "ewa.users.delete_title": {
+  "fr": "Suppression",
+  "en": "Deletion"
+ },
+ "ewa.users.delete_confirm": {
+  "fr": "Supprimer le compte « {name} » ?",
+  "en": "Delete account « {name} »?"
+ },
+ "ewa.users.password_title": {
+  "fr": "Mot de passe",
+  "en": "Password"
+ },
+ "ewa.users.password_ask": {
+  "fr": "Nouveau mot de passe pour « {name} » :",
+  "en": "New password for « {name} »:"
+ },
+ "ewa.users.role.none": {
+  "fr": "Aucun",
+  "en": "None"
+ },
+ "ewa.users.role.player": {
+  "fr": "Player",
+  "en": "Player"
+ },
+ "ewa.users.role.vip": {
+  "fr": "VIP",
+  "en": "VIP"
+ },
+ "ewa.users.role.gm": {
+  "fr": "GameMaster",
+  "en": "GameMaster"
+ },
+ "ewa.users.role.modo": {
+  "fr": "Moderator",
+  "en": "Moderator"
+ },
+ "ewa.users.role.igadmin": {
+  "fr": "InGame Admin",
+  "en": "InGame Admin"
+ },
+ "ewa.users.role.serveradmin": {
+  "fr": "Server Admin",
+  "en": "Server Admin"
+ },
+ "ewa.console.disconnected": {
+  "fr": "Telnet déconnecté.",
+  "en": "Telnet disconnected."
+ },
+ "ewa.console.connect": {
+  "fr": "Connecter",
+  "en": "Connect"
+ },
+ "ewa.console.disconnect": {
+  "fr": "Déconnecter",
+  "en": "Disconnect"
+ },
+ "ewa.console.connecting": {
+  "fr": "Connexion...",
+  "en": "Connecting..."
+ },
+ "ewa.console.connected": {
+  "fr": "Connecté.",
+  "en": "Connected."
+ },
+ "ewa.console.connect_fail": {
+  "fr": "Connexion impossible : {error}",
+  "en": "Connection failed: {error}"
+ },
+ "ewa.console.send_fail": {
+  "fr": "Envoi impossible : {error}",
+  "en": "Send failed: {error}"
+ },
+ "ewa.console.clear": {
+  "fr": "Effacer",
+  "en": "Clear"
+ },
+ "ewa.console.placeholder": {
+  "fr": "Commande console (SAY, save, bans...)...",
+  "en": "Console command (SAY, save, bans...)..."
+ },
+ "ewa.console.send": {
+  "fr": "Envoyer",
+  "en": "Send"
+ },
+ "ewa.deploy.warn": {
+  "fr": "Déploiement MIROIR : le dossier distant devient le reflet fidèle du dossier local (comme la synchro production). Rappel projet : une modification d'un playfield STATIQUE exige une NOUVELLE PARTIE.",
+  "en": "MIRROR deployment: the remote folder becomes a faithful mirror of the local folder (like production sync). Project rule: modifying a STATIC playfield requires a NEW GAME on it."
+ },
+ "ewa.deploy.local": {
+  "fr": "Dossier local (working) :",
+  "en": "Local folder (working):"
+ },
+ "ewa.deploy.browse": {
+  "fr": "Parcourir...",
+  "en": "Browse..."
+ },
+ "ewa.deploy.mirror": {
+  "fr": "MIROIR : supprimer les fichiers présents en distant seulement (sauvegardés avant suppression)",
+  "en": "MIRROR: delete files present on the remote only (backed up before deletion)"
+ },
+ "ewa.deploy.mirror_tip": {
+  "fr": "Même sémantique que la synchro production v1.15.0 : la production reste le reflet fidèle du working.",
+  "en": "Same semantics as the v1.15.0 production sync: production stays a faithful mirror of the working copy."
+ },
+ "ewa.deploy.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "ewa.deploy.deploy": {
+  "fr": "Déployer",
+  "en": "Deploy"
+ },
+ "ewa.deploy.restart": {
+  "fr": "Redémarrage prévenu...",
+  "en": "Warned restart..."
+ },
+ "ewa.deploy.analyzing": {
+  "fr": "Analyse du dossier distant...",
+  "en": "Listing the remote folder..."
+ },
+ "ewa.deploy.starting": {
+  "fr": "Déploiement en cours...",
+  "en": "Deploying..."
+ },
+ "ewa.deploy.plan": {
+  "fr": "Plan : {up} à copier, {deleted} à supprimer, {bins} caches .bin à purger, {unchanged} inchangés.",
+  "en": "Plan: {up} to copy, {deleted} to delete, {bins} .bin caches to purge, {unchanged} unchanged."
+ },
+ "ewa.deploy.mark_delete": {
+  "fr": "À supprimer",
+  "en": "To delete"
+ },
+ "ewa.deploy.bad_local_title": {
+  "fr": "Dossier local invalide",
+  "en": "Invalid local folder"
+ },
+ "ewa.deploy.bad_local": {
+  "fr": "Le dossier local indiqué n'existe pas.",
+  "en": "The given local folder does not exist."
+ },
+ "ewa.deploy.no_sftp": {
+  "fr": "Renseignez l'hôte, l'identifiant et le chemin distant du scénario dans la configuration SFTP.",
+  "en": "Fill in the host, username and remote scenario path in the SFTP settings."
+ },
+ "ewa.deploy.sftp_title": {
+  "fr": "SFTP",
+  "en": "SFTP"
+ },
+ "ewa.deploy.confirm_title": {
+  "fr": "Miroir destructif",
+  "en": "Destructive mirror"
+ },
+ "ewa.deploy.confirm": {
+  "fr": "Le déploiement supprimera {deleted} fichier(s) distant(s) (sauvegardés au préalable) et purgera {bins} cache(s) .bin. Continuer ?",
+  "en": "The deployment will delete {deleted} remote file(s) (backed up first) and purge {bins} .bin cache(s). Continue?"
+ },
+ "ewa.deploy.restart_title": {
+  "fr": "Redémarrage prévenu",
+  "en": "Warned restart"
+ },
+ "ewa.deploy.restart_delay": {
+  "fr": "Délai avant redémarrage (minutes) :",
+  "en": "Delay before restart (minutes):"
+ },
+ "ewa.deploy.restart_q": {
+  "fr": "Programmer le redémarrage du serveur dans {minutes} min (avertissement automatique aux joueurs) ?",
+  "en": "Schedule the server restart in {minutes} min (automatic warning to players)?"
+ },
+ "ewa.deploy.restart_scheduled": {
+  "fr": "Redémarrage programmé dans {minutes} min.",
+  "en": "Restart scheduled in {minutes} min."
+ },
+ "ewa.sftp.missing_paramiko": {
+  "fr": "Le module paramiko est manquant : pip install paramiko (le reste de l'éditeur n'en dépend pas).",
+  "en": "The paramiko module is missing: pip install paramiko (the rest of the editor does not depend on it)."
+ },
+ "ewa.sync.summary": {
+  "fr": "Déploiement terminé : {up} copié(s), {deleted} supprimé(s), {bins} cache(s) purgé(s), {errors} erreur(s).",
+  "en": "Deployment done: {up} copied, {deleted} deleted, {bins} cache(s) purged, {errors} error(s)."
+ },
+ "menu.tools.yaml_compare": {
+  "fr": "Comparer / fusionner deux YAML...",
+  "en": "Compare / merge two YAML files..."
+ },
+ "yamlmerge.kind_modified": {
+  "fr": "Bloc modifié (lignes)",
+  "en": "Modified block (lines)"
+ },
+ "yamlmerge.modified_tip": {
+  "fr": "Double-clic : détail ligne à ligne (avant/après, cocher ce qui passe).",
+  "en": "Double-click: line-by-line detail (before/after, check what applies)."
+ },
+ "yamlmerge.row.same": {
+  "fr": "identique",
+  "en": "identical"
+ },
+ "yamlmerge.row.changed": {
+  "fr": "modifiée",
+  "en": "changed"
+ },
+ "yamlmerge.row.add": {
+  "fr": "ajoutée",
+  "en": "added"
+ },
+ "yamlmerge.row.remove": {
+  "fr": "supprimable",
+  "en": "removable"
+ },
+ "yamlmerge.lines.title": {
+  "fr": "Diff ligne à ligne — {name}",
+  "en": "Line-by-line diff — {name}"
+ },
+ "yamlmerge.lines.intro": {
+  "fr": "Bloc « {name} » ({root}) : chaque ligne est affichée de son côté — Avant = working, Après = source — avec sa case (clic sur la case ou DOUBLE-CLIC sur la ligne), SANS appariement : cocher une ligne source = l'ajouter au working ; cocher une ligne working = la retirer (miroir) ; remplacer une valeur = cocher les deux. Par défaut, les ajouts de la source déjà présents à l'identique dans le working sont décochés (évite les doublons) — tout reste cochable librement.",
+  "en": "Block « {name} » ({root}): every line is shown on its own side — Before = working, After = source — with its own box (click the box or DOUBLE-CLICK the row), NO pairing: check a source line = add it to the working copy; check a working line = remove it (mirror); replacing a value = check both. By default, source additions already present as-is in the working copy are unchecked (avoids duplicates) — everything stays freely checkable."
+ },
+ "yamlmerge.lines.hide_same": {
+  "fr": "Masquer les lignes identiques",
+  "en": "Hide identical lines"
+ },
+ "yamlmerge.lines.col_state": {
+  "fr": "État",
+  "en": "State"
+ },
+ "yamlmerge.lines.col_before": {
+  "fr": "Avant (working)",
+  "en": "Before (working)"
+ },
+ "yamlmerge.lines.col_after": {
+  "fr": "Après (source)",
+  "en": "After (source)"
+ },
+ "yamlmerge.lines.status": {
+  "fr": "{chg} modifiée(s), {add} ajout(s), {rem} suppression(s) cochés",
+  "en": "{chg} changed, {add} added, {rem} removal(s) checked"
+ },
+ "yamlmerge.lines.subtree": {
+  "fr": "Feuille vs branche : coche = remplacer tout le sous-arbre du working par celui de la source.",
+  "en": "Leaf vs branch: checked = replace the whole working subtree with the source one."
+ },
+ "yamlmerge.remove_title": {
+  "fr": "Suppressions de lignes",
+  "en": "Line removals"
+ },
+ "yamlmerge.remove_confirm": {
+  "fr": "La fusion cochée supprimera {n} ligne(s) de la copie de travail. Continuer ?",
+  "en": "The checked merge will delete {n} line(s) from the working copy. Continue?"
+ },
+ "yamlcompare.pick_source": {
+  "fr": "Fichier SOURCE (ce qui est proposé)",
+  "en": "SOURCE file (what is proposed)"
+ },
+ "yamlcompare.pick_working": {
+  "fr": "Fichier WORKING (copie de travail à modifier)",
+  "en": "WORKING file (working copy to change)"
+ },
+ "yamlmerge.modified_hint": {
+  "fr": "double-clic : detail ligne a ligne",
+  "en": "double-click: line-by-line detail"
+ },
+ "poi.title": {
+  "fr": "POIs du playfield — {name}",
+  "en": "Playfield POIs — {name}"
+ },
+ "poi.dest_label": {
+  "fr": "Fichier de destination : {name}. Le bloc est inséré sous POIs:, commentaires et mise en forme préservés, déjà présent = ignoré.",
+  "en": "Destination file: {name}. The block is inserted under POIs:, comments and formatting preserved, already present = skipped."
+ },
+ "poi.add_action": {
+  "fr": "POIs du playfield…",
+  "en": "Playfield POIs…"
+ },
+ "poi.add_button": {
+  "fr": "Ajouter au playfield",
+  "en": "Add to playfield"
+ },
+ "poi.tab_new": {
+  "fr": "Nouveau POI (prefab)",
+  "en": "New POI (prefab)"
+ },
+ "poi.tab_import": {
+  "fr": "Importer d'un autre playfield",
+  "en": "Import from another playfield"
+ },
+ "poi.section": {
+  "fr": "Section",
+  "en": "Section"
+ },
+ "poi.section_random": {
+  "fr": "Random (spawn aléatoire)",
+  "en": "Random (random spawn)"
+ },
+ "poi.section_fixed": {
+  "fr": "Fixed (placement exact)",
+  "en": "Fixed (exact placement)"
+ },
+ "poi.prefab": {
+  "fr": "Prefab (.epb)",
+  "en": "Prefab (.epb)"
+ },
+ "poi.group_name": {
+  "fr": "GroupName",
+  "en": "GroupName"
+ },
+ "poi.faction": {
+  "fr": "Faction",
+  "en": "Faction"
+ },
+ "poi.type": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "poi.name": {
+  "fr": "Name",
+  "en": "Name"
+ },
+ "poi.mode": {
+  "fr": "Mode",
+  "en": "Mode"
+ },
+ "poi.pos": {
+  "fr": "Pos",
+  "en": "Pos"
+ },
+ "poi.roty": {
+  "fr": "RotY",
+  "en": "RotY"
+ },
+ "poi.count_minmax": {
+  "fr": "CountMinMax",
+  "en": "CountMinMax"
+ },
+ "poi.drone_prob": {
+  "fr": "DroneProb",
+  "en": "DroneProb"
+ },
+ "poi.drones_minmax": {
+  "fr": "DronesMinMax",
+  "en": "DronesMinMax"
+ },
+ "poi.reserve": {
+  "fr": "ReserveCount",
+  "en": "ReserveCount"
+ },
+ "poi.prop_key": {
+  "fr": "Clé",
+  "en": "Key"
+ },
+ "poi.prop_value": {
+  "fr": "Valeur",
+  "en": "Value"
+ },
+ "poi.prop_add": {
+  "fr": "Ajouter une propriété",
+  "en": "Add a property"
+ },
+ "poi.prop_del": {
+  "fr": "Retirer",
+  "en": "Remove"
+ },
+ "poi.preview": {
+  "fr": "Aperçu du bloc",
+  "en": "Block preview"
+ },
+ "poi.source_playfield": {
+  "fr": "Playfield source",
+  "en": "Source playfield"
+ },
+ "poi.col_section": {
+  "fr": "Section",
+  "en": "Section"
+ },
+ "poi.import_count": {
+  "fr": "{n} POI(s) absent(s) du playfield, cochables.",
+  "en": "{n} POI(s) missing from the playfield, checkable."
+ },
+ "poi.need_prefab": {
+  "fr": "Choisissez ou saisissez un nom de prefab.",
+  "en": "Pick or type a prefab name."
+ },
+ "poi.apply_done": {
+  "fr": "{n} POI(s) ajouté(s) à {name}.",
+  "en": "{n} POI(s) added to {name}."
+ },
+ "poi.apply_nothing": {
+  "fr": "Rien à ajouter (déjà présent ou appariement impossible).",
+  "en": "Nothing to add (already present or no reliable match)."
+ },
+ "poi.prop_key_default": {
+  "fr": "RegenAfter",
+  "en": "RegenAfter"
+ },
+ "poi.prop_value_default": {
+  "fr": "720",
+  "en": "720"
+ },
+ "poi.tab_remove": {
+  "fr": "Supprimer des POIs",
+  "en": "Remove POIs"
+ },
+ "poi.remove_button": {
+  "fr": "Supprimer la sélection",
+  "en": "Remove selection"
+ },
+ "poi.remove_hint": {
+  "fr": "Cochez les POIs à retirer du playfield — rien n'est coché par défaut, la suppression n'est jamais implicite. Identité = première clé du bloc (GroupName pour Random, Name pour Fixed).",
+  "en": "Check the POIs to remove from the playfield — nothing is checked by default, removal is never implicit. Identity = the block's first key (GroupName for Random, Name for Fixed)."
+ },
+ "poi.remove_count": {
+  "fr": "{n} POI(s) dans ce playfield.",
+  "en": "{n} POI(s) in this playfield."
+ },
+ "poi.remove_done": {
+  "fr": "{n} POI(s) supprimé(s) de {name}.",
+  "en": "{n} POI(s) removed from {name}."
+ },
+ "wsundo.poi_edit": {
+  "fr": "POIs de '{name}'",
+  "en": "POIs of '{name}'"
+ },
+ "menu.tools.yaml_check": {
+  "fr": "Bilan avant lancement (moteur de jeu, dédié)...",
+  "en": "Pre-launch check (game engine, dedicated server)..."
+ },
+ "menu.tools.yaml_check.tip": {
+  "fr": "Structure du scénario, moteur yaml/ecf, et boot réel du dédié — tout ce qui peut empêcher le jeu de charger",
+  "en": "Scenario structure, yaml/ecf engine, and a real dedicated-server boot — everything that could stop the game from loading"
+ },
+ "yamlcheck.title": {
+  "fr": "Vérification YAML/ECF — moteur de jeu",
+  "en": "YAML/ECF check — game engine"
+ },
+ "yamlcheck.scenario": {
+  "fr": "Dossier du scénario :",
+  "en": "Scenario folder:"
+ },
+ "yamlcheck.scenario_hint": {
+  "fr": "Copie de travail ou scenario installé...",
+  "en": "Working copy or installed scenario..."
+ },
+ "yamlcheck.browse": {
+  "fr": "Parcourir...",
+  "en": "Browse..."
+ },
+ "yamlcheck.production": {
+  "fr": "Vérifier aussi la copie production",
+  "en": "Also check the production copy"
+ },
+ "yamlcheck.run": {
+  "fr": "Vérifier",
+  "en": "Check"
+ },
+ "yamlcheck.running": {
+  "fr": "Vérification en cours...",
+  "en": "Checking..."
+ },
+ "yamlcheck.done": {
+  "fr": "{n} fichier(s) scanné(s) (yaml + ecf) — {e} en erreur (voir liste).",
+  "en": "{n} file(s) scanned (yaml + ecf) — {e} broken (see list)."
+ },
+ "yamlcheck.all_ok": {
+  "fr": "{n} fichier(s) scanné(s) (yaml + ecf) : tous passent.",
+  "en": "{n} file(s) scanned (yaml + ecf): all pass."
+ },
+ "yamlcheck.need_scenario": {
+  "fr": "Indique le dossier du scénario à vérifier.",
+  "en": "Set the scenario folder to check."
+ },
+ "yamlcheck.failed": {
+  "fr": "Échec de la vérification :",
+  "en": "Check failed:"
+ },
+ "yamlcheck.col_file": {
+  "fr": "Fichier",
+  "en": "File"
+ },
+ "yamlcheck.col_line": {
+  "fr": "Ligne",
+  "en": "Line"
+ },
+ "yamlcheck.col_col": {
+  "fr": "Col.",
+  "en": "Col."
+ },
+ "yamlcheck.col_error": {
+  "fr": "Erreur",
+  "en": "Error"
+ },
+ "health.category_launch": {
+  "fr": "Avant lancement (structure + moteur du jeu)",
+  "en": "Pre-launch (structure + game engine)"
+ },
+ "launchcheck.title": {
+  "fr": "Bilan avant lancement",
+  "en": "Pre-launch check"
+ },
+ "launchcheck.run": {
+  "fr": "Lancer le bilan",
+  "en": "Run the check"
+ },
+ "launchcheck.running": {
+  "fr": "Bilan en cours...",
+  "en": "Checking..."
+ },
+ "launchcheck.done": {
+  "fr": "{i} anomalie(s) ({e} bloquante(s)) — {n} fichier(s) passes au moteur du jeu.",
+  "en": "{i} issue(s) ({e} blocking) — {n} file(s) through the game engine."
+ },
+ "launchcheck.all_ok": {
+  "fr": "Aucun bloquant detecte — {n} fichier(s) passes au moteur du jeu.",
+  "en": "No blocker found — {n} file(s) through the game engine."
+ },
+ "launchcheck.all_ok_noengine": {
+  "fr": "Aucun bloquant structurel detecte (moteur yaml/ecf non construit : voir menu Outils).",
+  "en": "No structural blocker found (yaml/ecf engine not built: see Tools menu)."
+ },
+ "launchcheck.noengine": {
+  "fr": "(moteur yaml/ecf saute : outil non construit — voir menu Outils)",
+  "en": "(yaml/ecf engine skipped: tool not built — see Tools menu)"
+ },
+ "launchcheck.sev_error": {
+  "fr": "Bloquant",
+  "en": "Blocking"
+ },
+ "launchcheck.sev_warning": {
+  "fr": "Attention",
+  "en": "Warning"
+ },
+ "launchcheck.check_sectors": {
+  "fr": "Sectors",
+  "en": "Sectors"
+ },
+ "launchcheck.check_playfields": {
+  "fr": "Playfields",
+  "en": "Playfields"
+ },
+ "launchcheck.check_prefabs": {
+  "fr": "Prefabs",
+  "en": "Prefabs"
+ },
+ "launchcheck.check_engine": {
+  "fr": "Moteur",
+  "en": "Engine"
+ },
+ "launchcheck.col_severity": {
+  "fr": "Gravité",
+  "en": "Severity"
+ },
+ "launchcheck.col_check": {
+  "fr": "Contrôle",
+  "en": "Check"
+ },
+ "launchcheck.check_egroups": {
+  "fr": "Groupes",
+  "en": "Groups"
+ },
+ "launchcheck.check_galaxy": {
+  "fr": "Galaxie",
+  "en": "Galaxy"
+ },
+ "launchcheck.check_caches": {
+  "fr": "Caches",
+  "en": "Caches"
+ },
+ "launchcheck.check_poi_groups": {
+  "fr": "Groupes POI",
+  "en": "POI groups"
+ },
+ "launchcheck.dedi": {
+  "fr": "Tester le chargement réel (dédié, ~2 min)",
+  "en": "Real load test (dedicated server, ~2 min)"
+ },
+ "launchcheck.dedi.tip": {
+  "fr": "Démarre le serveur dédié sur le scénario INSTALLÉ dans une sauvegarde jetable — le vrai moteur valide tout, puis s'arrête seul",
+  "en": "Boots the dedicated server on the INSTALLED scenario in a throwaway save — the real engine validates everything, then stops"
+ },
+ "launchcheck.dedi.phase": {
+  "fr": "Dédé en cours : {s}",
+  "en": "Dedi running: {s}"
+ },
+ "launchcheck.dedi.row": {
+  "fr": "Test dédié : {s} s, {n} playfields",
+  "en": "Dedi test: {s} s, {n} playfields"
+ },
+ "launchcheck.dedi.not_ready": {
+  "fr": "démarrage complet non atteint (voir lignes ci-dessous)",
+  "en": "full startup not reached (see lines below)"
+ },
+ "launchcheck.dedi.ok": {
+  "fr": "Test dédié : prêt en {s} s, {n} playfields chargés — 0 erreur bloquante. Log : {l}",
+  "en": "Dedi test: ready in {s} s, {n} playfields loaded — 0 blocking error. Log: {l}"
+ },
+ "launchcheck.dedi.failed": {
+  "fr": "Test dédié : démarrage non atteint. Log : {l}",
+  "en": "Dedi test: startup not reached. Log: {l}"
+ },
+ "launchcheck.export": {
+  "fr": "Exporter les résultats...",
+  "en": "Export results..."
+ },
+ "launchcheck.csv_done": {
+  "fr": "Résultats exportés : {path}",
+  "en": "Results exported: {path}"
+ },
+ "launchcheck.csv_headers": {
+  "fr": "Fichier;Gravité;Contrôle;Détail",
+  "en": "File;Severity;Check;Detail"
  }
 }

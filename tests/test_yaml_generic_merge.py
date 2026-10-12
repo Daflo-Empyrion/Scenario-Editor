@@ -317,18 +317,21 @@ def test_yaml_review_dialog_identical(tmp_path):
     assert not dlg.btn_replace.isEnabled()
 
 
-def test_yaml_review_dialog_only_conflicts_disables_apply(tmp_path):
-    """Fichiers DIFFERENTS mais aucun element nouveau (ecarts internes
-    seulement) : pas d'insertion possible, seul le remplacement explicite
-    reste proposable."""
+def test_yaml_review_dialog_only_conflicts_disables_apply(qapp, tmp_path):
+    """Fichiers DIFFERENTS mais aucun element nouveau : depuis le 07/10
+    les ECARTS INTERNES deviennent une unite 'modified' (diff ligne a
+    ligne, lignes decochees par defaut = copie de travail prioritaire) ;
+    le remplacement explicite reste proposable."""
     from gui.yaml_merge_review_dialog import YamlMergeReviewDialog
     a = tmp_path / "a.yaml"
     b = tmp_path / "b.yaml"
     a.write_text("X:\n  - Id: 1\n    Title: Un\n", encoding="utf-8")
     b.write_text("X:\n  - Id: 1\n    Title: Autre\n", encoding="utf-8")
     dlg = YamlMergeReviewDialog(a, b, "source", parent=None)
-    assert not dlg.identical and dlg.units == []
-    assert not dlg.btn_apply.isEnabled()
+    assert not dlg.identical
+    modified = [u for u in dlg.units if u.kind == "modified"]
+    assert len(modified) == 1
+    assert not any(r.checked for r in modified[0].rows)  # rien d'implicite
     assert dlg.btn_replace.isEnabled()
 
 
@@ -455,10 +458,15 @@ def test_nested_root_apply_and_idempotence(tmp_path):
     assert "MasperonAbyssalMission" in txt
     assert "NullPOI" in txt
     assert "OtherPod" in txt             # Fixed: cree (unite cochenable)
-    # idempotent : re-analyse = plus rien, re-apply = 0
+    # idempotent : re-analyse ne propose plus rien d'APPLICABLE PAR DEFAUT
+    # (07/10 : les unites 'modified' restent visibles pour les lignes
+    # working-seul -- proposition de suppression miroir DECOCHÉE, donc
+    # rien ne s'applique sans choix explicite)
     units2 = analyze_yaml_merge(working, source)
-    assert units2 == []
-    assert apply_yaml_units(working, source, units2) == 0
+    default_actionable = [u for u in units2 if u.kind != "modified"
+                          or any(r.checked for r in u.rows)]
+    assert default_actionable == []
+    assert apply_yaml_units(working, source, default_actionable) == 0
 
 
 def test_subkey_selective_apply_leaves_host_convention(tmp_path):

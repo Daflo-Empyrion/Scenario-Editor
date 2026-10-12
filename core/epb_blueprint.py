@@ -353,6 +353,7 @@ class EpbBlueprint:
         self.catalog_names: Set[str] = set()    # tous les noms de blocs ECF
         self._prefix = b""
         self._flags = b""
+        self._trailer = b""
         self._mask_count = 0
         self._cells: List[Tuple[int, int]] = []  # (index de cellule, uint32 brut)
         self._tail = b""
@@ -386,15 +387,28 @@ class EpbBlueprint:
         if self.version >= 9:
             _skip_block_groups(r)
 
-        num = r.i32()                           # taille: entree locale + rep. central
-        self._flags = data[r.p:r.p + 2]
-        r.skip(2)
-        if data[r.p:r.p + 4] != b"PK\x03\x04":
+        # frontiere zip ANCHEE sur la signature locale, validee par le
+        # champ taille du jeu : num couvre entree locale + repertoire
+        # central + EOCD (verifie sur fichiers reels v23/v25/v31) ; le
+        # parse du header peut desaligner sur une version plus ancienne
+        # que la decompilation (vecu : prefab v25, champs inconnus)
+        pk = data.find(b"PK\x03\x04")
+        while pk >= 6:
+            num = struct.unpack_from("<i", data, pk - 6)[0]
+            if (num >= 22 and pk + num <= len(data)
+                    and data[pk + num - 22:pk + num - 18] == b"PK\x05\x06"):
+                break
+            pk = data.find(b"PK\x03\x04", pk + 1)
+        else:
             raise EpbError("entree zip locale introuvable apres le header")
-        self._prefix = data[:r.p - 6]
-        local = data[r.p:r.p + num]
-        self._central = data[r.p + num:]
-        r = None
+        self._flags = data[pk - 2:pk]
+        self._prefix = data[:pk - 6]
+        fnlen = struct.unpack_from("<H", data, pk + 26)[0]
+        exlen = struct.unpack_from("<H", data, pk + 28)[0]
+        csize = struct.unpack_from("<I", data, pk + 18)[0]
+        local = data[pk:pk + 30 + fnlen + exlen + csize]
+        self._central = data[pk + len(local):pk + num]
+        self._trailer = data[pk + num:]
 
         # entree zip locale : header fixe 30 octets, nom, extra, donnees
         method = struct.unpack_from("<H", local, 8)[0]
@@ -624,7 +638,8 @@ class EpbBlueprint:
         # i32 = taille entree locale + repertoire central (cf. readRest du jeu);
         # les octets posterieurs eventuels (terrain fillers...) sont recopies.
         num = len(local) + len(central)
-        data = prefix + struct.pack("<i", num) + self._flags + local + central
+        data = (prefix + struct.pack("<i", num) + self._flags + local
+                + central + self._trailer)
         target.write_bytes(data)
         return target
 

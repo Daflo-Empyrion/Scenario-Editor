@@ -157,8 +157,46 @@ class MainWindow(QMainWindow):
         self._build_menu_file()
         self._build_menu_verification()
         self._build_menu_tools()
+        self._build_menu_server()
         self._build_menu_options()
         self._build_menu_help()
+
+    def _build_menu_server(self):
+        """Menu Serveur (module admin EWA) : administrer le dedié a distance
+        (client de l'API du mod EmpyrionWebAccess), configuration de la
+        connexion et guide d'installation du mod."""
+        self.menu_server = self.menuBar().addMenu(t("menu.server"))
+        self.action_ewa_admin = self.menu_server.addAction(
+            t("menu.server.admin"))
+        self.action_ewa_admin.triggered.connect(self._open_ewa_server_dialog)
+        self.action_ewa_config = self.menu_server.addAction(
+            t("menu.server.config"))
+        self.action_ewa_config.triggered.connect(self._open_ewa_config_dialog)
+        self.menu_server.addSeparator()
+        self.action_ewa_install = self.menu_server.addAction(
+            t("menu.server.install"))
+        self.action_ewa_install.triggered.connect(self._open_ewa_install_dialog)
+
+    def _open_ewa_server_dialog(self):
+        """Fenetre d'administration NON MODALE (on garde la main sur
+        l'editeur pendant le chat/la surveillance) -- une seule instance."""
+        existing = getattr(self, "_ewa_dialog", None)
+        if existing is not None and existing.isVisible():
+            existing.raise_()
+            existing.activateWindow()
+            return
+        from gui.ewa_dialog import EwaServerDialog
+        self._ewa_dialog = EwaServerDialog(self)
+        self._ewa_dialog.show()
+
+    def _open_ewa_config_dialog(self):
+        from gui.ewa_config_dialog import EwaConfigDialog
+        EwaConfigDialog(self).exec()
+
+    def _open_ewa_install_dialog(self):
+        from gui.ewa_install_dialog import EwaInstallDialog
+        EwaInstallDialog(self).exec()
+
 
     def _build_menu_file(self):
         self.menu_file = self.menuBar().addMenu(t("menu.file"))
@@ -228,9 +266,44 @@ class MainWindow(QMainWindow):
         self.action_dashboard.triggered.connect(self._open_dashboard)
         self.action_economy_editor = self.menu_tools.addAction(t("menu.tools.economy"))
         self.action_economy_editor.triggered.connect(self._open_economy_editor)
+        self.action_yaml_compare = self.menu_tools.addAction(t("menu.tools.yaml_compare"))
+        self.action_yaml_compare.triggered.connect(self._open_yaml_compare_tool)
+        self.action_yaml_check = self.menu_tools.addAction(t("menu.tools.yaml_check"))
+        self.action_yaml_check.setToolTip(t("menu.tools.yaml_check.tip"))
+        self.action_yaml_check.triggered.connect(self._open_yaml_check)
         self.menu_tools.addSeparator()
         self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
+
+    def _open_yaml_compare_tool(self):
+        """Outil autonome (demande 07/10) : comparer/fusionner DEUX
+        fichiers YAML au choix ligne a ligne -- puis le meme chemin de
+        revue que la fusion generique (garde-fou Sectors inclus, undo,
+        backup)."""
+        from PyQt6.QtWidgets import QFileDialog
+        source_path, _ = QFileDialog.getOpenFileName(
+            self, t("yamlcompare.pick_source"), "",
+            "YAML (*.yaml *.yml);;Tous (*)")
+        if not source_path:
+            return
+        dest_path, _ = QFileDialog.getOpenFileName(
+            self, t("yamlcompare.pick_working"), "",
+            "YAML (*.yaml *.yml);;Tous (*)")
+        if not dest_path:
+            return
+        from pathlib import Path as _Path
+        self._merge_yaml_with_review(_Path(source_path), _Path(dest_path),
+                                     _Path(source_path).name)
+
+    def _open_yaml_check(self):
+        """Bilan « avant lancement » complet (demande 11/10) : structure
+        Sectors/playfields/prefabs + moteur yaml/ecf + boot reel du dedi
+        en option — gui/launch_check_dialog.py. La copie de travail de
+        l'espace de travail pre-remplit le champ."""
+        from gui.launch_check_dialog import LaunchCheckDialog
+        working = str(self.workspace.working_root) if self.workspace else ""
+        dlg = LaunchCheckDialog(self, working_root=working)
+        dlg.exec()
 
     def _build_menu_verification(self):
         """Reorganise (17/09/2026) : le Centre de verification (une seule
@@ -278,13 +351,67 @@ class MainWindow(QMainWindow):
                 Path(self.workspace.working_root) / "Content" / "Configuration"))
         return paths
 
-    def _open_epb_check_dialog(self):
+    def _open_epb_check_dialog(self, path=None):
         """Controle des blueprints .epb : blocs inconnus du catalogue
         (scenario + vanille), suppression optionnelle avec backup
-        (core/epb_blueprint.py + gui/epb_check_dialog.py)."""
+        (core/epb_blueprint.py + gui/epb_check_dialog.py).
+        `path` (fichier ou dossier) pre-remplit l'analyse ; sans, vide.
+        `path` falsy si appele par triggered(bool) du menu."""
         from gui.epb_check_dialog import EpbCheckDialog
         dlg = EpbCheckDialog(self, catalog_paths=self._epb_catalog_paths())
+        if path:
+            dlg.path_edit.setText(str(path))
+            dlg._analyze()
         dlg.exec()
+
+    def _open_poi_add_dialog(self, path=None):
+        """Assistant « Ajouter un POI » dans un playfield_static (demande
+        09/10) : nouveau bloc depuis un prefab .epb ou import d'un autre
+        playfield ; l'application passe par le moteur de fusion generique.
+        `path` falsy si appele par triggered(bool) du menu."""
+        if not path or not self.workspace:
+            return
+        from gui.poi_add_dialog import PoiAddDialog
+        dlg = PoiAddDialog(self, path,
+                           working_root=self.workspace.working_root)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._apply_poi_plan(path, dlg.plan)
+
+    def _apply_poi_plan(self, dest: Path, plan):
+        """Applique le plan de l'assistant POI : capture/undo espace de
+        travail, ecriture par le moteur generique ou remove_pois, rescan,
+        rafraichissement de l'onglet ouvert (meme fin que
+        _merge_yaml_with_review)."""
+        from gui.busy import run_long
+        prior = capture_file(dest)
+        if plan[0] == "new":
+            from core.poi_add import add_poi_block
+            applied = run_long(self,
+                               lambda: add_poi_block(dest, plan[2], plan[1]))
+        elif plan[0] == "remove":
+            from core.poi_add import remove_pois
+            applied = run_long(self,
+                               lambda: remove_pois(dest, set(plan[1])))
+        else:
+            from core.yaml_merge import apply_yaml_units
+            _, source, units = plan
+            applied = run_long(
+                self, lambda: apply_yaml_units(dest, Path(source), units))
+        if not applied:
+            self.statusBar().showMessage(t("poi.apply_nothing"))
+            return
+        self._push_workspace_undo(FileStateUndo(
+            dest, prior, t("wsundo.poi_edit", name=dest.name)))
+        self.workspace.rescan_working()
+        self._populate_tree(self.tree_working, self.workspace.working)
+        for i in range(self.tabs.count()):
+            if self.tabs.tabToolTip(i) == str(dest):
+                self.tabs.removeTab(i)
+                self.open_working_file_tab(dest)
+                break
+        key = "poi.remove_done" if plan[0] == "remove" else "poi.apply_done"
+        self.statusBar().showMessage(t(key, n=applied, name=dest.name))
 
     def _build_menu_options(self):
         """Options reorganisees (17/09/2026) : trois groupes lisibles au lieu
@@ -2413,10 +2540,19 @@ class MainWindow(QMainWindow):
 
         if data[0] == "file":
             path: Path = data[1]
+            action_poi = action_epb = None
+            if path.name.lower() == "playfield_static.yaml":
+                action_poi = menu.addAction(t("poi.add_action"))
+            elif path.suffix.lower() == ".epb":
+                action_epb = menu.addAction(t("menu.verification.epb"))
             action_delete = menu.addAction(t("file.delete_action", name=path.name))
             chosen = menu.exec(self.tree_working.viewport().mapToGlobal(pos))
             if chosen == action_delete:
                 self._delete_working_file(path)
+            elif action_poi is not None and chosen == action_poi:
+                self._open_poi_add_dialog(path)
+            elif action_epb is not None and chosen == action_epb:
+                self._open_epb_check_dialog(path)
 
         elif data[0] == "folder":
             folder: Path = data[1]
@@ -2708,8 +2844,10 @@ class MainWindow(QMainWindow):
         from gui.yaml_merge_review_dialog import YamlMergeReviewDialog
         from core.yaml_merge import apply_yaml_units
         from gui.busy import run_long
-        dialog = YamlMergeReviewDialog(dest_path, source_path, source_label,
-                                       parent=self)
+        dialog = YamlMergeReviewDialog(
+            dest_path, source_path, source_label, parent=self,
+            working_root=(self.workspace.working_root
+                          if self.workspace else None))
         if dialog.identical:
             self.statusBar().showMessage(
                 t("yamlmerge.identical_file", name=source_path.name))

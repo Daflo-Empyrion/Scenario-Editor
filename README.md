@@ -12,9 +12,12 @@ Editeur graphique (PyQt6) pour la creation et la modification de scenarios
 **Empyrion Galactic Survival** : blocs et objets (ECF), recettes, playfields,
 missions PDA, economie des marchands, arbres technologiques, dialogues et
 localisation — avec une suite de traduction complete (IA locale ou en ligne),
-des verifications de coherence et un systeme de securite qui preserve tes
-scenarios d'origine. Voir `wiki_app_fr.md` (ou `wiki_app_en.md`, accessibles
-aussi depuis le menu Aide de l'application) pour la documentation complete.
+un module d'administration de serveur dedie, un **bilan avant lancement qui
+test reellement le chargement de ton scenario par le moteur du jeu**, et un
+systeme de securite qui preserve tes scenarios d'origine.
+
+Documentation complete : `wiki_app_fr.md` (ou `wiki_app_en.md`), consultables
+aussi depuis le menu Aide de l'application.
 
 ## Fonctionnalites
 
@@ -33,9 +36,12 @@ aussi depuis le menu Aide de l'application) pour la documentation complete.
 - **Transformation en masse** : multiplier/ajouter/fixer/plafonner/arrondir
   une propriete sur plusieurs blocs a la fois, avec revue editable
 - Duplication avec reecriture automatique des references internes
-- Fusion intelligente entre scenarios, avec apercu modifiable et garde-fou
-  anti-collision
+- **Fusions specialisees** : fusion fine ECF entre scenarios, fusion par noms
+  (creatures, classes sans Id), fusion Sectors avec unicite globale des
+  playfields et dependances, fusion GalaxyConfig avec renumerotation des
+  sequences
 - Comparaison de scenarios A/B, fichiers modifies en un coup d'oeil
+- **Comparateur de bundles Unity** (assets ajoutes/retires/types)
 
 ### Missions PDA
 - Editeur complet : chapitres, taches, actions, recompenses, activations
@@ -69,6 +75,9 @@ aussi depuis le menu Aide de l'application) pour la documentation complete.
   par les moteurs
 - Confidentialite maitrisee : les moteurs locaux n'envoient rien du tout ;
   la traduction en ligne est desactivable d'une case (voir `PRIVACY.md`)
+- Prouve en production : traduction FR integrale d'un gros scénario
+  (9 267 lignes de PDA + 13 660 lignes de dialogues, 100 %, controle
+  d'integrite zero)
 
 ### Playfields et galaxie (YAML)
 - Editeur structure a 8 onglets (ressources, POI, creatures, drones,
@@ -83,9 +92,45 @@ aussi depuis le menu Aide de l'application) pour la documentation complete.
 - Editeur dedie : prix, stocks, taux de rachat, par station et par faction
 - Verification de coherence integree (menu Verification)
 
+### Administration de serveur dedie (EWA)
+Connecte ton scenario a un serveur dedie equipe du mod
+[EmpyrionWebAccess](https://github.com/juonja/empyrion_webaccess) :
+- **Dashboard** : etat du serveur, duree de session, actions demarrer/arreter
+- **Chat** : lecture du chat serveur et reponse directe
+- **Joueurs** : liste en direct, details, kick/ban, credits, envoi d'items
+- **Structures** : liste, touche/supprime, faction, warp
+- **Restauration** : joueurs et playfields depuis les backups du serveur
+- **Timetable** : taches planifiees du serveur
+- **Console telnet** brute et **SystemConfig** editable
+- **Deploiement SFTP miroir** : synchronise ton scenario vers le serveur
+  avec invalidation des caches du jeu
+- Securite : mots de passe jamais persistes sans ton consentement explicite,
+  cles d'hote SSH epinglees, confirmation avant toute action destructive
+
+### Bilan avant lancement — le scenario est-il chargeable ?
+Un bouton, une reponse : **le jeu va-t-il charger ton scenario ?**
+- **Moteur du jeu embarque** : tous les .yaml du scenario sont parses avec
+  le YamlDotNet reel d'Empyrion et tous les .ecf valides structurellement —
+  les erreurs exactes que le jeu afficherait, ligne et colonne
+- **Structure Sectors** : playfields en doublon entre systemes, systemes
+  sans soleil, fichiers etrangers, playfields references mais absents
+- **Valeurs ECF** : valeurs de type inattendu vs dictionnaire de formes
+  construit depuis la vanille
+- **Groupes d'entites** : references `Entities:/Names:` vs
+  EGroupsConfig/EClassConfig
+- **GalaxyConfig** : sequences Child StarRegion/Territory sans doublon ni
+  trou (crash documente)
+- **Caches .yaml.bin** : orphelins et copies a date conservee
+- **Test de chargement REEL** (optionnel) : demarre ton serveur dedie sur
+  le scenario installe dans une sauvegarde jetable, surveille le demarrage,
+  puis s'arrete seul — le vrai moteur valide tout, erreurs remontees dans
+  le bilan
+- **Export CSV** des resultats
+
 ### Verifications
-- Referencess, references croisees entre fichiers, blocs en attente (conflits
-  d'Id), economie, jetons orphelins, validation PDA
+- References, references croisees entre fichiers, blocs en attente (conflits
+  d'Id), economie, jetons orphelins, validation PDA, controle des
+  blueprints .epb (blocs inconnus du catalogue, vue 3D)
 - **Centre de verification (F5)** : tout d'un coup, avec compteurs
 
 ### Securite

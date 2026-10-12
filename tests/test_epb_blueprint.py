@@ -98,14 +98,35 @@ def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None):
     else:
         header += b"\x00"
     header += bytes([5]) + struct.pack("<H", 0)        # groupes vides
-    path.write_bytes(header + struct.pack("<i", len(local)) + b"\x00\x01"
-                     + local + central + eocd)
+    # format reel (verifie sur fichiers du jeu v23/v25/v31) : num couvre
+    # entree locale + repertoire central + EOCD, suivi d'un trailer 6 octets
+    path.write_bytes(header + struct.pack("<i", len(local) + len(central) + len(eocd))
+                     + b"\x00\x01" + local + central + eocd + b"\x00" * 6)
     return path
 
 
 @pytest.fixture
 def epb_file(tmp_path):
     return build_epb(tmp_path / "test.epb")
+
+
+def test_parse_header_older_with_unknown_fields(epb_file, tmp_path):
+    # header plus ancien que la decompilation (vecu : prefab v25) : des
+    # champs supplementaires desalignent le parse -> la frontiere zip est
+    # trouvee par l'ancrage PK valide, le fichier reste lisible et sauvable
+    raw = epb_file.read_bytes()
+    off = raw.find(b"PK\x03\x04")
+    junk = b"\x11\x22\x33\x44" * 10
+    p = tmp_path / "old.epb"
+    p.write_bytes(raw[:off - 6] + junk + raw[off - 6:])
+    bp = EpbBlueprint(p).parse()
+    assert len(bp.blocks) == 3
+    assert bp.size == SIZE
+    out = tmp_path / "resaved.epb"
+    bp.save(out, backup=False)
+    again = EpbBlueprint(out).parse()
+    assert len(again.blocks) == 3
+    assert again._tail == TAIL
 
 
 @pytest.fixture

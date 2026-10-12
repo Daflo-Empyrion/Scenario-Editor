@@ -52,7 +52,7 @@ _MAX_DEPTH = 12        # garde-fou anti-boucle sur des imbrications pathologique
 class YamlUnit:
     """Une unite fusionnable : cle racine entiere, element d'une liste de
     blocs, ou sous-cle absente d'un bloc present (YAML-009)."""
-    kind: str            # 'key' | 'item' | 'subkey'
+    kind: str            # 'key' | 'item' | 'subkey' | 'modified'
     root: str            # '' pour une cle top-level, sinon le chemin lisible
                          # qui porte la liste ('POIs/Random',
                          # 'Chapters/MaMission/Tasks')
@@ -64,6 +64,27 @@ class YamlUnit:
     path: tuple = None   # segments de navigation exacts a l'application :
                          # ('key', cle) | ('item', cle_identite, valeur) —
                          # None = derive de root (compat anciens appels)
+    rows: tuple = ()     # kind='modified' : YamlLineRow (diff ligne a ligne
+                         # du bloc present des deux cotes -- 07/10)
+
+
+@dataclass
+class YamlLineRow:
+    """Une ligne du diff fin d'un bloc present des deux cotes (demande
+    07/10 : « tout montrer et je choisis ») -- path designe l'ENFANT
+    concerne depuis le bloc porte par l'unite (meme grammaire que
+    YamlUnit.path, plus ('index', i) pour les scalaires de sequence)."""
+    state: str           # 'same' | 'changed' | 'add' | 'remove'
+    path: tuple          # segments de navigation vers l'enfant concerne
+    before: str = ""     # texte working (ligne brute, sans fin de ligne)
+    after: str = ""      # texte source
+    checked: bool = False    # changed/remove : False (copie de travail
+                             # prioritaire, suppression jamais implicite) ;
+                             # add : True (rien ne se perd)
+    replace_subtree: bool = False   # changed ou feuille vs branche : ne
+                                    # passe pas par set(valeur) mais par
+                                    # remplacement du sous-arbre entier
+
 
 
 def _top_entries(doc) -> List[YamlEntry]:
@@ -138,6 +159,337 @@ def _strip_quotes(v: str) -> str:
     return v.strip().strip("'\"")
 
 
+def _line_text(entry: YamlEntry) -> str:
+    """Texte brut de la ligne d'une entree (affichage du diff fin) ; les
+    chaines multilignes entre guillemets sont resumees premiere ligne +
+    nombre de lignes de suite."""
+    text = (entry.raw or "").rstrip("\r\n")
+    if entry.quoted_continuation_raw:
+        extra = entry.quoted_continuation_raw.count("\n") + 1
+        text = f"{text}  … (+{extra} lignes)"
+    return text
+
+
+def _key_with_attached(children: List[YamlEntry], key: str):
+    """(entree, items attaches) pour une cle enfant. PIEGE du format
+    vertical Empyrion : une liste a indentation EGALE ('Coordinates:'
+    suivi de '- 0.5' au meme niveau) donne des items FRERES de l'entree
+    chez leur parent commun, pas des enfants de la cle (le parseur
+    n'attache que ce qui est strictement plus indenté) ; ils suivent
+    l'entree jusqu'au prochain non-seq."""
+    for index, child in enumerate(children):
+        if not child.is_sequence_item and child.key == key:
+            attached = []
+            for sibling in children[index + 1:]:
+                if sibling.is_sequence_item:
+                    attached.append(sibling)
+                else:
+                    break
+            return child, attached
+    return None, []
+
+
+def _seq_items_attached(owner: YamlEntry, key: str) -> List[YamlEntry]:
+    """Tous les items de sequence d'une sous-liste, qu'elle soit INDENTEE
+    (enfants de la cle) ou VERTICALE (freres attaches chez le parent)."""
+    child, attached = _key_with_attached(_child_entries(owner), key)
+    if child is None:
+        return []
+    return _seq_items(child) or attached
+
+
+def _scalar_items(items: List[YamlEntry]) -> bool:
+    return bool(items) and all(i.key is None for i in items)
+
+
+def _identity_index(children: list, target) -> int:
+    """Position par IDENTITE : YamlEntry.__eq__ compare par VALEUR, deux
+    lignes identiques sont donc value-egales — index()/remove_entry()
+    prendraient le PREMIER doublon au lieu de l'objet vise."""
+    for index, child in enumerate(children):
+        if child is target:
+            return index
+    return -1
+
+
+def _identity_prune(children: list, targets) -> None:
+    drop = {id(target) for target in targets}
+    children[:] = [child for child in children if id(child) not in drop]
+
+
+def _diff_scalar_seq(w_items: List[YamlEntry], s_items: List[YamlEntry],
+                     path: tuple, seg_at) -> List[YamlLineRow]:
+    """Liste de SCALAIRES ('- valeur') : TOUTES les lignes affichees,
+    AUCUN appariement (demande 07/10 : l'appariement — par index puis
+    par valeur — donnait des « identique » TROMPEURS quand les
+    commentaires differaient — « # 6 - Trading Stations » n'est pas un
+    « # 6 - Alien » — et empechait de choisir ligne par ligne).
+
+    Chaque ligne working = un candidat SUPPRESSION (colonne Avant,
+    DECOCHÉ) ; chaque ligne source = un candidat AJOUT (colonne Apres,
+    cochee SAUF si sa valeur existe deja telle quelle dans la liste
+    working — l'ajouter la dupliquerait). Remplacer une valeur = cocher
+    l'ajout ET la suppression ; tout reste cochable librement.
+    seg_at(i) fabrique le segment de navigation de l'item i ('index'
+    pour une liste indente, 'sib' pour une liste verticale)."""
+    rows: List[YamlLineRow] = []
+    w_values = {w.value for w in w_items}
+    for i, w in enumerate(w_items):
+        rows.append(YamlLineRow("remove", path + (seg_at(i),),
+                                _line_text(w), ""))
+    for i, s in enumerate(s_items):
+        rows.append(YamlLineRow("add", path + (seg_at(i),), "",
+                                _line_text(s),
+                                checked=s.value not in w_values))
+    return rows
+
+
+def _diff_rows(w_entry: YamlEntry, s_entry: YamlEntry,
+               path: tuple = (), depth: int = 0) -> List[YamlLineRow]:
+    """Diff fin ENTRE DEUX BLOCS APPARIES (meme cle / meme identite) --
+    demande 07/10 : « tout montrer et je choisis » sur SolarSystemConfig.
+
+    - 'same'    : ligne identique (info, jamais appliquee) ;
+    - 'changed' : valeur differente -- cochee = la SOURCE remplace le
+                  working (copie de travail prioritaire par defaut) ;
+    - 'add'     : presente source seul -- cochee (rien ne se perd) ;
+    - 'remove'  : presente working seul (miroir) -- DECOCHEE (une
+                  suppression n'est jamais implicite).
+
+    Perimetre : les enfants MAPPING (par cle, recursif dans les
+    sous-mappings) et les listes de SCALAIRES, indentees OU verticales
+    (items freres de la cle, format Empyrion). Les listes de blocs a
+    identite ('- Cle: valeur') ne sont PAS traitees ici : leur
+    appariement element par element appartient a _scan_list (unites
+    'item' et 'modified' par element) -- evite le double emploi."""
+    rows: List[YamlLineRow] = []
+    if depth > _MAX_DEPTH:
+        return rows
+    w_children = _child_entries(w_entry)
+    s_children = _child_entries(s_entry)
+    w_keys = {c.key for c in w_children if not c.is_sequence_item}
+    for s_child in [c for c in s_children
+                    if not c.is_sequence_item and c.key is not None]:
+        key = s_child.key
+        seg_path = path + (("key", key),)
+        w_child, w_attached = _key_with_attached(w_children, key)
+        _ign, s_attached = _key_with_attached(s_children, key)
+        if w_child is None:
+            if s_attached:
+                # sous-liste VERTICALE entiere : invisible des unites
+                # 'subkey' (elles ne voient que l'indente) -> une ligne
+                # d'ajout couvrant l'entree ET ses items
+                after = _line_text(s_child) + \
+                    f"  … (+{len(s_attached)} lignes)"
+                rows.append(YamlLineRow("add", seg_path, "", after,
+                                        checked=True))
+            elif _seq_items(s_child):
+                continue        # sous-liste indente entiere : unite 'subkey'
+            else:
+                rows.append(YamlLineRow("add", seg_path, "",
+                                        _line_text(s_child), checked=True))
+            continue
+        if s_attached and w_attached:
+            # deux listes verticales : scalaires apparies par index (les
+            # listes de blocs a identite restent a _scan_list, comme avant)
+            # -- segment 'sib' SEUL : l'item se resout depuis le PARENT
+            # (frere de la cle), pas depuis l'entree de la cle
+            if _scalar_items(w_attached) and _scalar_items(s_attached):
+                rows.extend(_diff_scalar_seq(
+                    w_attached, s_attached, path,
+                    lambda i, k=key: ("sib", k, i)))
+            continue
+        w_seq, s_seq = _seq_items(w_child), _seq_items(s_child)
+        if w_seq and s_seq:
+            if _scalar_items(w_seq) and _scalar_items(s_seq):
+                rows.extend(_diff_scalar_seq(
+                    w_seq, s_seq, seg_path, lambda i: ("index", i)))
+            # liste de blocs : appariement element par element dans
+            # _scan_list (niveau suivant) -- rien a emettre ici
+            continue
+        if not w_seq and not s_seq and not s_attached and not w_attached:
+            if w_child.children and s_child.children:
+                rows.extend(_diff_rows(w_child, s_child, seg_path,
+                                       depth + 1))
+                continue
+            # comparaison SEMANTIQUE (valeur + commentaire de fin de
+            # ligne) : le rendu apres application (deux espaces devant
+            # le commentaire) ne doit pas re-proposer la meme ligne
+            same = (w_child.value == s_child.value
+                    and w_child.comment == s_child.comment)
+            if same:
+                rows.append(YamlLineRow("same", seg_path,
+                                        _line_text(w_child),
+                                        _line_text(s_child)))
+                continue
+            rows.append(YamlLineRow(
+                "changed", seg_path, _line_text(w_child),
+                _line_text(s_child),
+                replace_subtree=bool(w_child.children or s_child.children)))
+            continue
+        # feuille vs branche, vertical vs indente : remplacement du
+        # sous-arbre working (l'entree + ses items attaches) par le clone
+        # source -- set(valeur) ecraserait la structure
+        before = _line_text(w_child)
+        after = _line_text(s_child)
+        if w_attached:
+            before += f"  … (+{len(w_attached)} lignes)"
+        if s_attached:
+            after += f"  … (+{len(s_attached)} lignes)"
+        rows.append(YamlLineRow("changed", seg_path, before, after,
+                                replace_subtree=True))
+    s_keys = {c.key for c in s_children if not c.is_sequence_item}
+    for w_child in [c for c in w_children
+                    if not c.is_sequence_item and c.key is not None]:
+        key = w_child.key
+        if key in s_keys:
+            continue
+        w_found, w_attached = _key_with_attached(w_children, key)
+        before = _line_text(w_found)
+        if w_attached:
+            before += f"  … (+{len(w_attached)} lignes)"
+        rows.append(YamlLineRow("remove", path + (("key", key),),
+                                before, ""))
+    return rows
+
+
+def _modified_summary(rows: List[YamlLineRow]) -> str:
+    """Detail compact et NEUTRE (affiche dans les deux langues) :
+    « 3↔ 1+ 2− » = 3 modifiees, 1 ajoutee, 2 supprimables."""
+    chg = sum(1 for r in rows if r.state == "changed")
+    add = sum(1 for r in rows if r.state == "add")
+    rem = sum(1 for r in rows if r.state == "remove")
+    return f"{chg}↔ {add}+ {rem}−"
+
+
+def _child_by_seg(owner: YamlEntry, seg: tuple) -> Optional[YamlEntry]:
+    """Enfant designe par un segment de navigation depuis owner. 'sib' =
+    i-eme item d'une liste VERTICALE (freres suivant la cle k chez le
+    meme parent) -- jamais segment intermediaire (un scalaire n'a pas
+    d'enfants)."""
+    children = _child_entries(owner)
+    if seg[0] == "key":
+        return next((c for c in children
+                     if not c.is_sequence_item and c.key == seg[1]), None)
+    if seg[0] == "item":
+        return next((c for c in children
+                     if c.is_sequence_item
+                     and _same_identity(_identity(c), seg[1], seg[2])), None)
+    if seg[0] == "sib":
+        _child, attached = _key_with_attached(children, seg[1])
+        return attached[seg[2]] if 0 <= seg[2] < len(attached) else None
+    seq = [c for c in children if c.is_sequence_item]
+    return seq[seg[1]] if 0 <= seg[1] < len(seq) else None
+
+
+def _source_chain(owner: YamlEntry, seg: tuple) -> List[YamlEntry]:
+    """Chaine source a cloner pour un segment : l'entree + ses items
+    attaches si le segment est une cle porteuse de liste verticale,
+    sinon l'entree seule."""
+    child = _child_by_seg(owner, seg)
+    if child is None:
+        return []
+    if seg[0] == "key":
+        _found, attached = _key_with_attached(_child_entries(owner), seg[1])
+        return [child] + attached
+    return [child]
+
+
+def _attached_of(owner: YamlEntry, seg: tuple) -> List[YamlEntry]:
+    if seg[0] != "key":
+        return []
+    _found, attached = _key_with_attached(_child_entries(owner), seg[1])
+    return attached
+
+
+def _remove_sort_key(row: YamlLineRow) -> int:
+    seg = row.path[-1]
+    if seg[0] == "index":
+        return -seg[1]
+    if seg[0] == "sib":
+        return -seg[2]
+    return 0
+
+
+def _apply_line_row(w_target: YamlEntry, s_target: YamlEntry,
+                    row: YamlLineRow, eol: str) -> bool:
+    """Applique UNE ligne cochee d'une unite 'modified' ; False = rien
+    fait (idempotence, absent, ambiguous)."""
+    w_owner, s_owner = w_target, s_target
+    for seg in row.path[:-1]:
+        w_owner = _child_by_seg(w_owner, seg)
+        s_owner = _child_by_seg(s_owner, seg)
+        if w_owner is None or s_owner is None:
+            return False
+    seg = row.path[-1]
+    if row.state == "changed":
+        w_child = _child_by_seg(w_owner, seg)
+        s_child = _child_by_seg(s_owner, seg)
+        if w_child is None or s_child is None:
+            return False
+        if row.replace_subtree:
+            chain = _source_chain(s_owner, seg)
+            # retire aussi les items attaches du working (liste
+            # verticale remplacee par une autre structure)
+            _identity_prune(w_owner.children, _attached_of(w_owner, seg))
+            position = _identity_index(w_owner.children, w_child)
+            if position < 0:
+                return False
+            w_owner.children[position] = _copy_entry(chain[0])
+            for extra in reversed([_copy_entry(c) for c in chain[1:]]):
+                w_owner.children.insert(position + 1, extra)
+            return True
+        if w_child.is_sequence_item:
+            w_child.set_own_value(s_child.value)
+        else:
+            w_child.value = s_child.value
+            w_child.comment = s_child.comment     # sinon jamais idempotent
+        w_child.dirty = True
+        return True
+    if row.state == "add":
+        s_item = _child_by_seg(s_owner, seg)
+        if s_item is None:
+            return False
+        if seg[0] == "sib":
+            # liste verticale : insertion APRES le dernier item attache
+            # (appendir en fin de bloc la ferait atterrir sous une autre
+            # cle). Choix explicite de l'utilisateur : pas de garde par
+            # valeur — s'il coche une ligne deja presente, il la veut.
+            anchor, _att = _key_with_attached(
+                _child_entries(w_owner), seg[1])
+            attached = _seq_items_attached(w_owner, seg[1])
+            last = attached[-1] if attached else anchor
+            last_index = _identity_index(w_owner.children, last)
+            if last_index < 0:
+                return False
+            w_owner.children.insert(last_index + 1, _copy_entry(s_item))
+            return True
+        if seg[0] == "index":
+            w_owner.children.append(_copy_entry(s_item))  # fin de liste
+            return True
+        # sous-cle / enfant mapping : l'entree + ses items attaches
+        # (sous-liste VERTICALE entiere — les indente suivent les
+        # unites 'subkey', ce bloc ne les voit jamais)
+        chain = _source_chain(s_owner, seg)
+        _ensure_blank_before(w_owner.children, eol)
+        for entry in chain:
+            w_owner.children.append(_copy_entry(entry))
+        return True
+    if row.state == "remove":
+        if seg[0] == "key":
+            dupes = [c for c in _child_entries(w_owner)
+                     if not c.is_sequence_item and c.key == seg[1]]
+            if len(dupes) > 1:
+                return False        # cle dupliquee : suppression ambiguë
+        targets = [c for c in _source_chain(w_owner, seg)
+                   if any(c is node for node in w_owner.children)]
+        if not targets:
+            return False
+        _identity_prune(w_owner.children, targets)
+        return True
+    return False
+
+
 def yaml_files_identical(working_yaml: Path, source_yaml: Path) -> bool:
     try:
         a = Path(working_yaml).read_bytes()
@@ -175,12 +527,26 @@ def analyze_yaml_merge(working_yaml: Path,
     working_keys = {e.key: e for e in working_top if not e.is_sequence_item}
     source_keys = {e.key: e for e in source_top if not e.is_sequence_item}
 
+    def _modified_unit(root_label: str, name: str, idkey: str,
+                       w_e: YamlEntry, s_e: YamlEntry, path: tuple) -> None:
+        """Bloc present des deux cotes avec des LIGNES differentes ->
+        unite 'modified' (demande 07/10 : voir et choisir ligne a ligne ;
+        avant : differences invisibles, seule l'absence etait proposee)."""
+        rows = _diff_rows(w_e, s_e)
+        if not any(r.state != "same" for r in rows):
+            return
+        units.append(YamlUnit(kind="modified", root=root_label, name=name,
+                              idkey=idkey,
+                              detail=_modified_summary(rows),
+                              path=path, rows=tuple(rows)))
+
     def _scan_list(root_label: str, wlist: Optional[YamlEntry],
                    slist: YamlEntry, path: tuple, depth: int) -> None:
         """Elements absents d'une liste de blocs -> unites 'item' ; un
         element PRESENT des deux cotes est explore recursivement (taches,
         actions... ajoutees chez la source, vecu 06/10 : mission PDA
-        completee invisible)."""
+        completee invisible) et son DIFF FIN devient une unite
+        'modified' si des lignes different."""
         if wlist is None or depth > _MAX_DEPTH:
             return
         working_ids = {_identity(c) for c in _seq_items(wlist)}
@@ -205,9 +571,11 @@ def analyze_yaml_merge(working_yaml: Path,
                            if _identity(c) == ident), None)
             if w_item is None:
                 continue
+            item_path = path + (("item", ident[0], ident[1]),)
+            _modified_unit(f"{root_label}/{ident[1]}", ident[1], ident[0],
+                           w_item, item, item_path)
             _scan_children(f"{root_label}/{ident[1]}", w_item, item,
-                           path + (("item", ident[0], ident[1]),),
-                           depth + 1)
+                           item_path, depth + 1)
 
     def _scan_children(root_label: str, w_entry: YamlEntry,
                        s_entry: YamlEntry, path: tuple, depth: int) -> None:
@@ -230,8 +598,11 @@ def analyze_yaml_merge(working_yaml: Path,
                                       detail=_list_summary(sub),
                                       path=path))
                 continue
+            sub_path = path + (("key", sub.key),)
+            _modified_unit(f"{root_label}/{sub.key}", sub.key, "",
+                           w_sub, sub, sub_path)
             _scan_list(f"{root_label}/{sub.key}", w_sub, sub,
-                       path + (("key", sub.key),), depth + 1)
+                       sub_path, depth + 1)
 
     for key, s_entry in source_keys.items():
         w_entry = working_keys.get(key)
@@ -240,6 +611,7 @@ def analyze_yaml_merge(working_yaml: Path,
                                   detail=_list_summary(s_entry)
                                   or _detail(s_entry)))
             continue
+        _modified_unit(key, key, "", w_entry, s_entry, (("key", key),))
         _scan_list(key, w_entry, s_entry, (("key", key),), 0)
         _scan_children(key, w_entry, s_entry, (("key", key),), 0)
     # document racine = liste de blocs (pas de mappings top-level) : meme
@@ -255,8 +627,10 @@ def analyze_yaml_merge(working_yaml: Path,
             if ident in working_ids:
                 w_item = next((c for c in working_items
                                if _identity(c) == ident), None)
-                _scan_children(ident[1], w_item, item,
-                               (("item", ident[0], ident[1]),), 0)
+                item_path = (("item", ident[0], ident[1]),)
+                _modified_unit(ident[1], ident[1], ident[0],
+                               w_item, item, item_path)
+                _scan_children(ident[1], w_item, item, item_path, 0)
                 continue
             if working_items:
                 units.append(YamlUnit(kind="item", root="", name=ident[1],
@@ -333,6 +707,24 @@ def apply_yaml_units(working_yaml: Path, source_yaml: Path,
     eol = _eol_of(working_top)
     applied = 0
     for unit in units:
+        if unit.kind == "modified":
+            w_target = _walk(working_top, _segments(unit))
+            s_target = _walk(source_top, _segments(unit))
+            if w_target is None or s_target is None:
+                continue
+            # ajouts + modifications d'abord (positions d'origine), puis
+            # suppressions en index DECROISSANT (les indexes des scalaires
+            # de sequence ne doivent pas glisser pendant le retrait)
+            actionable = [r for r in unit.rows
+                          if getattr(r, "checked", False) and r.state != "same"]
+            ordered = ([r for r in actionable if r.state != "remove"]
+                       + sorted((r for r in actionable
+                                 if r.state == "remove"),
+                                key=_remove_sort_key))
+            for row in ordered:
+                if _apply_line_row(w_target, s_target, row, eol):
+                    applied += 1
+            continue
         if unit.kind == "key":
             src = next((e for e in source_top
                         if not e.is_sequence_item and e.key == unit.name),

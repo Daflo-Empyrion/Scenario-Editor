@@ -47,7 +47,26 @@ echo Dependances verifiees : OK
 
 echo.
 echo ============================================
-echo  1/3 - Construction de l'executable (PyInstaller)
+echo  1/4 - Verificateur YAML moteur de jeu (dotnet)
+echo ============================================
+REM tools/yamlcheck = exe single-file embarquant le YamlDotNet du jeu
+REM (YamlAssembly.dll). Optionnel : sans dotnet sur le poste, la construction
+REM continue -- le menu "Verifier les YAML" affichera comment produire l'outil.
+where dotnet >nul 2>nul
+if errorlevel 1 (
+    echo ATTENTION : dotnet introuvable -- yamlcheck.exe ne sera pas embarque.
+) else (
+    dotnet publish tools\yamlcheck -c Release -o tools\yamlcheck\publish -p:PublishSingleFile=true -p:SelfContained=false -v q --nologo
+    if errorlevel 1 (
+        echo ATTENTION : le publish yamlcheck a echoue ^(voir ci-dessus^).
+    ) else (
+        echo yamlcheck.exe publie : OK
+    )
+)
+
+echo.
+echo ============================================
+echo  2/4 - Construction de l'executable (PyInstaller)
 echo ============================================
 pyinstaller empyrion_editor.spec --noconfirm
 if errorlevel 1 (
@@ -59,7 +78,7 @@ if errorlevel 1 (
 
 echo.
 echo ============================================
-echo  2/3 - Construction de l'installeur (Inno Setup)
+echo  3/4 - Construction de l'installeur (Inno Setup)
 echo ============================================
 
 REM Cherche ISCC.exe (compilateur Inno Setup) aux emplacements d'installation
@@ -87,7 +106,7 @@ if errorlevel 1 (
 
 echo.
 echo ============================================
-echo  3/3 - Termine ! Installeur disponible dans :
+echo  4/4 - Termine ! Installeur disponible dans :
 echo  installer_output\
 echo ============================================
 pause

@@ -25,6 +25,12 @@ def window_with_scenario(qapp, tmp_path):
     config_dir.mkdir(parents=True)
     for f in FIXTURE_DIR.glob("*.ecf"):
         shutil.copy(f, config_dir / f.name)
+    # bilan « avant lancement » : un scenario sans Sectors.yaml est un
+    # bloquant — la fixture en porte un minimal (galaxie vide, saine)
+    sectors_dir = tmp_path / "Sectors"
+    sectors_dir.mkdir()
+    (sectors_dir / "Sectors.yaml").write_text(
+        "SolarSystems:\n", encoding="utf-8")
 
     scenario = scan_scenario(tmp_path)
     window = MainWindow()

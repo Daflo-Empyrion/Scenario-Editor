@@ -387,3 +387,81 @@ def _ecf_with(bid: int, tmp_path):
     ecf.write_text(f"{{ Block Id: {bid}, Name: Bloc{bid}\n}}\n",
                    encoding="utf-8")
     return ecf
+
+
+def test_working_tree_context_menu_epb(qapp, bp_file, monkeypatch):
+    """Clic droit sur un .epb dans l'arbre de la copie de travail :
+    l'action « Blueprints (.epb) » ouvre le dialogue PRE-REMPLI avec le
+    fichier et lance l'analyse ; un .ecf n'offre PAS l'action (chemin
+    connecte teste : une faute de frappe sur path_edit/_analyze serait
+    un crash natif en slot, invisible au test de construction)."""
+    import core.settings as settings
+    import gui.fluent_pilot as fluent_pilot
+    import gui.epb_check_dialog as epb_mod
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QMenu, QTreeWidgetItem, QLineEdit
+    from gui.main_window import MainWindow
+    from gui.theme import apply_theme
+
+    monkeypatch.setattr(settings, "SETTINGS_FILE",
+                        bp_file.parent / "settings.json")
+    fluent_pilot.set_enabled(True)
+    apply_theme(qapp, "classic")
+    win = MainWindow()
+    win.show()
+    try:
+        class _WS:
+            working_root = str(bp_file.parent)
+        win.workspace = _WS()
+
+        def _add(name):
+            it = QTreeWidgetItem([name])
+            it.setData(0, Qt.ItemDataRole.UserRole,
+                       ["file", bp_file.parent / name])
+            win.tree_working.addTopLevelItem(it)
+            return it
+
+        item = _add(bp_file.name)
+        created = {}
+
+        class _FakeDlg:
+            def __init__(self, parent, catalog_paths=None):
+                created["dlg"] = self
+                self.path_edit = QLineEdit()
+
+            def _analyze(self):
+                created["analyzed"] = True
+
+            def exec(self):
+                created["opened"] = True
+
+        monkeypatch.setattr(epb_mod, "EpbCheckDialog", _FakeDlg)
+
+        def fake_exec(menu, gpos):
+            acts = menu.actions()
+            return next((a for a in acts
+                         if a.text() == t("menu.verification.epb")), None)
+
+        monkeypatch.setattr(QMenu, "exec", fake_exec)
+        pos = win.tree_working.visualItemRect(item).center()
+        win._show_working_context_menu(pos)
+        dlg = created.get("dlg")
+        assert dlg is not None
+        assert dlg.path_edit.text() == str(bp_file)
+        assert created["analyzed"] and created["opened"]
+
+        # un .ecf n'offre pas l'action blueprint (menu ferme sans choix)
+        item2 = _add("BlocksConfig.ecf")
+        texts2 = []
+
+        def fake_exec2(menu, gpos):
+            texts2.extend(a.text() for a in menu.actions())
+            return None
+
+        monkeypatch.setattr(QMenu, "exec", fake_exec2)
+        pos2 = win.tree_working.visualItemRect(item2).center()
+        win._show_working_context_menu(pos2)
+        assert texts2 == [t("file.delete_action", name="BlocksConfig.ecf")]
+    finally:
+        win.close()
+        fluent_pilot.set_enabled(False)

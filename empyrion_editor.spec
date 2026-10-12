@@ -42,7 +42,11 @@ _qfwl_datas, _qfwl_binaries, _qfwl_hiddenimports = collect_all('qframelesswindow
 _ug_datas, _ug_binaries, _ug_hiddenimports = [], [], []
 for _ug_pkg in ('UnityPy', 'lz4', 'brotli', 'texture2ddecoder',
                 'astc_encoder', 'etcpak', 'fmod_toolkit', 'fsspec',
-                'tpk_ar', 'tpk_arc'):
+                'tpk_ar', 'tpk_arc',
+                # Admin serveur EWA (v1.16.0) : deploiement SFTP -- paramiko
+                # + sa chaine crypto (imports binaires rates par l'analyse
+                # statique ; hooks PyInstaller presents, collect_all en plus).
+                'paramiko', 'cryptography', 'bcrypt', 'nacl', 'cffi'):
     try:
         _d, _b, _h = collect_all(_ug_pkg)
         _ug_datas += _d
@@ -116,6 +120,12 @@ for _m in sorted(_sys.stdlib_module_names):
     else:
         _stdlib_hiddenimports.append(_m)
 _pip_hiddenimports = sorted(set(_pip_hiddenimports) | set(_stdlib_hiddenimports))
+# Verificateur YAML moteur de jeu (tools/yamlcheck, publie en single-file par
+# build.bat) : core/yaml_game_check.locate_checker le cherche a la racine du
+# bundle. Optionnel : si le publish dotnet n'a pas tourne, le dialogue
+# « Verifier les YAML » affiche comment produire l'outil.
+_yamlcheck_exe = project_root / 'tools/yamlcheck/publish/yamlcheck.exe'
+_yc_datas = [(str(_yamlcheck_exe), '.')] if _yamlcheck_exe.is_file() else []
 # argostranslate et sa suite (torch, spacy...) ne doivent JAMAIS etre
 # embarques : installes a la volee dans ~/.empyrion_editor/argos_site par le
 # pip embarque (v1.6.6). Sans excludes, le simple fait d'avoir
@@ -137,6 +147,7 @@ a = Analysis(
         # Badge GPLv3 affiche dans le dialogue "A propos" -- meme logique.
         (str(project_root / 'assets'), 'assets'),
         (str(project_root / 'data'), 'data'),
+        *_yc_datas,
         *_dt_datas, *_bs4_datas, *_requests_datas, *_certifi_datas,
         *_qfw_datas, *_qfwl_datas, *_ug_datas, *_pip_datas,
     ],

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Verificateur YAML au moteur du JEU : parse chaque *.yaml d'un
+       scenario avec le YamlDotNet reellement embarque dans Empyrion
+       (Client/Empyrion_Data/Managed/YamlAssembly.dll = YamlDotNet renomme),
+       pour reproduire fidelement les erreurs "did not find expected key"
+       vues au lancement. pyyaml refuse des constructions que le jeu accepte
+       (faux positifs) : ne jamais valider un yaml Empyrion avec pyyaml.
+       Consommé par core/yaml_game_check.py (sous-process). -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- poste doté uniquement du runtime .NET 10 : roule dessus -->
+    <RollForward>LatestMajor</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>yamlcheck</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- dll du jeu reference a la compilation puis EMBARQUEE dans le
+         publish single-file : l'exe livre n'a besoin de rien d'autre.
+         Surcharge : -p:YamlAssemblyDll=<chemin> -->
+    <YamlAssemblyDll Condition="'$(YamlAssemblyDll)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Empyrion - Galactic Survival\Client\Empyrion_Data\Managed\YamlAssembly.dll</YamlAssemblyDll>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="YamlAssembly">
+      <HintPath>$(YamlAssemblyDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

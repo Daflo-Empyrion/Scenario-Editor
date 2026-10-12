@@ -423,3 +423,15 @@ def get_vanilla_content_path() -> str:
 
 def set_vanilla_content_path(path: str) -> None:
     _set('vanilla_content_path', path)
+
+
+def get_ewa() -> dict:
+    """Configuration du module admin serveur (EWA) : dict libre (url,
+    identifiants, sftp{}, telnet{}...) -- whole-dict remplace, la structure
+    interne appartient a core.ewa.config."""
+    data = _get('ewa', {})
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def set_ewa(data: dict) -> None:
+    _set('ewa', data)

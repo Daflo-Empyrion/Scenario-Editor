@@ -93,6 +93,8 @@ class HealthCheckDialog(QDialog):
         box_layout.addWidget(self.row_pending)
         self.row_orphans = _CategoryRow(t("health.category_orphans"))
         box_layout.addWidget(self.row_orphans)
+        self.row_launch = _CategoryRow(t("health.category_launch"))
+        box_layout.addWidget(self.row_launch)
         layout.addWidget(box)
 
         layout.addStretch()
@@ -158,16 +160,23 @@ class HealthCheckDialog(QDialog):
                 continue
             pending_count += len(find_pending_conflicts(doc))
         unused = find_unused_tokens(ecf_files)
+        from core.launch_check import run_launch_checks
+        from core.settings import get_vanilla_content_path
+        launch_issues = run_launch_checks(
+            self.workspace.working_root, get_vanilla_content_path() or "")
+        launch_errors = sum(1 for i in launch_issues
+                            if i.severity == "error")
         return {
             "refs": len(ref_issues),
             "validation": sum(len(issues) for issues in by_file.values()),
             "pending": pending_count,
             "orphans": len(unused),
+            "launch_errors": launch_errors,
         }
 
     def _apply_check_results(self, counts: dict):
         total_problems = (counts["refs"] + counts["validation"]
-                          + counts["pending"])
+                          + counts["pending"] + counts["launch_errors"])
 
         # --- References (les 4 verifications de cross_reference_check.py,
         # heritage Ref inclus -- meme regroupement que le bouton "Verifier les
@@ -198,7 +207,26 @@ class HealthCheckDialog(QDialog):
             ok, t("health.all_ok") if ok else t("health.n_issues", n=counts["orphans"]),
             self.main_window._open_orphan_dialog)
 
+        # --- Avant lancement (structure Sectors/playfields/prefabs — le
+        # moteur yaml/ecf complet est dans le detail) : seuls les ERREURS
+        # comptent comme problemes, les avertissements se voient dans le
+        # detail (vecu corpus : un scenario officiel porte un yaml alternatif
+        # sans que ce soit bloquant) ---
+        ok = counts["launch_errors"] == 0
+        self.row_launch.set_result(
+            ok, t("health.all_ok") if ok
+            else t("health.n_issues", n=counts["launch_errors"]),
+            self._open_launch_detail)
+
         if total_problems == 0:
             self.summary_label.setText(t("health.overall_ok"))
         else:
             self.summary_label.setText(t("health.overall_problems", n=total_problems))
+
+    def _open_launch_detail(self):
+        """Le detail du bilan lancement : fenetre dediee (structure + moteur
+        yaml/ecf), sur la copie de travail de l'espace de travail courant."""
+        from gui.launch_check_dialog import LaunchCheckDialog
+        dlg = LaunchCheckDialog(self.main_window,
+                                working_root=str(self.workspace.working_root))
+        dlg.show()

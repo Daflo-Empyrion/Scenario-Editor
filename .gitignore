@@ -30,3 +30,8 @@ PdaScriptDoc/
 
 # Copie de travail d'un scenario (jouable) : jamais committee
 ATL/
+
+# verificateur YAML moteur de jeu (artefacts dotnet locaux)
+tools/yamlcheck/bin/
+tools/yamlcheck/obj/
+tools/yamlcheck/publish/
