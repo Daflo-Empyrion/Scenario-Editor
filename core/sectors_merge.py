@@ -23,7 +23,6 @@ avec le parseur yamllite (commentaires et mise en forme preserves, le
 texte des unites source est recopie tel quel)."""
 import copy
 import re
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

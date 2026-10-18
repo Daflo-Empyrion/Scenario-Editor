@@ -261,6 +261,39 @@ def add_property_line(block: EcfBlock, pairs: List[Tuple[Optional[str], str]]) -
     return new_prop
 
 
+def insert_property_after(block: EcfBlock, anchor: EcfProperty,
+                          pairs: List[Tuple[Optional[str], str]]) -> EcfProperty:
+    """Insere une nouvelle ligne de propriete JUSTE APRES `anchor` (meme
+    indentation, meme fin de ligne) -- pour 'Ajouter une propriete en dessous'
+    du menu contextuel, l'ajout standard ne sachant partir qu'en fin de bloc.
+    Retourne le noeud cree."""
+    new_prop = EcfProperty(raw="", indent=anchor.indent, pairs=list(pairs),
+                            comment=None, eol=anchor.eol or "\r\n", dirty=True)
+    idx = next((i for i, c in enumerate(block.children) if c is anchor), None)
+    block.children.insert((idx + 1) if idx is not None else len(block.children), new_prop)
+    return new_prop
+
+
+def move_property(block: EcfBlock, prop: EcfProperty, delta: int) -> bool:
+    """Deplace une ligne de propriete de `delta` lignes (-1 = vers le haut,
+    +1 = vers le bas) en l'echangeant avec la propriete voisine la plus
+    proche (les commentaires/lignes vides restent sur place). Retourne True
+    si un deplacement a eu lieu."""
+    prop_idx = next((i for i, c in enumerate(block.children) if c is prop), None)
+    if prop_idx is None:
+        return False
+    neighbors = [i for i, c in enumerate(block.children)
+                 if isinstance(c, EcfProperty) and i != prop_idx
+                 and ((i < prop_idx) if delta < 0 else (i > prop_idx))]
+    if not neighbors:
+        return False
+    target = max(neighbors) if delta < 0 else min(neighbors)
+    block.children[prop_idx], block.children[target] = \
+        block.children[target], block.children[prop_idx]
+    prop.dirty = True
+    return True
+
+
 _ITEM_KEY_RE = re.compile(r'^([A-Za-z]+)_(\d+)$')
 
 
@@ -432,7 +465,7 @@ def detect_repeating_items(block: "EcfBlock") -> Optional[Tuple[List[str], List[
     utilisant self._ITEM_KEY_RE) pour garder une source unique de verite --
     voir EcfEditWidget._detect_repeating_items qui delegue desormais ici."""
     prop_children = [c for c in block.children if isinstance(c, EcfProperty)]
-    if len(prop_children) < 2:
+    if not prop_children:
         return None
     matches = 0
     param_keys_seen = []
@@ -449,7 +482,12 @@ def detect_repeating_items(block: "EcfBlock") -> Optional[Tuple[List[str], List[
             for k, v in prop.pairs[1:]:
                 if k and k not in param_keys_seen:
                     param_keys_seen.append(k)
-    if matches < 2 or matches < len(prop_children) * 0.5:
+    if matches < len(prop_children) * 0.5:
+        return None
+    # Une SEULE ligne numerotee dont c'est tout le contenu = table a une entree
+    # (ex: Container '{ Child Items / Group_0: empty }') -- sinon elle tombait
+    # en affichage plat/ingredients, sans le bouton '+ Ligne (tableau)'.
+    if matches < 2 and matches != len(prop_children):
         return None
 
     def _natural_key(k):

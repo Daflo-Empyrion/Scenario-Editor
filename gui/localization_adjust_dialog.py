@@ -30,7 +30,7 @@ exemple partager le meme Material.
 Pre-rempli avec la traduction du bloc SOURCE (bonne base de depart : la
 plupart du temps, seul un suffixe change), jamais ecrit tel quel sans
 validation explicite de l'utilisateur (bouton Appliquer)."""
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (

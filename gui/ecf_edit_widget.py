@@ -28,11 +28,12 @@ d'affichage a switcher entre onglets separes.
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 import re
+from collections import Counter
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QTableWidget, QToolButton,
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
-    QInputDialog, QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
+    QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
     QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
     QStyledItemDelegate,
 )
@@ -44,10 +45,10 @@ from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
 from core.ecf.parser import parse_ecf_file, parse_ecf_text
 from core.ecf.transform import TransformRule, preview_transform, format_block_label
 from core.ecf.model import (
-    EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind,
-    add_property_line, remove_property_line, remove_block, create_block, annotate_property,
+    EcfDocument, EcfBlock, EcfProperty, block_identity, add_property_line, remove_property_line, remove_block, annotate_property,
     add_repeating_item_row, detect_repeating_items, detect_ingredient_pairs, _ITEM_KEY_RE,
     find_first_inline_comment_for_key, duplicate_block,
+    insert_property_after, move_property,
 )
 from core.ecf_header_glossary import find_term_explanation
 from core.ecf.pending_conflicts import suggest_free_ids
@@ -201,9 +202,24 @@ class _PropertyValueDelegate(QStyledItemDelegate):
 
             def _open_catalog():
                 name = self._catalog_opener()
-                if name:
+                if not name:
+                    return
+                # La fenetre catalogue est MODALE : entre-temps la vue peut
+                # avoir detruit l'editeur (combo) a la perte d'activation --
+                # vecu : RuntimeError sur le C++ mort au retour du choix.
+                # Editeur vivant -> le combo porte la valeur (commit au close
+                # via setModelData) ; editeur detruit -> ecriture directe via
+                # le modele, meme chemin unique itemChanged ->
+                # _on_cell_changed, le choix n'est jamais perdu.
+                try:
                     combo.setCurrentText(
                         apply_item_ref(combo.currentText(), name, target))
+                except RuntimeError:
+                    model = index.model()
+                    if model is not None:
+                        model.setData(
+                            index,
+                            apply_item_ref(index.data() or "", name, target))
 
             btn.clicked.connect(_open_catalog)
             return box
@@ -366,7 +382,6 @@ class PendingConflictsDialog(QDialog):
 
         # blocs identifies par leur NOM (sans Id numerique, ex: GalaxyConfig)
         # : pas d'Id a assigner, l'action est un REMPLACEMENT du bloc actif
-        import re as _re
         from core.ecf.pending_conflicts import pending_has_numeric_id
         self.chosen_replace = False
         self.chosen_name_only = False
@@ -1078,7 +1093,8 @@ class AddTableRowDialog(QDialog):
 
     def __init__(self, param_columns: List[str], prefixes: List[str], parent=None,
                  value_suggestions: Optional[List[str]] = None,
-                 value_suggestions_players_only: Optional[List[str]] = None):
+                 value_suggestions_players_only: Optional[List[str]] = None,
+                 group_suggestions: Optional[List[str]] = None):
         """value_suggestions : si fourni (ex: noms reels d'ItemsConfig.ecf/
         BlocksConfig.ecf pour LootGroups.ecf), le champ Valeur devient un menu
         deroulant EDITABLE peuple de ces noms plutot qu'un champ de texte libre --
@@ -1089,12 +1105,18 @@ class AddTableRowDialog(QDialog):
         value_suggestions_players_only : meme liste, filtree aux seuls blocs
         posables par un joueur (voir core.ecf.block_creation.list_craftable_names,
         players_only=True) -- si fourni, une case a cocher permet de basculer
-        entre les deux listes sans fermer le dialogue."""
+        entre les deux listes sans fermer le dialogue.
+
+        group_suggestions : noms des { +LootGroup } de LootGroups.ecf -- quand
+        le Type choisi est 'Group' (Containers.ecf : Group_N reference un groupe
+        de loot, pas un item), le menu Valeur liste CES noms a la place des
+        items/blocs."""
         super().__init__(parent)
         self.setWindowTitle(t("ecf.add_row_title"))
         self.param_columns = param_columns
         self._value_suggestions_all = value_suggestions or []
         self._value_suggestions_players_only = value_suggestions_players_only or []
+        self._group_suggestions = group_suggestions or []
 
         layout = QFormLayout(self)
         self.type_combo = QComboBox()
@@ -1119,6 +1141,14 @@ class AddTableRowDialog(QDialog):
             layout.addRow("", self.players_only_check)
         else:
             self.players_only_check = None
+        # La liste Valeur suit le Type choisi (Group = loot groups).
+        self.type_combo.currentTextChanged.connect(
+            lambda _text: self._refill_value_combo())
+        # Etat initial synchronise : si 'Group' est DEJA selectionne a
+        # l'ouverture (bloc ne contenant que des Group_N), le signal
+        # currentTextChanged ne tirera jamais -- vecu : la liste Valeur
+        # montrait les items au lieu des loot groups.
+        self._refill_value_combo()
 
         self.param_edits: Dict[str, QLineEdit] = {}
         for col in param_columns:
@@ -1140,17 +1170,29 @@ class AddTableRowDialog(QDialog):
         self.result_value = None
         self.result_extra_pairs: List[tuple] = []
 
-    def _on_players_only_toggled(self, checked: bool):
-        """Rebascule le contenu du menu deroulant Valeur entre la liste complete
-        et la liste filtree aux blocs posables par un joueur, en conservant le
-        texte deja saisi (le champ reste editable dans tous les cas)."""
+    def _refill_value_combo(self):
+        """Repeuple le menu Valeur selon le Type choisi : 'Group' = les groupes
+        de loot (+LootGroup de LootGroups.ecf), tout autre type = items/blocs du
+        catalogue (filtre joueurs si la case est coquee). Le texte deja saisi
+        est conserve, le champ reste editable dans tous les cas."""
         if not isinstance(self.value_edit, QComboBox):
             return
         current_text = self.value_edit.currentText()
         self.value_edit.clear()
-        source = self._value_suggestions_players_only if checked else self._value_suggestions_all
-        self.value_edit.addItems(source)
+        if (self._group_suggestions
+                and self.type_combo.currentText().strip().lower() == "group"):
+            self.value_edit.addItems(self._group_suggestions)
+        elif (self.players_only_check is not None
+                and self.players_only_check.isChecked()):
+            self.value_edit.addItems(self._value_suggestions_players_only)
+        else:
+            self.value_edit.addItems(self._value_suggestions_all)
         self.value_edit.setCurrentText(current_text)
+
+    def _on_players_only_toggled(self, checked: bool):
+        """Basculer la case rejoue le remplissage du menu Valeur (meme
+        discipline que le changement de Type : texte conserve)."""
+        self._refill_value_combo()
 
     def _get_value_text(self) -> str:
         """Lit le texte du champ Valeur, qu'il s'agisse d'un QLineEdit (cas
@@ -1189,6 +1231,9 @@ class EcfEditWidget(QWidget):
         self._current_block: Optional[EcfBlock] = None
         self._table_mode = False
         self._ingredient_mode = False
+        # Ancre 'Ajouter une propriete en dessous' (menu contextuel) : posee
+        # avant l'ouverture du dialogue + Propriete, consommee a l'application.
+        self._pending_anchor = None
         self._edited_prop_nodes = set()  # ids Python des EcfProperty touches cette session
         # Chemins des autres fichiers .ecf du meme scenario (Content/Configuration) --
         # utilise par le dialogue de creation guidee pour localiser Templates.ecf/
@@ -2200,6 +2245,14 @@ class EcfEditWidget(QWidget):
         self.props_table.setSortingEnabled(False)
 
         detected = self._detect_repeating_items(block)
+        # Containers : un Child Items VIDE (toutes les lignes supprimees pour
+        # repartir de zero) reste en mode TABLEAU -- sinon il basculait en mode
+        # ingredients et '+ Ligne' ouvrait le catalogue d'items au lieu du
+        # formulaire Name_N/Group_N (vecu 18/10).
+        if (detected is None and self.path.name.lower() == "containers.ecf"
+                and block.kind.lstrip('+').strip().lower() in ("child items", "child item")
+                and not any(isinstance(c, EcfProperty) for c in block.children)):
+            detected = ([], ["Name", "Group"])
         self._table_mode = detected is not None
         self._ingredient_mode = False
         ingredient_rows = None
@@ -2396,8 +2449,10 @@ class EcfEditWidget(QWidget):
             if not prop.pairs:
                 continue
             first_key, first_value = prop.pairs[0]
-            m = _ITEM_KEY_RE.match(first_key) if first_key else None
-            item_type = QTableWidgetItem(m.group(1) if m else (first_key or ""))
+            # Cle COMPLETE affichee (ex: 'Group_2') : l'auto-increment est
+            # visible (demande utilisateur 18/10/2026), plus un type nu sans
+            # savoir quel N la ligne porte.
+            item_type = QTableWidgetItem(first_key or "")
             item_type.setData(Qt.ItemDataRole.UserRole, (prop, "__TYPE__"))
             item_value = QTableWidgetItem(first_value)
             item_value.setData(Qt.ItemDataRole.UserRole, (prop, first_key))
@@ -2471,14 +2526,16 @@ class EcfEditWidget(QWidget):
             annotate_target = None
             key_for_annotation = pair_key
         elif pair_key == "__TYPE__":
-            # Colonne 'Type' en mode tableau : bascule Name_N <-> Group_N en gardant le
-            # meme N et la meme valeur -- reconstruit juste la cle de la 1ere paire.
+            # Colonne 'Type' en mode tableau (affiche la cle complete 'Group_2') :
+            # bascule Name_N <-> Group_N en gardant le meme N et la meme valeur --
+            # reconstruit juste la cle de la 1ere paire. La saisie tolere le
+            # suffixe tape ('Group_2' = 'Group') : le N reste gere par l'appli.
             if not isinstance(prop_node, EcfProperty) or not prop_node.pairs:
                 return
             old_first_key, first_value = prop_node.pairs[0]
             m = _ITEM_KEY_RE.match(old_first_key) if old_first_key else None
             suffix = m.group(2) if m else "0"
-            new_type = new_value.strip()
+            new_type = re.sub(r'_\d+$', '', new_value.strip())
             if not new_type or not re.match(r'^[A-Za-z]+$', new_type):
                 # Valeur non reconnue (vide ou contient des caracteres invalides pour
                 # une cle ECF) : remet l'affichage precedent plutot que de laisser une
@@ -2582,6 +2639,22 @@ class EcfEditWidget(QWidget):
         if self._table_mode and isinstance(prop_node, EcfProperty):
             action_duplicate_row = menu.addAction(t("dup.row_title"))
 
+        # 18/10/2026 : ajouter SOUS la ligne cliquee, attacher des attributs
+        # de format (display/type/formatter), deplacer la ligne -- l'ajout
+        # standard ne savait partir qu'en fin de bloc, sans reorganisation.
+        action_add_below = None
+        action_move_up = None
+        action_move_down = None
+        attr_actions = {}
+        if isinstance(prop_node, EcfProperty):
+            action_add_below = menu.addAction(t("ctx.add_property_below"))
+            attr_menu = menu.addMenu(t("ctx.add_attribute"))
+            for attr_key, attr_value in self._observed_trailing_attrs():
+                act = attr_menu.addAction(f"{attr_key}: {attr_value}")
+                attr_actions[act] = (attr_key, attr_value)
+            action_move_up = menu.addAction(t("ctx.move_property_up"))
+            action_move_down = menu.addAction(t("ctx.move_property_down"))
+
         action_del = None
         if not is_header_prop:
             action_del = menu.addAction(t("ecf.delete_property_action"))
@@ -2613,6 +2686,14 @@ class EcfEditWidget(QWidget):
             self._translate_cell(value_item, None, prop_node, lang_actions[chosen])
         elif chosen == action_duplicate_row and isinstance(prop_node, EcfProperty):
             self._duplicate_row_action(prop_node)
+        elif chosen == action_add_below and isinstance(prop_node, EcfProperty):
+            self._add_property_dialog(anchor_prop=prop_node)
+        elif chosen in attr_actions:
+            self._apply_attribute_pairs(prop_node, [attr_actions[chosen]])
+        elif chosen == action_move_up and isinstance(prop_node, EcfProperty):
+            self._move_property_action(prop_node, -1)
+        elif chosen == action_move_down and isinstance(prop_node, EcfProperty):
+            self._move_property_action(prop_node, +1)
         elif chosen == action_catalog and catalog_target:
             self._replace_cell_from_catalog(value_item, catalog_target)
         elif chosen == action_del and isinstance(prop_node, EcfProperty):
@@ -2710,10 +2791,13 @@ class EcfEditWidget(QWidget):
         # tracabilite comprise (comportement coherent avec toute autre modification).
         value_item.setText(new_value)  # declenche _on_cell_changed, qui gere tout le reste
 
-    def _add_property_dialog(self):
+    def _add_property_dialog(self, anchor_prop: Optional[EcfProperty] = None):
         if not self._current_block:
             QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
             return
+        # Pose par le menu contextuel ('Ajouter une propriete en dessous') :
+        # la nouvelle ligne sera inseree APRES cette propriete, pas en fin.
+        self._pending_anchor = anchor_prop
         # ECF-008 : cles et valeurs OBSERVEES dans le fichier ouvert proposes
         # en listes deroulantes EDITABLES (saisie libre toujours possible),
         # au lieu de deux champs de saisie a vide ; la valeur proposee suit la
@@ -2761,7 +2845,6 @@ class EcfEditWidget(QWidget):
         value = value_combo.currentText()
         if not key:
             return
-        self._snapshot_undo()
 
         # Permet de taper directement plusieurs paires a la suite, EXACTEMENT comme
         # dans le fichier (ex: valeur = 'AlienParts04, param1: 0.6, param2: "1,3"') --
@@ -2777,14 +2860,91 @@ class EcfEditWidget(QWidget):
             pairs = [(key, extra[0][1])] + extra[1:]
         else:
             pairs = [(key, value.strip())]
+        self._apply_property_pairs(key, pairs)
 
-        new_prop = add_property_line(self._current_block, pairs)
+    def _apply_property_pairs(self, key: str, pairs):
+        """Applique les paires validees du dialogue '+ Propriete' : avec une
+        ancre (menu contextuel 'Ajouter une propriete en dessous') la ligne
+        est inseree juste APRES l'ancre ; sinon les attributs de format
+        (display/type/formatter) sont ATTACHES a la derniere ligne du bloc
+        ('UnlockCost: 30, display: true' -- convention vanilla du corpus
+        BlocksConfig), et les autres forment leur propre ligne en fin de
+        bloc. Snapshot undo inclus."""
+        from core.ecf.block_creation import append_trailing_attrs
+        anchor = self._pending_anchor
+        self._pending_anchor = None
+        self._snapshot_undo()
+        if anchor is not None:
+            new_prop = insert_property_after(self._current_block, anchor, pairs)
+        else:
+            attached = append_trailing_attrs(self._current_block, key, pairs)
+            new_prop = (attached if attached is not None
+                        else add_property_line(self._current_block, pairs))
         if settings.get_annotations_enabled():
             author = settings.get_author()
             annotate_property(new_prop, f"# Ajoute par {author}")
         # ECF-008 : surlignage immediat de l'ajout (tableau de droite), comme
         # pour toute autre edition.
         self._edited_prop_nodes.add(id(new_prop))
+        self._set_modified(True)
+        self._refresh_props_table()
+
+    def _observed_trailing_attrs(self):
+        """Valeurs pour le sous-menu 'Ajouter un attribut' : d'abord celles
+        OBSERVEES dans le fichier ouvert (scan global, comme partout ailleurs),
+        completees par des presets de base -- dedoublonnees, bornees par cle."""
+        from core.ecf.block_creation import TRAILING_ATTR_KEYS, scan_properties_for_kind
+        observed = scan_properties_for_kind(self.doc, None)
+        presets = {"display": ["true", "false"], "type": ["float", "int", "string"],
+                   "formatter": ["Kilogram", "Liter", "Watt"]}
+        out = []
+        for attr_key in sorted(TRAILING_ATTR_KEYS):
+            seen = [v for v, _c in observed.get(attr_key, Counter()).most_common()]
+            merged = list(dict.fromkeys(seen + presets.get(attr_key, [])))[:6]
+            out.extend((attr_key, v) for v in merged)
+        return out
+
+    def _apply_attribute_pairs(self, prop: EcfProperty, pairs):
+        """Attache des attributs de format (display/type/formatter) a la ligne
+        CLIQUEE du menu contextuel (pas a la derniere du bloc) -- meme
+        discipline que _apply_property_pairs : snapshot, annotation, marquage.
+        Une cle DEJA presente sur la ligne est REMPLACEE (bascule display
+        true<->false), jamais dupliquee (une cle en double = bloc rejete)."""
+        if not pairs:
+            return
+        planned = []
+        for k, v in pairs:
+            idx = next((i for i, (pk, _pv) in enumerate(prop.pairs) if pk == k), None)
+            planned.append((idx, (k, v)))
+        self._snapshot_undo()
+        for idx, (k, v) in planned:
+            if idx is None:
+                prop.pairs.append((k, v))
+            else:
+                prop.pairs[idx] = (k, v)
+        prop.dirty = True
+        prop.dirty = True
+        if settings.get_annotations_enabled():
+            author = settings.get_author()
+            annotate_property(prop, f"# Ajoute par {author}")
+        self._edited_prop_nodes.add(id(prop))
+        self._set_modified(True)
+        self._refresh_props_table()
+
+    def _move_property_action(self, prop: EcfProperty, delta: int):
+        """Monte/descend une ligne de propriete (echange avec la voisine la
+        plus proche) -- reorganisation demandee le 18/10/2026, l'ajout ne
+        laissant jusque la aucun choix d'emplacement."""
+        if not self._current_block:
+            return
+        self._snapshot_undo()
+        if not move_property(self._current_block, prop, delta):
+            self._undo_stack.pop()      # aucun deplacement : ne pas polluer l'undo
+            return
+        if settings.get_annotations_enabled():
+            author = settings.get_author()
+            annotate_property(prop, f"# Deplace par {author}")
+        self._edited_prop_nodes.add(id(prop))
         self._set_modified(True)
         self._refresh_props_table()
 
@@ -2820,6 +2980,27 @@ class EcfEditWidget(QWidget):
                 self._catalog_paths = paths
                 self._catalog_entries_cache = load_catalog(paths)
         return self._catalog_entries_cache
+
+    def _get_loot_group_names(self):
+        """Noms des { +LootGroup } du scenario (LootGroups.ecf) pour le champ
+        Valeur du dialogue d'ajout quand le Type choisi est 'Group' ; cache
+        lazy, None si LootGroups.ecf introuvable (fichier isole sans voisin)."""
+        if not hasattr(self, "_loot_groups_cache"):
+            self._loot_groups_cache = None
+            path = None
+            if self.sibling_ecf_files:
+                from core.ecf.block_creation import find_file_by_name
+                path = find_file_by_name(self.sibling_ecf_files, "LootGroups.ecf")
+            elif self.path.parent.name == "Configuration":
+                candidate = self.path.parent / "LootGroups.ecf"
+                path = candidate if candidate.exists() else None
+            if path is not None:
+                from core.ecf.block_creation import list_loot_group_names
+                try:
+                    self._loot_groups_cache = list_loot_group_names(path)
+                except Exception:
+                    self._loot_groups_cache = []
+        return self._loot_groups_cache
 
     def _get_script_item_names(self) -> List[str]:
         """Noms d'items du catalogue (scenario + vanille) pour
@@ -2954,7 +3135,12 @@ class EcfEditWidget(QWidget):
         else:
             detected = self._detect_repeating_items(block)
             prefixes = detected[1] if detected else ["Name"]
-            item_type = "Name" if "Name" in prefixes else (prefixes[0] if prefixes else "Name")
+            # Un item du catalogue n'est JAMAIS une reference de groupe : si le
+            # bloc ne contient que des Group_N (ex: Container 'Group_0: empty'),
+            # on insere sous Name_N (ligne item standard de Child Items).
+            item_type = "Name" if "Name" in prefixes else next(
+                (p for p in prefixes if p.lower() != "group"),
+                prefixes[0] if prefixes else "Name")
             for e in entries:
                 add_repeating_item_row(block, item_type, e.name, [])
         self._set_modified(True)
@@ -2972,6 +3158,14 @@ class EcfEditWidget(QWidget):
             return
         detected = self._detect_repeating_items(self._current_block)
         param_columns, prefixes = detected if detected else ([], ["Name", "Group"])
+        # Containers : offrir TOUJOURS les deux conventions vanilla de Child
+        # Items (Name_N = item, Group_N = groupe de loot), meme si le bloc ne
+        # contient que des Group_N -- sinon l'ajout d'un ITEM y etait impossible
+        # (demande utilisateur 18/10/2026).
+        if self.path.name.lower() == "containers.ecf":
+            for prefix in ("Name", "Group"):
+                if prefix not in prefixes:
+                    prefixes.append(prefix)
 
         # Menu deroulant des vrais items/blocs du scenario (ItemsConfig.ecf/
         # BlocksConfig.ecf) pour le champ Valeur -- disponible sur TOUS les
@@ -2992,7 +3186,8 @@ class EcfEditWidget(QWidget):
                     items_path, blocks_path, players_only=True)
 
         dialog = AddTableRowDialog(param_columns, prefixes, self, value_suggestions=value_suggestions,
-                                    value_suggestions_players_only=value_suggestions_players_only)
+                                    value_suggestions_players_only=value_suggestions_players_only,
+                                    group_suggestions=self._get_loot_group_names())
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -3468,7 +3663,6 @@ class EcfEditWidget(QWidget):
             craftable_names=craftable_names)
 
     def _open_disabled_blocks_dialog(self):
-        from core.ecf.disable_block import find_disabled_blocks, enable_disabled_block
         dialog = DisabledBlocksDialog(self.doc, self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.reactivated:
             self._set_modified(True)

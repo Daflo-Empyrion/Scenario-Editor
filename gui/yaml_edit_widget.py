@@ -116,7 +116,7 @@ class YamlEditWidget(QWidget):
         self.tree.setHeaderLabels(["Cle", "Apercu"])
         self._populate_tree()
         self.tree.itemClicked.connect(self._on_entry_selected)
-        if self.on_copy_entry or self.on_duplicate_entry:
+        if self.on_copy_entry or self.on_duplicate_entry or self.editable:
             self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
         splitter.addWidget(self.tree)
@@ -294,12 +294,59 @@ class YamlEditWidget(QWidget):
         action_dup = None
         if self.on_duplicate_entry:
             action_dup = menu.addAction(t("yaml.duplicate_action"))
+        elif self.editable:
+            # Onglet copie de travail (pas de callback source) : duplication
+            # SUR PLACE -- ex: decliner un POI 'Random' d'un playfield
+            # (demande utilisateur 18/10/2026).
+            action_dup = menu.addAction(t("yaml.duplicate_action"))
 
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
         if action_copy and chosen == action_copy:
             self.on_copy_entry(entry, key_path)
         elif action_dup and chosen == action_dup:
-            self.on_duplicate_entry(entry, key_path)
+            if self.on_duplicate_entry:
+                self.on_duplicate_entry(entry, key_path)
+            else:
+                self._duplicate_entry_in_place(entry)
+
+    def _find_siblings(self, entry: "YamlEntry"):
+        """Liste contenant entry (doc.nodes ou children d'une entree), None sinon.
+        Recherche par IDENTITE (is) : YamlEntry est une dataclass a egalite par
+        valeur, deux POIs au contenu identique seraient sinon confondus."""
+        if any(n is entry for n in self.doc.nodes):
+            return self.doc.nodes
+
+        def _walk(nodes):
+            for n in nodes:
+                if isinstance(n, YamlEntry):
+                    if any(c is entry for c in n.children):
+                        return n.children
+                    found = _walk(n.children)
+                    if found is not None:
+                        return found
+            return None
+
+        return _walk(self.doc.nodes)
+
+    def _duplicate_entry_in_place(self, entry: "YamlEntry"):
+        """Duplique l'entree SUR PLACE (onglet copie de travail) : copie de la
+        sous-arborescence inseree juste APRES l'original, meme parent -- pour
+        decliner un POI 'Random' d'un playfield ou toute sequence/mapping."""
+        siblings = self._find_siblings(entry)
+        if siblings is None:
+            return
+        self._snapshot_undo()
+        import copy as _copy
+        clone = _copy.deepcopy(entry)
+        # Pas d'annotation sur les playfields (le jeu affiche les commentaires,
+        # voir _annotations_enabled_for_file) ; ailleurs, tracabilite standard.
+        if self._annotations_enabled_for_file() and settings.get_annotations_enabled():
+            author = settings.get_author()
+            clone.comment = (clone.comment + "  " if clone.comment else "") + f"# Duplique par {author}"
+        clone.dirty = True
+        siblings.insert(next(i for i, n in enumerate(siblings) if n is entry) + 1, clone)
+        self._set_modified(True)
+        self._populate_tree()
 
     def _refresh_current_item_preview(self):
         it = QTreeWidgetItemIterator(self.tree)
@@ -329,6 +376,14 @@ class YamlEditWidget(QWidget):
         base = cls._ANNO_SEG_RE.sub('', base).rstrip()
         return (base + '  ' + note) if base else note
 
+    def _annotations_enabled_for_file(self) -> bool:
+        """Pas d'annotation '# original: ... -- Mod par' ni '# Ajoute par' sur
+        les yamls de PLAYFIELD : le jeu relit ces fichiers sans retirer les
+        commentaires et leur texte se retrouve AFFICHE en jeu, en surimpression
+        sur la valeur (vecu sur la Description modifiee ; demande 18/10/2026).
+        Les autres yaml gardent la tracabilite."""
+        return not any(part.lower() == "playfields" for part in self.path.parts)
+
     def _apply_value(self):
         if not self._current_entry:
             return
@@ -337,7 +392,7 @@ class YamlEditWidget(QWidget):
             self._snapshot_undo()
             old_value = self._current_entry.value
             self._current_entry.set_own_value(new_value)
-            if settings.get_annotations_enabled():
+            if settings.get_annotations_enabled() and self._annotations_enabled_for_file():
                 author = settings.get_author()
                 self._current_entry.comment = self._build_annotation_comment(
                     self._current_entry.comment, old_value, author)
@@ -408,7 +463,7 @@ class YamlEditWidget(QWidget):
         indent = (parent_entry.indent + "  ") if parent_entry else ""
         self._snapshot_undo()
         new_entry = create_entry(key.strip() or None, value.strip(), indent=indent)
-        if settings.get_annotations_enabled():
+        if settings.get_annotations_enabled() and self._annotations_enabled_for_file():
             author = settings.get_author()
             new_entry.comment = f"# Ajoute par {author}"
         target_list.append(new_entry)

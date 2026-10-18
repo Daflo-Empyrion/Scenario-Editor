@@ -15,20 +15,28 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Carte 2D des systemes solaires de Sectors/Sectors.yaml -- voir
+Carte 3D des systemes solaires de Sectors/Sectors.yaml -- voir
 core/galaxy_viewer.py pour l'extraction et les limitations honnetes
 (aucune route de warp entre systemes n'est declaree dans ce fichier,
 seule une carte spatiale par coordonnees reelles est proposee).
 
-Lecture seule (contrairement au canvas de playfield) : les coordonnees
-galactiques ne sont pas pensees pour etre deplacees a la souris de la meme
-facon qu'un POI -- edition possible via l'onglet YAML complet si besoin."""
-from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QBrush, QPen, QColor, QPainter, QFont
+Vue 3D logicielle (consultation IA 19/10, pas de Qt3D/QML) : camera
+orbitale dessinee en QPainter. Glisser gauche = orbite (azimut puis
+elevation, dans cet ordre -- l'axe correct), droit/milieu = pan, molette
+= zoom. Perspective en exploration ; le mode EDITION (MAP-009) fige
+azimut=0 / elevation=90 et passe en ORTHOGRAPHIQUE : l'ecran redevient
+(x, z) exact, la correspondance souris->fichier reste garantie.
+
+Lecture seule hors mode edition : les coordonnees galactiques ne sont
+pas pensees pour etre deplacees a la souris autrement."""
+import math
+from math import cos, sin, radians
+
+from PyQt6.QtCore import Qt, QRectF, QPointF
+from PyQt6.QtGui import QBrush, QPen, QColor, QPainter, QFont, QFontMetrics
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsView, QGraphicsScene,
-    QGraphicsEllipseItem, QGraphicsTextItem, QPushButton, QSlider, QCheckBox,
-    QMessageBox,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
+    QMessageBox, QLineEdit, QWidget, QToolTip,
 )
 
 from core.i18n import t
@@ -38,37 +46,323 @@ from gui.theme import icon, icon_size
 from gui.results_window_helpers import export_text_to_file
 
 _ROLE_COLOR = "#7b1fa2"
-_SPECTRAL_COLOR = "#f9a825"
+
+# Lisibilite : une couleur par lettre de classe spectrale (palette astronomy
+# standard O bleu -> M rouge), l'etoile restant identifiable sans lire le nom.
+_SPECTRAL_PALETTE = {
+    "O": "#8b9dff", "B": "#4aa3ff", "A": "#dce8ff", "F": "#fff3b0",
+    "G": "#ffd54f", "K": "#ff9e40", "M": "#ff6b57",
+}
+_SPECTRAL_ORDER = "OBAFGKM"
 
 
-class _SystemDot(QGraphicsEllipseItem):
-    def __init__(self, system, radius: float, on_selected, on_moved=None):
-        super().__init__(-radius, -radius, radius * 2, radius * 2)
-        self.system = system
+def _dot_color(star_class: str) -> QColor:
+    if classify_star_class(star_class) == "role":
+        return QColor(_ROLE_COLOR)
+    letter = (star_class or "")[:1].upper()
+    return QColor(_SPECTRAL_PALETTE.get(letter, "#9e9e9e"))
+
+
+def _norm(v):
+    n = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) or 1.0
+    return (v[0] / n, v[1] / n, v[2] / n)
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+
+
+class _GalaxyCanvas(QWidget):
+    """Le rendu 3D et TOUTE la navigation souris. Pas de QGraphicsView :
+    les points sont repeints a chaque frame (80-300 points = trivial) et
+    la camera reste une simple fonction projective testable hors ecran."""
+
+    ELEV_MIN = -85.0  # orbite LIBRE des deux cotes du plan (vecu 19/10 :
+    ELEV_MAX = 85.0   # le clamp [10;85] empechait de passer sous la galaxie).
+    ELEV_TOP = 90.0   # vue de dessus exacte, reservee au verrou d'edition.
+
+    def __init__(self, on_selected, on_moved=None):
+        super().__init__()
         self._on_selected = on_selected
         self._on_moved = on_moved
-        # MAP-009 : deplacable seulement en mode edition (case a cocher) ET si
-        # le systeme a des coordonnees ecritables.
-        if on_moved is not None and system.coordinates is not None and system.source_item is not None:
-            self.setFlag(QGraphicsEllipseItem.GraphicsItemFlag.ItemIsMovable, True)
-            self.setPen(QPen(QColor("#4a7dfc"), 1.5))
-        self.setAcceptHoverEvents(True)
-        kind = classify_star_class(system.star_class)
-        color = QColor(_ROLE_COLOR if kind == "role" else _SPECTRAL_COLOR)
-        self.setBrush(QBrush(color))
-        self.setPen(QPen(QColor("#333333"), 1))
-        self.setToolTip(f"{system.name} ({system.star_class})")
+        self.setMouseTracking(True)
+        self.systems = []
+        self.azim = 0.0        # degres, rotation autour de l'axe Y galactique
+        self.elev = 35.0       # degres d'ouverture : le RELIEF se voit sans
+        #                       manipuler (vecu : 90 par defaut = galaxie
+        #                       "plate", toute la hauteur Y etait invisible).
+        self.zoom = 1.0
+        self.zoom_fit = 1.0
+        self.center = (0.0, 0.0, 0.0)
+        self.span = 400.0
+        self.edit_mode = False
+        self._filter_text = ""
+        self._drag = None      # ('orbit'|'pan', x0, y0) ou ('move', system)
+        self._drag_preview = None  # (sx, sy) : le point suit la souris (vecu)
+        self._layout = []      # par frame : (system, sx, sy, r_px, depth)
+        self._labels = []      # par frame : (nom, QRectF, visible, role)
+
+    # ------------------------------------------------------------------
+    # Camera / projection
+    # ------------------------------------------------------------------
+    def set_systems(self, systems):
+        self.systems = systems
+        self._fit()
+
+    def _fit(self):
+        pts = [s.coordinates for s in self.systems if s.coordinates]
+        w = max(self.width(), 1)
+        h = max(self.height(), 1)
+        if not pts:
+            self.center, self.span, self.zoom = (0.0, 0.0, 0.0), 400.0, w / 400.0
+        else:
+            xs, ys, zs = [p[0] for p in pts], [p[1] for p in pts], [p[2] for p in pts]
+            self.center = ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2,
+                           (min(zs) + max(zs)) / 2)
+            self.span = max(max(xs) - min(xs), max(ys) - min(ys),
+                            max(zs) - min(zs), 1.0)
+        self.zoom_fit = min(w, h) / (self.span * 1.15)
+        self.zoom = self.zoom_fit
+
+    def _basis(self):
+        """Repere camera : right/down ecran en coordonnees monde + distance
+        orbitale. En edition : base FIGEE (1,0,0)/(0,0,1) quelle que soit la
+        camera courante -> l'ecran est exactement (x, z), MAP-009 garanti.
+        Continuite avec l'ancienne carte 2D a l'ouverture explore."""
+        if self.edit_mode:
+            return (0.0, 1.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0), self.span * 1.5
+        A, E = radians(self.azim), radians(self.elev)
+        cam = (cos(E) * sin(A), sin(E), cos(E) * cos(A))
+        right = _norm(_cross(cam, (0.0, 0.0, 1.0)))
+        down = _cross(right, cam)
+        dist = self.span * 1.5
+        return cam, right, down, dist
+
+    def project(self, coordinates):
+        """World -> ecran. Retourne (sx, sy, factor) ; factor = grossissement
+        perspective (1.0 au centre, < 1 au fond, > 1 devant). None si le
+        point passe derriere la camera (impossible dans le clamp courant,
+        garde par surete)."""
+        if coordinates is None:
+            return None
+        cam, right, down, dist = self._basis()
+        p = (coordinates[0] - self.center[0],
+             coordinates[1] - self.center[1],
+             coordinates[2] - self.center[2])
+        if self.edit_mode:
+            # Orthographique : ecran = (x, z) exact, inversible pour MAP-009.
+            k = self.zoom
+            return (self.width() / 2 + k * (p[0] * right[0] + p[1] * right[1] + p[2] * right[2]),
+                    self.height() / 2 + k * (p[0] * down[0] + p[1] * down[1] + p[2] * down[2]),
+                    1.0)
+        depth = p[0] * cam[0] + p[1] * cam[1] + p[2] * cam[2]
+        denom = dist + depth
+        if denom < dist * 0.1:
+            return None
+        k = self.zoom * dist / denom
+        sx = self.width() / 2 + k * (p[0] * right[0] + p[1] * right[1] + p[2] * right[2])
+        sy = self.height() / 2 + k * (p[0] * down[0] + p[1] * down[1] + p[2] * down[2])
+        return (sx, sy, dist / denom)
+
+    def unproject_ground(self, sx, sy):
+        """Inverse ORTHOGRAPHIQUE (mode edition seulement) : ecran -> (x, z),
+        l'axe Y galactique n'est pas modifiable (continuite MAP-009)."""
+        cam, right, down, _dist = self._basis()
+        k = self.zoom
+        vx = (sx - self.width() / 2) / k
+        vy = (sy - self.height() / 2) / k
+        return (self.center[0] + vx * right[0] + vy * down[0],
+                self.center[2] + vx * right[2] + vy * down[2])
+
+    # ------------------------------------------------------------------
+    # Navigation souris
+    # ------------------------------------------------------------------
+    def wheelEvent(self, event):
+        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+        lo, hi = self.zoom_fit * 0.2, self.zoom_fit * 40.0
+        self.zoom = max(lo, min(hi, self.zoom * factor))
+        self.update()
 
     def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        self._on_selected(self.system)
+        pos = event.position()
+        if event.button() == Qt.MouseButton.LeftButton:
+            hit = self._hit_test(pos.x(), pos.y())
+            if self.edit_mode and self._on_moved is not None \
+                    and hit is not None and hit.coordinates is not None \
+                    and hit.source_item is not None:
+                self._drag = ("move", hit)
+                self._drag_preview = (pos.x(), pos.y())
+                self.update()
+                return
+            if hit is not None:
+                self._on_selected(hit)
+                if not self.edit_mode:
+                    return  # cliquer un point ne doit pas orbiter par accident
+            self._drag = ("orbit", pos.x(), pos.y())
+        elif event.button() in (Qt.MouseButton.RightButton,
+                                Qt.MouseButton.MiddleButton):
+            self._drag = ("pan", pos.x(), pos.y())
+
+    def mouseMoveEvent(self, event):
+        pos = event.position()
+        if self._drag is None:
+            hit = self._hit_test(pos.x(), pos.y())
+            if hit is not None:
+                QToolTip.showText(event.globalPosition().toPoint(),
+                                  f"{hit.name} ({hit.star_class})", self)
+            return
+        if self._drag[0] == "move":
+            # Le point suit la souris EN DIRECT (regression vecue : sans lui,
+            # le deplacement sautait seulement au relachement).
+            self._drag_preview = (pos.x(), pos.y())
+            self.update()
+            return
+        dx = pos.x() - self._drag[1]
+        dy = pos.y() - self._drag[2]
+        self._drag = (self._drag[0], pos.x(), pos.y())
+        if self._drag[0] == "orbit":
+            self.azim = (self.azim - dx * 0.4) % 360.0
+            self.elev = max(self.ELEV_MIN,
+                            min(self.ELEV_MAX, self.elev - dy * 0.25))
+        else:  # pan : le centre suit les axes ECRAN exprimes en monde
+            cam, right, down, dist = self._basis()
+            step = (dist / max(self.zoom, 1e-6)) / max(self.height(), 1)
+            self.center = (self.center[0] - (dx * right[0] + dy * down[0]) * step,
+                           self.center[1] - (dx * right[1] + dy * down[1]) * step,
+                           self.center[2] - (dx * right[2] + dy * down[2]) * step)
+        self.update()
 
     def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        if self._on_moved is not None and (self.flags() & QGraphicsEllipseItem.GraphicsItemFlag.ItemIsMovable):
-            new_pos = self.scenePos()
-            if abs(new_pos.x() - self.system.coordinates[0]) > 0.5 or abs(new_pos.y() - self.system.coordinates[2]) > 0.5:
-                self._on_moved(self.system, new_pos.x(), new_pos.y())
+        if self._drag is not None and self._drag[0] == "move" \
+                and self._on_moved is not None:
+            system = self._drag[1]
+            pos = event.position()
+            wx, wz = self.unproject_ground(pos.x(), pos.y())
+            if system.coordinates is not None and (
+                    abs(wx - system.coordinates[0]) > 0.5
+                    or abs(wz - system.coordinates[2]) > 0.5):
+                self._on_moved(system, wx, wz)
+        self._drag = None
+        self._drag_preview = None
+        self.update()
+
+    def _hit_test(self, sx, sy):
+        best, best_d = None, 1e9
+        for system, px, py, r_px, _pf in self._layout:
+            d = math.hypot(sx - px, sy - py)
+            if d <= max(12.0, r_px + 4.0) and d < best_d:
+                best, best_d = system, d
+        return best
+
+    # ------------------------------------------------------------------
+    # Filtrage / etiquettes (logique de lisibilite du 18/10, repeinte ici)
+    # ------------------------------------------------------------------
+    def set_filter(self, text):
+        self._filter_text = (text or "").strip().lower()
+        self.update()
+
+    def _alpha(self, system):
+        return 1.0 if not self._filter_text or self._filter_text in system.name.lower() else 0.12
+
+    def _layout_labels(self):
+        """Etiquettes : priorite aux roles speciaux, puis aux systemes les
+        plus riches ; TOUTES passent dans le filtre anti-chevauchement
+        (vecu sur RE2 : les roles seuls empilaient une muraille de boites
+        dans le centre dense). Les spectrales n'entrent en lice qu'a partir
+        du zoom de cadrage. Testable hors paint."""
+        candidates = []
+        for system, sx, sy, r_px, _pf in self._layout:
+            role = classify_star_class(system.star_class) == "role"
+            if not (role or self.zoom >= self.zoom_fit):
+                continue
+            w = QFontMetrics(QFont("", 7)).horizontalAdvance(system.name) + 8
+            candidates.append((-role, -system.sector_count,
+                               system, QRectF(sx + r_px, sy - r_px - 14, w, 16)))
+        candidates.sort(key=lambda c: (c[0], c[1]))
+        placed, out = [], {id(c[2]): None for c in candidates}
+        for _neg_role, _neg_count, system, rect in candidates:
+            if any(rect.intersects(other) for other in placed):
+                out[id(system)] = (system, rect, False,
+                                   classify_star_class(system.star_class) == "role")
+                continue
+            placed.append(rect)
+            out[id(system)] = (system, rect, True,
+                               classify_star_class(system.star_class) == "role")
+        # tout systeme du layout doit avoir une entree (visible ou masquee)
+        self._labels = [out.get(id(s), (s, QRectF(), False, False))
+                        for s, _x, _y, _r, _p in self._layout]
+        return self._labels
+
+    # ------------------------------------------------------------------
+    # Rendu
+    # ------------------------------------------------------------------
+    def paintEvent(self, _event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._layout = []
+        drag_system = self._drag[1] if (self._drag and self._drag[0] == "move") else None
+        entries = []
+        for system in self.systems:
+            if system.coordinates is None or system is drag_system:
+                continue
+            proj = self.project(system.coordinates)
+            if proj is None:
+                continue
+            depth = math.hypot(system.coordinates[0] - self.center[0],
+                               system.coordinates[2] - self.center[2])
+            entries.append((depth, system, proj[0], proj[1], proj[2]))
+        entries.sort(key=lambda e: -e[0])  # loin -> pres
+        base = 4.0
+        for _depth, system, sx, sy, pf in entries:
+            radius = (base + min(system.sector_count, 20) * 0.4) \
+                * max(pf * self.zoom / max(self.zoom_fit, 1e-9), 0.35)
+            alpha = self._alpha(system)
+            color = QColor(_dot_color(system.star_class))
+            color.setAlphaF(alpha)
+            painter.setBrush(QBrush(color))
+            role = classify_star_class(system.star_class) == "role"
+            painter.setPen(QPen(QColor(51, 51, 51, int(255 * alpha)),
+                                2.5 if role else 1))
+            painter.drawEllipse(QPointF(sx, sy), radius, radius)
+            self._layout.append((system, sx, sy, radius, pf))
+
+        if drag_system is not None and self._drag_preview is not None \
+                and drag_system.coordinates is not None:
+            # Apercu LIVE : le point suit la souris, coordonnees affichees --
+            # rien n'est ecrit avant le relachement (MAP-009 intact).
+            wx, wz = self.unproject_ground(*self._drag_preview)
+            proj = self.project((wx, drag_system.coordinates[1], wz))
+            if proj is not None:
+                sx, sy = proj[0], proj[1]
+                painter.setBrush(QBrush(QColor(_dot_color(drag_system.star_class))))
+                painter.setPen(QPen(QColor("#4a7dfc"), 2.5))
+                painter.drawEllipse(QPointF(sx, sy), 7.0, 7.0)
+                painter.setPen(QColor("#4a7dfc"))
+                painter.drawText(QPointF(sx + 10, sy - 10),
+                                 f"{wx:.0f}, {wz:.0f}")
+                # present dans _layout pour rester selectionnable/draggable
+                self._layout.append((drag_system, sx, sy, 7.0, 1.0))
+
+        font = QFont("", 7)
+        painter.setFont(font)
+        for system, rect, shown, _role in self._layout_labels():
+            if not shown:
+                continue
+            alpha = self._alpha(system)
+            painter.setPen(QPen(Qt.PenStyle.NoPen))
+            painter.setBrush(QBrush(QColor(255, 255, 255, int(170 * alpha))))
+            painter.drawRect(rect)
+            painter.setPen(QColor(34, 34, 34, int(255 * alpha)))
+            painter.drawText(rect.adjusted(4, 0, 0, 0),
+                             Qt.AlignmentFlag.AlignVCenter, system.name)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.systems:
+            self._fit()
+        self.update()
 
 
 class GalaxyViewerDialog(QDialog):
@@ -95,32 +389,26 @@ class GalaxyViewerDialog(QDialog):
         info_row.addWidget(self.info_label, 1)
         layout.addLayout(info_row)
 
+        self.search = QLineEdit()
+        self.search.setPlaceholderText(t("galaxy.search_placeholder"))
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._apply_filter)
+        layout.addWidget(self.search)
+
         if self.sectors_path is not None:
             self.move_check = QCheckBox(t("galaxy.allow_move"))
             self.move_check.toggled.connect(self._on_move_toggled)
             layout.addWidget(self.move_check)
 
-        self.scene = QGraphicsScene()
-        self.view = QGraphicsView(self.scene)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # RubberBandDrag (et non ScrollHandDrag) : sans lui le glisser gauche
-        # panne la carte et les systemes etaient inmoveables (meme cause que
-        # MAP-002 sur le canvas de playfield).
-        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self.view.wheelEvent = self._wheel_zoom
-        layout.addWidget(self.view, 1)
+        self.canvas = _GalaxyCanvas(self._on_system_selected,
+                                    on_moved=self._on_system_moved)
+        layout.addWidget(self.canvas, 1)
 
-        tilt_row = QHBoxLayout()
-        tilt_row.addWidget(QLabel(t("galaxy.tilt_label")))
-        self.tilt_slider = QSlider(Qt.Orientation.Horizontal)
-        self.tilt_slider.setRange(0, 100)
-        self.tilt_slider.setValue(0)
-        self.tilt_slider.valueChanged.connect(self._redraw)
-        tilt_row.addWidget(self.tilt_slider, 1)
-        self.tilt_value_label = QLabel("0%")
-        self.tilt_value_label.setFixedWidth(40)
-        tilt_row.addWidget(self.tilt_value_label)
-        layout.addLayout(tilt_row)
+        hint = QLabel(t("galaxy.mouse_help"))
+        hint.setObjectName("mutedLabel")
+        layout.addWidget(hint)
+
+        layout.addWidget(self._build_legend())
 
         bottom_row = QHBoxLayout()
         self.summary_label = QLabel("")
@@ -148,78 +436,44 @@ class GalaxyViewerDialog(QDialog):
 
         self.refresh()
 
-    def _wheel_zoom(self, event):
-        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
-        self.view.scale(factor, factor)
+    def _build_legend(self) -> QWidget:
+        """Legende de lecture : puce violette = roles speciaux, puces
+        O->M = classes spectrales. Construite une seule fois."""
+        row = QHBoxLayout()
+        row.addWidget(self._legend_chip(_ROLE_COLOR, t("galaxy.legend_role")))
+        for letter in _SPECTRAL_ORDER:
+            row.addWidget(self._legend_chip(_SPECTRAL_PALETTE[letter], letter))
+        row.addStretch()
+        wrap = QWidget()
+        wrap.setLayout(row)
+        return wrap
 
-    def _project(self, x: float, y: float, z: float) -> tuple:
-        """Projection oblique (type 'cavaliere') : l'axe Y (hauteur galactique,
-        ignore en vue du dessus pure) decale visuellement le point vers le
-        haut de l'ecran proportionnellement a l'inclinaison choisie -- permet
-        de separer deux systemes proches en X/Z mais distants en Y, qui se
-        chevauchraient sinon (confirme sur un vrai Sectors.yaml : certains
-        systemes ont un Y significatif, ex: 'Dying Sun' Y=500)."""
-        tilt = (self.tilt_slider.value() / 100.0) * 2.0
-        return (x, z - tilt * y)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if self.systems:
-            rect = QRectF(*self._padded_rect())
-            self.view.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+    @staticmethod
+    def _legend_chip(color: str, text: str) -> QLabel:
+        chip = QLabel(text)
+        chip.setStyleSheet(
+            f"background-color: {color}; color: #222222;"
+            "border-radius: 4px; padding: 1px 6px;")
+        return chip
 
     def refresh(self):
         self.systems = extract_solar_systems(self.doc)
-        self._redraw()
+        self.canvas.set_systems(self.systems)
         self.summary_label.setText(t("galaxy.n_systems", n=len(self.systems)))
 
-    def _padded_rect(self):
-        positioned = [s for s in self.systems if s.coordinates is not None]
-        if not positioned:
-            return (-200.0, -200.0, 400.0, 400.0)
-        projected = [self._project(*s.coordinates) for s in positioned]
-        xs = [p[0] for p in projected]
-        ys = [p[1] for p in projected]
-        min_x, max_x, min_y, max_y = min(xs), max(xs), min(ys), max(ys)
-        pad = max(20.0, (max_x - min_x) * 0.1)
-        return (min_x - pad, min_y - pad, (max_x - min_x) + pad * 2, (max_y - min_y) + pad * 2)
-
-    def _redraw(self):
-        self.tilt_value_label.setText(f"{self.tilt_slider.value()}%")
-        self.scene.clear()
-        for system in self.systems:
-            if system.coordinates is None:
-                continue
-            screen_x, screen_y = self._project(*system.coordinates)
-            radius = 4.0 + min(system.sector_count, 20) * 0.4
-            on_moved = self._on_system_moved if self._move_enabled else None
-            dot = _SystemDot(system, radius, self._on_system_selected, on_moved=on_moved)
-            dot.setPos(screen_x, screen_y)
-            self.scene.addItem(dot)
-
-            label = QGraphicsTextItem(system.name)
-            label.setDefaultTextColor(QColor("#222222"))
-            label.setFont(QFont("", 7))
-            label.setPos(screen_x + radius, screen_y - radius)
-            self.scene.addItem(label)
-
-        if self.systems:
-            rect = QRectF(*self._padded_rect())
-            self.view.setSceneRect(rect)
-            self.view.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+    def _apply_filter(self, text):
+        self.canvas.set_filter(text)
 
     def _on_move_toggled(self, checked: bool):
-        """MAP-009 : active/desactive le mode edition. En mode edition,
-        l'inclinaison est forcee a 0 et figee : la projection cavaliere melange
-        Y et Z a l'ecran, l'inverse serait ambigu -- vue de dessus pure, la
-        correspondance ecran->coordonnees reste exacte."""
+        """MAP-009 : active/desactive le mode edition. En mode edition la
+        camera passe en vue de dessus ORTHOGRAPHIQUE et la navigation est
+        figee : la correspondance ecran->coordonnees reste exacte."""
         self._move_enabled = checked
+        self.canvas.edit_mode = checked
         if checked:
-            self.tilt_slider.setValue(0)
-            self.tilt_slider.setEnabled(False)
-        else:
-            self.tilt_slider.setEnabled(True)
-        self._redraw()
+            self.canvas.azim = 0.0
+            self.canvas.elev = _GalaxyCanvas.ELEV_TOP
+        self.canvas.update()
 
     def _on_system_moved(self, system, screen_x: float, screen_y: float):
         """Ecrit la nouvelle position (X, Z) du systeme dans Sectors.yaml (Y

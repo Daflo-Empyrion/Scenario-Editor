@@ -48,7 +48,7 @@ une fois verifiees contre un vrai Sectors.yaml (82 systemes, 817 playfields) :
   confirme pour etre restitue de facon fiable. Seul le NOMBRE de secteurs
   locaux par systeme est expose, comme indicateur de "richesse" du systeme.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from .parsers_utils import parse_pos_3d

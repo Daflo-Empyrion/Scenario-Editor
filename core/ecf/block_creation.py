@@ -74,6 +74,33 @@ def most_common_value(counter: Counter) -> str:
     return counter.most_common(1)[0][0] if counter else ""
 
 
+# Attributs ECF qui vivent SUR LA LIGNE de leur propriete parente, jamais sur
+# leur propre ligne : 'UnlockCost: 30, display: true', 'Mass: 56000, type:
+# float, display: true, formatter: Kilogram' -- inventaire du corpus reel
+# BlocksConfig (display 7663 / type 3926 / formatter 1976 occurrences ;
+# Name/Ref traillants sont des identites de ligne d'OUVERTURE de bloc, hors
+# sujet ici). Demande utilisateur 18/10/2026.
+TRAILING_ATTR_KEYS = {"display", "type", "formatter"}
+
+
+def append_trailing_attrs(block: EcfBlock, key: str,
+                          pairs: List[Tuple[Optional[str], str]]) -> Optional[EcfProperty]:
+    """Attache `pairs` a la DERNIERE ligne de propriete du bloc quand `key`
+    est un attribut de format (display/type/formatter) -- convention ECF :
+    ces cles suivent leur propriete parente sur la meme ligne. Retourne la
+    ligne modifiee, ou None si `key` n'est pas un attribut ou si le bloc
+    n'a aucune ligne de propriete (l'appelant fait alors un ajout normal)."""
+    if key.lower() not in TRAILING_ATTR_KEYS:
+        return None
+    last = next((c for c in reversed(block.children)
+                 if isinstance(c, EcfProperty)), None)
+    if last is None:
+        return None
+    last.pairs.extend(pairs)
+    last.dirty = True
+    return last
+
+
 def create_new_block(kind: str, id_value: Optional[str], name_value: Optional[str],
                       properties: List[Tuple[str, str]], eol: str = "\r\n") -> EcfBlock:
     """Cree un nouveau bloc racine avec Id et/ou Name en en-tete, puis les
@@ -135,6 +162,22 @@ def find_file_by_name(ecf_files: List[Path], filename: str) -> Optional[Path]:
         if path.name.lower() == target:
             return path
     return None
+
+
+def list_loot_group_names(path: Path) -> List[str]:
+    """Noms des blocs '{ +LootGroup Name: X }' d'un LootGroups.ecf -- suggestions
+    du champ Valeur du dialogue d'ajout de ligne quand le Type choisi est
+    'Group' (Containers.ecf : Group_N reference un groupe de loot, pas un item)."""
+    from .parser import parse_ecf_file
+    doc = parse_ecf_file(path)
+    names = []
+    for node in doc.nodes:
+        if (isinstance(node, EcfBlock)
+                and node.kind.lstrip('+').strip().lower() == "lootgroup"):
+            name = node.get("Name")
+            if name and name.strip():
+                names.append(name.strip().strip('"'))
+    return sorted(set(names))
 
 
 def scan_template_defaults(templates_doc: EcfDocument,

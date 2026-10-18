@@ -74,13 +74,43 @@ def build_index(ecf_paths: List[Path]) -> Dict[str, Optional[float]]:
     cached = _cache.get(key)
     if cached is not None and cached[0] == sig:
         return cached[1]
+    # cache disque (meme pattern que core/item_catalog.load_catalog) :
+    # parser ItemsConfig+BlocksConfig scenario+vanille coute ~1,2 s a chaque
+    # invalidation (vecu 17/10) ; le resultat change quasi jamais une fois
+    # le scenario stable.
+    disk = _disk_cache_path()
+    if disk.is_file():
+        try:
+            import json
+            payload = json.loads(disk.read_text(encoding="utf-8"))
+            # JSON ne connait pas les tuples : comparer en listes de listes
+            if payload.get("key") == key and payload.get("sig") == [
+                    [p, m, s] for p, m, s in sig]:
+                index = dict(payload["index"])
+                _cache[key] = (sig, index)
+                return index
+        except Exception:
+            pass
     index: Dict[str, Optional[float]] = {}
     for p in paths:
         for name, price in _scan_file(p).items():
             if name not in index or index[name] is None:
                 index[name] = price
     _cache[key] = (sig, index)
+    try:
+        import json
+        disk.parent.mkdir(parents=True, exist_ok=True)
+        disk.write_text(json.dumps({"key": key, "sig": list(sig),
+                                    "index": index}, ensure_ascii=False),
+                        encoding="utf-8")
+    except OSError:
+        pass
     return index
+
+
+def _disk_cache_path() -> Path:
+    from core.settings import CONFIG_DIR
+    return Path(CONFIG_DIR) / "cache" / "market_price_index.json"
 
 
 def lookup_case_insensitive(index: Dict[str, Optional[float]], name: str) -> Optional[float]:

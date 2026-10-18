@@ -298,3 +298,28 @@ def test_sync_failure_names_the_file(tmp_path):
                            backup_dir=tmp_path / "bak")
     msg = str(excinfo.value)
     assert "X.ecf" in msg and "prod" in msg
+
+
+def test_focus_out_without_edition_does_not_rescan(qapp, trio, monkeypatch):
+    """Vecu 17/10 : editingFinished emet AUSSI au focus-out SANS edition —
+    un clic dans le champ relancait le scan complet. Garde : meme texte
+    scanne = pas de re-scan ; texte different = re-scan."""
+    from PyQt6.QtWidgets import QDialog
+    from gui.production_sync_dialog import ProductionSyncDialog
+    _source, working, vanilla = trio
+    main = types.SimpleNamespace(workspace=types.SimpleNamespace(
+        working_root=working, source_a_root=_source))
+    prod_dir = vanilla / "Scenarios" / "re2 atl"
+    monkeypatch.setattr("core.settings.get_production_scenario_path",
+                        lambda root=None: str(prod_dir))
+    monkeypatch.setattr("core.settings.get_vanilla_content_path",
+                        lambda: str(vanilla))
+    dlg = ProductionSyncDialog(main)
+    assert dlg._scanned_target == str(prod_dir)
+    scans = []
+    monkeypatch.setattr(dlg, "_scan", lambda *a: scans.append(1))
+    dlg._scan_if_changed()               # meme texte : garde
+    assert scans == []
+    dlg.target_edit.setText(str(vanilla / "autre"))
+    dlg._scan_if_changed()               # texte different : re-scan
+    assert len(scans) == 1

@@ -245,7 +245,7 @@ class PdaSuggestions:
         return None
 
     def _item_names(self) -> List[str]:
-        from core.ecf.block_creation import find_file_by_name, list_craftable_names
+        from core.ecf.block_creation import list_craftable_names
         items_path = self._find_ecf("ItemsConfig.ecf")
         blocks_path = self._find_ecf("BlocksConfig.ecf")
         if items_path is None and blocks_path is None:

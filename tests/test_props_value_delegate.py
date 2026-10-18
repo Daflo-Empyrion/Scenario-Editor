@@ -150,3 +150,52 @@ def test_free_text_still_possible_with_empty_history(widget):
     assert isinstance(editor, QComboBox)
     assert editor.count() == 0
     assert editor.currentText() == "Fusee"
+
+
+def test_catalog_pick_after_editor_deletion_writes_via_model(qapp):
+    """Vecu (console) : la fenetre catalogue MODALE fait detruire l'editeur
+    (combo) par la vue a la perte d'activation ; au retour, _open_catalog
+    levait 'RuntimeError: wrapped C/C++ object of type QComboBox has been
+    deleted'. Le nom choisi doit etre ecrit via le modele quand l'editeur a
+    disparu (le choix n'est jamais perdu), et via le combo sinon."""
+    from PyQt6.QtGui import QStandardItem, QStandardItemModel
+    from PyQt6.QtWidgets import QApplication, QStyleOptionViewItem, QToolButton, QWidget
+
+    model = QStandardItemModel(1, 2)
+    key_item = QStandardItem("Name_0")
+    key_item.setData(("prop", "Name_0"), Qt.ItemDataRole.UserRole)
+    model.setItem(0, 0, key_item)
+    model.setItem(0, 1, QStandardItem("OldValue"))
+    index = model.index(0, 1)
+
+    state = {}
+    calls = {"n": 0}
+    picks = iter(["IronOre", "SteelPlate"])
+
+    def opener():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            state["combo"].deleteLater()
+            # processEvents() ne traite PAS les DeferredDelete : forcer le
+            # passage (dans l'app reelle, c'est la boucle modale du catalogue
+            # qui le fait -- d'ou le crash uniquement en usage reel).
+            from PyQt6.QtCore import QCoreApplication, QEvent
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        return next(picks)
+
+    holder = QWidget()
+    delegate = _PropertyValueDelegate({}, holder, targets={"Name_0": "value"},
+                                      catalog_opener=opener)
+
+    # 1er tour : l'editeur est detruit pendant la fenetre modale
+    editor = delegate.createEditor(holder, QStyleOptionViewItem(), index)
+    state["combo"] = editor.findChild(QComboBox)
+    editor.findChild(QToolButton).click()          # ne doit PAS lever
+    assert model.data(index) == "IronOre"          # ecrit via le modele
+
+    # 2e tour : editeur vivant -- le combo porte la valeur, le modele attend
+    # le commit de fermeture (setModelData), rien n'est ecrit avant.
+    editor2 = delegate.createEditor(holder, QStyleOptionViewItem(), index)
+    editor2.findChild(QToolButton).click()
+    assert editor2.findChild(QComboBox).currentText() == "SteelPlate"
+    assert model.data(index) == "IronOre"

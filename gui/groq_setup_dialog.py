@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 
 from core import groq_provider, settings
 from core.i18n import t
-from gui.theme import icon, icon_size
+from gui.theme import icon
 
 
 class GroqSetupDialog(QDialog):

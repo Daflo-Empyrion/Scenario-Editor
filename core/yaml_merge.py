@@ -267,7 +267,6 @@ def _diff_rows(w_entry: YamlEntry, s_entry: YamlEntry,
         return rows
     w_children = _child_entries(w_entry)
     s_children = _child_entries(s_entry)
-    w_keys = {c.key for c in w_children if not c.is_sequence_item}
     for s_child in [c for c in s_children
                     if not c.is_sequence_item and c.key is not None]:
         key = s_child.key

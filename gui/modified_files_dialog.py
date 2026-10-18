@@ -47,7 +47,14 @@ def list_changed_files(working_root: Path, source_root: Path):
     (sauvegardes internes des operations de l'editeur) et les *.yaml.bin
     (caches compiles du JEU, derives des yaml — vecu 05/10 : un cache
     synchronise peut resservir un playfield perime) ne sont JAMAIS
-    proposes a la synchronisation."""
+    proposes a la synchronisation.
+
+    Comparaison TAILLE puis MTIME (copy2 de la sync le conserve : apres un
+    sync reussi, zero hash — vecu 17/10 : 64 s de scan pour zero changement
+    parce que tout etait hashé des deux cotes) puis HASH SEULEMENT si les
+    horloges divergent : la semantique « re-ecrit a l'octet pres = non
+    signale » reste garantie par le hash, et le cas mtime egal/contenu
+    different est theoriquement impossible (resolutions ns)."""
     changes = []
     for path in sorted(Path(working_root).rglob('*')):
         if not path.is_file():
@@ -61,8 +68,14 @@ def list_changed_files(working_root: Path, source_root: Path):
         if not counterpart.exists():
             changes.append((path, 'added'))
             continue
-        if path.stat().st_size != counterpart.stat().st_size or \
-                _hash(path) != _hash(counterpart):
+        st = path.stat()
+        ct = counterpart.stat()
+        if st.st_size != ct.st_size:
+            changes.append((path, 'modified'))
+            continue
+        if st.st_mtime_ns == ct.st_mtime_ns:
+            continue
+        if _hash(path) != _hash(counterpart):
             changes.append((path, 'modified'))
     return changes
 

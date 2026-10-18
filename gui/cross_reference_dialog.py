@@ -22,7 +22,6 @@ independantes et activables/desactivables (voir
 core/ecf/cross_reference_check.py, CROSS_REFERENCE_CHECKS) : items/blocs
 references, jetons, POI de playfield.
 """
-from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton,
@@ -172,7 +171,7 @@ class CrossReferenceDialog(QDialog):
         None (ferme sans rien faire)."""
         from PyQt6.QtWidgets import (
             QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-            QRadioButton, QButtonGroup, QPushButton,
+            QRadioButton, QPushButton,
         )
         from core.ecf.cross_reference_check import (
             collect_dialogue_names, closest_dialogue_name,

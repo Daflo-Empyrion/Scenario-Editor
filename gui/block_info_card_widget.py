@@ -50,10 +50,10 @@ from PyQt6.QtCore import Qt, QPoint, QSize, QEvent, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QTextCursor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
-    QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QPlainTextEdit, QTextEdit, QMessageBox,
+    QLineEdit, QComboBox, QMenu, QCheckBox, QDialog, QTextEdit, QMessageBox,
 )
 
-from core.block_info_card import BlockInfoCard, InfoCardField, card_to_markdown
+from core.block_info_card import BlockInfoCard, card_to_markdown
 from core.i18n import t
 from gui import relief_effects
 from gui.theme import icon
@@ -637,9 +637,9 @@ class BlockInfoCardWidget(QWidget):
         self.btn_desc_edit.setToolTip(t("block_info.desc_edit_tooltip"))
         self.btn_desc_edit.clicked.connect(self.description_edit_requested.emit)
         self.btn_desc_edit.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none; "
-            f"border-radius: 4px; }}"
-            f"QPushButton:hover {{ background: #3a3a3a; }}"
+            "QPushButton { background: transparent; border: none; "
+            "border-radius: 4px; }"
+            "QPushButton:hover { background: #3a3a3a; }"
         )
         self.btn_desc_edit.hide()
         self.btn_close = QPushButton()
@@ -655,10 +655,10 @@ class BlockInfoCardWidget(QWidget):
         self.btn_close.setCursor(Qt.CursorShape.ArrowCursor)
         self.btn_close.setToolTip(t("btn.close"))
         self.btn_close.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none; "
-            f"border-radius: 4px; }}"
-            f"QPushButton:hover {{ background: #3a3a3a; }}"
-            f"QPushButton:pressed {{ background: #4a4a4a; }}"
+            "QPushButton { background: transparent; border: none; "
+            "border-radius: 4px; }"
+            "QPushButton:hover { background: #3a3a3a; }"
+            "QPushButton:pressed { background: #4a4a4a; }"
         )
         self.btn_close.clicked.connect(self.close_card)
         header_row.addWidget(self.btn_desc_edit, 0, Qt.AlignmentFlag.AlignTop)
@@ -673,10 +673,10 @@ class BlockInfoCardWidget(QWidget):
         self.btn_export.setCursor(Qt.CursorShape.ArrowCursor)
         self.btn_export.setToolTip(t("block_info.export_title"))
         self.btn_export.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none; "
-            f"border-radius: 4px; }}"
-            f"QPushButton:hover {{ background: #3a3a3a; }}"
-            f"QPushButton:pressed {{ background: #4a4a4a; }}"
+            "QPushButton { background: transparent; border: none; "
+            "border-radius: 4px; }"
+            "QPushButton:hover { background: #3a3a3a; }"
+            "QPushButton:pressed { background: #4a4a4a; }"
         )
         self.btn_export.clicked.connect(self._export_card)
         header_row.addWidget(self.btn_export, 0, Qt.AlignmentFlag.AlignTop)
@@ -691,7 +691,7 @@ class BlockInfoCardWidget(QWidget):
         self._toggle_row.addStretch(1)
         self.chk_game_view = QCheckBox(t("block_info.game_view_toggle"))
         self.chk_game_view.setCursor(Qt.CursorShape.ArrowCursor)
-        self.chk_game_view.setStyleSheet(f"QCheckBox {{ color: #c8c8c8; font-size: 11px; }}")
+        self.chk_game_view.setStyleSheet("QCheckBox { color: #c8c8c8; font-size: 11px; }")
         self.chk_game_view.toggled.connect(self._on_toggle_game_view)
         self._toggle_row.addWidget(self.chk_game_view)
         outer.addLayout(self._toggle_row)
@@ -1142,7 +1142,6 @@ class DescriptionEditDialog(QDialog):
         btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         def _pick_color():
-            editor = self._active_editor()
             color = QColorDialog.getColor(parent=self, title=t("block_info.bb_color"))
             if not color.isValid():
                 return

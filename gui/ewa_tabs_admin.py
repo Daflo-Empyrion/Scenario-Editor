@@ -18,7 +18,7 @@ stop / restart temporisés) et UTILISATEURS EWA (comptes du web EWA)."""
 from PyQt6.QtWidgets import (
     QFormLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QTableWidgetItem, QVBoxLayout,
 )
 
 from core.ewa.client import pick

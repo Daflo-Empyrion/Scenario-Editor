@@ -29,7 +29,6 @@ import shutil
 import stat
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 
 def clear_readonly(path: Path) -> None:

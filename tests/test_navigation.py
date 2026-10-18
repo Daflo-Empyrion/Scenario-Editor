@@ -296,6 +296,29 @@ def test_detect_ingredient_pairs_core(tmp_path):
     assert detect_repeating_items(child_items) is not None
 
 
+def test_detect_repeating_items_single_numbered_line():
+    """Container vanilla '{ Child Items / Group_0: empty }' : une SEULE ligne
+    numerotee dont c'est tout le contenu = table a une entree (mode tableau,
+    bouton '+ Ligne (tableau)', auto-increment) -- pas un affichage plat ni
+    ingredients (vecu : ajout d'un groupe impossible, lignes non numerotees)."""
+    from core.ecf.parser import parse_ecf_text
+    from core.ecf.model import EcfBlock, detect_repeating_items
+    text = ("{ +Container Id: 1\n"
+            "  { Child Items\n"
+            "    Group_0: empty\n"
+            "  }\n"
+            "}\n")
+    doc = parse_ecf_text(text)
+    container = doc.nodes[0]
+    child_items = next(c for c in container.children if isinstance(c, EcfBlock))
+    detected = detect_repeating_items(child_items)
+    assert detected is not None
+    assert detected[1] == ["Group"]           # prefixes vus, param_columns vides
+    assert detected[0] == []
+    # bloc sans ligne numerotee : toujours None (aucune regression)
+    assert detect_repeating_items(container) is None
+
+
 def test_ingredient_table_icons_from_cache(re2_widget, qapp, tmp_path):
     """Icones dans la table Child Inputs : icone devant le nom d'item quand
     resoluble (cache pre-rempli -> deterministe), aucune sinon."""

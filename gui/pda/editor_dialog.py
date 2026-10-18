@@ -41,8 +41,7 @@ from core.i18n import t
 from core.pda import schema
 from core.pda.model import (CHAPTER_REQUIRED_DEFAULTS, PdaModel)
 from core.yamllite.model import YamlEntry
-from core.pda.schema import (ACTIVATION_FIELDS, ACTION_COMMON_FIELDS,
-                             CHAPTER_FIELDS, CHAPTER_STRUCTURE_KEYS,
+from core.pda.schema import (ACTIVATION_FIELDS, CHAPTER_FIELDS, CHAPTER_STRUCTURE_KEYS,
                              TASK_FIELDS, TASK_STRUCTURE_KEYS, action_fields,
                              check_spec)
 from core.pda.validation import (TITLE_LIMITS, validate_action,
@@ -193,6 +192,11 @@ class PdaEditorDialog(QDialog):
         btn_verify.setToolTip(t("pda.validation.button.tooltip"))
         btn_verify.clicked.connect(self._run_validation)
         close_row.addWidget(btn_verify)
+        self.btn_export_md = QPushButton(t("pda.export.md"))
+        self.btn_export_md.setObjectName("secondaryButton")
+        self.btn_export_md.setToolTip(t("pda.export.md.tooltip"))
+        self.btn_export_md.clicked.connect(self._export_markdown)
+        close_row.addWidget(self.btn_export_md)
         close_row.addStretch()
         btn_close = QPushButton(t("btn.close"))
         btn_close.setObjectName("primaryButton")
@@ -211,6 +215,24 @@ class PdaEditorDialog(QDialog):
         if wizard.exec() == QDialog.DialogCode.Accepted and wizard.created_chapter is not None:
             self._reload_tree()
             self._select_entry(wizard.created_chapter)
+
+    def _export_markdown(self):
+        """Exporte l'histoire du PDA (chapitres/taches/actions, textes de la
+        colonne FR) en Markdown pour relecture hors de l'application."""
+        from PyQt6.QtWidgets import QFileDialog
+        from core.pda.export_story import export_markdown
+        path, _ = QFileDialog.getSaveFileName(
+            self, t("pda.export.md"), "pda.md", "Markdown (*.md);;Tous (*)")
+        if not path:
+            return
+        try:
+            from pathlib import Path as _Path
+            _Path(path).write_text(export_markdown(self.model), encoding="utf-8")
+        except Exception as e:
+            QMessageBox.critical(self, t("err.title"), str(e))
+            return
+        QMessageBox.information(self, t("pda.export.md"),
+                                t("pda.export.md.done", path=path))
 
     def _run_validation(self):
         """A1-A7 : passe de validation complete (core/pda/validation.py).

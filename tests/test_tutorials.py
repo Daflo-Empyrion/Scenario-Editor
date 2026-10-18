@@ -121,3 +121,20 @@ def test_all_tutorial_html_parses_without_error(qapp):
         for _ in range(len(tut.steps)):
             dialog.btn_next.click()
         assert dialog.content_browser.toPlainText() != ""
+
+
+def test_launch_balance_tutorial_bilingual():
+    """Le tutoriel « Verifier et equilibrer avant de lancer » (ajout 16/10) :
+    chaque etape a titre ET contenu dans les deux langues, et les nouveautés
+    documentées y sont réellement présentes."""
+    tut = next(t for t in TUTORIALS if t.id == "launch_balance")
+    assert len(tut.steps) == 8
+    for s in tut.steps:
+        assert s.title_fr and s.title_en
+        assert "<p>" in s.content_fr and "<p>" in s.content_en
+    joined = " ".join(s.content_fr for s in tut.steps)
+    for kw in ("Bilan avant lancement", "Prix marché", "production", "EWA"):
+        assert kw in joined, kw
+    joined_en = " ".join(s.content_en for s in tut.steps)
+    for kw in ("Pre-launch check", "Market prices", "production", "EWA"):
+        assert kw in joined_en, kw

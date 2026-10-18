@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-from .model import EcfDocument, EcfBlock, EcfComment, EcfBlank
+from .model import EcfDocument, EcfBlock, EcfComment
 from .parser import parse_ecf_text
 
 _HEADER_MARKER = "CONFLIT D'ID"

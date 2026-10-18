@@ -114,9 +114,18 @@ class ProductionSyncDialog(QDialog):
         edit = QLineEdit()
         edit.textEdited.connect(lambda _t: self._refresh_buttons())
         # changement de dossier (Entree / sortie de champ) : recalcul — la
-        # liste est une DIFFERENCE AVEC LA PRODUCTION, pas avec la source
-        edit.editingFinished.connect(self._scan)
+        # liste est une DIFFERENCE AVEC LA PRODUCTION, pas avec la source.
+        # PIEGE vecu 17/10 : editingFinished emet AUSSI au focus-out SANS
+        # edition — un simple clic dans le champ re-lancait le scan complet
+        # (64 s sur RE2). On ne rescanne que si le texte a vraiment change.
+        edit.editingFinished.connect(self._scan_if_changed)
         return edit
+
+    def _scan_if_changed(self):
+        text = self.target_edit.text().strip()
+        if text and text == getattr(self, "_scanned_target", None):
+            return               # clic sans edition : pas de re-scan
+        self._scan()
 
     # ------------------------------------------------------------- donnees
 
@@ -159,6 +168,7 @@ class ProductionSyncDialog(QDialog):
                 QListWidgetItem(f"[{t('prodsync.state_delete')}] {rel}"))
         self.files_label.setText(
             t("prodsync.files", n=len(self._files) + len(self._extras)))
+        self._scanned_target = self.target_edit.text().strip()
         self._refresh_buttons()
 
     def _autodetect_target(self):

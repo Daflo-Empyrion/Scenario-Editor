@@ -542,7 +542,6 @@ def run_checks(ctx: CrossRefContext, check_ids: List[str]) -> List[CrossRefIssue
 def collect_dialogue_names(ecf_files: List[Path]) -> List[str]:
     """Tous les Name des blocs +Dialogue des fichiers donnes, tries -- alimente
     la liste de choix de la fenetre de correction."""
-    import difflib
     names: Set[str] = set()
     for path in ecf_files:
         try:

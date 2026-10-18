@@ -26,7 +26,7 @@ Agit sur la selection si elle existe, sinon sur tout le contenu du champ.
 Reutilise TranslationResultDialog (fenetre de revue avant remplacement,
 meme comportement que partout ailleurs dans l'application)."""
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QLineEdit, QTextEdit, QMessageBox, QMenu, QDialog
+from PyQt6.QtWidgets import QLineEdit, QTextEdit, QMessageBox, QDialog
 
 from core.i18n import t
 from core import translation

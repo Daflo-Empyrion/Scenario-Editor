@@ -386,6 +386,82 @@ def _check_values(root: Path, vanilla_conf: Path | None,
     return issues
 
 
+def _check_numeric_types(root: Path) -> list[LaunchIssue]:
+    """Cle a valeur numerique sans attribut 'type:' alors que la MEME cle est
+    typee ailleurs dans le fichier : le jeu lit la valeur en string
+    ('Error converting property ... Type: System.String', valeur IGNOREE —
+    vecu 18/10 : 5 ThrusterForce + 2 HitPoints ecrites nues, propulseurs sans
+    poussee ; le dedie ne le voit JAMAIS, il n'instancie pas le monde).
+    Blocs avec TemplateRoot exclus (le type vient du template) ; valeurs
+    quotees exclues (guillemets = chaine volontaire)."""
+    numeric_re = re.compile(r"^-?\d+(\.\d+)?$")
+    issues: list[LaunchIssue] = []
+    conf_dir = root / "Content" / "Configuration"
+    if not conf_dir.is_dir():
+        return issues
+    n_bad = 0
+    for f in sorted(conf_dir.glob("*.ecf")):
+        try:
+            doc = parse_ecf_file(f)
+        except Exception:
+            continue
+
+        def _collect(block: EcfBlock, acc: list) -> None:
+            acc.append(block)
+            for c in block.children:
+                if isinstance(c, EcfBlock):
+                    _collect(c, acc)
+
+        blocks: list[EcfBlock] = []
+        for n in doc.nodes:
+            if isinstance(n, EcfBlock):
+                _collect(n, blocks)
+
+        typed_keys: set[str] = set()
+        for b in blocks:
+            for child in b.children:
+                if not isinstance(child, EcfProperty):
+                    continue
+                if any(k == "type" for k, _v in child.pairs if k):
+                    typed_keys.update(k for k, _v in child.pairs if k)
+
+        for b in blocks:
+            # TemplateRoot : le type vient du template. Ref : la propriete
+            # ECRASE une valeur heritee typed — c'est la seule combinaison
+            # prouvee fatale (la vanille ecrit elle-meme des numeriques nus
+            # sans Ref, ex: 'Range: 200' d'armes, et ils fonctionnent).
+            if b.get("TemplateRoot") is not None or b.get("Ref") is None:
+                continue
+            for child in b.children:
+                if not isinstance(child, EcfProperty):
+                    continue
+                if any(k == "type" for k, _v in child.pairs if k):
+                    continue
+                for k, v in child.pairs:
+                    if (k in typed_keys and v is not None
+                            and not v.lstrip().startswith('"')
+                            and numeric_re.match(v.strip())):
+                        n_bad += 1
+                        issues.append(LaunchIssue(
+                            check="types",
+                            path=f"{conf_dir.name}/{f.name}",
+                            line=0, severity="warning",
+                            message=f"'{k}: {v[:30]}' sans 'type:' alors que "
+                                    f"la meme cle est typee ailleurs dans ce "
+                                    f"fichier — le jeu la lira en string "
+                                    f"(valeur ignoree)",
+                        ))
+                        break   # une seule alerte par ligne
+            if n_bad >= 30:
+                issues.append(LaunchIssue(
+                    check="types", path=f"{conf_dir.name}/{f.name}",
+                    line=0, severity="warning",
+                    message="plus de 30 valeurs numeriques sans 'type:' : "
+                            "verifiez la conversion de ce fichier"))
+                return issues
+    return issues
+
+
 def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     """Tous les checks structurels « avant lancement » du scenario pointe
     par `scenario_root` (copie de travail OU production)."""
@@ -503,4 +579,8 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
                                 Path(vanilla_content) / "Configuration"
                                 if vanilla_content else None,
                                 "Content"))
+
+    # --- valeurs numeriques sans 'type:' (lues en string par le jeu,
+    # invisibles au boot dedie qui n'instancie pas le monde) ---
+    issues.extend(_check_numeric_types(root))
     return issues

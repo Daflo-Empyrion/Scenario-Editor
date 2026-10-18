@@ -41,7 +41,7 @@ from typing import List, Optional, Tuple
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QPushButton, QHeaderView, QMessageBox, QAbstractItemView,
+    QPushButton, QHeaderView, QAbstractItemView,
 )
 
 from core.i18n import t

@@ -35,22 +35,18 @@ from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTreeWidget, QTreeWidgetItem,
-    QTabWidget, QSplitter, QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QLabel, QStatusBar, QHeaderView, QMessageBox, QMenu,
-    QProgressDialog, QInputDialog, QPushButton, QSizePolicy, QDialog, QCheckBox,
-    QRadioButton, QButtonGroup, QListWidget, QListWidgetItem, QTextBrowser,
-    QComboBox, QTextEdit, QPlainTextEdit,
+    QTabWidget, QSplitter, QWidget, QVBoxLayout,
+    QHBoxLayout, QLineEdit, QLabel, QStatusBar, QMessageBox, QMenu,
+    QProgressDialog, QInputDialog, QPushButton, QDialog, QRadioButton, QButtonGroup, QComboBox, QTextEdit,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
-from PyQt6.QtGui import QColor, QBrush, QDesktopServices, QPixmap, QIcon as _QIcon
+from PyQt6.QtGui import QColor, QDesktopServices, QPixmap, QIcon as _QIcon
 from PyQt6.QtCore import QUrl
 
-from core.scanner import scan_scenario
-from core.models import Scenario, FileEntry
+from core.models import Scenario
 from core.workspace import (
-    Workspace, open_workspace, load_existing_workspace, copy_file_into_working,
-    merge_file_into_working, merge_folder_into_working, merge_block_into_working,
+    Workspace, open_workspace, load_existing_workspace, merge_file_into_working, merge_folder_into_working, merge_block_into_working,
     merge_csv_row_into_working, translate_csv_cell_into_working,
     duplicate_ecf_block_into_working, insert_ecf_block_into_working,
     duplicate_csv_row_into_working,
@@ -58,23 +54,21 @@ from core.workspace import (
 )
 from core.ecf.parser import parse_ecf_file
 from core.ecf.pending_conflicts import (
-    find_pending_conflicts, activate_pending_conflict, parse_pending_block, find_used_ids,
+    find_pending_conflicts, parse_pending_block, find_used_ids,
 )
-from core.ecf.model import EcfDocument, EcfBlock, EcfProperty, block_identity, normalized_kind
+from core.ecf.model import EcfBlock, block_identity, normalized_kind
 from core.yamllite.parser import parse_yaml_file
-from core.yamllite.model import YamlDocument, YamlEntry
 from core import project_store, settings
 from core.constants import AUTOSAVE_INTERVAL_MS
 from core import i18n
 from core.i18n import t
 from core.project_store import ProjectRecord
 from core import win_backdrop
-from core.themes import get_palette
 
 from gui.tutorial_dialog import TutorialDialog
 from gui.new_project_dialog import NewProjectDialog
 from gui.startup_dialog import StartupDialog
-from gui.ecf_edit_widget import EcfEditWidget, CompareWidget, PendingConflictsDialog, PropertyFilterDialog, _block_own_keys, EcfHeaderExplanationPanel
+from gui.ecf_edit_widget import CompareWidget, PendingConflictsDialog
 from gui.csv_edit_widget import CsvEditWidget
 from gui.yaml_edit_widget import YamlEditWidget
 from gui.playfield_edit_widget import PlayfieldEditWidget
@@ -260,6 +254,12 @@ class MainWindow(QMainWindow):
         self.action_production_sync.triggered.connect(self._open_production_sync)
         self.action_balance = self.menu_tools.addAction(t("menu.tools.balance"))
         self.action_balance.triggered.connect(self._open_balance_dialog)
+        self.action_market_price = self.menu_tools.addAction(t("menu.tools.market_price"))
+        self.action_market_price.triggered.connect(self._open_market_price_dialog)
+        self.action_trader_audit = self.menu_tools.addAction(t("menu.tools.trader_audit"))
+        self.action_trader_audit.triggered.connect(self._open_trader_audit_dialog)
+        self.action_correlation = self.menu_tools.addAction(t("menu.tools.correlation"))
+        self.action_correlation.triggered.connect(self._open_correlation_dialog)
         self.action_bundles = self.menu_tools.addAction(t("menu.tools.bundles"))
         self.action_bundles.triggered.connect(self._open_bundles_dialog)
         self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
@@ -620,7 +620,7 @@ class MainWindow(QMainWindow):
         dialog.setMinimumWidth(380)
         layout = QVBoxLayout(dialog)
 
-        title = QLabel(f"<b>Empyrion Scenario Editor</b>")
+        title = QLabel("<b>Empyrion Scenario Editor</b>")
         layout.addWidget(title)
 
         version_label = QLabel(f"{t('about.version')} {APP_VERSION}")
@@ -1657,7 +1657,7 @@ class MainWindow(QMainWindow):
         -- sinon Qt repeint l'interface etat par etat et le changement semble
         trainee plusieurs secondes sur une session chargee."""
         from PyQt6.QtWidgets import QApplication
-        from gui.theme import apply_theme, get_palette
+        from gui.theme import apply_theme
         app = QApplication.instance()
         if app is not None:
             frozen = []
@@ -1863,6 +1863,44 @@ class MainWindow(QMainWindow):
         backups + undo espace de travail."""
         from gui.balance_dialog import BalanceDialog
         dlg = BalanceDialog(self)
+        dlg.exec()
+
+    def _open_market_price_dialog(self):
+        """Prix marche : chaque MarketPrice face a son cout de fabrication
+        (core/market_balance.py) — lot cochable, replis par template de
+        groupe / cousin / materiau, application avec backup central."""
+        from gui.market_price_dialog import MarketPriceDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = MarketPriceDialog(self, working)
+        dlg.exec()
+
+    def _open_trader_audit_dialog(self):
+        """Audit des marchands : TraderNPCConfig face aux MarketPrice —
+        uniformisation cochable (mf vente/rachat), rachats manquants,
+        MarketPrice absents, boucles d'argent et disparites (moteur
+        core/trader_audit.py). Marche sur n'importe quel scenario."""
+        from gui.trader_audit_dialog import TraderAuditDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = TraderAuditDialog(self, working)
+        dlg.exec()
+
+    def _open_correlation_dialog(self):
+        """Equilibrage par correlations : Mass/HitPoints/Damage/ShieldCapacity
+        compares a la mediane de leur groupe (template effectif, famille x
+        tier, classe x tier) — lot cochable, whitelist design volontaire
+        (moteur core/correlation_balance.py)."""
+        from gui.correlation_dialog import CorrelationDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = CorrelationDialog(self, working)
         dlg.exec()
 
     def _open_bundles_dialog(self):
@@ -2745,7 +2783,6 @@ class MainWindow(QMainWindow):
         cochees -> undo + reouverture de l'onglet POSITIONNE sur le premier
         bloc fusionne (plus besoin de le chercher dans l'arbre)."""
         from gui.merge_preview_dialog import MergePreviewDialog, compute_merge_preview
-        from core.ecf.merge import merge_documents
         from gui.busy import run_long
         try:
             working_doc = parse_ecf_file(dest_path)
@@ -3983,8 +4020,7 @@ class MainWindow(QMainWindow):
 # Vues lecture seule ECF/YAML extraites en gui/view_widgets.py (v1.9.0) :
 # les noms restent exposes ici (CompareWidget, tests, navigateur).
 from gui.view_widgets import (  # noqa: E402
-    COLOR_NEW_BLOCK, COLOR_CHANGED_BLOCK, COLOR_NEW_PROPERTY,
-    EcfViewWidget, YamlViewWidget,
+    EcfViewWidget,
 )
 
 def _show_first_launch_language_picker():

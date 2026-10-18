@@ -13,7 +13,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from PyQt6.QtCore import Qt, QTimer, QSize
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut, QPixmap
 from PyQt6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QGroupBox,
-                             QHeaderView, QLabel, QLineEdit, QListWidget,
+                             QLabel, QLineEdit, QListWidget,
                              QListWidgetItem, QPlainTextEdit, QPushButton,
                              QTableWidget, QTableWidgetItem, QVBoxLayout,
                              QMessageBox)

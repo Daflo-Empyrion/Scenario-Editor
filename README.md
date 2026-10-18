@@ -36,11 +36,17 @@ aussi depuis le menu Aide de l'application.
 - **Transformation en masse** : multiplier/ajouter/fixer/plafonner/arrondir
   une propriete sur plusieurs blocs a la fois, avec revue editable
 - Duplication avec reecriture automatique des references internes
+- **Bibliotheque de blocs reutilisables** : exporte un bloc d'un scenario,
+  re-inserable dans n'importe quel autre, avec recherche par nom
 - **Fusions specialisees** : fusion fine ECF entre scenarios, fusion par noms
   (creatures, classes sans Id), fusion Sectors avec unicite globale des
   playfields et dependances, fusion GalaxyConfig avec renumerotation des
-  sequences
-- Comparaison de scenarios A/B, fichiers modifies en un coup d'oeil
+  sequences, fusion YAML **ligne a ligne** (diff fin cochenable, sous-cles
+  absentes proposees et reactivables), fusion de dossiers avec apercu
+  modifiable avant ecriture
+- Comparaison de scenarios A/B, fichiers modifies en un coup d'oeil,
+  **comparaison de scenarios avec fusion selective** (synchronisation d'un
+  fichier vers une copie de travail, merge automatique des zones saines)
 - **Comparateur de bundles Unity** (assets ajoutes/retires/types)
 
 ### Missions PDA
@@ -49,6 +55,8 @@ aussi depuis le menu Aide de l'application.
 - **Validation du PDA** basee sur le guide officiel, calibree sur le contenu
   reel (vanille, Reforged Eden 2, Atlantis) : erreurs et avertissements
   navigables par double-clic
+- **Export de l'histoire en Markdown** : chapitres, taches et actions avec
+  leurs textes traduits, pour relire/partager le recit hors de l'application
 
 ### Traduction (le gros morceau)
 - **Moteurs multiples au choix** :
@@ -85,12 +93,37 @@ aussi depuis le menu Aide de l'application.
 - **Carte 2D** : POI deplacables a la souris, points de depart, patrouilles,
   zoom et filtres
 - **Inspecteur de POI** : statistiques de drones par POI et par faction
-- **Carte de la galaxie** (Sectors.yaml) : systemes solaires editables,
-  curseur d'inclinaison pour separer les systemes proches en X/Z
+- **Carte de la galaxie en 3D** (Sectors.yaml) : camera orbitale a la souris
+  (orbite, deplacement, zoom — passe sous et au-dessus du plan galactique),
+  une couleur par classe spectrale d'etoile (O B A F G K M) avec legende,
+  halo sur les systemes structurants (Gate, Anomalie, depart), etiquettes
+  intelligentes sans empilement, recherche de systeme, et **deplacement des
+  systemes a la souris** en vue de dessus avec coordonnees affichees en
+  direct (ecriture exacte dans Sectors.yaml, annulable)
 
 ### Economie des marchands
 - Editeur dedie : prix, stocks, taux de rachat, par station et par faction
 - Verification de coherence integree (menu Verification)
+
+### Equilibrage et prix marche
+- **Equilibrage du scenario** : regles par propriete (MaxCount, CPUIn,
+  HitPoints, Damage...) avec politiques conserver / vanille / plafond /
+  pourcentage, apercu cochable avant ecriture
+- **Prix marche par cout de fabrication** : chaque MarketPrice face au cout
+  reel de sa recette (Templates.ecf, cascade, OutputCount), formule reglable
+  (marge + facteur temps de craft), statuts par objet (fabriquable, template
+  de groupe, cousin de tier, prix/masse materiau, ancrage manuel, non
+  vendable), filtres et selection en masse, prix entiers, backup central et
+  re-scan automatique
+- **Equilibrage par correlations** : chaque propriete (masse, points de vie,
+  degats, boucliers, poussee des propulseurs) comparee a la mediane de SON
+  groupe (famille x tier) — le design volontaire est preserve, seules les
+  incoherences internes sont proposees, avec medians epinglees apres
+  application (pas de ratchet)
+- **Audit des marchands** : uniformisation des taux de vente/rachat par
+  marchand face aux MarketPrice effectifs, rachats manquants, prix absents,
+  monnaies (Credits:) jamais touchees, arbitrages inter-marchands avec
+  clamp moteur
 
 ### Administration de serveur dedie (EWA)
 Connecte ton scenario a un serveur dedie equipe du mod

@@ -49,6 +49,13 @@ from .model import EcfDocument, EcfBlock, EcfProperty, EcfComment, EcfBlank, blo
 
 ITEM_PROP_RE = re.compile(r"^Item(\d+)$", re.IGNORECASE)
 
+# param1/param2... = parametres PAR LIGNE des structures repetitives (Child
+# Items Name_N/Group_N, LootGroups Item_N...) : le jeu les attend sur CHAQUE
+# ligne, ce ne sont jamais des cles uniques de bloc -- vecu 18/10 : fusion
+# d'un container Atlantis, param1 perdu sur toutes les lignes importees sauf
+# la premiere, le garde anti-doublons (vecu 27/09 type/display) les filtrait.
+_PER_LINE_PARAM_RE = re.compile(r"^param\d+$", re.IGNORECASE)
+
 
 def item_identity(value: str) -> str:
     """Identite d'un item d'une liste ItemN : le PREMIER CHAMP de la valeur
@@ -366,7 +373,7 @@ def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock,
     existing_keys = set()
     for pairs in base_lines.values():
         for k, _ in pairs:
-            if k:
+            if k and not _PER_LINE_PARAM_RE.match(k):
                 existing_keys.add(k)
 
     for label, block in candidates[1:]:
@@ -377,6 +384,8 @@ def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock,
             # Ne garde que les paires a cle NOUVELLE (les paires secondaires
             # deja definies ailleurs dans le bloc sont filtrees ; les paires
             # sans cle, restes de virgules non protegees, sont ignorees).
+            # Les paramN sont par ligne : jamais dans existing_keys, jamais
+            # filtres ni ajoutes.
             new_pairs = [(k, v) for k, v in pairs
                          if k is not None and k not in existing_keys]
             if not new_pairs:
@@ -384,7 +393,8 @@ def _merge_properties(candidates: List[Tuple[str, EcfBlock]]) -> Tuple[EcfBlock,
                 continue
             add_property_line(merged, new_pairs)
             for k, _ in new_pairs:
-                existing_keys.add(k)
+                if not _PER_LINE_PARAM_RE.match(k):
+                    existing_keys.add(k)
             base_lines[ident] = pairs
             overrides.append(f"{ident} (depuis {label})")
 

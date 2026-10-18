@@ -25,7 +25,6 @@ OrphanDialog, check_pending_conflicts_dialog), pour eviter toute divergence
 entre le resume et le detail.
 
 Fenetre NON MODALE (meme motif que les autres verifications)."""
-from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGroupBox, QWidget,

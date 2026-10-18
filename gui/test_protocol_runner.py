@@ -57,12 +57,12 @@ import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
+    QApplication, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QProgressBar,
-    QPushButton, QRadioButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
+    QPushButton, QRadioButton, QScrollArea, QTableWidget, QTableWidgetItem,
     QTextEdit, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
     QAbstractItemView, QFrame,
 )

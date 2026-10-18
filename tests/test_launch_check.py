@@ -319,3 +319,34 @@ def test_dialog_connected_run(qapp, tmp_path, monkeypatch):
     # 7 fichiers x 2 modes moteur (yaml + ecf)
     assert "14" in dlg.status_label.text()
     assert dlg.btn_run.isEnabled()
+
+
+def test_numeric_without_type_on_ref_block(tmp_path):
+    """Vecu 18/10 : lignes numeriques nues sur des blocs Ref (5 ThrusterForce
+    + 2 HitPoints materialisees par l'equilibrage) — lues en string par le
+    jeu ('Error converting property'), propulseurs sans poussee, et
+    INVISIBLES au boot dedie qui n'instancie pas le monde. Le bilan les
+    signale ; blocs avec TemplateRoot ou sans Ref (la vanille ecrit elle-meme
+    'Range: 200' nu) non signales."""
+    from core.launch_check import _check_numeric_types
+    cdir = tmp_path / "Content" / "Configuration"
+    cdir.mkdir(parents=True)
+    (cdir / "BlocksConfig.ecf").write_text(
+        "{ +Block Id: 455, Name: Thr, Ref: ThrBase\n"
+        "  HitPoints: 4050\n"
+        "}\n"
+        "{ Block Id: 1, Name: Tpl\n"
+        "  TemplateRoot: TBase\n"
+        "  HitPoints: 100\n"
+        "}\n"
+        "{ Block Id: 2, Name: SansRef\n"
+        "  HitPoints: 100\n"
+        "}\n"
+        "{ Block Id: 3, Name: Typed\n"
+        "  HitPoints: 200, type: int, display: true\n"
+        "}\n", encoding="utf-8")
+    issues = _check_numeric_types(tmp_path)
+    assert len(issues) == 1
+    assert issues[0].check == "types"
+    assert issues[0].severity == "warning"
+    assert "HitPoints" in issues[0].message

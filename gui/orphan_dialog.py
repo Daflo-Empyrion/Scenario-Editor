@@ -24,7 +24,6 @@ fichiers de scenario.
 
 Fenetre NON MODALE (meme motif que les autres verifications) -- reste
 ouverte pendant qu'on decide quoi faire de chaque jeton."""
-from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton,

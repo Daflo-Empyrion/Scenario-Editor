@@ -1,0 +1,7 @@
+{ Block Id: 100, Name: TestBlockA
+  HitPoints: 100
+  Material: stone
+}
+{ Block Id: 200, Name: TestBlockB
+  HitPoints: 250
+}

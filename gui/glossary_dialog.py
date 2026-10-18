@@ -23,7 +23,6 @@ avoir une traduction imposee differente par langue. Les termes actifs sont
 proteges par jetons avant l'envoi au moteur, la traduction du glossaire est
 reinjectee ensuite.
 """
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
@@ -33,7 +32,7 @@ from PyQt6.QtWidgets import (
 from core.i18n import t
 from core import glossary
 from core.translation import COMMON_LANGUAGES
-from gui.theme import icon, icon_size
+from gui.theme import icon
 
 COL_ON, COL_SRC, COL_LANG, COL_DST = 0, 1, 2, 3
 

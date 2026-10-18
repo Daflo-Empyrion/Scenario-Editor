@@ -28,7 +28,7 @@ avec un detail approfondi pour les formats structures :
 """
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 
 @dataclass

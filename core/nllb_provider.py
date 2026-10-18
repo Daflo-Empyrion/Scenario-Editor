@@ -39,7 +39,7 @@ import shutil
 import threading
 import urllib.request
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 from . import settings
 

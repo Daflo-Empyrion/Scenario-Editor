@@ -25,7 +25,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .ecf.parser import parse_ecf_file, parse_ecf_text
+from .ecf.parser import parse_ecf_text
 from .ecf.model import EcfDocument
 
 

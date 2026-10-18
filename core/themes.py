@@ -719,8 +719,7 @@ QStatusBar {{
                 stop:0 #d5d8e0, stop:1 #f2f3f8);
 }}
 """.format(ACCENT="#2287bd", SURFACE="#eceef3", SURFACE_ALT="#f7f8fb",
-           ACCENT_BG_TINT="#d9ecf8", ACCENT_DARK="#1a6a97", ACCENT_HOVER="#3399ce",
-           GRID_LINE="#c6cad4", TEXT_PRIMARY="#23252e", TEXT_MUTED="#5c6170",
+           ACCENT_BG_TINT="#d9ecf8", ACCENT_DARK="#1a6a97", GRID_LINE="#c6cad4", TEXT_PRIMARY="#23252e", TEXT_MUTED="#5c6170",
            TEXT_ON_PRIMARY="#ffffff", BORDER="#b3b7c3"),
     },
 }

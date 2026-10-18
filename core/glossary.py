@@ -44,7 +44,7 @@ import json
 import re
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 CONFIG_DIR = Path.home() / ".empyrion_editor"
 GLOSSARY_FILE = CONFIG_DIR / "glossary.json"

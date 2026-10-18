@@ -36,7 +36,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from . import settings
+from . import settings  # attribut module requis : cible des monkeypatch tests
 from .csv_handler import parse_csv_text
 from .translation import find_language_aliases, _normalize, repair_mojibake
 
@@ -58,7 +58,6 @@ _SOURCE_CANDIDATES = (
 def _source_files() -> list:
     """CSV de localisation presents dans la vanille configuree, dans l'ordre
     de priorite (liste vide si la vanille n'est pas configuree)."""
-    from . import settings
     vanilla = (settings.get_vanilla_content_path() or "").strip()
     if not vanilla:
         return []

@@ -26,8 +26,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                             QListWidgetItem, QMenu, QMessageBox,
-                             QStyledItemDelegate, QCompleter, QPushButton,
+                             QListWidgetItem, QMenu, QStyledItemDelegate, QPushButton,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from core.epb_blueprint import (EpbBlueprint, load_block_catalog,
@@ -450,9 +449,9 @@ class EpbCheckDialog(QDialog):
         target_item = item
         while target_item is not None and target_item.parent() is not None:
             target_item = target_item.parent()
-        for t in self._targets:
-            if t["item"] is target_item:
-                return t
+        for tgt in self._targets:
+            if tgt["item"] is target_item:
+                return tgt
         return None
 
     def _id_of_item(self, item):

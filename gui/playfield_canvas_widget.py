@@ -212,7 +212,6 @@ class PlayfieldCanvasWidget(QWidget):
             label.setPos(x + radius, z - radius)
             self.scene.addItem(label)
 
-        unplottable = len(self.entities) - len(visible_entities)
         skipped_note = t("canvas.n_without_position", n=len([e for e in self.entities if e.position is None]))
         count_text = t("canvas.n_shown", n=len(visible_entities)) + " -- " + skipped_note
         self.info_label.setText(self.info_label.text() if self.selected_entity else count_text)

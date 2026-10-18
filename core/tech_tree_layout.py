@@ -59,7 +59,7 @@ precedente :
 Isole de gui/tech_tree_widget.py pour rester testable sans PyQt6.
 """
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .tech_tree import TechTreeNode
 

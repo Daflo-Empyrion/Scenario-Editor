@@ -819,10 +819,160 @@ window itself writes nothing.
 
 ---
 
+## 19ter. NPC trader economy
+
+**Tools > Economy editor (NPC traders)...** — edits `TraderNPCConfig.ecf`: for
+each trader (station, faction), the list of items sold with their **price** and
+**stock**, and the list of items bought back. House rules apply: **prices and
+stocks are always integers**; the item catalog is **de-duplicated
+scenario > vanilla** (a scenario item overrides the vanilla entry of the same
+name, never the other way); icon zoom goes up to x3.
+
+- **Absolute range <-> `mf=` factor toggle** — switch between a direct price
+  and a multiple of the reference price (the item's `MarketPrice`), with
+  immediate column recompute
+- **Built-in validation** — unknown item, non-integer price/stock, duplicates:
+  flagged before saving (see also the Check Center, F5)
+- The reference prices (`MarketPrice`) themselves live in the ECF files — see
+  **Market prices** right below for crafting-cost balancing
+
+## 19quater. Scenario balancing and market prices
+
+Two complementary tools, in **Tools**.
+
+**Scenario balancing...** — applies per-property rules (`MaxCount`, `CPUIn`,
+`HitPoints`, `Damage`, `ShieldCapacity`, `MarketPrice`...) across every
+block/item of the scenario. Each rule has a policy: **keep**, **back to
+vanilla**, **cap** (max value), or **percentage** (x80%, x120% of the current
+value — preserves the scenario's internal ratios). The preview lists every
+proposed change, **checkable one by one**, before anything is written; the
+application backs up and stays undoable.
+
+**Market prices (recipe balance)...** — puts every `MarketPrice` next to its
+**crafting cost**, computed from the recipes (`Templates.ecf`): ingredients
+valued at their own market price, divided by `OutputCount`, cascading (a
+crafted component is worth the cost of ITS recipe). The formula is tunable
+live: **margin** (x1.00 = the RE2 philosophy "price = cost"; vanilla sits
+around x8) and **time factor** (+1% per 30 s of `CraftTime`, capped at x2 by
+default). Every object gets a **status**:
+
+- **Craftable** — direct recipe, reliable cost
+- **Group template** — cost via the upgrade group's template (`TemplateRoot`)
+  or a `REF` parent; some are false positives (NPC turrets pointing at a
+  broken-turret template) — never bulk-checked
+- **Cousin (tier)** — a T2/T3 object without a recipe: proposal based on the
+  lower tier's price (vanilla family ratio when available)
+- **Material price/mass** — hull blocks without a recipe: price pro-rata of
+  the mass of crafted blocks of the same material
+- **Manual anchor** — no possible recipe (raw ores, food, loot trade goods,
+  unique weapons): price kept, never proposed
+- **Not tradeable** — no `MarketPrice` at all: shown, never written
+
+**Nothing is pre-checked.** "Check out-of-bounds" selects craftables whose
+price/cost ratio leaves the chosen range (0.80-1.25 by default); "Check all"
+checks the **visible** rows (combine with the status/name/out-of-bounds
+filters for a targeted bulk selection). The application writes **integer**
+prices into the scenario's BlocksConfig/ItemsConfig (never vanilla), adds the
+`MarketPrice` line when the object had none (price inherited from a `REF`),
+backs up to the central store, then **re-scans automatically** so cascades
+converge. CSV export for auditing.
+
+## 19quinquies. Copy to the production scenario
+
+**Tools > Copy to the production scenario...** — synchronizes the working copy
+to the installed scenario the server actually loads (`Content/Scenarios/...`).
+The sync is a **mirror**: production becomes the exact reflection of the work.
+
+- Compiled caches **`*.yaml.bin` are NEVER synchronized** — they are
+  game-derived; the one of a copied yaml is **invalidated** (deleted, the game
+  recompiles it), orphan caches are purged (otherwise the game compares dates,
+  deems the cache "fresher" and serves the OLD playfield)
+- Files present **in production only** are listed **[To delete]** then removed,
+  with a prior backup (mirror checkbox checked by default) — no more mixed
+  states
+- Detailed confirmation before any write; backups in
+  `~/.empyrion_editor/backups/production_sync/`
+
+## 19sexies. Pre-launch check (game engine included)
+
+**Tools > Pre-launch check (game engine, dedicated)...** — the things that make
+the game **actually fail to load** the scenario:
+
+- **Structure**: duplicate playfield names in Sectors, systems without a sun,
+  foreign files in `Sectors/` (a `.bak` there is fatal), referenced playfields
+  missing (with vanilla fallback for generator scenarios)
+- **ECF values**: compared against the vanilla value-shape dictionary
+  (tolerances proven on the official corpus — calibrated for **zero false
+  positive** across 25 installed scenarios)
+- **Entity groups**: playfields' `Entities:`/`Names:` vs `EGroupsConfig.ecf` +
+  `EClassConfig.ecf`
+- **GalaxyConfig**: StarRegion/Territory indexes without holes or duplicates;
+  orphaned or stale `.yaml.bin` caches
+- **Embedded game engine**: every yaml/ECF is parsed by the REAL engine
+  (Empyrion's YamlDotNet, bundled with the application) with exact
+  line/column errors
+- **REAL load test** (optional): dedicated-server boot on the installed
+  scenario with a throwaway save and ports, live log tracking, automatic
+  shutdown and cleanup — the only reliable source of ghost POIs
+  ("Blueprint group 'X' not found")
+
+Results grouped by severity, semicolon **CSV export**. Working + production.
+
+## 19septies. Server module (EWA)
+
+**Server menu** — drives a remote dedicated server through its EWA (Empyrion
+Web Access) interface:
+
+- **Dashboard** — status, version, online players, CPU load, playfields
+- **Chat** — read the in-game chat and send `SAY` commands via telnet
+  (de-duplicated)
+- **Players** — search, kick/ban, credit and item adjustments
+- **Structures** — view, warp, faction, confirmed deletion
+- **Restore** — players and playfields from EWA backups
+- **Timetable, SystemConfig, users** — server settings and accounts
+- **Raw telnet console** — direct command line
+- **Deploy** — push the scenario over SFTP as a mirror (same rules as the
+  production sync: caches invalidated)
+
+Security: passwords are **never persisted** without the "Remember" checkbox,
+SSH host keys are **pinned** on first connection, every destructive action
+asks for confirmation.
+
+## 19octies. Comparing YAML and Unity bundles
+
+**Tools > Compare / merge two YAML files...** — fine, **line-by-line** diff:
+every difference is a checkable unit (added/modified key, sub-key missing from
+the working copy — e.g. a whole `Fixed:` block, list item, comment). The merge
+also offers the **recursive completion** of blocks present on both sides (a PDA
+task added by the source, for instance); the working file is never rewritten —
+only checked additions are inserted, with their exact insertion path. A
+`Sectors.yaml` always goes through the dedicated flow (global playfield
+uniqueness, type dependencies).
+
+**Tools > Compare Unity bundles...** — asset additions/removals between two
+scenarios (icons, deco); binary bundles are not merged, you decide BEFORE a
+folder merge.
+
+**Right-click on a `Name`-keyed ECF file without `Id`s** (EGroupsConfig,
+EClassConfig) — **Merge by names**: adds the source's missing blocks, the
+working copy is never overwritten, internal duplicates flagged.
+
+## 19novies. Guided POI placement
+
+From the playfield YAML editor (`POIs:` block), the **guided placement** adds
+a POI by searching its prefab or group name, with a preview of the generated
+line (`PrefabName`, `Percent`, position) — no more hand-typing exact names.
+Suggested names come from the scenario and known groups; an unknown group is
+flagged immediately instead of at game launch (cross-checked with the
+pre-launch check).
+
+---
+
 ## 20. Known limitations
 
 - No spreadsheet-style multi-line copy/paste for YAML (structure too nested)
-- "Smart" merging (working-copy priority, completion) only exists for ECF and CSV
-  — other formats are fully replaced during a file merge
+- "Smart" merging (working-copy priority, checkable units, proposed sub-keys)
+  exists for ECF, CSV and YAML — other formats (binary bundles, images) are
+  fully replaced during a folder merge
 - Translation requires an internet connection (Google Translate, free unofficial
   service — may temporarily block on very large volumes, see section 7)

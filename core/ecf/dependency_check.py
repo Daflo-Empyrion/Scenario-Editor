@@ -30,7 +30,7 @@ semantique est certaine -- doit correspondre a un 'Name'). D'autres cles comme
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List
 
 from .parser import parse_ecf_file
 from .model import block_identity

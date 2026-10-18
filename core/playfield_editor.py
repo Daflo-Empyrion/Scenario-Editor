@@ -44,12 +44,11 @@ necessaires au fonctionnement correct -- voir list_items() pour le detail de
 la verification.
 """
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
 from core.yamllite.model import YamlComment, YamlEntry, YamlDocument, create_entry, remove_entry
-from core.yamllite.parser import parse_yaml_file
 
 
 # ============================================================================

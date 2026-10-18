@@ -35,7 +35,7 @@ Un check absent de CHECKS reste EDITERABLE (l'editeur affiche ses proprietes
 existantes en mode arbitraire, meme discipline que la fiche d'info ECF) : le
 schema oriente la saisie, il n'interdit jamais ce qui existe deja dans un
 fichier reel."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Tuple
 
 # ---------------------------------------------------------------------------

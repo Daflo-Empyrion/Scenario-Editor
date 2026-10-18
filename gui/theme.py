@@ -39,7 +39,7 @@ apply_theme() -- tout code qui les utilise doit donc y acceder via
 jour), JAMAIS via 'from gui.theme import PRIMARY' (copie figee a l'import,
 ne reverra plus les changements de theme a l'execution).
 """
-from PyQt6.QtGui import QIcon, QFont, QFontDatabase
+from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize
 
 from core.themes import get_palette, DEFAULT_THEME_ID

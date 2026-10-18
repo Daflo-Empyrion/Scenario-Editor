@@ -37,7 +37,7 @@ from PyQt6.QtWidgets import (
 
 from core import nllb_provider, settings, translation
 from core.i18n import t
-from gui.theme import icon, icon_size
+from gui.theme import icon
 
 _VARIANT_LABELS = {
     "600M": ("nllb.v600m.label", "nllb.v600m.tip"),

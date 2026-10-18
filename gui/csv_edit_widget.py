@@ -24,7 +24,6 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QLabel,
     QPushButton, QMenu, QMessageBox, QDialog, QLineEdit, QComboBox,
-    QApplication,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QBrush
@@ -38,7 +37,7 @@ from core.csv_column_glossary import get_csv_column_tooltip
 from gui.theme import icon, icon_size
 from gui.text_tools import (
     copy_selection, cut_selection, paste_into_selection, delete_selection, delete_selected_rows,
-    install_clipboard_shortcuts, add_clipboard_menu_actions, open_bbcode_tool,
+    open_bbcode_tool,
 )
 from gui.csv_dialogs import (
     TranslationResultDialog, BatchTranslationReviewDialog,
@@ -621,7 +620,6 @@ class CsvEditWidget(QWidget):
 
         if item is None:
             return
-        row = item.row()
 
         if action_bbcode is not None and chosen == action_bbcode:
             new_text = open_bbcode_tool(self, text)
@@ -785,7 +783,7 @@ class CsvEditWidget(QWidget):
     def _header_language_code(self, col: Optional[int]) -> str:
         """Code de langue d'une colonne d'apres son en-tete ('en', 'fr'...),
         tolerant mojibake ; 'auto' si non reconnu (index memoire par defaut)."""
-        from core.translation import COMMON_LANGUAGES, _normalize, repair_mojibake
+        from core.translation import _normalize, repair_mojibake
         if col is None or col < 0:
             return "auto"
         header = self.table.horizontalHeaderItem(col)
@@ -821,7 +819,6 @@ class CsvEditWidget(QWidget):
         revue cochable et application des corrections."""
         from core import spellcheck as sp
         from core import lang_detect
-        from core.translation import find_language_aliases, _normalize, repair_mojibake
         from gui.busy import run_long
 
         if not sp.is_available():
@@ -1202,7 +1199,6 @@ class CsvEditWidget(QWidget):
     def _refresh_review_resume_btn(self):
         """Bouton 'Reprendre la revision' visible seulement si une session
         (traduction OU correction orthographique) existe pour ce fichier."""
-        from core import review_session
         pending = self._pending_review_kinds()
         self.btn_resume_review.setVisible(bool(pending))
         return pending[0][1] if pending else None

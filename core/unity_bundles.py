@@ -23,7 +23,6 @@ l'editeur n'en depend pas). Le diff pur (dict contre dict) est testable
 sans UnityPy."""
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Dict, Tuple
 
 

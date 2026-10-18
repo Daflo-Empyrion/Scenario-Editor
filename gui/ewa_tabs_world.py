@@ -194,7 +194,6 @@ class StructuresTab(EwaTab):
         if not self._factions:
             self.dialog.show_error(t("ewa.struct.no_factions"))
             return
-        combo = QComboBox()
         names = []
         for faction in self._factions:
             abbrev = _s(pick(faction, "FactionAbbrev")

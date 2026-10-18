@@ -35,7 +35,7 @@ le theme systeme, les icones blanches y seraient invisibles -- icon_color()
 donne la couleur d'icone adaptee au type de bouton fabrique.
 """
 from __future__ import annotations
-from typing import Optional, Union
+from typing import Optional
 
 _AVAILABLE: Optional[bool] = None  # cache du test d'import (None = pas encore teste)
 

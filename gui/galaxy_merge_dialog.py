@@ -373,8 +373,7 @@ class GalaxyMergeDialog(QDialog):
         if not checked and not checked_deps and not fix_dups:
             return
         from core.sectors_merge import (apply_structural_units,
-                                        copy_playfield_type_deps,
-                                        drop_duplicate_playfields)
+                                        copy_playfield_type_deps)
         from core.workspace_undo import FileStateUndo, capture_file
         prior = capture_file(working_sectors)
         applied = run_long(self, lambda: apply_structural_units(

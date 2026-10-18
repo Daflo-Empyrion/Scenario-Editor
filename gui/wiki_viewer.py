@@ -21,7 +21,6 @@ dans une fenetre avec rendu (titres, listes, tableaux, code) via QTextBrowser.
 from pathlib import Path
 
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt
 
 from core import i18n
 

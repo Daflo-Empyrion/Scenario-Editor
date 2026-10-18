@@ -17,6 +17,8 @@ from core.economy.market_price import build_index, lookup_case_insensitive
 from core.economy.validation import (extract_zone_assignments,
                                      validate_assignments, validate_trader_doc)
 
+import time  # noqa: E402  (test cache disque build_index)
+
 SAMPLE = (
     "# Trader configuration file documentation\n"
     "## Syntax\n"
@@ -316,3 +318,30 @@ def test_all_module_annotations_resolve():
         module = importlib.import_module(name)
         hints = typing.get_type_hints(module)   # NameError si annotation cassée
         assert isinstance(hints, dict)
+
+
+def test_build_index_disk_cache_roundtrip_and_invalidation(tmp_path, monkeypatch):
+    """Cache disque de build_index (pattern item_catalog, ajoute 17/10) :
+    2e appel frais = cache disque (pas de re-parse) ; une modification du
+    fichier (mtime+taille) invalide et le nouveau prix apparait."""
+    import json
+    a = tmp_path / "ItemsConfig.ecf"
+    a.write_text('{ Item Name: Rock\n  MarketPrice: 5\n}\n', encoding="utf-8")
+    monkeypatch.setattr("core.economy.market_price._cache", {})
+    monkeypatch.setattr("core.economy.market_price._disk_cache_path",
+                        lambda: tmp_path / "cache.json")
+    from core.economy.market_price import build_index
+    assert build_index([a]) == {"Rock": 5}
+    # le cache disque est ecrit ; un processus "frais" (cache memoire viderait
+    # suffit pas : on vide ET on relit) retombe dessus
+    monkeypatch.setattr("core.economy.market_price._cache", {})
+    assert build_index([a]) == {"Rock": 5}
+    # invalidation : le fichier change (contenu + mtime)
+    import os
+    time.sleep(0.01)
+    a.write_text('{ Item Name: Rock\n  MarketPrice: 9\n}\n', encoding="utf-8")
+    os.utime(a, (time.time() + 5, time.time() + 5))
+    assert build_index([a]) == {"Rock": 9}
+    # un cache disque existe bien et contient du JSON exploitable
+    data = json.loads((tmp_path / "cache.json").read_text(encoding="utf-8"))
+    assert data["index"] == {"Rock": 9}

@@ -931,7 +931,7 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
                 translate_fn=groq_provider.translate)
         except AuthError:
             raise  # cle refusee : jamais de bascule silencieuse
-        except (QuotaExhaustedError, EngineUnavailableError, TimeoutError) as e:
+        except (QuotaExhaustedError, EngineUnavailableError, TimeoutError):
             if not fallback_on:
                 raise
             # Bascule (v1.10.0) : le lot Groq echoue (quota/panne) -> le

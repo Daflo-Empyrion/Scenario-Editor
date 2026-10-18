@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem,
     QCheckBox, QPushButton, QHeaderView,
@@ -167,9 +168,9 @@ class ValidationDialog(QDialog):
             file_item.setExpanded(True)
 
     def _colorize_item(self, item: QTreeWidgetItem, level: str):
-        color = _theme.RED if level == 'error' else _theme.ORANGE
+        color = QColor(_theme.RED if level == 'error' else _theme.ORANGE)
         for col in range(3):
-            item.setForeground(col, Qt.GlobalColor.red if level == 'error' else Qt.GlobalColor.darkYellow)
+            item.setForeground(col, color)
 
     def _update_summary(self):
         errors = sum(1 for issues in self.issues_by_file.values() for i in issues if i.level == 'error')

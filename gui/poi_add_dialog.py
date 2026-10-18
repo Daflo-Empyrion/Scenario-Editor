@@ -41,8 +41,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import t
 from core.poi_add import (field_pool, list_pois, poi_units,
-                          scan_playfield_statics, scan_prefab_names,
-                          remove_pois)
+                          scan_playfield_statics, scan_prefab_names)
 from core.settings import get_vanilla_content_path
 from gui.window_geometry import track
 

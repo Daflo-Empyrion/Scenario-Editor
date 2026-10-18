@@ -288,7 +288,7 @@ class DeployTab(QWidget):
 
         def _work():
             from core.ewa import config as ewa_config
-            from core.ewa.sftp_deploy import SftpError, SftpSession, plan_sync
+            from core.ewa.sftp_deploy import SftpSession, plan_sync
             cfg = ewa_config.load()
             sftp_cfg = cfg.get("sftp", {})
             session = SftpSession(sftp_cfg.get("host", ""),

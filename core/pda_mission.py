@@ -55,9 +55,9 @@ logique.
 import random
 import re
 import string
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from .yamllite.model import YamlEntry, YamlDocument, create_entry
 

@@ -40,7 +40,7 @@ from typing import Dict, List, Optional, Tuple
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QComboBox, QLineEdit,
+    QHeaderView, QComboBox,
 )
 
 from core.i18n import t

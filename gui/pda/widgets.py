@@ -27,11 +27,10 @@ Principes respectes (regles projet) :
   est installe sur chaque champ texte -- rien de nouveau a inventer."""
 import re
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+from PyQt6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox,
                              QFormLayout, QHBoxLayout, QLabel, QLineEdit,
                              QListWidget, QListWidgetItem, QPushButton,
-                             QScrollArea, QSpinBox, QVBoxLayout, QWidget)
+                             QSpinBox, QVBoxLayout, QWidget)
 
 from core.i18n import t
 

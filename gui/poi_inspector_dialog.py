@@ -25,7 +25,7 @@ deja applique aux dialogues de verification) -- reste ouverte pendant qu'on
 ajuste des valeurs dans l'editeur."""
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QPushButton, QHeaderView, QTabWidget, QWidget,
+    QPushButton, QHeaderView, QTabWidget,
 )
 
 from core.i18n import t

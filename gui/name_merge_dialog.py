@@ -35,7 +35,6 @@ class NameMergeDialog(QDialog):
     EClassConfig...)."""
 
     def __init__(self, main_window, source_path: Path):
-        import types
         from PyQt6.QtWidgets import QWidget
         qt_parent = (main_window
                      if isinstance(main_window, QWidget) else None)

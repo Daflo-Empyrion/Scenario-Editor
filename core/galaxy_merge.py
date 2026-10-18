@@ -578,8 +578,8 @@ def apply_plan(plan: GalaxyPlan, working_path, working_root=None,
               if block_keys is None or b.key in block_keys]
     if wanted:
         separator = EcfComment(
-            raw=f"# ===== Fusion depuis source : systemes ajoutes "
-                f"ci-dessous =====\r\n")
+            raw="# ===== Fusion depuis source : systemes ajoutes "
+                "ci-dessous =====\r\n")
         has_marker = any(isinstance(n, EcfComment) and SEPARATOR_MARKER
                          in n.raw for n in doc.nodes)
         for b in wanted:

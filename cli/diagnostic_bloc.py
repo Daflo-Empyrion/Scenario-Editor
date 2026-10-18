@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from cli._bootstrap import ensure_core_importable
 ensure_core_importable("core/ecf/parser.py")
 from core.ecf.parser import parse_ecf_file
-from core.ecf.model import EcfBlock, EcfComment, block_identity
+from core.ecf.model import EcfComment, block_identity
 
 
 def main():

@@ -23,7 +23,7 @@ autres editeurs de l'appli.
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel, QMenu, QMessageBox, QDialog,
+    QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel, QMessageBox, QDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 

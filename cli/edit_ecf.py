@@ -39,7 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from cli._bootstrap import ensure_core_importable
 ensure_core_importable("core/ecf/parser.py")
-from core.ecf.parser import parse_ecf_file, parse_ecf_text
+from core.ecf.parser import parse_ecf_text
 from core.ecf.model import EcfProperty
 from core.ecf.diff import diff_documents, format_diff, summarize_diff
 

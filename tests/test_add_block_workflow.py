@@ -456,6 +456,37 @@ def test_add_row_dialog_no_players_only_checkbox_without_filtered_list(window_wi
     assert dialog.players_only_check is None
 
 
+def test_add_row_dialog_group_type_lists_loot_groups(window_with_scenario):
+    """Type = 'Group' -> le menu Valeur liste les +LootGroup de LootGroups.ecf
+    (ex: Eden_OptronicsT1), Type = 'Name' -> items/blocs du catalogue ; la
+    bascule conserve le texte saisi et l'acceptation rend le couple type/valeur."""
+    from gui.ecf_edit_widget import AddTableRowDialog
+    window, config_dir = window_with_scenario
+    dialog = AddTableRowDialog(
+        [], ["Name", "Group"], None,
+        value_suggestions=["IronOre", "SteelPlate"],
+        value_suggestions_players_only=["IronOre"],
+        group_suggestions=["Eden_OptronicsT1", "BasicComponents"])
+
+    def _items(dlg):
+        return [dlg.value_edit.itemText(i) for i in range(dlg.value_edit.count())]
+
+    assert "IronOre" in _items(dialog)                    # defaut : items
+    dialog.type_combo.setCurrentText("Group")             # chemin connecte
+    assert "Eden_OptronicsT1" in _items(dialog)
+    assert "IronOre" not in _items(dialog)
+    dialog.value_edit.setCurrentText("Eden_OptronicsT1")
+    dialog.type_combo.setCurrentText("Name")              # texte conserve
+    assert dialog.value_edit.currentText() == "Eden_OptronicsT1"
+    assert "IronOre" in _items(dialog)
+    dialog.players_only_check.setChecked(True)            # filtre joueurs = items seuls
+    assert _items(dialog) == ["IronOre"]
+    dialog.type_combo.setCurrentText("Group")             # retour groupes
+    dialog._on_accept()
+    assert dialog.result_type == "Group"
+    assert dialog.result_value == "Eden_OptronicsT1"
+
+
 def test_add_table_row_dialog_wires_lootgroups_suggestions(qapp, tmp_path):
     """Test d'integration complet : ouvre un vrai LootGroups.ecf reduit dans
     un scenario, verifie que _add_table_row_dialog propose bien les vraies
@@ -523,13 +554,14 @@ def test_add_table_row_dialog_wires_suggestions_for_non_lootgroups_files(qapp, t
     config_dir.mkdir(parents=True)
     fixture_dir = FIXTURE_DIR
     shutil.copy(fixture_dir / "Containers.ecf", config_dir / "Containers.ecf")
+    shutil.copy(fixture_dir / "LootGroups.ecf", config_dir / "LootGroups.ecf")
     shutil.copy(fixture_dir / "ItemsConfig.ecf", config_dir / "ItemsConfig.ecf")
     shutil.copy(fixture_dir / "BlocksConfig.ecf", config_dir / "BlocksConfig.ecf")
 
     scenario = scan_scenario(tmp_path)
     window = MainWindow()
     window.workspace = Workspace(source_a=scenario, source_a_root=tmp_path,
-                                  working=scenario, working_root=tmp_path)
+                                 working=scenario, working_root=tmp_path)
     widget_wrapper = window.open_working_file_tab(config_dir / "Containers.ecf")
     edit_widget = widget_wrapper.edit_widget
 
@@ -541,7 +573,9 @@ def test_add_table_row_dialog_wires_suggestions_for_non_lootgroups_files(qapp, t
     original_init = AddTableRowDialog.__init__
 
     def capturing_init(self, *args, **kwargs):
+        captured["prefixes"] = args[1]
         captured["value_suggestions"] = kwargs.get("value_suggestions")
+        captured["group_suggestions"] = kwargs.get("group_suggestions")
         original_init(self, *args, **kwargs)
 
     import unittest.mock
@@ -551,6 +585,14 @@ def test_add_table_row_dialog_wires_suggestions_for_non_lootgroups_files(qapp, t
 
     assert captured["value_suggestions"] is not None
     assert "IronOre" in captured["value_suggestions"]
+    # Type = 'Group' sur Containers.ecf : les +LootGroup du scenario (fixtures)
+    # sont proposes a la place des items -- vecu : Eden_OptronicsT1 absent.
+    assert captured["group_suggestions"] is not None
+    assert "EscapePodEasy" in captured["group_suggestions"]
+    # Les deux conventions vanilla de Child Items toujours proposees, meme si
+    # le bloc ne contient que des Item_N -- vecu : ajout d'item impossible.
+    assert "Name" in captured["prefixes"]
+    assert "Group" in captured["prefixes"]
 
 
 def _msgbox_yes(box):
@@ -564,3 +606,76 @@ def _msgbox_no(box):
     """Simule un clic NON sur une boite a boutons APPLICATION."""
     box.buttons()[1].click()
     return 0
+
+
+def test_add_row_dialog_group_preselected_shows_loot_groups_immediately(window_with_scenario):
+    """Vecu 18/10 : bloc ne contenant QUE des Group_N -> le dialogue ouvre avec
+    Type='Group' DEJA selectionne et la liste Valeur montrait les items, car le
+    remplissage groups ne se declenchait qu'en CHANGEANT le type. Des
+    l'ouverture, Type=Group doit lister les loot groups."""
+    from gui.ecf_edit_widget import AddTableRowDialog
+    window, config_dir = window_with_scenario
+    dialog = AddTableRowDialog(
+        [], ["Group"], None,
+        value_suggestions=["IronOre", "SteelPlate"],
+        group_suggestions=["Eden_OptronicsT1", "BasicComponents"])
+    assert dialog.type_combo.currentText() == "Group"      # preselectionne
+    items = [dialog.value_edit.itemText(i) for i in range(dialog.value_edit.count())]
+    assert "Eden_OptronicsT1" in items
+    assert "IronOre" not in items
+
+
+def test_grid_shows_numbered_type_keys(qapp, tmp_path):
+    """Vecu 18/10 : la colonne Type du mode tableau n'affichait pas la
+    numerotation (Type='Group' au lieu de 'Group_0'). Affichage de la cle
+    COMPLETE, et la saisie d'un nouveau type tolere le suffixe (le N reste
+    gere par l'appli, jamais saisi a la main)."""
+    from gui.theme import apply_theme
+    from gui.ecf_edit_widget import EcfEditWidget
+    from core.ecf.model import EcfBlock, EcfProperty
+    apply_theme(qapp)
+    path = tmp_path / "Containers.ecf"
+    path.write_text(
+        "{ +Container Id: 1\n"
+        "  { Child Items\n"
+        "    Name_0: Fiber, param1: 0.5\n"
+        "    Name_1: CopperOre, param1: 0.4\n"
+        "    Group_0: OresBasic, param1: 0.1\n"
+        "  }\n"
+        "}\n", encoding="utf-8")
+    widget = EcfEditWidget(path)
+    container = next(b for b in widget.doc.iter_blocks() if b.kind == "+Container")
+    child = next(c for c in container.children if isinstance(c, EcfBlock))
+    widget._current_block = child
+    widget._refresh_props_table()
+    assert widget._table_mode is True
+    # numerotation visible dans la colonne Type
+    assert widget.props_table.item(0, 0).text() == "Name_0"
+    assert widget.props_table.item(1, 0).text() == "Name_1"
+    assert widget.props_table.item(2, 0).text() == "Group_0"
+    # bascule du type avec suffixe tape : le N existant est conserve
+    widget.props_table.item(1, 0).setText("Group_3")       # 'Group_3' = 'Group'
+    keys = [c.pairs[0][0] for c in child.children if isinstance(c, EcfProperty)]
+    assert "Group_1" in keys                               # suffixe 1 conserve
+
+
+def test_empty_child_items_containers_stays_table_mode(qapp, tmp_path):
+    """Vecu 18/10 : apres suppression de toutes les lignes Group (pour repartir
+    de zero avec les lootgroups RE2), le Child Items vide basculait en mode
+    ingredients -- '+ Ligne' ouvrait le catalogue d'items au lieu du formulaire
+    Name_N/Group_N. Un Child Items vide de Containers.ecf reste en TABLEAU."""
+    from gui.theme import apply_theme
+    from gui.ecf_edit_widget import EcfEditWidget
+    from core.ecf.model import EcfBlock
+    apply_theme(qapp)
+    path = tmp_path / "Containers.ecf"
+    path.write_text("{ +Container Id: 1\n  { Child Items\n  }\n}\n", encoding="utf-8")
+    widget = EcfEditWidget(path)
+    container = next(b for b in widget.doc.iter_blocks() if b.kind == "+Container")
+    child = next(c for c in container.children if isinstance(c, EcfBlock))
+    widget._current_block = child
+    widget._refresh_props_table()
+    assert widget._table_mode is True
+    assert widget._ingredient_mode is False
+    assert widget.btn_add_row.isVisibleTo(widget) is True
+    assert widget.btn_add_prop.isVisibleTo(widget) is False

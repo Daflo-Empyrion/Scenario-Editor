@@ -246,7 +246,6 @@ class PlayfieldSectionTable(QWidget):
         # YAML-010 : liste deroulante EDITABLE sur les colonnes synthetiques
         # qui fournissent un pool (biomes observes...), saisie libre permise.
         from PyQt6.QtWidgets import QStyledItemDelegate, QComboBox as _QComboBox
-        from PyQt6.QtCore import Qt as _Qt
 
         class _SynthComboDelegate(QStyledItemDelegate):
             def __init__(self, choices_fn):
@@ -292,7 +291,6 @@ class PlayfieldSectionTable(QWidget):
                 self.table.setItem(row, col, cell)
 
         if commented:
-            gray = QTableWidgetItem()
             gray_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
             for offset, citem in enumerate(commented):
                 row_i = len(self._items_by_row) + offset

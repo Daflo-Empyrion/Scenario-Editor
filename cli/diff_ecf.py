@@ -49,7 +49,7 @@ def main():
             print(f"ERREUR : fichier introuvable : {p}")
             sys.exit(1)
 
-    print(f"Comparaison :")
+    print("Comparaison :")
     print(f"  A = {path_a}")
     print(f"  B = {path_b}")
     print()

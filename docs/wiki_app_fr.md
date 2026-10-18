@@ -870,13 +870,167 @@ elle-meme.
 
 ---
 
+## 19ter. Économie des marchands PNJ
+
+**Outils > Éditeur d'économie (marchands PNJ)...** — édite `TraderNPCConfig.ecf` :
+pour chaque marchand (station, faction), la liste des items vendus avec leur
+**prix** et leur **stock**, et la liste des items rachetés. Les règles maison
+s'y appliquent : **prix et stocks sont toujours des entiers** ; le catalogue
+d'items est **dédoublonné scenario > vanille** (un item du scenario écrase
+l'entrée vanille du même nom, jamais l'inverse) ; le zoom des icones se règle
+jusqu'à x3.
+
+- **Bascule plage absolue <-> facteur `mf=`** — entre un prix direct et un
+  multiple du prix de référence (`MarketPrice` de l'item), avec recalcul
+  immédiat de la colonne
+- **Validation intégrée** — item inexistant, prix/stock non entier, doublons :
+  signalés avant enregistrement (voir aussi le Centre de vérification, touche F5)
+- Les prix de référence (`MarketPrice`) eux-mêmes se règlent dans les fichiers
+  ECF — voir **Prix marché** juste en dessous pour l'équilibrage par coût de
+  fabrication
+
+## 19quater. Équilibrage du scénario et prix marché
+
+Deux outils complémentaires, dans **Outils**.
+
+**Équilibrage du scénario...** — applique des règles par propriété (`MaxCount`,
+`CPUIn`, `HitPoints`, `Damage`, `ShieldCapacity`, `MarketPrice`...) sur tous les
+blocs/items du scenario. Chaque règle a une politique : **conserver**,
+**revenir à la vanille**, **plafonner** (valeur max), ou **pourcentage** (x80 %,
+x120 % sur la valeur actuelle — préserve les ratios internes du scenario).
+L'aperçu liste chaque changement proposé, **cochable un par un**, avant toute
+écriture ; l'application sauvegarde et reste annulable.
+
+**Prix marché (équilibre recettes)...** — met chaque `MarketPrice` en face du
+**coût de fabrication** calculé depuis les recettes (`Templates.ecf`) : somme
+des ingrédients valorisés à leur propre prix marché, divisée par `OutputCount`,
+en cascade (un composant fabriqué vaut le coût de SA recette). La formule est
+réglable en direct : **marge** (x1.00 = la philosophie RE2 « prix = coût », la
+vanille est vers x8) et **facteur temps** (+1 % par tranche de 30 s de
+`CraftTime`, plafonné x2 par défaut). Chaque objet reçoit un **statut** :
+
+- **Fabriquable** — recette directe, coût fiable
+- **Template de groupe** — coût via le template du groupe d'upgrade
+  (`TemplateRoot`) ou d'un parent `REF` ; certains sont des faux positifs
+  (tourelles NPC pointant un template de tourelle cassée) — jamais cochés en
+  masse
+- **Cousin (tier)** — objet T2/T3 sans recette : proposition au prix du tier
+  inférieur (ratio de la famille vanille si elle existe)
+- **Prix/masse matériau** — blocs de coque sans recette : prix au prorata de la
+  masse des blocs fabriqués du même matériau
+- **Ancrage manuel** — sans recette possible (minerais bruts, nourriture,
+  marchandises de loot, armes uniques) : prix conservé, jamais proposé
+- **Non vendable** — aucun `MarketPrice` : affiché, jamais écrit
+
+**Rien n'est précoché.** « Cocher hors bornes » sélectionne les fabriquables
+dont le ratio prix/coût sort de la fourchette choisie (0.80-1.25 par défaut) ;
+« Tout cocher » coche les lignes **visibles** (combine avec les filtres statut,
+nom, hors bornes pour une sélection ciblée). L'application écrit des prix
+**entiers** dans BlocksConfig/ItemsConfig du scenario (jamais la vanille),
+ajoute la ligne `MarketPrice` si l'objet n'en avait pas (prix hérité d'un
+`REF`), sauvegarde dans le backup central, puis **re-scanne automatiquement**
+pour converger les cascades. Export CSV pour auditer.
+
+## 19quinquies. Copier vers le scénario en production
+
+**Outils > Copier vers le scénario en production...** — synchronise la copie de
+travail vers le scenario installé que le serveur charge réellement
+(`Content/Scenarios/...`). La synchro est un **miroir** : la production devient
+le reflet exact du travail.
+
+- Les caches compilés **`*.yaml.bin` ne sont JAMAIS synchronisés** — ils sont
+  dérivés du jeu ; celui d'un yaml copié est **invalidé** (supprimé, le jeu le
+  recompile), les caches orphelins sont purgés (sinon le jeu compare les dates,
+  juge le cache « plus frais » et sert l'ANCIEN playfield)
+- Les fichiers présents **en production seulement** sont listés
+  **[À supprimer]** puis supprimés, avec sauvegarde préalable (case miroir
+  cochée par défaut) — plus d'états mélangés
+- Confirmation détaillée avant toute écriture ; backups dans
+  `~/.empyrion_editor/backups/production_sync/`
+
+## 19sexies. Bilan avant lancement (moteur de jeu inclus)
+
+**Outils > Bilan avant lancement (moteur de jeu, dédié)...** — les points qui
+font échouer le **chargement réel** du scenario par le jeu :
+
+- **Structure** : doublons de noms de playfields dans Sectors, systèmes sans
+  soleil, fichiers étrangers dans `Sectors/` (un `.bak` y est fatal), playfields
+  référencés absents (avec repli vanille pour les scenarios à générateur)
+- **Valeurs ECF** : comparées au dictionnaire de formes de la vanille
+  (tolérances prouvées sur le corpus officiel — calibré pour **zéro faux
+  positif** sur 25 scenarios installés)
+- **Groupes d'entités** : `Entities:`/`Names:` des playfields vs
+  `EGroupsConfig.ecf` + `EClassConfig.ecf`
+- **GalaxyConfig** : index StarRegion/Territory sans doublon ni trou ; caches
+  `.yaml.bin` orphelins ou périmés
+- **Moteur du jeu embarqué** : chaque yaml/ECF est parsé par le VRAI moteur
+  (YamlDotNet d'Empyrion, embarqué dans l'application) avec les erreurs exactes
+  ligne/colonne
+- **Test de chargement RÉEL** (option) : boot du serveur dédié sur le scenario
+  installé avec une sauvegarde et des ports jetables, suivi du log en direct,
+  arrêt et purge automatiques — la seule source fiable des POI fantômes
+  (« Blueprint group 'X' not found »)
+
+Résultats groupés par gravité, **export CSV** point-virgule. Travail +
+production.
+
+## 19septies. Module Serveur (EWA)
+
+**Menu Serveur** — pilote un serveur dédié distant via son interface EWA
+(Empyrion Web Access) :
+
+- **Tableau de bord** — état, version, joueurs en ligne, charge CPU, playfields
+- **Chat** — lecture du chat du jeu et commandes `SAY` via telnet (dédupliqué)
+- **Joueurs** — recherche, kick/ban, ajustement de crédits et d'items
+- **Structures** — vue, téléportation, faction, suppression confirmée
+- **Restauration** — joueurs et playfields depuis les sauvegardes EWA
+- **Timetable, SystemConfig, utilisateurs** — réglages serveur et comptes
+- **Console telnet brute** — ligne de commande directe
+- **Déployer** — pousse le scenario par SFTP en miroir (mêmes règles que la
+  synchro production : caches invalidés)
+
+Sécurité : les mots de passe ne sont **jamais persistés** sans la case « Se
+souvenir », les clés d'hôte SSH sont **épinglées** à la première connexion,
+toute action destructive demande confirmation.
+
+## 19octies. Comparer YAML et bundles Unity
+
+**Outils > Comparer / fusionner deux YAML...** — diff **fin, ligne à ligne** :
+chaque différence est une unité cochable (clé ajoutée/modifiée, sous-clé
+absente du travail — par ex. un bloc `Fixed:` complet, élément de liste,
+commentaire). La fusion propose aussi le **complément récursif** des blocs
+présents des deux côtés (une tâche PDA en plus chez la source, par exemple) ;
+le fichier de travail n'est jamais réécrit — seuls les ajouts cochés y sont
+insérés, avec leur chemin d'insertion exact. Un `Sectors.yaml` passe toujours
+par le flux dédié (unicité globale des playfields, dépendances de types).
+
+**Outils > Comparer des bundles Unity...** — ajouts/retraits d'assets entre deux
+scenarios (icones, décors) ; les bundles binaires ne se fusionnent pas, on
+décide AVANT une fusion de dossier.
+
+**Clic droit sur un fichier ECF à blocs `Name` sans `Id`** (EGroupsConfig,
+EClassConfig) — **Fusion par noms** : ajoute les blocs sources absents, le
+travail n'est jamais écrasé, doublons internes signalés.
+
+## 19novies. Placement guidé de POI
+
+Depuis l'éditeur de playfield YAML (bloc `POIs:`), le **placement guidé**
+ajoute un POI en le cherchant par nom de prefab ou de groupe, avec
+prévisualisation de la ligne générée (`PrefabName`, `Percent`, position) — plus
+de saisie manuelle des noms exacts. Les noms proposés viennent du scenario et
+des groupes connus ; un groupe introuvable est signalé immédiatement plutôt
+qu'au lancement du jeu (croisé avec le bilan avant lancement).
+
+---
+
 ## 20. Limitations connues
 
 - Pas de copier/coller multi-lignes façon tableur pour le YAML (structure trop
   imbriquee)
-- La fusion "intelligente" (priorite copie de travail, completion) n'existe que
-  pour ECF et CSV — les autres formats sont remplaces entierement lors d'une fusion
-  de fichier
+- La fusion "intelligente" (priorite copie de travail, unites cochees,
+  sous-cles proposees) existe pour ECF, CSV et YAML — les autres formats
+  (bundles binaires, images) sont remplaces entierement lors d'une fusion
+  de dossier
 - La traduction necessite une connexion internet (Google Translate, service
   gratuit non officiel — peut se bloquer temporairement sur de tres gros volumes,
   voir section 7)

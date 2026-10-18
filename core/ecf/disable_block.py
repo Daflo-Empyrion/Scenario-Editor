@@ -25,7 +25,7 @@ marqueur d'en-tete pour ne pas se confondre avec un conflit d'Id.
 """
 import re
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 from .model import EcfDocument, EcfBlock, EcfComment, EcfBlank
 from .parser import parse_ecf_text

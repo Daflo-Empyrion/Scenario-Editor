@@ -46,7 +46,7 @@ import ast
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -115,6 +115,7 @@ IGNORED_LITERAL_VALUES = {
     "Choose the application's language\n"
     "(changeable anytime afterward via the FR/EN button):",
     "Francais", "English", "GPLv3", "Copyright © 2026 Daflo",
+    "<b>Empyrion Scenario Editor</b>",
     "https://www.gnu.org/licenses/gpl-3.0.html",
 }
 

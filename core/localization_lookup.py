@@ -39,7 +39,7 @@ import io
 import sys
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 
 LOCALIZATION_PACK_FILENAME = "localization_vanilla.pak"
 LOCALIZATION_PACK_NOTICE_MEMBER = "NOTICE.txt"

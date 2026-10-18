@@ -51,7 +51,7 @@ description.
 """
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from .ecf.model import EcfBlock, EcfDocument, EcfProperty, block_identity
 from .localization_lookup import LocalizationIndex

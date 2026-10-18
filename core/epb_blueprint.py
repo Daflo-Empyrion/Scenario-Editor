@@ -39,10 +39,8 @@ Blueprint.cs / BlueprintHeader.cs / ImageProvider.cs / SimpleBitStream.cs) :
 from __future__ import annotations
 
 import csv
-import io
 import os
 import struct
-import zipfile
 import zlib
 from dataclasses import dataclass, field
 from pathlib import Path

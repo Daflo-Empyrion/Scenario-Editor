@@ -144,73 +144,196 @@ def test_menu_action_opens_non_modal_dialog_with_real_sectors_file(qapp, tmp_pat
     dialog.close()
 
 
-def test_tilt_slider_starts_at_zero(qapp, galaxy_doc):
+def test_camera_defaults_show_relief(qapp, galaxy_doc):
+    """Camera par defaut INCLINEE (35 deg) : l'ouverture en vue de dessus
+    pur rendait la galaxie « plate » (vecu 19/10). L'orbite est libre des
+    deux cotes du plan : on peut passer dessous comme au-dessus."""
     from gui.theme import apply_theme
     from gui.galaxy_viewer_dialog import GalaxyViewerDialog
     apply_theme(qapp)
     dialog = GalaxyViewerDialog(galaxy_doc)
-    assert dialog.tilt_slider.value() == 0
+    assert dialog.canvas.elev == 35.0
+    assert dialog.canvas.azim == 0.0
+    assert dialog.canvas.ELEV_MIN < 0 < dialog.canvas.ELEV_MAX
 
 
-def test_projection_at_zero_tilt_matches_flat_x_z(qapp, galaxy_doc):
-    """A 0% d'inclinaison, la projection doit rester une simple vue du dessus
-    (X, Z) -- comportement identique a avant l'ajout de cette fonctionnalite."""
+def test_edit_mode_projection_is_exact_x_z(qapp, galaxy_doc):
+    """MAP-009 : en mode edition (orthographique, vue de dessus), la
+    projection et son inverse redonnent exactement (x, z)."""
     from gui.theme import apply_theme
     from gui.galaxy_viewer_dialog import GalaxyViewerDialog
     apply_theme(qapp)
     dialog = GalaxyViewerDialog(galaxy_doc)
-    system = dialog.systems[0]
-    x, y, z = system.coordinates
-    screen_x, screen_y = dialog._project(x, y, z)
-    assert screen_x == x
-    assert screen_y == z
+    canvas = dialog.canvas
+    canvas.resize(900, 650)
+    canvas.edit_mode = True
+    system = next(s for s in canvas.systems if s.coordinates)
+    sx, sy, pf = canvas.project(system.coordinates)
+    assert pf == 1.0
+    wx, wz = canvas.unproject_ground(sx, sy)
+    assert abs(wx - system.coordinates[0]) < 1e-6
+    assert abs(wz - system.coordinates[2]) < 1e-6
 
 
-def test_tilt_shifts_position_proportionally_to_y(qapp, galaxy_doc):
-    """Confirme sur un vrai systeme (Alpha, Y=15) que l'inclinaison decale
-    bien la position affichee en fonction de Y -- sans effet quand Y=0."""
+def test_move_mode_toggle_locks_camera(qapp, galaxy_doc):
     from gui.theme import apply_theme
     from gui.galaxy_viewer_dialog import GalaxyViewerDialog
     apply_theme(qapp)
+    dialog = GalaxyViewerDialog(galaxy_doc)
+    canvas = dialog.canvas
+    assert not hasattr(dialog, "move_check")  # sans sectors_path : pas d'edition
+    assert canvas.edit_mode is False
+
+
+def test_orbit_changes_projection(qapp, galaxy_doc):
+    """Navigation 3D : l'azimut et l'elevation changent la projection, le
+    zoom rapproche (facteur de grossissement au centre)."""
+    from gui.theme import apply_theme
+    from gui.galaxy_viewer_dialog import GalaxyViewerDialog
+    apply_theme(qapp)
+    dialog = GalaxyViewerDialog(galaxy_doc)
+    canvas = dialog.canvas
+    canvas.resize(900, 650)
+    canvas.elev = 45.0
+    target = next(s for s in canvas.systems if s.coordinates).coordinates
+    p_flat = canvas.project(target)
+    canvas.azim = 60.0
+    p_turned = canvas.project(target)
+    assert (p_flat[0], p_flat[1]) != (p_turned[0], p_turned[1])
+
+
+def test_read_only_dialog_has_no_move_callback(qapp, galaxy_doc):
+    """Sans sectors_path la carte reste lecture seule : pas de callback move."""
+    from gui.theme import apply_theme
+    from gui.galaxy_viewer_dialog import GalaxyViewerDialog
+    apply_theme(qapp)
+    dialog = GalaxyViewerDialog(galaxy_doc)
+    assert dialog.canvas._on_moved is not None  # cable mais garde par _move_enabled
+    assert dialog._move_enabled is False
+    assert not hasattr(dialog, "modified")
+
+
+# ---------------------------------------------------------------------------
+# Lisibilite (consultation IA 18-19/10 : couleurs spectrales, halo roles,
+# etiquettes conditionnelles, filtre de recherche, legende)
+# ---------------------------------------------------------------------------
+
+def test_spectral_color_follows_star_class_letter(qapp, galaxy_doc):
+    from gui.theme import apply_theme
+    from gui.galaxy_viewer_dialog import GalaxyViewerDialog, _dot_color
+    apply_theme(qapp)
+    assert _dot_color("A3").name() != _dot_color("K2V").name()
     dialog = GalaxyViewerDialog(galaxy_doc)
     alpha = next(s for s in dialog.systems if s.name == "Alpha")
-
-    dialog.tilt_slider.setValue(0)
-    _, y_flat = dialog._project(*alpha.coordinates)
-    dialog.tilt_slider.setValue(100)
-    _, y_tilted = dialog._project(*alpha.coordinates)
-    assert y_flat != y_tilted
+    from core.galaxy_viewer import classify_star_class
+    assert classify_star_class(alpha.star_class) == "role"
+    assert _dot_color(alpha.star_class) == _dot_color("GStartingSystem")
 
 
-def test_tilt_has_no_effect_when_y_is_zero(qapp, galaxy_doc):
+def test_role_dots_flagged_for_halo(qapp, galaxy_doc):
     from gui.theme import apply_theme
     from gui.galaxy_viewer_dialog import GalaxyViewerDialog
     apply_theme(qapp)
     dialog = GalaxyViewerDialog(galaxy_doc)
+    dialog.canvas.resize(900, 650)
+    dialog.canvas.grab()  # force un rendu reel (paintEvent) hors ecran
+    assert dialog.canvas._layout, "le rendu doit peupler le layout"
+    roles = {s.name: classify_role(s) for s, _x, _y, _r, _p in dialog.canvas._layout}
+    assert roles["Alpha"] is True      # GStartingSystem -> halo
+    assert roles["Alphalan"] is False  # A3 spectral -> trait fin
 
-    dialog.tilt_slider.setValue(0)
-    x0, y0 = dialog._project(100.0, 0.0, 200.0)
-    dialog.tilt_slider.setValue(100)
-    x1, y1 = dialog._project(100.0, 0.0, 200.0)
-    assert (x0, y0) == (x1, y1)
+
+def classify_role(system):
+    from core.galaxy_viewer import classify_star_class
+    return classify_star_class(system.star_class) == "role"
 
 
-def test_moving_tilt_slider_redraws_without_crash(qapp, galaxy_doc):
+def test_labels_thinned_by_priority_at_low_zoom(qapp, galaxy_doc):
+    """Anti-muraille (vecu RE2 : 60+ boites empilees) : a faible zoom seules
+    quelques etiquettes (priorite roles, puis richesse) restent posees ; au
+    zoom, les spectrales reviennent."""
     from gui.theme import apply_theme
     from gui.galaxy_viewer_dialog import GalaxyViewerDialog
     apply_theme(qapp)
     dialog = GalaxyViewerDialog(galaxy_doc)
-    dialog.tilt_slider.setValue(75)
-    assert dialog.tilt_value_label.text() == "75%"
-    assert len(dialog.scene.items()) > 0
+    canvas = dialog.canvas
+    canvas.resize(900, 650)
+    canvas.grab()
+    canvas.zoom = canvas.zoom_fit * 0.5
+    labels = {s.name: (visible, role)
+              for s, _rect, visible, role in canvas._layout_labels()}
+    assert labels["Alphalan"][0] is False       # spectrale : masquee
+    shown = [name for name, (visible, _role) in labels.items() if visible]
+    assert 0 < len(shown) < len(labels)          # elague, pas vide
+    assert all(labels[name][1] for name in shown)  # priorite : que des roles
+    canvas.zoom = canvas.zoom_fit * 4.0
+    labels = {s.name: visible
+              for s, _rect, visible, _role in canvas._layout_labels()}
+    assert labels["Alphalan"] is True
 
 
-def test_construction_does_not_crash_with_default_tilt_value(qapp, galaxy_doc):
-    """Regression : le signal valueChanged du curseur ne doit jamais se
-    declencher avant que self.systems existe (ordre de construction dans
-    __init__)."""
+def test_search_filter_dims_non_matching_systems(qapp, galaxy_doc):
     from gui.theme import apply_theme
     from gui.galaxy_viewer_dialog import GalaxyViewerDialog
     apply_theme(qapp)
-    dialog = GalaxyViewerDialog(galaxy_doc)  # ne doit pas lever d'exception
-    assert dialog.systems is not None
+    dialog = GalaxyViewerDialog(galaxy_doc)
+    rogue = next(s for s in dialog.systems if s.name == "Rogue System")
+    alpha = next(s for s in dialog.systems if s.name == "Alpha")
+    dialog.search.setText("alpha")
+    assert dialog.canvas._alpha(alpha) == 1.0
+    assert dialog.canvas._alpha(rogue) < 0.2
+    dialog.search.setText("")
+    assert dialog.canvas._alpha(rogue) == 1.0
+
+
+def test_legend_is_built(qapp, galaxy_doc):
+    from gui.theme import apply_theme
+    from gui.galaxy_viewer_dialog import GalaxyViewerDialog
+    apply_theme(qapp)
+    dialog = GalaxyViewerDialog(galaxy_doc)
+    chips = dialog.findChildren(type(dialog._legend_chip("#fff", "x")))
+    assert len(chips) >= 8  # 1 role + 7 classes OBAFGKM
+
+
+def test_move_drag_full_path_writes_file(qapp, tmp_path):
+    """MAP-009 bout en bout (regression vecu 19/10 : l'apercu live avait
+    disparu avec la 3D, la fonction paraissait perdue) : press sur un point
+    en mode edition -> le point suit la souris -> release ecrit le fichier."""
+    import shutil
+    from pathlib import Path
+    from PyQt6.QtCore import QPointF, Qt, QEvent
+    from PyQt6.QtGui import QMouseEvent
+    from gui.theme import apply_theme
+    from gui.galaxy_viewer_dialog import GalaxyViewerDialog
+    from core.yamllite.parser import parse_yaml_file
+    apply_theme(qapp)
+    sectors = tmp_path / "Sectors.yaml"
+    shutil.copy(FIXTURE_PATH, sectors)
+    doc = parse_yaml_file(sectors)
+    dlg = GalaxyViewerDialog(doc, sectors_path=sectors)
+    dlg.resize(900, 650)
+    dlg.show()
+    dlg.move_check.setChecked(True)
+    canvas = dlg.canvas
+    canvas.grab()
+    alpha = next(s for s in canvas.systems if s.name == "Alpha")
+    sx, sy, _r = next((x, y, r) for s, x, y, r, _p in canvas._layout
+                      if s is alpha)
+
+    def mouse(etype, x, y):
+        ev = QMouseEvent(etype, QPointF(x, y), QPointF(x, y),
+                         Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                         Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(canvas, ev)
+
+    from PyQt6.QtWidgets import QApplication
+    mouse(QEvent.Type.MouseButtonPress, sx, sy)
+    assert canvas._drag[0] == "move"
+    mouse(QEvent.Type.MouseMove, sx + 60, sy - 30)
+    assert canvas._drag_preview is not None          # apercu live
+    wx, wz = canvas.unproject_ground(sx + 60, sy - 30)
+    assert abs(wx - alpha.coordinates[0]) > 0.5      # le deplacement est reel
+    mouse(QEvent.Type.MouseButtonRelease, sx + 60, sy - 30)
+    assert abs(alpha.coordinates[0] - wx) < 1e-6     # coordonnees commitees
+    assert f"[ {wx:g}," in sectors.read_text(encoding="utf-8")
+    dlg.close()

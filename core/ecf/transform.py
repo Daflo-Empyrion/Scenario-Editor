@@ -32,7 +32,6 @@ Par defaut, la recherche est recursive (elle descend aussi dans les sous-blocs c
 'Child Items'). Les proprietes declarees sur la ligne d'ouverture d'un bloc (Id, etc.)
 ne sont jamais ciblees, pour ne jamais toucher accidentellement a un identifiant.
 """
-import copy
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple

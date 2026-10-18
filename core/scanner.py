@@ -52,8 +52,6 @@ def verify_integrity(scenario: Scenario, root: Path = None) -> dict:
     disk_files = set(p for p in root.rglob('*') if p.is_file())
     disk_count = len(disk_files)
 
-    scanned_count = scenario.total_file_count(include_shared=True)
-
     # Reconstruit l'ensemble des fichiers effectivement classés par le scanner, pour
     # pouvoir lister lesquels manquent précisément (pas juste un nombre).
     scanned_files = set()

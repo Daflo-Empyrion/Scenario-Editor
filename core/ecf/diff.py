@@ -37,7 +37,7 @@ Le résultat est un arbre de BlockDiff, élagué pour ne garder que ce qui a cha
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .model import EcfBlock, EcfDocument, EcfProperty, IDENTITY_KEYS, block_identity as _block_identity, property_lines, normalized_kind
+from .model import EcfBlock, EcfDocument, block_identity as _block_identity, property_lines, normalized_kind
 
 
 @dataclass

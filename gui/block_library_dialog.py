@@ -24,7 +24,8 @@ from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPlainTextEdit, QPushButton, QLabel, QFileDialog, QMessageBox, QInputDialog,
+    QPlainTextEdit, QPushButton, QLabel, QMessageBox, QInputDialog,
+    QLineEdit,
 )
 
 from core import block_library
@@ -68,6 +69,11 @@ class BlockLibraryDialog(QDialog):
         self.hint.setWordWrap(True)
 
         layout.addWidget(self.hint)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText(t("lib.search"))
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._apply_filter)
+        layout.addWidget(self.search)
         row = QHBoxLayout()
         row.addWidget(self.list_widget, 2)
         row.addWidget(self.preview, 3)
@@ -80,6 +86,14 @@ class BlockLibraryDialog(QDialog):
             item = QListWidgetItem(snippet["name"])
             item.setData(Qt.ItemDataRole.UserRole, snippet["path"])
             self.list_widget.addItem(item)
+        self._apply_filter(self.search.text())
+
+    def _apply_filter(self, needle: str):
+        """Filtre la liste par sous-chaine insensible a la casse (nom du bloc)."""
+        needle = (needle or "").strip().lower()
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            item.setHidden(bool(needle) and needle not in item.text().lower())
 
     def _selected_path(self):
         item = self.list_widget.currentItem()

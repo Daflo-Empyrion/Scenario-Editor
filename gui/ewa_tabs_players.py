@@ -489,7 +489,7 @@ class ChatTab(EwaTab):
 
         def _work():
             from core.ewa import config as ewa_config
-            from core.ewa.telnet import TelnetError, say_command
+            from core.ewa.telnet import say_command
             telnet = dialog.telnet_console()
             if not telnet.connected:
                 cfg = ewa_config.load().get("telnet", {})

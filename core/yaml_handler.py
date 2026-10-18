@@ -27,7 +27,6 @@ de fidelite non corrigibles simplement (lignes vides "orphelines" perdues selon 
 contexte). D'ou le passage a un parser maison, comme pour l'ECF a l'Etape 1.
 """
 from pathlib import Path
-from typing import Any
 
 from .file_handlers import FileHandler
 from .yamllite.parser import parse_yaml_text

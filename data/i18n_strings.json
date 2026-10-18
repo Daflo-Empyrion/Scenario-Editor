@@ -807,6 +807,18 @@
   "fr": "Inclinaison (axe Y) :",
   "en": "Tilt (Y axis):"
  },
+ "galaxy.search_placeholder": {
+  "fr": "Rechercher un système…",
+  "en": "Search a system…"
+ },
+ "galaxy.mouse_help": {
+  "fr": "Glisser : orbite — Clic droit : déplacer la vue — Molette : zoom",
+  "en": "Drag: orbit — Right-click: pan — Wheel: zoom"
+ },
+ "galaxy.legend_role": {
+  "fr": "Rôles spéciaux",
+  "en": "Special roles"
+ },
  "galaxy.role": {
   "fr": "role special",
   "en": "special role"
@@ -2286,6 +2298,22 @@
  "ctx.translate_cell_to": {
   "fr": "Traduire cette cellule vers... (-> copie de travail)",
   "en": "Translate this cell to... (-> working copy)"
+ },
+ "ctx.add_property_below": {
+  "fr": "Ajouter une propriete en dessous",
+  "en": "Add a property below"
+ },
+ "ctx.add_attribute": {
+  "fr": "Ajouter un attribut...",
+  "en": "Add an attribute..."
+ },
+ "ctx.move_property_up": {
+  "fr": "Monter cette ligne",
+  "en": "Move this line up"
+ },
+ "ctx.move_property_down": {
+  "fr": "Descendre cette ligne",
+  "en": "Move this line down"
  },
  "author.title": {
   "fr": "Nom pour les annotations",
@@ -5459,6 +5487,18 @@
   "fr": "Créer une mission guidée, puis l'affiner dans l'éditeur",
   "en": "Create a mission guided, then refine it in the editor"
  },
+ "pda.export.md": {
+  "fr": "Exporter en Markdown…",
+  "en": "Export as Markdown…"
+ },
+ "pda.export.md.tooltip": {
+  "fr": "Enregistrer l'histoire du PDA (chapitres, tâches, actions) dans un fichier Markdown",
+  "en": "Save the PDA story (chapters, tasks, actions) to a Markdown file"
+ },
+ "pda.export.md.done": {
+  "fr": "Histoire exportée : {path}",
+  "en": "Story exported: {path}"
+ },
  "menu.options.vanilla_content": {
   "fr": "Dossier du jeu (vanille)...",
   "en": "Game folder (vanilla)..."
@@ -6314,6 +6354,10 @@
  "lib.hint": {
   "fr": "Blocs réutilisables exportés depuis vos scénarios. « Insérer » ajoute le bloc sélectionné dans l'onglet ECF actif de la copie de travail.",
   "en": "Reusable blocks exported from your scenarios. \"Insert\" adds the selected block into the active ECF tab of the working copy."
+ },
+ "lib.search": {
+  "fr": "Rechercher un bloc…",
+  "en": "Search a block…"
  },
  "lib.insert": {
   "fr": "Insérer dans l'onglet actif",
@@ -9866,5 +9910,389 @@
  "launchcheck.csv_headers": {
   "fr": "Fichier;Gravité;Contrôle;Détail",
   "en": "File;Severity;Check;Detail"
+ },
+ "menu.tools.market_price": {
+  "fr": "Prix marché (équilibre recettes)",
+  "en": "Market prices (recipe balance)"
+ },
+ "market.title": {
+  "fr": "Prix marché — équilibrage par coût de fabrication",
+  "en": "Market prices — crafting cost balance"
+ },
+ "market.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "market.running": {
+  "fr": "Analyse en cours...",
+  "en": "Analyzing..."
+ },
+ "market.margin": {
+  "fr": "Marge",
+  "en": "Margin"
+ },
+ "market.margin.tip": {
+  "fr": "Prix cible = coût × marge × facteur temps. 1.00 = la philosophie RE2 (prix = coût exact) ; la vanille est vers 8.",
+  "en": "Target = cost × margin × time factor. 1.00 = RE2 philosophy (price = exact cost); vanilla sits near 8."
+ },
+ "market.craft": {
+  "fr": "Craft %/30 s",
+  "en": "Craft %/30 s"
+ },
+ "market.craft.tip": {
+  "fr": "+1 % de prix par tranche de 30 s de CraftTime (défaut validé) ; 0 = neutre.",
+  "en": "+1% price per 30 s of CraftTime (validated default); 0 = neutral."
+ },
+ "market.craft_cap": {
+  "fr": "Plafond",
+  "en": "Cap"
+ },
+ "market.craft_cap.tip": {
+  "fr": "Facteur temps maximal (×2 par défaut : un craft très long ne peut pas doubler le prix au-delà).",
+  "en": "Maximal time factor (×2 by default: a very long craft cannot more than double the price)."
+ },
+ "market.bounds": {
+  "fr": "Bornes",
+  "en": "Bounds"
+ },
+ "market.bound.tip": {
+  "fr": "Fourchette prix/coût jugée saine (RE2 : 10-90 % des objets entre 0.88 et 1.25). Sert au filtre et au bouton « hors bornes ».",
+  "en": "Healthy price/cost range (RE2: 10-90% of objects sit between 0.88 and 1.25). Drives the filter and the out-of-bounds button."
+ },
+ "market.filter_priced": {
+  "fr": "Avec prix (tous statuts)",
+  "en": "Priced (all statuses)"
+ },
+ "market.filter_all": {
+  "fr": "Tout (y compris non vendables)",
+  "en": "Everything (incl. non-tradeable)"
+ },
+ "market.filter_name": {
+  "fr": "Filtrer par nom...",
+  "en": "Filter by name..."
+ },
+ "market.outofbounds_only": {
+  "fr": "Hors bornes seulement",
+  "en": "Out of bounds only"
+ },
+ "market.status.fabriquable": {
+  "fr": "Fabriquable",
+  "en": "Craftable"
+ },
+ "market.status.groupe": {
+  "fr": "Template de groupe",
+  "en": "Group template"
+ },
+ "market.status.cousin": {
+  "fr": "Cousin (tier)",
+  "en": "Cousin (tier)"
+ },
+ "market.status.materiau": {
+  "fr": "Prix/masse matériau",
+  "en": "Material price/mass"
+ },
+ "market.status.ancrage": {
+  "fr": "Ancrage manuel",
+  "en": "Manual anchor"
+ },
+ "market.status.non_vendable": {
+  "fr": "Non vendable",
+  "en": "Not tradeable"
+ },
+ "market.col_name": {
+  "fr": "Nom",
+  "en": "Name"
+ },
+ "market.col_type": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "market.col_status": {
+  "fr": "Statut",
+  "en": "Status"
+ },
+ "market.col_price": {
+  "fr": "Prix actuel",
+  "en": "Current price"
+ },
+ "market.col_cost": {
+  "fr": "Coût",
+  "en": "Cost"
+ },
+ "market.col_ratio": {
+  "fr": "Ratio",
+  "en": "Ratio"
+ },
+ "market.col_target": {
+  "fr": "Cible",
+  "en": "Target"
+ },
+ "market.col_delta": {
+  "fr": "Δ %",
+  "en": "Δ %"
+ },
+ "market.type_block": {
+  "fr": "Bloc",
+  "en": "Block"
+ },
+ "market.type_item": {
+  "fr": "Item",
+  "en": "Item"
+ },
+ "market.check_outofbounds": {
+  "fr": "Cocher hors bornes",
+  "en": "Check out-of-bounds"
+ },
+ "market.check_outofbounds.tip": {
+  "fr": "Coche les FABRIQUABLES dont le ratio prix/coût sort des bornes. Les statuts de repli (template de groupe, cousin, matériau) ne se cochent qu'à la main : certains groupes sont des faux positifs (ex. tourelles NPC vers un template de tourelle cassée).",
+  "en": "Checks CRAFTABLE objects whose price/cost ratio leaves the bounds. Fallback statuses (group template, cousin, material) are checked by hand only: some groups are false positives (e.g. NPC turrets pointing to a broken-turret template)."
+ },
+ "market.uncheck_all": {
+  "fr": "Tout décocher",
+  "en": "Uncheck all"
+ },
+ "market.export": {
+  "fr": "Exporter CSV",
+  "en": "Export CSV"
+ },
+ "market.apply": {
+  "fr": "Appliquer la sélection",
+  "en": "Apply selection"
+ },
+ "market.apply_none": {
+  "fr": "Aucune ligne cochée — cochez les changements à appliquer.",
+  "en": "No row checked — check the changes to apply."
+ },
+ "market.apply_confirm": {
+  "fr": "Appliquer {n} nouveaux prix marché ?\n\nBackup central avant écriture (~/.empyrion_editor/backups/market_price/). Un re-scan suit l'application.",
+  "en": "Apply {n} new market prices?\n\nCentral backup before writing (~/.empyrion_editor/backups/market_price/). A re-scan follows."
+ },
+ "market.applied": {
+  "fr": "{n} prix écrits. Re-scan lancé pour convergence.",
+  "en": "{n} prices written. Re-scan started for convergence."
+ },
+ "market.done": {
+  "fr": "{n} objets — {f} avec prix, {c} fabriquables, {k} changements possibles (rien n'est précoché).",
+  "en": "{n} objects — {f} priced, {c} craftable, {k} possible changes (nothing pre-checked)."
+ },
+ "market.visible": {
+  "fr": "{n} lignes visibles",
+  "en": "{n} rows visible"
+ },
+ "market.checked_oob": {
+  "fr": "{n} fabriquables hors bornes cochés.",
+  "en": "{n} out-of-bounds craftables checked."
+ },
+ "market.csv_headers": {
+  "fr": "Nom;Type;Statut;Prix;Coût;Ratio;Cible;Détail",
+  "en": "Name;Type;Status;Price;Cost;Ratio;Target;Detail"
+ },
+ "market.csv_done": {
+  "fr": "Résultats exportés : {path}",
+  "en": "Results exported: {path}"
+ },
+ "market.check_all": {
+  "fr": "Tout cocher",
+  "en": "Check all"
+ },
+ "market.check_all.tip": {
+  "fr": "Coche toutes les lignes VISIBLES et cochables — combine avec les filtres (statut, nom, hors bornes) pour une sélection en masse ciblée. Rien n'est écrit avant « Appliquer la sélection ».",
+  "en": "Checks every VISIBLE checkable row — combine with the filters (status, name, out-of-bounds) for a targeted bulk selection. Nothing is written before “Apply selection”."
+ },
+ "market.checked_all": {
+  "fr": "{n} lignes cochées.",
+  "en": "{n} rows checked."
+ },
+ "menu.tools.trader_audit": {
+  "fr": "Audit des marchands (économie)...",
+  "en": "Trader audit (economy)..."
+ },
+ "taudit.title": {
+  "fr": "Audit des marchands — équilibre économique",
+  "en": "Trader audit — economic balance"
+ },
+ "taudit.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "taudit.running": {
+  "fr": "Analyse en cours...",
+  "en": "Analyzing..."
+ },
+ "taudit.sell": {
+  "fr": "Vente mf",
+  "en": "Sell mf"
+ },
+ "taudit.buy": {
+  "fr": "Rachat mf",
+  "en": "Buyback mf"
+ },
+ "taudit.fallback": {
+  "fr": "Prix standard",
+  "en": "Standard price"
+ },
+ "taudit.fallback.tip": {
+  "fr": "MarketPrice proposé pour un item vendu en mf= sans MarketPrice et sans aucune référence de prix absolue dans le fichier (ex : jetons de quête).",
+  "en": "MarketPrice proposed for an item sold with mf= but no MarketPrice and no absolute price reference in the file (e.g. quest tokens)."
+ },
+ "taudit.filter_all": {
+  "fr": "Tous les problèmes",
+  "en": "All issues"
+ },
+ "taudit.filter_name": {
+  "fr": "Filtrer par marchand ou item...",
+  "en": "Filter by trader or item..."
+ },
+ "taudit.kind_uniform": {
+  "fr": "Prix non uniforme",
+  "en": "Non-uniform price"
+ },
+ "taudit.kind_no_buy": {
+  "fr": "Vendu sans rachat",
+  "en": "Sold without buyback"
+ },
+ "taudit.kind_zero": {
+  "fr": "Prix à 0",
+  "en": "Zero price"
+ },
+ "taudit.kind_mf_no_price": {
+  "fr": "mf= sans MarketPrice",
+  "en": "mf= without MarketPrice"
+ },
+ "taudit.kind_broken": {
+  "fr": "Ligne illisible",
+  "en": "Unreadable line"
+ },
+ "taudit.col_trader": {
+  "fr": "Marchand",
+  "en": "Trader"
+ },
+ "taudit.col_line": {
+  "fr": "Ligne",
+  "en": "Line"
+ },
+ "taudit.col_item": {
+  "fr": "Item",
+  "en": "Item"
+ },
+ "taudit.col_problem": {
+  "fr": "Problème",
+  "en": "Issue"
+ },
+ "taudit.col_proposal": {
+  "fr": "Proposition",
+  "en": "Proposal"
+ },
+ "taudit.apply": {
+  "fr": "Appliquer la sélection",
+  "en": "Apply selection"
+ },
+ "taudit.apply_confirm": {
+  "fr": "Appliquer {n} corrections aux marchands ?\n\nBackup central avant écriture. Un re-scan suit l'application.",
+  "en": "Apply {n} trader corrections?\n\nCentral backup before writing. A re-scan follows."
+ },
+ "taudit.applied": {
+  "fr": "{n} corrections écrites. Re-scan lancé.",
+  "en": "{n} corrections written. Re-scan started."
+ },
+ "taudit.stats": {
+  "fr": "{traders} marchands, {lines} lignes ({tokens} jetons de dialogue et {cur} monnaies intouchés) — {fixes} corrections proposées (rien n'est précoché) · boucles d'argent détectées : {arb} · disparité max : x{disp} (infobulle : détail)",
+  "en": "{traders} traders, {lines} lines ({tokens} dialogue tokens and {cur} currencies left untouched) — {fixes} proposed fixes (nothing pre-checked) · money loops detected: {arb} · max disparity: x{disp} (tooltip: detail)"
+ },
+ "taudit.csv_headers": {
+  "fr": "Marchand;Ligne;Item;Problème;Détail;Actuel;Proposition",
+  "en": "Trader;Line;Item;Issue;Detail;Current;Proposal"
+ },
+ "menu.tools.correlation": {
+  "fr": "Équilibrage par corrélations...",
+  "en": "Correlation balancing..."
+ },
+ "corr.title": {
+  "fr": "Équilibrage par corrélations (masse, PV, dégâts, bouclier)",
+  "en": "Correlation balancing (mass, HP, damage, shield)"
+ },
+ "corr.property": {
+  "fr": "Propriété",
+  "en": "Property"
+ },
+ "corr.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "corr.spec_mass": {
+  "fr": "Masse (vs matières de la recette)",
+  "en": "Mass (vs recipe materials)"
+ },
+ "corr.spec_hitpoints": {
+  "fr": "Points de structure (par famille de blocs)",
+  "en": "Hit points (per block family)"
+ },
+ "corr.spec_damage": {
+  "fr": "Dégâts (par famille x tier)",
+  "en": "Damage (per family x tier)"
+ },
+ "corr.spec_shield": {
+  "fr": "Capacité bouclier (par classe x tier)",
+  "en": "Shield capacity (per class x tier)"
+ },
+ "corr.filter_outliers": {
+  "fr": "Incohérences proposées",
+  "en": "Proposed outliers"
+ },
+ "corr.filter_all": {
+  "fr": "Tout",
+  "en": "Everything"
+ },
+ "corr.status_ok": {
+  "fr": "Cohérent",
+  "en": "Consistent"
+ },
+ "corr.status_outlier": {
+  "fr": "Incohérent",
+  "en": "Outlier"
+ },
+ "corr.status_whitelist": {
+  "fr": "Design volontaire",
+  "en": "Intentional design"
+ },
+ "corr.status_zero": {
+  "fr": "Valeur nulle",
+  "en": "Zero value"
+ },
+ "corr.status_sans_groupe": {
+  "fr": "Pas de groupe de référence",
+  "en": "No reference group"
+ },
+ "corr.status_sans_valeur": {
+  "fr": "Propriété absente (jamais écrite)",
+  "en": "Property absent (never written)"
+ },
+ "corr.col_group": {
+  "fr": "Groupe",
+  "en": "Group"
+ },
+ "corr.col_value": {
+  "fr": "Valeur actuelle",
+  "en": "Current value"
+ },
+ "corr.col_reference": {
+  "fr": "Référence (médiane groupe)",
+  "en": "Reference (group median)"
+ },
+ "corr.stats": {
+  "fr": "{prop} — {groups} groupes de référence · {ok} cohérents · {out} incohérences proposées (rien n'est précoché) · {wl} designs volontaires intouchés (lest, effets, décor)",
+  "en": "{prop} — {groups} reference groups · {ok} consistent · {out} proposed outliers (nothing pre-checked) · {wl} intentional designs left untouched (ballast, effects, decor)"
+ },
+ "corr.csv_headers": {
+  "fr": "Nom;Type;Groupe;Statut;Détail;Valeur;Référence;Cible",
+  "en": "Name;Type;Group;Status;Detail;Value;Reference;Target"
+ },
+ "corr.col_name": {
+  "fr": "Nom",
+  "en": "Name"
+ },
+ "corr.spec_thrusterforce": {
+  "fr": "Poussée des propulseurs (par famille x tier, densité volumique)",
+  "en": "Thruster force (per family x tier, volume density)"
  }
 }
