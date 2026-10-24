@@ -9731,6 +9731,150 @@
   "fr": "Structure du scénario, moteur yaml/ecf, et boot réel du dédié — tout ce qui peut empêcher le jeu de charger",
   "en": "Scenario structure, yaml/ecf engine, and a real dedicated-server boot — everything that could stop the game from loading"
  },
+ "menu.tools.reintegrate": {
+  "fr": "Réintégrer des playfields non déclarés...",
+  "en": "Reinstate undeclared playfields..."
+ },
+ "menu.tools.reintegrate.tip": {
+  "fr": "Repose les dossiers de Playfields/ que le Sectors.yaml ne déclare nulle part dans un système existant (secteur libre, nom unique) — nouveaux playfields, nouvelle partie nécessaire",
+  "en": "Puts the Playfields/ folders that Sectors.yaml never declares back into an existing system (free sector, unique name) — new playfields, new game required"
+ },
+ "reintegrate.title": {
+  "fr": "Réintégrer des playfields",
+  "en": "Reinstate playfields"
+ },
+ "reintegrate.per_system": {
+  "fr": "Playfields par système :",
+  "en": "Playfields per system:"
+ },
+ "reintegrate.per_system.tip": {
+  "fr": "Les playfields cochés sont répartis par lots de N sur TOUS les systèmes (rotation) ; chaque nouveau secteur est posé sur un anneau espacé de 30.",
+  "en": "Checked playfields are spread in batches of N across ALL systems (rotation); each new sector is placed on a ring spaced by 30."
+ },
+ "reintegrate.col_type": {
+  "fr": "Type (dossier)",
+  "en": "Type (folder)"
+ },
+ "reintegrate.col_category": {
+  "fr": "Catégorie",
+  "en": "Category"
+ },
+ "reintegrate.col_description": {
+  "fr": "Description",
+  "en": "Description"
+ },
+ "reintegrate.group_surface": {
+  "fr": "Surface ({n})",
+  "en": "Surface ({n})"
+ },
+ "reintegrate.group_space": {
+  "fr": "Espace ({n})",
+  "en": "Space ({n})"
+ },
+ "reintegrate.preview": {
+  "fr": "Lignes YAML qui seront ajoutées :",
+  "en": "YAML lines that will be added:"
+ },
+ "reintegrate.preview_btn": {
+  "fr": "Aperçu",
+  "en": "Preview"
+ },
+ "reintegrate.apply": {
+  "fr": "Appliquer",
+  "en": "Apply"
+ },
+ "reintegrate.close": {
+  "fr": "Fermer",
+  "en": "Close"
+ },
+ "reintegrate.kind_planet": {
+  "fr": "planète",
+  "en": "planet"
+ },
+ "reintegrate.kind_moon": {
+  "fr": "lune",
+  "en": "moon"
+ },
+ "reintegrate.kind_gasgiant": {
+  "fr": "géante",
+  "en": "gas giant"
+ },
+ "reintegrate.kind_station": {
+  "fr": "station",
+  "en": "station"
+ },
+ "reintegrate.kind_asteroid": {
+  "fr": "astéroïdes",
+  "en": "asteroids"
+ },
+ "reintegrate.kind_orbit": {
+  "fr": "orbite",
+  "en": "orbit"
+ },
+ "reintegrate.kind_space": {
+  "fr": "espace",
+  "en": "space"
+ },
+ "reintegrate.legacy": {
+  "fr": "Retirer les {n} secteurs de l'ancien format (signature d'étoile)",
+  "en": "Remove the {n} sectors in the old format (star signature)"
+ },
+ "reintegrate.arrivals": {
+  "fr": "Ajouter les {n} orbites d'arrivée manquantes (cible de warp des planètes)",
+  "en": "Add the {n} missing arrival orbits (warp target for planets)"
+ },
+ "reintegrate.skipped": {
+  "fr": "{n} playfield(s) non placés (système sans planète hôte).",
+  "en": "{n} playfield(s) not placed (system without a host planet)."
+ },
+ "reintegrate.none": {
+  "fr": "Rien à réintégrer : tous les dossiers de Playfields/ sont déclarés.",
+  "en": "Nothing to reinstate: every Playfields/ folder is declared."
+ },
+ "reintegrate.none_selected": {
+  "fr": "Coche au moins un playfield.",
+  "en": "Check at least one playfield."
+ },
+ "reintegrate.empty_plan": {
+  "fr": "Placement impossible : Sectors.yaml illisible ou aucun secteur libre trouvé.",
+  "en": "Cannot place: unreadable Sectors.yaml or no free sector."
+ },
+ "reintegrate.plan_ready": {
+  "fr": "Aperçu : {n} playfield(s) à ajouter, {r} secteur(s) à retirer — vérifie puis applique.",
+  "en": "Preview: {n} playfield(s) to add, {r} sector(s) to remove — review, then apply."
+ },
+ "reintegrate.new_game": {
+  "fr": "Ces ajouts ne valent que pour une NOUVELLE partie : le jeu charge la copie du Sectors.yaml faite dans la sauvegarde à sa création.",
+  "en": "These additions only apply to a NEW game: the game loads the copy of Sectors.yaml made inside the save when it was created."
+ },
+ "reintegrate.confirm": {
+  "fr": "Ajouter {n} playfield(s) et retirer {r} secteur(s) ? Backup central et annulation possibles.",
+  "en": "Add {n} playfield(s) and remove {r} sector(s)? Central backup and undo are available."
+ },
+ "reintegrate.done": {
+  "fr": "{n} playfield(s) posé(s), {r} secteur(s) retiré(s).",
+  "en": "{n} playfield(s) placed, {r} sector(s) removed."
+ },
+ "reintegrate.undo": {
+  "fr": "Réintégration de {n} playfield(s)",
+  "en": "Reinstated {n} playfield(s)"
+ },
+ "reintegrate.bilan": {
+  "fr": "Bilan : {e} erreur(s) bloquante(s), {w} avertissement(s).",
+  "en": "Check: {e} blocking error(s), {w} warning(s)."
+ },
+ "reintegrate.bilan_failed": {
+  "fr": "Bilan impossible : {msg}",
+  "en": "Check failed: {msg}"
+ },
+ "reintegrate.no_workspace": {
+  "fr": "Aucune copie de travail ouverte.",
+  "en": "No working copy is open."
+ },
+ "reintegrate.no_sectors": {
+  "fr": "Sectors.yaml introuvable dans la copie de travail.",
+  "en": "Sectors.yaml not found in the working copy."
+ },
  "yamlcheck.title": {
   "fr": "Vérification YAML/ECF — moteur de jeu",
   "en": "YAML/ECF check — game engine"
@@ -9843,6 +9987,10 @@
   "fr": "Prefabs",
   "en": "Prefabs"
  },
+ "launchcheck.check_poi_groups": {
+  "fr": "Groupes POI",
+  "en": "POI groups"
+ },
  "launchcheck.check_engine": {
   "fr": "Moteur",
   "en": "Engine"
@@ -9867,17 +10015,13 @@
   "fr": "Caches",
   "en": "Caches"
  },
- "launchcheck.check_poi_groups": {
-  "fr": "Groupes POI",
-  "en": "POI groups"
- },
  "launchcheck.dedi": {
-  "fr": "Tester le chargement réel (dédié, ~2 min)",
-  "en": "Real load test (dedicated server, ~2 min)"
+  "fr": "Tester le chargement réel (dédié sur copie temporaire, ~3 min)",
+  "en": "Real load test (dedicated on a temporary copy, ~3 min)"
  },
  "launchcheck.dedi.tip": {
-  "fr": "Démarre le serveur dédié sur le scénario INSTALLÉ dans une sauvegarde jetable — le vrai moteur valide tout, puis s'arrête seul",
-  "en": "Boots the dedicated server on the INSTALLED scenario in a throwaway save — the real engine validates everything, then stops"
+  "fr": "Copie la copie de travail dans un dossier jetable de Content/Scenarios, démarre le serveur dédié dessus (sauvegarde jetable), puis supprime la copie — le vrai moteur valide Sectors, playfields, prefabs et ECF de ce que tu édites",
+  "en": "Copies the working copy into a throwaway folder under Content/Scenarios, boots the dedicated server on it (throwaway save), then deletes the copy — the real engine validates the Sectors, playfields, prefabs and ECF you are editing"
  },
  "launchcheck.dedi.phase": {
   "fr": "Dédé en cours : {s}",
@@ -10294,5 +10438,1097 @@
  "corr.spec_thrusterforce": {
   "fr": "Poussée des propulseurs (par famille x tier, densité volumique)",
   "en": "Thruster force (per family x tier, volume density)"
+ },
+ "menu.options.engine_ai": {
+  "fr": "IA (fournisseurs)",
+  "en": "AI (providers)"
+ },
+ "menu.options.engine_ai.tip_ok": {
+  "fr": "Fournisseurs et modèles configurés dans Options > Traduction > Fournisseurs IA.",
+  "en": "Providers and models configured in Options > Translation > AI providers."
+ },
+ "menu.options.engine_ai.tip_none": {
+  "fr": "Aucun fournisseur IA configuré (Options > Traduction > Fournisseurs IA).",
+  "en": "No AI provider configured (Options > Translation > AI providers)."
+ },
+ "menu.options.ai_providers": {
+  "fr": "Fournisseurs IA...",
+  "en": "AI providers..."
+ },
+ "argos.engine_name_ai": {
+  "fr": "IA (fournisseurs)",
+  "en": "AI (providers)"
+ },
+ "menu.tools.assistant": {
+  "fr": "&Assistant IA...",
+  "en": "&AI assistant..."
+ },
+ "menu.tools.assistant_palette": {
+  "fr": "Palette de l'assistant",
+  "en": "Assistant palette"
+ },
+ "assistant.palette_title": {
+  "fr": "Assistant — que veux-tu faire ?",
+  "en": "Assistant — what do you want to do?"
+ },
+ "assistant.palette_placeholder": {
+  "fr": "Tape une question puis Entrée",
+  "en": "Type a question then Enter"
+ },
+ "assistant.palette_ask": {
+  "fr": "Poser la question à l'assistant",
+  "en": "Ask the assistant this question"
+ },
+ "assistant.review_title": {
+  "fr": "Proposition de l'assistant",
+  "en": "Assistant proposal"
+ },
+ "assistant.review_target": {
+  "fr": "Cible",
+  "en": "Target"
+ },
+ "assistant.review_before": {
+  "fr": "Avant",
+  "en": "Before"
+ },
+ "assistant.review_after": {
+  "fr": "Après (modifiable)",
+  "en": "After (editable)"
+ },
+ "assistant.review_reason": {
+  "fr": "Raison",
+  "en": "Reason"
+ },
+ "assistant.review_apply": {
+  "fr": "Appliquer la sélection",
+  "en": "Apply selected"
+ },
+ "assistant.review_nothing": {
+  "fr": "Aucune ligne cochée.",
+  "en": "No row selected."
+ },
+ "assistant.review_applied": {
+  "fr": "{count} modification(s) appliquée(s).",
+  "en": "{count} change(s) applied."
+ },
+ "assistant.review_refused": {
+  "fr": "Refusé : {reason}",
+  "en": "Refused: {reason}"
+ },
+ "assistant.review_dropped": {
+  "fr": "{count} ligne(s) retirée(s) : cet onglet ne peut pas les appliquer.",
+  "en": "{count} row(s) removed: this tab cannot apply them."
+ },
+ "assistant.cs_empty": {
+  "fr": "L'assistant n'a proposé aucune modification.",
+  "en": "The assistant proposed no change."
+ },
+ "assistant.cs_too_long": {
+  "fr": "Trop de modifications d'un coup (200 maximum).",
+  "en": "Too many changes at once (200 maximum)."
+ },
+ "assistant.cs_absent": {
+  "fr": "L'assistant n'a pas renvoyé de modification.",
+  "en": "The assistant returned no change."
+ },
+ "assistant.cs_unknown_kind": {
+  "fr": "Type de modification inconnu.",
+  "en": "Unknown change kind."
+ },
+ "assistant.cs_empty_target": {
+  "fr": "Cible vide.",
+  "en": "Empty target."
+ },
+ "assistant.cs_no_effect": {
+  "fr": "La modification ne change rien.",
+  "en": "The change does nothing."
+ },
+ "assistant.cs_no_tools": {
+  "fr": "Cette action demande des outils, mais l'onglet actif n'en expose aucun.",
+  "en": "This action needs tools, but the active tab exposes none."
+ },
+ "assistant.cs_no_question": {
+  "fr": "Aucune question à envoyer.",
+  "en": "No question to send."
+ },
+ "assistant.cs_tool_loop": {
+  "fr": "L'assistant a enchaîné trop d'appels d'outils ; réponse interrompue.",
+  "en": "The assistant chained too many tool calls; answer stopped."
+ },
+ "assistant.ecf_block_not_found": {
+  "fr": "Bloc introuvable dans le fichier.",
+  "en": "Block not found in the file."
+ },
+ "assistant.ecf_block_ambiguous": {
+  "fr": "Plusieurs blocs portent cette identité.",
+  "en": "Several blocks share this identity."
+ },
+ "assistant.ecf_target_invalid": {
+  "fr": "Cible illisible (attendu « [Id] / Propriété »).",
+  "en": "Unreadable target (expected \"[Id] / Property\")."
+ },
+ "assistant.ecf_key_missing": {
+  "fr": "Propriété absente du bloc.",
+  "en": "Property missing from the block."
+ },
+ "assistant.ecf_key_ambiguous": {
+  "fr": "Plusieurs propriétés de ce nom dans le bloc.",
+  "en": "Several properties with this name in the block."
+ },
+ "assistant.ecf_value_changed": {
+  "fr": "La valeur actuelle a changé depuis la proposition.",
+  "en": "The current value changed since the proposal."
+ },
+ "assistant.ecf_block_invalid": {
+  "fr": "Bloc proposé illisible.",
+  "en": "Proposed block cannot be parsed."
+ },
+ "assistant.ecf_identity_missing": {
+  "fr": "Nouveau bloc sans Id ni Name.",
+  "en": "New block without Id or Name."
+ },
+ "assistant.ecf_duplicate_identity": {
+  "fr": "Id ou Name déjà utilisé par un autre bloc.",
+  "en": "Id or Name already used by another block."
+ },
+ "assistant.ecf_kind_unsupported": {
+  "fr": "Type de modification non géré par cet onglet.",
+  "en": "Change kind not handled by this tab."
+ },
+ "assistant.ecf_nothing_written": {
+  "fr": "Rien n'a pu être écrit.",
+  "en": "Nothing could be written."
+ },
+ "assistant.csv_row_out": {
+  "fr": "Numéro de ligne hors du fichier.",
+  "en": "Line number outside the file."
+ },
+ "assistant.csv_column_unknown": {
+  "fr": "Colonne inconnue.",
+  "en": "Unknown column."
+ },
+ "assistant.csv_value_changed": {
+  "fr": "La cellule a changé depuis la proposition.",
+  "en": "The cell changed since the proposal."
+ },
+ "assistant.csv_kind_unsupported": {
+  "fr": "Type de modification non géré par cet onglet.",
+  "en": "Change kind not handled by this tab."
+ },
+ "assistant.csv_target_invalid": {
+  "fr": "Cible illisible (attendu « [ligne] / Colonne »).",
+  "en": "Unreadable target (expected \"[line] / Column\")."
+ },
+ "assistant.csv_nothing_written": {
+  "fr": "Rien n'a pu être écrit.",
+  "en": "Nothing could be written."
+ },
+ "assistant.unsupported": {
+  "fr": "Cet onglet n'applique aucune modification.",
+  "en": "This tab applies no change."
+ },
+ "assistant.yaml_target_invalid": {
+  "fr": "Cible illisible (attendu « Cle.SousCle », sans item de séquence).",
+  "en": "Unreadable target (expected \"Key.SubKey\", no sequence item)."
+ },
+ "assistant.yaml_key_not_found": {
+  "fr": "Clé introuvable dans ce fichier YAML.",
+  "en": "Key not found in this YAML file."
+ },
+ "assistant.yaml_value_changed": {
+  "fr": "La valeur actuelle a changé depuis la proposition.",
+  "en": "The current value changed since the proposal."
+ },
+ "assistant.yaml_kind_unsupported": {
+  "fr": "Type de modification non géré par cet onglet.",
+  "en": "Change kind not handled by this tab."
+ },
+ "assistant.yaml_nothing_written": {
+  "fr": "Rien n'a pu être écrit.",
+  "en": "Nothing could be written."
+ },
+ "assistant.explain_issue_btn": {
+  "fr": "Expliquer avec l'IA",
+  "en": "Explain with AI"
+ },
+ "assistant.explain_issue_none": {
+  "fr": "Sélectionne d'abord une erreur dans la liste.",
+  "en": "Select an error in the list first."
+ },
+ "assistant.explain_issue": {
+  "fr": "Explique cette erreur de validation et propose un correctif concret : fichier {file}, bloc {block}, code {code} — {message}. Vérifie la valeur réelle avec les outils avant de proposer.",
+  "en": "Explain this validation error and propose a concrete fix: file {file}, block {block}, code {code} — {message}. Check the actual value with the tools before proposing."
+ },
+ "assistant.pda_section": {
+  "fr": "Générer depuis un brief",
+  "en": "Generate from a brief"
+ },
+ "assistant.pda_brief_placeholder": {
+  "fr": "Décris la mission (objectif, cible, récompenses...)",
+  "en": "Describe the mission (objective, target, rewards...)"
+ },
+ "assistant.pda_generate": {
+  "fr": "Générer avec l'IA",
+  "en": "Generate with AI"
+ },
+ "assistant.pda_brief_missing": {
+  "fr": "Écris d'abord un brief.",
+  "en": "Write a brief first."
+ },
+ "assistant.pda_filled": {
+  "fr": "{count} champ(s) rempli(s) — vérifie puis crée la mission.",
+  "en": "{count} field(s) filled — review then create the mission."
+ },
+ "assistant.pda_no_proposal": {
+  "fr": "L'assistant n'a renvoyé aucun champ exploitable.",
+  "en": "The assistant returned no usable field."
+ },
+ "assistant.pda_question": {
+  "fr": "Génère une mission PDA à partir de ce brief : {brief}\nCatégorie actuelle : {category}. Renseigne au minimum le palier 1 (titres EN/FR, descriptions EN/FR, type d'objectif, cibles et quantité), et un palier supplémentaire seulement si le brief le justifie.",
+  "en": "Generate a PDA mission from this brief: {brief}\nCurrent category: {category}. Fill at least tier 1 (EN/FR titles, EN/FR descriptions, objective type, targets and amount), and an extra tier only if the brief calls for it."
+ },
+ "assistant.pda_field_unknown": {
+  "fr": "L'assistant a proposé un champ inconnu du formulaire.",
+  "en": "The assistant proposed a field unknown to the form."
+ },
+ "assistant.pda_kind_unsupported": {
+  "fr": "Type de modification inattendu pour ce formulaire.",
+  "en": "Unexpected change kind for this form."
+ },
+ "assistant.title": {
+  "fr": "Assistant IA",
+  "en": "AI assistant"
+ },
+ "assistant.join_tab": {
+  "fr": "Joindre l'onglet actif",
+  "en": "Attach the active tab"
+ },
+ "assistant.context_none": {
+  "fr": "Aucun contexte joint",
+  "en": "No context attached"
+ },
+ "assistant.context_summary": {
+  "fr": "Contexte : {tab} — {chars} caractères",
+  "en": "Context: {tab} — {chars} characters"
+ },
+ "assistant.context_truncated": {
+  "fr": "tronqué",
+  "en": "truncated"
+ },
+ "assistant.context_redacted": {
+  "fr": "{count} secret(s) masqué(s)",
+  "en": "{count} secret(s) masked"
+ },
+ "assistant.you": {
+  "fr": "Toi",
+  "en": "You"
+ },
+ "assistant.model": {
+  "fr": "Assistant",
+  "en": "Assistant"
+ },
+ "assistant.send": {
+  "fr": "Envoyer (Ctrl+Entrée)",
+  "en": "Send (Ctrl+Enter)"
+ },
+ "assistant.stop": {
+  "fr": "Arrêter",
+  "en": "Stop"
+ },
+ "assistant.clear": {
+  "fr": "Effacer",
+  "en": "Clear"
+ },
+ "assistant.clear_done": {
+  "fr": "Conversation effacée.",
+  "en": "Conversation cleared."
+ },
+ "assistant.thinking": {
+  "fr": "L'assistant réfléchit…",
+  "en": "The assistant is thinking…"
+ },
+ "assistant.link_label": {
+  "fr": "Modèle : {link}",
+  "en": "Model: {link}"
+ },
+ "assistant.cost_label": {
+  "fr": "Ce mois : {spent} $ / {cap} $",
+  "en": "This month: ${spent} / ${cap}"
+ },
+ "assistant.no_provider": {
+  "fr": "Aucun fournisseur IA configuré. Ouvre Options > Traduction > Fournisseurs IA.",
+  "en": "No AI provider configured. Open Options > Translation > AI providers."
+ },
+ "assistant.error": {
+  "fr": "Échec : {message}",
+  "en": "Failed: {message}"
+ },
+ "assistant.refuse_unsaved": {
+  "fr": "Enregistre d'abord l'onglet avant toute proposition de modification.",
+  "en": "Save the tab first before any proposed change."
+ },
+ "ai.title": {
+  "fr": "Fournisseurs IA",
+  "en": "AI providers"
+ },
+ "ai.intro": {
+  "fr": "OpenRouter (modèles gratuits et payants), DeepSeek direct, Groq, Mistral ou tout endpoint OpenAI-compatible. Les maillons gratuits sont essayés dans l'ordre, puis les payants si le budget l'autorise ; la clé reste stockée en local.",
+  "en": "OpenRouter (free and paid models), direct DeepSeek, Groq, Mistral or any OpenAI-compatible endpoint. Free links are tried in order, then paid ones if the budget allows; the key stays local."
+ },
+ "ai.provider_label": {
+  "fr": "Fournisseur",
+  "en": "Provider"
+ },
+ "ai.add": {
+  "fr": "Ajouter",
+  "en": "Add"
+ },
+ "ai.remove": {
+  "fr": "Supprimer",
+  "en": "Remove"
+ },
+ "ai.up": {
+  "fr": "Monter",
+  "en": "Move up"
+ },
+ "ai.down": {
+  "fr": "Descendre",
+  "en": "Move down"
+ },
+ "ai.field_label": {
+  "fr": "Nom",
+  "en": "Name"
+ },
+ "ai.field_url": {
+  "fr": "URL de base",
+  "en": "Base URL"
+ },
+ "ai.field_key": {
+  "fr": "Clé API",
+  "en": "API key"
+ },
+ "ai.field_kind": {
+  "fr": "Type",
+  "en": "Type"
+ },
+ "ai.kind_free": {
+  "fr": "Gratuit",
+  "en": "Free"
+ },
+ "ai.kind_paid": {
+  "fr": "Payant",
+  "en": "Paid"
+ },
+ "ai.kind_mixed": {
+  "fr": "Mixte (gratuit + payant)",
+  "en": "Mixed (free + paid)"
+ },
+ "ai.field_cap": {
+  "fr": "Plafond du fournisseur",
+  "en": "Provider cap"
+ },
+ "ai.field_cap_tip": {
+  "fr": "0 = plafond mensuel global. Un plafond est obligatoire pour autoriser les maillons payants.",
+  "en": "0 = global monthly cap. A cap is required to allow paid links."
+ },
+ "ai.verify": {
+  "fr": "Vérifier",
+  "en": "Verify"
+ },
+ "ai.verifying": {
+  "fr": "Interrogation du fournisseur...",
+  "en": "Querying the provider..."
+ },
+ "ai.verify_ok": {
+  "fr": "Clé acceptée : {count} modèles disponibles.",
+  "en": "Key accepted: {count} models available."
+ },
+ "ai.verify_fail": {
+  "fr": "Échec de la vérification : {error}",
+  "en": "Verification failed: {error}"
+ },
+ "ai.models_label": {
+  "fr": "Modèles et ordre des maillons",
+  "en": "Models and link order"
+ },
+ "ai.model_placeholder": {
+  "fr": "Identifiant du modèle (ex: deepseek-chat)",
+  "en": "Model id (e.g. deepseek-chat)"
+ },
+ "ai.add_model": {
+  "fr": "Ajouter le modèle",
+  "en": "Add model"
+ },
+ "ai.refresh": {
+  "fr": "Rafraîchir",
+  "en": "Refresh"
+ },
+ "ai.price_in": {
+  "fr": "Prix entrée",
+  "en": "Input price"
+ },
+ "ai.price_out": {
+  "fr": "Prix sortie",
+  "en": "Output price"
+ },
+ "ai.price_tip": {
+  "fr": "Les maillons payants sans tarif sont ignorés.",
+  "en": "Paid links without a price are ignored."
+ },
+ "ai.budget_label": {
+  "fr": "Budget et consigne",
+  "en": "Budget and directive"
+ },
+ "ai.paid_enabled": {
+  "fr": "Autoriser les modèles payants",
+  "en": "Allow paid models"
+ },
+ "ai.paid_cap": {
+  "fr": "Plafond mensuel global",
+  "en": "Global monthly cap"
+ },
+ "ai.paid_spend": {
+  "fr": "Dépensé {spent} $ sur {cap} $ ({month})",
+  "en": "Spent ${spent} of ${cap} ({month})"
+ },
+ "ai.account": {
+  "fr": "Vérifier le compte",
+  "en": "Check account"
+ },
+ "ai.account_fail": {
+  "fr": "Impossible de lire le compte : {error}",
+  "en": "Cannot read account: {error}"
+ },
+ "ai.account_none": {
+  "fr": "Ce fournisseur n'expose pas de solde.",
+  "en": "This provider exposes no balance."
+ },
+ "ai.style_label": {
+  "fr": "Consigne de style (ton, registre, terminologie)",
+  "en": "Style directive (tone, register, terminology)"
+ },
+ "ai.style_placeholder": {
+  "fr": "Ex: tutoiement, ton militaire concis, noms propres conservés.",
+  "en": "E.g. informal address, concise military tone, keep proper nouns."
+ },
+ "ai.batch": {
+  "fr": "Traduire plusieurs cellules par requête (mode lots)",
+  "en": "Translate several cells per request (batch mode)"
+ },
+ "ai.use_as_engine": {
+  "fr": "Utiliser les fournisseurs IA comme moteur de traduction",
+  "en": "Use AI providers as the translation engine"
+ },
+ "ai.test": {
+  "fr": "Tester la traduction",
+  "en": "Test translation"
+ },
+ "ai.testing": {
+  "fr": "Test en cours...",
+  "en": "Testing..."
+ },
+ "ai.test_ok": {
+  "fr": "Test réussi : {result}",
+  "en": "Test passed: {result}"
+ },
+ "ai.test_fail": {
+  "fr": "Test échoué : {error}",
+  "en": "Test failed: {error}"
+ },
+ "glossary.too_many": {
+  "fr": "Glossaire non appliqué : {count} entrées dépassent la limite de {max}. Il est devenu une mémoire de traduction ; les mots ordinaires ('no', 'welcome', 'maintenance'...) polluaient les phrases. Désactive ou supprime les entrées inutiles, puis relance la traduction.",
+  "en": "Glossary not applied: {count} entries exceed the {max} limit. It has become a translation memory; ordinary words ('no', 'welcome', 'maintenance'...) were polluting sentences. Disable or delete the useless entries, then run the translation again."
+ },
+ "menu.options.glossary_repair": {
+  "fr": "Réparer le glossaire...",
+  "en": "Repair glossary..."
+ },
+ "glossary_repair.title": {
+  "fr": "Réparation du glossaire",
+  "en": "Glossary repair"
+ },
+ "glossary_repair.intro": {
+  "fr": "Analyse locale, sans IA : trie la terminologie et les phrases ordinaires, reprend la localisation officielle du jeu quand elle existe. Les phrases sont proposées à la désactivation ; les termes restent dans le glossaire. Rien n'est appliqué avant ta sélection, et une sauvegarde horodatée est créée avant écriture.",
+  "en": "Local analysis, no AI: sorts terminology from ordinary phrases, uses the official game localization when available. Phrases are proposed for disabling; terms stay in the glossary. Nothing is applied before your selection, and a timestamped backup is created before writing."
+ },
+ "glossary_repair.analyze": {
+  "fr": "Analyser (local)",
+  "en": "Analyze (local)"
+ },
+ "glossary_repair.relaunch": {
+  "fr": "Relancer l'analyse",
+  "en": "Run analysis again"
+ },
+ "glossary_repair.analyzing": {
+  "fr": "Analyse locale du glossaire...",
+  "en": "Local glossary analysis..."
+ },
+ "glossary_repair.progress": {
+  "fr": "{done} / {total} entrées analysées",
+  "en": "{done} / {total} entries analyzed"
+ },
+ "glossary_repair.stopping": {
+  "fr": "Arrêt demandé, sauvegarde de la progression...",
+  "en": "Stop requested, saving progress..."
+ },
+ "glossary_repair.stopped": {
+  "fr": "Analyse interrompue. Relance pour reprendre où elle s'est arrêtée.",
+  "en": "Analysis interrupted. Run again to resume."
+ },
+ "glossary_repair.stop": {
+  "fr": "Arrêter",
+  "en": "Stop"
+ },
+ "glossary_repair.check_all": {
+  "fr": "Tout cocher (visibles)",
+  "en": "Check all (visible)"
+ },
+ "glossary_repair.uncheck_all": {
+  "fr": "Tout décocher",
+  "en": "Uncheck all"
+ },
+ "glossary_repair.search": {
+  "fr": "Rechercher dans les propositions...",
+  "en": "Search proposals..."
+ },
+ "glossary_repair.filter_all": {
+  "fr": "Tout",
+  "en": "All"
+ },
+ "glossary_repair.filter_translate": {
+  "fr": "Traductions",
+  "en": "Translations"
+ },
+ "glossary_repair.filter_disable": {
+  "fr": "Désactivations",
+  "en": "Disablements"
+ },
+ "glossary_repair.filter_remove": {
+  "fr": "Doublons",
+  "en": "Duplicates"
+ },
+ "glossary_repair.visible": {
+  "fr": "{visible} / {total} propositions affichées",
+  "en": "{visible} / {total} proposals shown"
+ },
+ "glossary_repair.stats": {
+  "fr": "{count} propositions — {translate} traductions, {disable} désactivations, {remove} doublons — coût {cost} $",
+  "en": "{count} proposals — {translate} translations, {disable} disables, {remove} duplicates — cost ${cost}"
+ },
+ "glossary_repair.empty": {
+  "fr": "Aucune proposition en cache. Lance l'analyse.",
+  "en": "No cached proposal. Run the analysis."
+ },
+ "glossary_repair.nothing_checked": {
+  "fr": "Coche au moins une ligne avant d'appliquer.",
+  "en": "Check at least one row before applying."
+ },
+ "glossary_repair.confirm_analyze": {
+  "fr": "Lancer l'analyse IA ?\nModèle : {model}\nCoût estimé : ~{cost} $ (plafond IA).",
+  "en": "Run the AI analysis?\nModel: {model}\nEstimated cost: ~${cost} (AI cap)."
+ },
+ "glossary_repair.confirm_apply": {
+  "fr": "Appliquer {count} correction(s) ?\nUne sauvegarde horodatée du glossaire est créée avant écriture.",
+  "en": "Apply {count} correction(s)?\nA timestamped glossary backup is created before writing."
+ },
+ "glossary_repair.applied": {
+  "fr": "{updated} traduction(s), {disabled} désactivation(s), {removed} doublon(s) supprimé(s), {skipped} ignoré(s).\nSauvegarde : {backup}",
+  "en": "{updated} translation(s), {disabled} disable(s), {removed} duplicate(s) removed, {skipped} skipped.\nBackup: {backup}"
+ },
+ "glossary_repair.export": {
+  "fr": "Exporter CSV",
+  "en": "Export CSV"
+ },
+ "glossary_repair.exported": {
+  "fr": "{count} propositions exportées vers {path}",
+  "en": "{count} proposals exported to {path}"
+ },
+ "glossary_repair.error": {
+  "fr": "Échec de l'analyse : {error}",
+  "en": "Analysis failed: {error}"
+ },
+ "glossary_repair.col_action": {
+  "fr": "Action",
+  "en": "Action"
+ },
+ "glossary_repair.col_kind": {
+  "fr": "Type",
+  "en": "Kind"
+ },
+ "glossary_repair.col_src": {
+  "fr": "Source",
+  "en": "Source"
+ },
+ "glossary_repair.col_old": {
+  "fr": "Ancienne",
+  "en": "Old"
+ },
+ "glossary_repair.col_new": {
+  "fr": "Nouvelle",
+  "en": "New"
+ },
+ "glossary_repair.col_reason": {
+  "fr": "Raison",
+  "en": "Reason"
+ },
+ "glossary_repair.action_translate": {
+  "fr": "Traduire",
+  "en": "Translate"
+ },
+ "glossary_repair.action_disable": {
+  "fr": "Désactiver",
+  "en": "Disable"
+ },
+ "glossary_repair.action_remove": {
+  "fr": "Supprimer (doublon)",
+  "en": "Remove (duplicate)"
+ },
+ "glossary_repair.kind_term": {
+  "fr": "Terme",
+  "en": "Term"
+ },
+ "glossary_repair.kind_phrase": {
+  "fr": "Phrase",
+  "en": "Phrase"
+ },
+ "glossary_repair.reason_official": {
+  "fr": "Officiel",
+  "en": "Official"
+ },
+ "glossary_repair.reason_wrong": {
+  "fr": "Corrigé",
+  "en": "Corrected"
+ },
+ "glossary_repair.reason_ordinary": {
+  "fr": "Ordinaire",
+  "en": "Ordinary"
+ },
+ "glossary_repair.reason_proper": {
+  "fr": "Nom propre",
+  "en": "Proper noun"
+ },
+ "glossary_repair.reason_technical": {
+  "fr": "Technique",
+  "en": "Technical"
+ },
+ "glossary_repair.reason_duplicate": {
+  "fr": "Doublon",
+  "en": "Duplicate"
+ },
+ "glossary_repair.reason_target": {
+  "fr": "Langue corrigée",
+  "en": "Target fixed"
+ },
+ "glossary_repair.reason_src_dst": {
+  "fr": "Non traduit",
+  "en": "Untranslated"
+ },
+ "glossary_repair.reason_empty": {
+  "fr": "Vide",
+  "en": "Empty"
+ },
+ "glossary_repair.reason_correct": {
+  "fr": "Correct",
+  "en": "Correct"
+ },
+ "glossary_repair.reason_ai_error": {
+  "fr": "Erreur IA",
+  "en": "AI error"
+ },
+ "glossary_repair.apply": {
+  "fr": "Appliquer la sélection",
+  "en": "Apply selection"
+ },
+ "glossary_repair.reason_manual": {
+  "fr": "Correction manuelle",
+  "en": "Manual fix"
+ },
+ "assistant.import_invalid": {
+  "fr": "Cible d'import illisible (attendu « a:chemin » ou « b:chemin#bloc »).",
+  "en": "Unreadable import target (expected 'a:path' or 'b:path#block')."
+ },
+ "assistant.import_missing": {
+  "fr": "Fichier source introuvable dans le scénario choisi.",
+  "en": "Source file not found in the chosen scenario."
+ },
+ "assistant.import_failed": {
+  "fr": "Import impossible : bloc introuvable, fichier illisible ou fusion refusée.",
+  "en": "Import failed: block not found, unreadable file or refused merge."
+ },
+ "assistant.import_unavailable": {
+  "fr": "Aucun espace de travail ouvert : l'import de A/B est indisponible.",
+  "en": "No workspace open: importing from A/B is unavailable."
+ },
+ "assistant.import_undo_file": {
+  "fr": "Import assistant : {name}",
+  "en": "Assistant import: {name}"
+ },
+ "assistant.import_undo_folder": {
+  "fr": "Import assistant du dossier {name}",
+  "en": "Assistant import of folder {name}"
+ },
+ "assistant.import_undo_group": {
+  "fr": "Import assistant ({n} cible(s))",
+  "en": "Assistant import ({n} target(s))"
+ },
+ "assistant.import_done": {
+  "fr": "{n} cible(s) importée(s) depuis le scénario source.",
+  "en": "{n} target(s) imported from the source scenario."
+ },
+ "assistant.import_unsaved": {
+  "fr": "Un onglet de la copie de travail a des modifications non enregistrées : enregistre-le avant l'import.",
+  "en": "A working-copy tab has unsaved changes: save it before importing."
+ },
+ "assistant.report_export": {
+  "fr": "Exporter les dépendances non importables (CSV)",
+  "en": "Export non-importable dependencies (CSV)"
+ },
+ "assistant.report_export_tip": {
+  "fr": "CSV : type, référence, origine, raison",
+  "en": "CSV: type, reference, origin, reason"
+ },
+ "assistant.report_export_title": {
+  "fr": "Export des dépendances non importables",
+  "en": "Non-importable dependencies export"
+ },
+ "assistant.report_export_done": {
+  "fr": "{count} ligne(s) exportée(s) vers {path}",
+  "en": "{count} row(s) exported to {path}"
+ },
+ "assistant.report_export_error": {
+  "fr": "Export impossible : {message}",
+  "en": "Export failed: {message}"
+ },
+ "assistant.import_report_saved": {
+  "fr": "{n} dépendance(s) non importable(s) listée(s) dans {path}.",
+  "en": "{n} non-importable dependency(ies) listed in {path}."
+ },
+ "assistant.import_techtree_parents": {
+  "fr": "Arbre technologique non importé — parents à raccorder : {names}.",
+  "en": "Tech tree not imported — parents to hook up: {names}."
+ },
+ "assistant.import_techtree_tabs": {
+  "fr": "Onglets d'arbre technologique à créer ou vérifier : {names}.",
+  "en": "Tech tree tabs to create or check: {names}."
+ },
+ "assistant.import_techtree_hint": {
+  "fr": "Ajoute ou modifie le TechTree dans la copie de travail pour finaliser proprement l'import.",
+  "en": "Add or update the TechTree in the working copy to finish the import cleanly."
+ },
+ "csv.tooltip_key_column": {
+  "fr": "Identifiant technique unique (jeton) référencé ailleurs dans le scénario — ne pas traduire, ne pas modifier.",
+  "en": "Unique technical identifier (token) referenced elsewhere in the scenario — do not translate or change."
+ },
+ "csv.tooltip_language_column": {
+  "fr": "Texte affiché aux joueurs dont le jeu est en {language}.",
+  "en": "Text shown to players whose game language is {language}."
+ },
+ "ecf.tooltip_file_comment": {
+  "fr": "Commentaire du fichier (texte source) : {text}",
+  "en": "File comment (source text): {text}"
+ },
+ "yaml.tooltip_file_comment": {
+  "fr": "Commentaire du fichier (texte source) : {text}",
+  "en": "File comment (source text): {text}"
+ },
+ "lang.english": {
+  "fr": "anglais",
+  "en": "English"
+ },
+ "lang.german": {
+  "fr": "allemand",
+  "en": "German"
+ },
+ "lang.french": {
+  "fr": "français",
+  "en": "French"
+ },
+ "lang.spanish": {
+  "fr": "espagnol",
+  "en": "Spanish"
+ },
+ "lang.italian": {
+  "fr": "italien",
+  "en": "Italian"
+ },
+ "lang.polish": {
+  "fr": "polonais",
+  "en": "Polish"
+ },
+ "lang.russian": {
+  "fr": "russe",
+  "en": "Russian"
+ },
+ "lang.portuguese": {
+  "fr": "portugais",
+  "en": "Portuguese"
+ },
+ "lang.chinese": {
+  "fr": "chinois",
+  "en": "Chinese"
+ },
+ "lang.japanese": {
+  "fr": "japonais",
+  "en": "Japanese"
+ },
+ "menu.tools.recipe_balance": {
+  "fr": "Recettes cohérentes",
+  "en": "Coherent recipes"
+ },
+ "recipe.title": {
+  "fr": "Recettes de craft cohérentes",
+  "en": "Coherent craft recipes"
+ },
+ "recipe.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "recipe.running": {
+  "fr": "Analyse des recettes...",
+  "en": "Analyzing recipes..."
+ },
+ "recipe.done": {
+  "fr": "{n} templates, {c} changements, {f} familles",
+  "en": "{n} templates, {c} changes, {f} families"
+ },
+ "recipe.only_changed": {
+  "fr": "Changements seulement",
+  "en": "Changes only"
+ },
+ "recipe.filter_family": {
+  "fr": "Famille",
+  "en": "Family"
+ },
+ "recipe.family_all": {
+  "fr": "Toutes les familles",
+  "en": "All families"
+ },
+ "recipe.col_template": {
+  "fr": "Template",
+  "en": "Template"
+ },
+ "recipe.col_family": {
+  "fr": "Famille",
+  "en": "Family"
+ },
+ "recipe.col_power": {
+  "fr": "Puissance",
+  "en": "Power"
+ },
+ "recipe.col_level": {
+  "fr": "Niveau",
+  "en": "Level"
+ },
+ "recipe.col_old_cost": {
+  "fr": "Coût actuel",
+  "en": "Current cost"
+ },
+ "recipe.col_target": {
+  "fr": "Cible",
+  "en": "Target"
+ },
+ "recipe.col_new_cost": {
+  "fr": "Coût après",
+  "en": "New cost"
+ },
+ "recipe.col_inputs": {
+  "fr": "Ingrédients avant -> après",
+  "en": "Ingredients before -> after"
+ },
+ "recipe.col_craft": {
+  "fr": "CraftTime",
+  "en": "CraftTime"
+ },
+ "recipe.col_source": {
+  "fr": "Source",
+  "en": "Source"
+ },
+ "recipe.source_vanilla": {
+  "fr": "vanille",
+  "en": "vanilla"
+ },
+ "recipe.source_scenario": {
+  "fr": "scénario",
+  "en": "scenario"
+ },
+ "recipe.visible": {
+  "fr": "{n} lignes visibles",
+  "en": "{n} visible rows"
+ },
+ "recipe.apply_confirm": {
+  "fr": "Appliquer {n} recettes ? Sauvegarde centrale puis écriture des Templates.",
+  "en": "Apply {n} recipes? Central backup, then write Templates."
+ },
+ "recipe.applied": {
+  "fr": "{n} recettes réécrites.",
+  "en": "{n} recipes rewritten."
+ },
+ "recipe.apply_none": {
+  "fr": "Aucune recette cochée.",
+  "en": "No recipe checked."
+ },
+ "recipe.csv_headers": {
+  "fr": "Template;Type;Famille;Puissance;Niveau;Coût actuel;Cible;Coût après;Ingrédients avant;Ingrédients après;CraftTime avant;CraftTime après;Source;Détail",
+  "en": "Template;Kind;Family;Power;Level;Current cost;Target;New cost;Ingredients before;Ingredients after;CraftTime before;CraftTime after;Source;Detail"
+ },
+ "menu.tools.unlock_cost": {
+  "fr": "Coûts de déblocage",
+  "en": "Unlock costs"
+ },
+ "unlock.title": {
+  "fr": "Coûts de déblocage",
+  "en": "Unlock costs"
+ },
+ "unlock.analyze": {
+  "fr": "Analyser",
+  "en": "Analyze"
+ },
+ "unlock.running": {
+  "fr": "Analyse des coûts de déblocage...",
+  "en": "Analyzing unlock costs..."
+ },
+ "unlock.done": {
+  "fr": "{n} entrées, {c} changements, {f} familles",
+  "en": "{n} entries, {c} changes, {f} families"
+ },
+ "unlock.col_name": {
+  "fr": "Objet",
+  "en": "Object"
+ },
+ "unlock.col_status": {
+  "fr": "Détail",
+  "en": "Detail"
+ },
+ "unlock.apply_confirm": {
+  "fr": "Appliquer {n} coûts de déblocage ? Sauvegarde centrale puis écriture de BlocksConfig/ItemsConfig.",
+  "en": "Apply {n} unlock costs? Central backup, then write BlocksConfig/ItemsConfig."
+ },
+ "unlock.applied": {
+  "fr": "{n} coûts réécrits.",
+  "en": "{n} costs rewritten."
+ },
+ "unlock.apply_none": {
+  "fr": "Aucun coût coché.",
+  "en": "No cost checked."
+ },
+ "unlock.csv_headers": {
+  "fr": "Objet;Type;Famille;Niveau;Puissance;Coût actuel;Cible;Coût après;Détail",
+  "en": "Object;Kind;Family;Level;Power;Current cost;Target;New cost;Detail"
+ },
+ "unlock.mini": {
+  "fr": "Coût mini",
+  "en": "Min cost"
+ },
+ "unlock.mini.tip": {
+  "fr": "Coût de déblocage minimal (appliqué à tous les niveaux ; surchargeable par niveau ci-dessous).",
+  "en": "Minimum unlock cost (applies to all levels; override per level below)."
+ },
+ "unlock.maxi": {
+  "fr": "Coût maxi",
+  "en": "Max cost"
+ },
+ "unlock.maxi.tip": {
+  "fr": "Coût de déblocage maximal ; 0 = aucun plafond. Surchargeable par niveau ci-dessous.",
+  "en": "Maximum unlock cost; 0 = no cap. Override per level below."
+ },
+ "unlock.bounds": {
+  "fr": "Bornes par niveau (cellule vide = hérite de la valeur globale)",
+  "en": "Per-level bounds (empty cell = inherit global value)"
+ },
+ "unlock.default_row": {
+  "fr": "Défaut",
+  "en": "Default"
+ },
+ "ctx.explain_ai": {
+  "fr": "Expliquer avec IA...",
+  "en": "Explain with AI..."
+ },
+ "explain.title": {
+  "fr": "Expliquer avec IA",
+  "en": "Explain with AI"
+ },
+ "explain.waiting": {
+  "fr": "Interrogation du moteur IA...",
+  "en": "Asking the AI engine..."
+ },
+ "explain.ask_again": {
+  "fr": "Relancer l'analyse",
+  "en": "Run the analysis again"
+ },
+ "explain.answered_by": {
+  "fr": "Réponse servie par {link}.",
+  "en": "Answer served by {link}."
+ },
+ "explain.failed": {
+  "fr": "Échec de l'appel IA : {error}",
+  "en": "AI call failed: {error}"
+ },
+ "explain.f_glossary": {
+  "fr": "Glossaire",
+  "en": "Glossary"
+ },
+ "explain.f_current": {
+  "fr": "Valeur actuelle",
+  "en": "Current value"
+ },
+ "explain.f_vanilla": {
+  "fr": "Valeur vanille",
+  "en": "Vanilla value"
+ },
+ "explain.f_observed": {
+  "fr": "Valeurs observées",
+  "en": "Observed values"
+ },
+ "explain.f_suggestion": {
+  "fr": "Valeur recommandée",
+  "en": "Recommended value"
+ },
+ "explain.f_block": {
+  "fr": "Bloc",
+  "en": "Block"
+ },
+ "explain.f_kind": {
+  "fr": "Type",
+  "en": "Kind"
+ },
+ "explain.f_properties": {
+  "fr": "Propriétés d'en-tête",
+  "en": "Header properties"
+ },
+ "explain.f_body": {
+  "fr": "Corps du bloc",
+  "en": "Block body"
+ },
+ "explain.f_row": {
+  "fr": "Ligne",
+  "en": "Row"
+ },
+ "explain.observed_numeric": {
+  "fr": "{count} valeurs numériques, médiane {median} (min {mini}, max {maxi})",
+  "en": "{count} numeric values, median {median} (min {mini}, max {maxi})"
+ },
+ "explain.observed_common": {
+  "fr": "{count} valeurs, la plus fréquente « {value} » ({hits} fois)",
+  "en": "{count} values, most frequent \"{value}\" ({hits} times)"
+ },
+ "explain.suggest_vanilla": {
+  "fr": "{value} (valeur vanille du jeu)",
+  "en": "{value} (game vanilla value)"
+ },
+ "explain.suggest_median": {
+  "fr": "{value} (médiane de la famille observée)",
+  "en": "{value} (median of the observed family)"
+ },
+ "explain.suggest_common": {
+  "fr": "{value} (valeur la plus fréquente du fichier)",
+  "en": "{value} (most frequent value in the file)"
+ },
+ "block_info.desc_untranslated": {
+  "fr": "Description non traduite : texte anglais affiché, traduction en cours...",
+  "en": "Description not translated: English text shown, translating..."
+ },
+ "block_info.desc_translate_failed": {
+  "fr": "Traduction indisponible (texte anglais affiché).",
+  "en": "Translation unavailable (English text shown)."
  }
 }

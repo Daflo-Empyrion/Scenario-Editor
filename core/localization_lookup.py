@@ -224,6 +224,17 @@ class LocalizationIndex:
         """Toutes les cles connues de l'index (scenario + vanilla)."""
         return set(self._entries.keys())
 
+    def get_exact(self, key: Optional[str], language: str) -> Optional[str]:
+        """Traduction de `key` DANS `language` seulement -- None si la cellule
+        est vide, meme quand l'anglais existe (get() y retombe alors). Sert a
+        savoir qu'un texte affiche n'est pas traduit (fiche info)."""
+        if not key:
+            return None
+        row = self._entries.get(key)
+        if row is None:
+            return None
+        return row.get(_LANGUAGE_COLUMN.get(language, _FALLBACK_COLUMN)) or None
+
     def get(self, key: Optional[str], language: str) -> Optional[str]:
         """Traduction de `key` dans `language` ('fr'/'en'). Retombe sur la
         colonne anglaise si la cellule de la langue demandee est vide ou

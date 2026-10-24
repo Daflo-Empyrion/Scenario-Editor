@@ -13,7 +13,8 @@ Editeur graphique (PyQt6) pour la creation et la modification de scenarios
 missions PDA, economie des marchands, arbres technologiques, dialogues et
 localisation — avec une suite de traduction complete (IA locale ou en ligne),
 un module d'administration de serveur dedie, un **bilan avant lancement qui
-test reellement le chargement de ton scenario par le moteur du jeu**, et un
+test reellement le chargement de ton scenario par le moteur du jeu**, un
+**assistant IA** qui propose des modifications sans jamais ecrire seul, et un
 systeme de securite qui preserve tes scenarios d'origine.
 
 Documentation complete : `wiki_app_fr.md` (ou `wiki_app_en.md`), consultables
@@ -86,6 +87,40 @@ aussi depuis le menu Aide de l'application.
 - Prouve en production : traduction FR integrale d'un gros scénario
   (9 267 lignes de PDA + 13 660 lignes de dialogues, 100 %, controle
   d'integrite zero)
+
+### Assistant IA (integre a l'editeur)
+- **Chat contextuel** sur le document ouvert (ECF, YAML, CSV, PDA) : palette
+  d'appels, historique, arret en cours de reponse
+- **Plusieurs fournisseurs OpenAI-compatibles** declares librement (URL de
+  base suffit, cle facultative pour un moteur local) ; routeur qui bascule
+  automatiquement en cas de panne, de quota ou de plafond
+- **Gratuit d'abord** : les maillons gratuits tournent en boucle ; le payant
+  n'est utilise que si tu le coches ET que le cout estime tient dans le
+  plafond mensuel (plafond global et par fournisseur, compteur en dollars)
+- **L'assistant n'ecrit jamais** : il rend un jeu de modifications (ChangeSet)
+  revu ligne par ligne, coche, applique par les validateurs de chaque format ;
+  un ChangeSet invalide n'est jamais applique
+- **Garde-fous** : secrets masques avant tout envoi a un fournisseur distant,
+  document non sauvegarde jamais touche par une proposition (pour qu'un
+  Ctrl+Z ne melange pas une modification humaine et une application IA)
+- **« Expliquer avec IA »** sur une valeur (ECF, YAML, CSV) : le contexte
+  verifiable est rassemble d'abord (glossaire, valeur vanille, mediane du
+  document), la question ne porte que sur des faits
+- Reprise du format natif d'appel d'outils en texte (DeepSeek/DSML), avec
+  l'invariant d'affichage : aucun balisage n'atteint l'ecran ni l'historique
+
+### Equilibrage assiste
+- **Recettes de craft** (Templates) : puissance reelle des blocs/items en
+  face du cout des ingredients, composition vanille respectee
+- **Couts de deblocage** (UnlockCost de l'arbre technologique) : perimetre
+  limite aux entrees reellement affichees, bande de cout par niveau
+- **Reparation du glossaire** : tri terminologie/phrases, reference a la
+  localisation officielle, propositions revues avant toute ecriture
+- **Reintegration de playfields orphelins** : un dossier absent du
+  Sectors.yaml n'est jamais charge — repose dans des systemes existants,
+  sans toucher au GalaxyConfig
+- **Import cible d'un scenario source** avec resolution recursive des
+  dependances (Ref, recette, BlockGroup, LootGroup, icone)
 
 ### Playfields et galaxie (YAML)
 - Editeur structure a 8 onglets (ressources, POI, creatures, drones,

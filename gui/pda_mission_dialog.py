@@ -29,6 +29,7 @@ mecanisme reel different confirme sur une vraie chaine du jeu (RewardedChapters
 repeter IDENTIQUEMENT le meme chapitre. La section Repetition est donc
 desactivee des qu'un second palier est ajoute, pour rester coherent avec ce
 qui est reellement observe."""
+import re
 from typing import List, Optional
 
 from PyQt6.QtWidgets import (
@@ -37,12 +38,20 @@ from PyQt6.QtWidgets import (
     QWidget, QScrollArea,
 )
 
-from core.i18n import t
+from core import settings
+from core.ai import router
+from core.ai.assistant import prompts
+from core.ai.assistant.session import Session
+from core.ai.assistant.surfaces import pda as pda_surface
+from core.ai.assistant.surfaces.base import problem_text
+from core.ai.assistant.tools import ToolRegistry
+from core.i18n import get_language, t
 from core.pda_mission import (
     collect_used_names, collect_used_block_types, collect_all_tokens, generate_token,
     ObjectiveSpec, RewardSpec, RepeatSpec, TierSpec, create_chapter, create_tier_chain,
     add_pda_text_entries,
 )
+from gui.assistant_worker import SurfaceWorker
 from gui.translate_context_menu import install_translate_context_menu
 
 _CATEGORIES = ["SoloMission", "FactionMission", "Tutorial", "Knowledgebase", "FAQ"]
@@ -344,6 +353,23 @@ class PdaMissionDialog(QDialog):
         top_row.addStretch()
         outer_layout.addLayout(top_row)
 
+        ai_box = QGroupBox(t("assistant.pda_section"))
+        ai_layout = QVBoxLayout(ai_box)
+        self.ai_brief = QLineEdit()
+        self.ai_brief.setPlaceholderText(t("assistant.pda_brief_placeholder"))
+        ai_layout.addWidget(self.ai_brief)
+        ai_row = QHBoxLayout()
+        self.btn_ai_generate = QPushButton(t("assistant.pda_generate"))
+        self.btn_ai_generate.setObjectName("secondaryButton")
+        self.btn_ai_generate.clicked.connect(self._generate_with_ai)
+        ai_row.addWidget(self.btn_ai_generate)
+        self.ai_status = QLabel("")
+        self.ai_status.setWordWrap(True)
+        ai_row.addWidget(self.ai_status, 1)
+        ai_layout.addLayout(ai_row)
+        self._ai_worker = None
+        outer_layout.addWidget(ai_box)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         self._tiers_container = QWidget()
@@ -412,7 +438,129 @@ class PdaMissionDialog(QDialog):
         self.num_repeats_spin.setEnabled(checked)
         self.delay_hours_spin.setEnabled(checked)
 
+    # -- generation assistee (B3) ---------------------------------------------
+
+    def _generate_with_ai(self) -> None:
+        """Remplit les champs du formulaire depuis un brief. L'IA ne cree
+        rien : le wizard reste la revue et la validation."""
+        if self._ai_worker is not None:
+            return
+        brief = self.ai_brief.text().strip()
+        if not brief:
+            self.ai_status.setText(t("assistant.pda_brief_missing"))
+            return
+        if not router.configured():
+            self.ai_status.setText(t("assistant.no_provider"))
+            return
+        session = Session()
+        session.system = prompts.system_prompt(
+            get_language(), tone=settings.get_groq_style())
+        session.add_user(pda_surface.build_question(
+            brief, self.category_combo.currentText()))
+        self._ai_worker = SurfaceWorker(
+            session, pda_surface.action(), ToolRegistry(), parent=self)
+        self._ai_worker.done.connect(self._on_ai_generated)
+        self._ai_worker.failed.connect(self._on_ai_failed)
+        self.btn_ai_generate.setEnabled(False)
+        self.ai_status.setText(t("assistant.thinking"))
+        self._ai_worker.start()
+
+    def _on_ai_generated(self, answer) -> None:
+        self._ai_worker = None
+        self.btn_ai_generate.setEnabled(True)
+        if answer.changeset is None or answer.changeset_problems:
+            code = (answer.changeset_problems or answer.problems
+                    or ["changeset_absent"])[0]
+            self.ai_status.setText(problem_text(code))
+            return
+        mapping = pda_surface.values(answer.changeset.changes)
+        if not mapping:
+            self.ai_status.setText(t("assistant.pda_no_proposal"))
+            return
+        applied = self._apply_generated_fields(mapping)
+        self.ai_status.setText(t("assistant.pda_filled", count=applied))
+
+    def _on_ai_failed(self, message: str) -> None:
+        self._ai_worker = None
+        self.btn_ai_generate.setEnabled(True)
+        self.ai_status.setText(t("assistant.error", message=message))
+
+    def _apply_generated_fields(self, mapping: dict) -> int:
+        applied = 0
+        category = mapping.get("Category")
+        if category:
+            index = self.category_combo.findText(category)
+            if index >= 0:
+                self.category_combo.setCurrentIndex(index)
+                applied += 1
+        if "Repeatable" in mapping:
+            self.repeatable_check.setChecked(
+                pda_surface.truthy(mapping["Repeatable"]))
+            applied += 1
+        for key, spin in (("NumRepeats", self.num_repeats_spin),
+                          ("DelayHours", self.delay_hours_spin)):
+            if key in mapping:
+                value = pda_surface.as_int(mapping[key])
+                if value is not None:
+                    spin.setValue(max(spin.minimum(),
+                                      min(spin.maximum(), value)))
+                    applied += 1
+        for number in range(1, pda_surface.TIERS + 1):
+            prefix = f"Tier{number}."
+            fields = {key.split(".", 1)[1]: value
+                      for key, value in mapping.items()
+                      if key.startswith(prefix)}
+            if not fields:
+                continue
+            while len(self.tier_widgets) < number:
+                self._add_tier()
+            applied += self._apply_tier_fields(self.tier_widgets[number - 1],
+                                               fields)
+        return applied
+
+    def _apply_tier_fields(self, tier, fields: dict) -> int:
+        applied = 0
+        for key, widget in (("TitleEN", tier.title_en_edit),
+                            ("TitleFR", tier.title_fr_edit),
+                            ("DescriptionEN", tier.desc_en_edit),
+                            ("DescriptionFR", tier.desc_fr_edit)):
+            if fields.get(key):
+                widget.setText(fields[key])
+                applied += 1
+        if "Check" in fields:
+            index = tier.check_combo.findData(fields["Check"])
+            if index >= 0:
+                tier.check_combo.setCurrentIndex(index)
+                applied += 1
+        for key, editor in (("Names", tier.names_editor),
+                            ("Types", tier.types_editor)):
+            items = [part.strip() for part in
+                     re.split(r"[,\n;]", fields.get(key) or "")
+                     if part.strip()]
+            if items:
+                editor.list_widget.clear()
+                for item in items:
+                    editor.list_widget.addItem(QListWidgetItem(item))
+                applied += 1
+        if "Amount" in fields:
+            value = pda_surface.as_int(fields["Amount"])
+            if value is not None:
+                spin = tier.amount_spin
+                spin.setValue(max(spin.minimum(),
+                                  min(spin.maximum(), value)))
+                applied += 1
+        return applied
+
+    def reject(self):
+        """Pas de fermeture pendant une generation (le thread ecrirait dans
+        des widgets detruits)."""
+        if self._ai_worker is not None:
+            return
+        super().reject()
+
     def _on_create(self):
+        if self._ai_worker is not None:
+            return
         for tier in self.tier_widgets:
             error = tier.validate()
             if error:

@@ -381,3 +381,40 @@ def test_set_template_output_count(tmp_path):
     tpl.write_text(TEMPLATE_WITH_OUTPUT_COUNT, encoding='utf-8')
     assert set_template_output_count(tpl, "WithOutput", "3") is True
     assert find_block_by_name(tpl, "WithOutput").get_property("OutputCount") == "3"
+
+
+def test_base_config_patches_and_ref_inheritance(tmp_path):
+    """Modele du 24/10/2026 : le jeu reporte sur les blocs du scenario les
+    patchs '+Block'/'+Item' de la config de BASE du jeu, puis resout les Ref.
+    Vecu : OreScanner n'a AUCUNE propriete d'arbre dans le scenario (les
+    quatre lignes sont commentees) et reste pourtant dans l'onglet Outils en
+    jeu -- la vanilla le patche en '+Item' avec TechTreeNames: Tools."""
+    cfg = tmp_path / "scenario" / "Configuration"
+    cfg.mkdir(parents=True)
+    (cfg / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 500, Name: PatchedOnly\n  Material: Device\n}\n"
+        "{ Block Id: 501, Name: RefRoot\n"
+        "  UnlockLevel: 1, UnlockCost: 0, TechTreeNames: \"Base\"\n}\n"
+        "{ Block Id: 502, Name: RefChild, Ref: RefRoot\n  UnlockCost: 5\n}\n",
+        encoding="utf-8")
+    vanilla = tmp_path / "vanilla"
+    (vanilla / "Configuration").mkdir(parents=True)
+    (vanilla / "Configuration" / "BlocksConfig.ecf").write_text(
+        "{ +Block Id: 500, Name: PatchedOnly\n"
+        "  UnlockLevel: 2, UnlockCost: 9, TechTreeParent: RefRoot, TechTreeNames: Tools\n}\n",
+        encoding="utf-8")
+
+    tree = load_tech_tree(cfg / "BlocksConfig.ecf", None, vanilla_root=str(vanilla))
+    patched = tree.get("PatchedOnly")
+    assert patched is not None
+    assert (patched.unlock_level, patched.unlock_cost, patched.categories) == (2, 9, ["Tools"])
+    assert patched.parent_name == "RefRoot"
+    child = tree.get("RefChild")
+    assert child is not None
+    assert (child.unlock_level, child.unlock_cost, child.categories) == (1, 5, ["Base"])
+
+    # sans la config de base, PatchedOnly n'a AUCUNE propriete d'arbre ;
+    # RefChild reste resolu (le Ref est interne au scenario)
+    alone = load_tech_tree(cfg / "BlocksConfig.ecf", None, vanilla_root="")
+    assert alone.get("PatchedOnly") is None
+    assert alone.get("RefChild") is not None

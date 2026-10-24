@@ -163,3 +163,27 @@ def test_widget_menu_helpers_add_below_attribute_move(qapp, tmp_path):
     entries = widget._observed_trailing_attrs()
     assert ("display", "true") in entries
     assert ("formatter", "Kilogram") in entries
+
+
+def test_add_property_button_click_never_passes_checked(qapp, tmp_path, monkeypatch):
+    """Vecu 20/10 : clicked() de QPushButton passe l'etat coche (bool), avale
+    par le parametre anchor_prop -> _pending_anchor=False -> AttributeError
+    'bool' object has no attribute 'indent'. Le clic du bouton (chemin reel
+    du signal) et l'appel direct simulant l'ancien cablage doivent laisser
+    l'ancre a None, sans lever."""
+    from PyQt6.QtWidgets import QDialog
+    from gui.theme import apply_theme
+    from gui.ecf_edit_widget import EcfEditWidget
+    apply_theme(qapp)
+    path = tmp_path / "BlocksConfig.ecf"
+    path.write_text(BLOCK_TEXT, encoding="utf-8")
+    widget = EcfEditWidget(path)
+    widget._current_block = widget.doc.nodes[0]
+    monkeypatch.setattr(QDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
+
+    widget.btn_add_prop.click()            # signal reel (lambda sans argument)
+    assert widget._pending_anchor is None
+    widget._add_property_dialog(False)     # simulation signal non filtre
+    assert widget._pending_anchor is None
+    widget._add_property_dialog(True)
+    assert widget._pending_anchor is None

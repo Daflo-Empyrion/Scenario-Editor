@@ -73,15 +73,19 @@ def test_root_starts_new_lane_at_row_zero():
     assert positions["A"].branches_from_parent is False
 
 
-def test_lowest_cost_child_continues_same_lane():
-    nodes = [_node("Root", 1, cost=0),
-             _node("Cheap", 10, cost=5, parent="Root"),
-             _node("Expensive", 10, cost=20, parent="Root")]
+def test_first_declared_child_continues_same_lane():
+    """Le continuateur est le PREMIER DECLARE (Id ECF), pas le moins cher --
+    vecu 24/10/2026 sur une capture du jeu : ThrusterSVRoundLarge poursuit
+    avec LargeT2 (Id 548, cout 15) et renvoie JetRound1x3x1 (Id 697, cout 12,
+    MOINS cher) sur la ligne suivante."""
+    nodes = [_node("Root", 1, cost=0, ecf_id=100),
+             _node("Declared", 10, cost=20, parent="Root", ecf_id=548),
+             _node("Cheaper", 10, cost=5, parent="Root", ecf_id=697)]
     positions = compute_node_positions(nodes)
-    assert positions["Cheap"].row == positions["Root"].row
-    assert positions["Cheap"].branches_from_parent is False
-    assert positions["Expensive"].row != positions["Root"].row
-    assert positions["Expensive"].branches_from_parent is True
+    assert positions["Root"].row == positions["Declared"].row
+    assert positions["Declared"].branches_from_parent is False
+    assert positions["Cheaper"].row != positions["Root"].row
+    assert positions["Cheaper"].branches_from_parent is True
 
 
 def test_chain_of_single_children_stays_on_one_lane():

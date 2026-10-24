@@ -121,6 +121,13 @@ class BlockInfoCard:
     icon_key: str
     root_identity: str = ""
     description_html: Optional[str] = None
+    # Texte brut (BBCode du jeu) : permet de retraduire la description apres
+    # coup quand la colonne de la langue demandee est vide.
+    description_text: Optional[str] = None
+    # True quand description_html vient du repli ANGLAIS de Localization.csv
+    # (colonne de la langue de l'interface vide) : l'hote affiche le marqueur
+    # d'attente puis remplace le texte par sa traduction.
+    description_untranslated: bool = False
     # Cle de localisation pointee par la propriete 'Info:' du bloc (YAML-009
     # voisin : le descriptif VIT dans Localization.csv, pas dans l'ECF) --
     # None si le bloc n'a pas de propriete Info (cas creation).
@@ -155,6 +162,13 @@ def _bbcode_to_html(text: str) -> str:
     html = html.replace("[i]", "<i>").replace("[/i]", "</i>")
     html = html.replace("[sup]", "<sup>").replace("[/sup]", "</sup>")
     return html
+
+
+def description_html(text: str) -> str:
+    """BBCode d'une description -> HTML de fiche. Sert a l'hote quand une
+    traduction obtenue APRES coup doit remplacer le texte affiche."""
+    return _bbcode_to_html(text)
+
 
 
 def _translate_label(key: str, loc: LocalizationIndex, language: str) -> str:
@@ -382,18 +396,25 @@ def build_block_info_card(block: EcfBlock, loc: LocalizationIndex, language: str
     icon_key = (custom_icon.strip() if custom_icon else name) or ""
 
     description_html = None
+    description_text = None
+    description_untranslated = False
     info_key = block.get_property('Info')
     if info_key:
-        info_text = loc.get(info_key.strip(), language)
+        info_key = info_key.strip()
+        info_text = loc.get(info_key, language)
         if info_text:
             description_html = _bbcode_to_html(info_text)
+            description_text = info_text
+            description_untranslated = loc.get_exact(info_key, language) is None
 
     card = BlockInfoCard(
         title=title,
         icon_key=icon_key,
         root_identity=block_identity(block) or name,
         description_html=description_html,
-        info_key=info_key.strip() if info_key else None,
+        description_text=description_text,
+        description_untranslated=description_untranslated,
+        info_key=info_key or None,
         stat_fields=_collect_display_fields(block, loc, language, show_all=show_all),
     )
 

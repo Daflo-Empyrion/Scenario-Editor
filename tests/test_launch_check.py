@@ -120,6 +120,90 @@ def test_missing_prefab(tmp_path):
             if i.check == "prefabs"] == []
 
 
+def _write_epb(path, name: str = "", groups: str = "") -> None:
+    """En-tete .epb minimal (magic, version 31, proprietes 7=Name et
+    21=Groupes) : suffisant pour `read_header`, sans donnees de blocs."""
+    import struct
+    props = b""
+    for key, value in ((7, name), (21, groups)):
+        props += (struct.pack("<i", key) + b"\x00\x00\x00" + b"\x00"
+                  + struct.pack("<B", len(value)) + value.encode())
+    data = (struct.pack("<I", 2022986309) + struct.pack("<I", 31) + b"\x02"
+            + struct.pack("<iii", 1, 1, 1) + struct.pack("<HH", 1, 2)
+            + props + struct.pack("<H", 0))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
+def test_prefab_check_reads_prefab_syntax_and_ignores_comments(tmp_path):
+    # la copie de travail reference par `Prefab:` (pas `PrefabName:`) et les
+    # entrees commentees decrivent ce qui est DESACTIVE (YAML-009)
+    root = _build_scenario(tmp_path)
+    _write_epb(root / "Prefabs" / "FileStem.epb", name="InternalName",
+               groups="Alpha")
+    pf = root / "Playfields" / "Pf1"
+    (pf / "playfield_static.yaml").write_text(
+        "Playfields:\n"
+        "- Prefab: InternalName\n"          # nom interne de l'en-tete
+        "- PrefabName: FileStem\n"          # nom de fichier
+        "- Prefab: GhostBase\n"             # fantome : erreur
+        "- Prefab: # Desactive\n", encoding="utf-8")
+    errs = [i for i in run_launch_checks(root, "") if i.check == "prefabs"]
+    assert len(errs) == 1
+    assert "GhostBase" in errs[0].message and errs[0].line == 4
+
+
+def test_poi_groups_are_read_from_prefab_headers(tmp_path):
+    # bplib export exige une partie en cours ; les groupes sont dans l'en-tete
+    root = _build_scenario(tmp_path)
+    _write_epb(root / "Prefabs" / "Base.epb", name="Base", groups="Alpha,Beta")
+    pf = root / "Playfields" / "Pf1"
+    (pf / "playfield_static.yaml").write_text(
+        "Random:\n"
+        "- GroupName: Beta\n"               # declare par l'en-tete
+        "- GroupName: GhostGrp\n"           # introuvable -> avertissement
+        "- GroupName: # Desactive\n", encoding="utf-8")
+    issues = [i for i in run_launch_checks(root, "")
+              if i.check == "poi_groups"]
+    assert len(issues) == 1
+    assert "GhostGrp" in issues[0].message
+    assert issues[0].severity == "warning"
+    assert "1 playfield" in issues[0].message
+
+
+def test_poi_group_declared_by_poi_groups_config(tmp_path):
+    root = _build_scenario(tmp_path)
+    (root / "Prefabs").mkdir(parents=True, exist_ok=True)
+    (root / "Prefabs" / "_PoiGroupsConfig.yaml").write_text(
+        "---\n  PoiGroups:\n    - GroupName: UnionGroup\n"
+        "      Filters:\n          BlueprintFileNames: [ Base ]\n",
+        encoding="utf-8")
+    (root / "Playfields" / "Pf1" / "playfield_static.yaml").write_text(
+        "- GroupName: UnionGroup\n", encoding="utf-8")
+    assert [i for i in run_launch_checks(root, "")
+            if i.check == "poi_groups"] == []
+
+
+def test_poi_group_may_name_a_local_setup_block(tmp_path):
+    # vecu 22/10 : `DroneBaseSetup:` en tete de playfield_static, puis
+    # `Random:` -> `GroupName: DroneBaseSetup` : ce n'est pas un groupe de
+    # prefab, l'alerte serait un faux positif
+    from core.launch_check import _index_setups
+    root = _build_scenario(tmp_path)
+    pf = root / "Playfields" / "Pf1"
+    (pf / "playfield_static.yaml").write_text(
+        "POIs:\n"
+        "  Random:\n"
+        "    - GroupName: DroneBaseSetup\n"
+        "DroneBaseSetup:\n"
+        "  Random:\n"
+        "    - GroupName: DroneBaseSetup\n"
+        "      Difficulty: 6\n", encoding="utf-8")
+    assert "dronebasesetup" in _index_setups(pf.parent)
+    assert [i for i in run_launch_checks(root, "")
+            if i.check == "poi_groups"] == []
+
+
 def test_egroup_references(tmp_path):
     root = _build_scenario(tmp_path)
     conf = root / "Content" / "Configuration"
@@ -237,6 +321,124 @@ def test_dedi_boot_helpers(tmp_path):
     assert len(issues) == 2
     assert any("FarrSpaceDef" in i for i in issues)
     assert any("did not find expected key" in i for i in issues)
+
+
+def test_dedi_boot_helper_checks_the_loaded_scenario(tmp_path):
+    # vecu 22/10 : scenario introuvable -> le jeu GENERe un Sectors.yaml par
+    # defaut (43 playfields), demarre, et le bilan disait « pret »
+    from core.dedi_boot_check import DediBootResult, check_loaded_scenario
+    expected = tmp_path / "Content" / "Scenarios" / "RE2 ATL"
+    root = expected.parent.as_posix()
+    copied = (f"22-07:36:47 -LOG- Copying Sectors.yaml from {root}/RE2 ATL"
+              "/Sectors to C:\\Jeu\\Saves\\Games\\x\\Sectors")
+    ok = DediBootResult(ready=True, playfields=928)
+    check_loaded_scenario(ok, copied, expected)
+    assert ok.ready is True and ok.issues == []
+
+    generated = DediBootResult(ready=True, playfields=43)
+    check_loaded_scenario(
+        generated,
+        f"22-07:36:47 -LOG- Generating Sectors.yaml in {root}"
+        "/__Inexistant__/Sectors\n"
+        "22-07:36:48 -LOG- Loaded sector file x with 43 playfields", expected)
+    assert generated.ready is False
+    assert any("GENere" in i for i in generated.issues)
+
+    other = DediBootResult(ready=True, playfields=928)
+    check_loaded_scenario(
+        other, f"Copying Sectors.yaml from {root}/RE2-RPG/Sectors", expected)
+    assert other.ready is False and any("!=" in i for i in other.issues)
+
+
+def test_dedi_boot_refuses_a_missing_scenario(tmp_path, monkeypatch):
+    from core import dedi_boot_check as mod
+    game = tmp_path / "Jeu"
+    (game / "DedicatedServer").mkdir(parents=True)
+    (game / "DedicatedServer" / "EmpyrionDedicated.exe").write_text(
+        "", encoding="utf-8")
+    launched = []
+    monkeypatch.setattr(mod.subprocess, "Popen",
+                        lambda *a, **k: launched.append(a))
+    result = mod.run_dedi_boot_check(game, "RE2 ATL")
+    assert result.ready is False
+    assert launched == []
+    assert any("scenario introuvable" in i for i in result.issues)
+
+
+def test_temp_scenario_install_copies_and_is_replaceable(tmp_path):
+    # le moteur ne charge que Content/Scenarios : la copie de travail y est
+    # installee le temps du boot, marquee pour ne jamais ecraser un vrai
+    # scenario homonyme
+    from core import dedi_boot_check as mod
+    game = tmp_path / "Jeu"
+    source = tmp_path / "travail"
+    (source / "Sectors").mkdir(parents=True)
+    (source / "Sectors" / "Sectors.yaml").write_text("SolarSystems:\n",
+                                                     encoding="utf-8")
+    dest, problem = mod.install_temp_scenario(game, source)
+    assert problem == "" and dest is not None
+    assert (dest / "Sectors" / "Sectors.yaml").is_file()
+    assert (dest / mod._MARKER).is_file()
+
+    # relance : le dossier marque est remplace, pas empile
+    dest2, problem = mod.install_temp_scenario(game, source)
+    assert problem == "" and dest2 == dest
+    assert (dest2 / mod._MARKER).is_file()
+
+
+def test_temp_scenario_install_refuses_a_foreign_folder(tmp_path):
+    from core import dedi_boot_check as mod
+    game = tmp_path / "Jeu"
+    foreign = mod.scenario_root(game, mod.TEMP_SCENARIO)
+    foreign.mkdir(parents=True)
+    (foreign / "Sectors").mkdir()
+    (foreign / "Sectors" / "Sectors.yaml").write_text("x: 1\n",
+                                                      encoding="utf-8")
+    dest, problem = mod.install_temp_scenario(game, tmp_path / "travail")
+    assert dest is None
+    assert "non cree par" in problem
+    assert (foreign / "Sectors" / "Sectors.yaml").is_file()   # rien efface
+
+
+def test_dedi_boot_on_working_copy_installs_then_cleans(tmp_path,
+                                                        monkeypatch):
+    # chemin complet sans jeu reel : Popen simule, le log simule atteste le
+    # scenario jetable, et la copie installee doit avoir disparu a la fin
+    from core import dedi_boot_check as mod
+    game = tmp_path / "Jeu"
+    (game / "DedicatedServer").mkdir(parents=True)
+    (game / "DedicatedServer" / "EmpyrionDedicated.exe").write_text(
+        "", encoding="utf-8")
+    source = tmp_path / "travail"
+    source.mkdir()
+    (source / "Sectors").mkdir()
+    (source / "Sectors" / "Sectors.yaml").write_text("SolarSystems:\n",
+                                                     encoding="utf-8")
+
+    class FakeProc:
+        pid = 4242
+        def poll(self):
+            return None
+
+    source_log = mod.scenario_root(game, mod.TEMP_SCENARIO)
+
+    def fake_popen(args, **kwargs):
+        log = Path(args[args.index("-logFile") + 1])
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(
+            f"Copying Sectors.yaml from {source_log.as_posix()}/Sectors to "
+            "C:/Saves/x\nLoaded sector file x with 128 playfields\n"
+            "Server started listening on port 33000\n", encoding="utf-8")
+        return FakeProc()
+
+    monkeypatch.setattr(mod.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(mod, "_kill_tree", lambda pid: None)
+    result = mod.run_dedi_boot_check(game, "", timeout_s=5.0,
+                                     source_root=source)
+    assert result.ready is True
+    assert result.playfields == 128
+    assert result.issues == []
+    assert not source_log.exists()          # copie jetable supprimee
 
 
 def test_dialog_export_csv(qapp, tmp_path, monkeypatch):

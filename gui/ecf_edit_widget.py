@@ -835,14 +835,16 @@ class TransformDialog(QDialog):
     def _update_field_visibility(self):
         op = self.op_combo.currentData()
         needs_amount = op in ("multiply", "add", "set")
-        needs_clamp = op == "clamp"
+        # Les bornes servent aussi a plafonner une multiplication dans la meme
+        # passe (probabilites 0..1) -- voir _apply_operation.
+        needs_bounds = op in ("clamp", "multiply")
         needs_ndigits = op == "round"
         for w in (self.amount_row_label, self.amount_spin):
             w.setVisible(needs_amount)
         for w in (self.min_row_label, self.min_check, self.min_spin):
-            w.setVisible(needs_clamp)
+            w.setVisible(needs_bounds)
         for w in (self.max_row_label, self.max_check, self.max_spin):
-            w.setVisible(needs_clamp)
+            w.setVisible(needs_bounds)
         for w in (self.ndigits_row_label, self.ndigits_spin):
             w.setVisible(needs_ndigits)
         # Toute modification des reglages invalide l'apercu precedent -- il faut
@@ -861,8 +863,9 @@ class TransformDialog(QDialog):
         op = self.op_combo.currentData()
 
         amount = self.amount_spin.value() if op in ("multiply", "add", "set") else None
-        min_value = self.min_spin.value() if (op == "clamp" and self.min_check.isChecked()) else None
-        max_value = self.max_spin.value() if (op == "clamp" and self.max_check.isChecked()) else None
+        bounds_ops = ("clamp", "multiply")
+        min_value = self.min_spin.value() if (op in bounds_ops and self.min_check.isChecked()) else None
+        max_value = self.max_spin.value() if (op in bounds_ops and self.max_check.isChecked()) else None
         if op == "clamp" and min_value is None and max_value is None:
             QMessageBox.warning(self, t("transform.title"), t("transform.error_no_clamp_bound"))
             return None
@@ -1292,7 +1295,7 @@ class EcfEditWidget(QWidget):
         self.btn_add_prop = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_property"))
         self.btn_add_prop.setIconSize(icon_size())
         self.btn_add_prop.setToolTip(t("ecf.tooltip_add_property"))
-        self.btn_add_prop.clicked.connect(self._add_property_dialog)
+        self.btn_add_prop.clicked.connect(lambda: self._add_property_dialog())
         toolbar.addWidget(self.btn_add_prop)
         self.btn_add_row = QPushButton(icon("fa5s.plus", "#ffffff"), t("btn.add_row_table"))
         self.btn_add_row.setIconSize(icon_size())
@@ -2234,7 +2237,11 @@ class EcfEditWidget(QWidget):
             return f"<b>{key}</b><br>{explanation}"
         inline = find_first_inline_comment_for_key(self.doc, key)
         if inline:
-            return f"<b>{key}</b><br>{inline}"
+            # Le commentaire vient du fichier (souvent en anglais) : on le
+            # presente comme tel plutot que de le melanger a l'explication
+            # traduite comme s'il etait dans la langue de l'interface.
+            return (f"<b>{key}</b><br>"
+                    + t("ecf.tooltip_file_comment", text=inline))
         return ""
 
     def _refresh_props_table(self):
@@ -2625,6 +2632,7 @@ class EcfEditWidget(QWidget):
             lang_actions[a] = code
 
         action_bbcode = menu.addAction(t("ctx.bbcode"))
+        action_explain = menu.addAction(t("ctx.explain_ai")) if pair_key else None
 
         # Localisation (v1.10.0 sur SellingText, GENERALISEE le 30/09/2026
         # a toutes les proprietes de corps de tous les fichiers ECF) : le
@@ -2680,6 +2688,12 @@ class EcfEditWidget(QWidget):
             new_text = open_bbcode_tool(self, value_item.text())
             if new_text is not None:
                 value_item.setText(new_text)
+        elif chosen == action_explain:
+            key = pair_key or ""
+            value = (prop_node.get(key) if isinstance(prop_node, EcfProperty)
+                     else self._current_block.get_property(key)) \
+                if self._current_block else None
+            self._explain_property(key, value)
         elif chosen == action_localize:
             self._create_localization(value_item)
         elif chosen in lang_actions:
@@ -2770,6 +2784,21 @@ class EcfEditWidget(QWidget):
             self._set_modified(True)
             self._refresh_props_table()
 
+    def _explain_property(self, key: str, value) -> None:
+        """Popup « Expliquer avec IA » pour une propriete du bloc courant."""
+        if not self._current_block:
+            return
+        from core.explain import ecf_property_context
+        from gui.explain_dialog import open_ai_explanation
+        open_ai_explanation(self, ecf_property_context(
+            self.doc, self._current_block, key, value, self.path.name))
+
+    def _explain_block(self, block) -> None:
+        """Popup « Expliquer avec IA » pour un bloc entier (arbre)."""
+        from core.explain import ecf_block_context
+        from gui.explain_dialog import open_ai_explanation
+        open_ai_explanation(self, ecf_block_context(self.doc, block, self.path.name))
+
     def _translate_cell(self, value_item, key_item, prop_node, target_lang: str):
         from core import translation
         text = value_item.text()
@@ -2792,6 +2821,13 @@ class EcfEditWidget(QWidget):
         value_item.setText(new_value)  # declenche _on_cell_changed, qui gere tout le reste
 
     def _add_property_dialog(self, anchor_prop: Optional[EcfProperty] = None):
+        # Le signal clicked() de QPushButton passe un booléen (état coché) en
+        # argument. Si on ne le filtre pas, _pending_anchor vaut False, ce qui
+        # fait planter insert_property_after() plus bas (AttributeError sur
+        # anchor.indent). On force à None si ce n'est pas une vraie propriété.
+        if not isinstance(anchor_prop, EcfProperty):
+            anchor_prop = None
+
         if not self._current_block:
             QMessageBox.information(self, t("ecf.no_block_title"), t("ecf.no_block_msg"))
             return
@@ -3379,6 +3415,7 @@ class EcfEditWidget(QWidget):
         if not isinstance(block, EcfBlock):
             return
         menu = QMenu(self)
+        action_explain = menu.addAction(t("ctx.explain_ai"))
         action_duplicate = menu.addAction(t("dup.duplicate"))
         # FUS-004 : creer un Template pour CE bloc (bloc present au craft mais
         # sans recette) -- meme chemin que la proposition post-fusion
@@ -3388,7 +3425,9 @@ class EcfEditWidget(QWidget):
         action_disable = menu.addAction(t("ecf.disable_block_action"))
         action_del = menu.addAction(t("ecf.delete_block_action"))
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if chosen == action_duplicate:
+        if chosen == action_explain:
+            self._explain_block(block)
+        elif chosen == action_duplicate:
             self._duplicate_block_action(block)
         elif chosen == action_template:
             self._create_template_for_block(block)
@@ -3671,6 +3710,33 @@ class EcfEditWidget(QWidget):
     def _open_property_filter(self):
         dialog = PropertyFilterDialog(self.doc, on_filter_changed=self._apply_property_filter, parent=self)
         dialog.exec()
+
+    def assistant_surface(self):
+        """Contrat assistant (core/ai/assistant/surfaces/base.py) : contexte =
+        bloc selectionne, outils = lecture du fichier, applier = validation
+        contre la valeur vivante + snapshot undo + rafraichissement."""
+        from core.ai.assistant.surfaces import ecf as surface
+        from core.ai.assistant.surfaces.base import SurfaceBinding
+        return SurfaceBinding(
+            name=surface.SURFACE,
+            instruction=surface.INSTRUCTION,
+            context=lambda: surface.context(self.doc, self._current_block,
+                                            self.path.name),
+            registry=lambda: surface.registry(self.doc, self.path),
+            apply=self._apply_assistant_changes)
+
+    def _apply_assistant_changes(self, changes):
+        from core.ai.assistant.surfaces import ecf as surface
+        problems = surface.validate(self.doc, changes)
+        if problems:
+            return False, problems[0]
+        self._snapshot_undo()
+        written = surface.apply(self.doc, changes)
+        self._current_block = None
+        self.props_table.setRowCount(0)
+        self._populate_tree()
+        self._set_modified(True)
+        return (True, "") if written else (False, "ecf_nothing_written")
 
     def _open_transform_dialog(self):
         def _on_before_apply():

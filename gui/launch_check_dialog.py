@@ -109,13 +109,13 @@ class LaunchCheckDialog(QDialog):
         self.chk_production.setEnabled(bool(self._production_path()))
 
     def _sync_dedi_box(self) -> None:
-        """Le test dédié ne peut viser que le scenario INSTALLE (le moteur
-        charge Content/Scenarios) : actif si une production est connue."""
+        """Le moteur ne charge que Content/Scenarios : la copie de travail
+        est installee dans un dossier jetable le temps du boot."""
         from core.dedi_boot_check import dedi_exe
         from core.settings import get_vanilla_content_path
         vanilla = get_vanilla_content_path() or ""
         exe_ok = bool(vanilla) and dedi_exe(Path(vanilla).parent).is_file()
-        self.chk_dedi.setEnabled(bool(self._production_path()) and exe_ok)
+        self.chk_dedi.setEnabled(bool(self.path_edit.text().strip()) and exe_ok)
 
     def _pick_folder(self):
         path = QFileDialog.getExistingDirectory(
@@ -144,7 +144,7 @@ class LaunchCheckDialog(QDialog):
                 roots.append(prod)
         vanilla = get_vanilla_content_path() or ""
         dedi_checked = self.chk_dedi.isEnabled() and self.chk_dedi.isChecked()
-        prod_path = self._production_path()
+        dedi_root = self.path_edit.text().strip()
         from core.yaml_game_check import ensure_checker, run_yaml_check
 
         def work():
@@ -173,25 +173,26 @@ class LaunchCheckDialog(QDialog):
                    # (TypeError avalé par le garde ewa_async, dialogue bloqué
                    # en « en cours » — vecu au premier smoke 11/10)
                    on_done=lambda res: self._on_done_phase1(res, dedi_checked,
-                                                            prod_path),
+                                                            dedi_root),
                    on_fail=self._on_fail,
                    name="launch-check")
 
-    def _on_done_phase1(self, res, dedi_checked: bool, prod_path: str):
+    def _on_done_phase1(self, res, dedi_checked: bool, dedi_root: str):
         """Debrief de la phase 1 (structure + moteur), puis phase 2 :
-        boot dedie reel si la case est cochee (le scenario INSTALLE)."""
+        boot dedie reel si la case est cochee (copie de travail installee
+        temporairement sous Content/Scenarios)."""
         self._on_done(res[0], res[1], res[2], res[3])
-        if dedi_checked and prod_path:
+        if dedi_checked and dedi_root:
             self._running = True
             self.btn_run.setEnabled(False)
-            self._start_dedi_phase(prod_path)
+            self._start_dedi_phase(dedi_root)
 
-    def _start_dedi_phase(self, prod_path: str):
-        """Phase 2 : boot REEL du dedi sur le scenario installe (sauvegarde
-        jetable, ports 33xxx, config -dedicated jetable)."""
+    def _start_dedi_phase(self, source_root: str):
+        """Phase 2 : boot REEL du dedi sur la COPIE DE TRAVAIL copiee dans
+        un dossier jetable de Content/Scenarios (sauvegarde jetable, ports
+        33xxx, config -dedicated jetable, copie supprimee ensuite)."""
         vanilla = get_vanilla_content_path() or ""
         game_root = str(Path(vanilla).parent)
-        scenario_name = Path(prod_path).name
         from core.dedi_boot_check import run_dedi_boot_check
         self._dedi_progress = {"line": ""}
         self._dedi_timer = QTimer(self)
@@ -207,7 +208,7 @@ class LaunchCheckDialog(QDialog):
 
         def dedi_work():
             return run_dedi_boot_check(
-                game_root, scenario_name, timeout_s=300.0,
+                game_root, "", timeout_s=300.0, source_root=source_root,
                 progress=lambda s: self._dedi_progress.__setitem__("line", s))
 
         async_call(self, dedi_work,
@@ -258,7 +259,8 @@ class LaunchCheckDialog(QDialog):
         sev_warning = t("launchcheck.sev_warning")
         checks = {"sectors": t("launchcheck.check_sectors"),
                   "playfields": t("launchcheck.check_playfields"),
-                  "prefabs": t("launchcheck.check_prefabs")}
+                  "prefabs": t("launchcheck.check_prefabs"),
+                  "poi_groups": t("launchcheck.check_poi_groups")}
         n_errors = 0
         for issue in issues:
             is_error = issue.severity == "error"

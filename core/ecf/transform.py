@@ -208,6 +208,12 @@ def _apply_operation(value_str: str, rule: TransformRule) -> Tuple[str, bool]:
     for n in nums:
         if rule.operation == 'multiply':
             n = n * rule.amount
+            # Bornes optionnelles : une probabilite 0.8 x2 donne 1.6 alors que le
+            # jeu n'accepte que 0..1 -- sans ca il fallait deux passes.
+            if rule.min_value is not None:
+                n = max(rule.min_value, n)
+            if rule.max_value is not None:
+                n = min(rule.max_value, n)
         elif rule.operation == 'add':
             n = n + rule.amount
         elif rule.operation == 'set':

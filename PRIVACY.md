@@ -9,10 +9,11 @@ integralement en local sur ta machine, sur tes propres fichiers de scenario.
 Il ne collecte aucune donnee personnelle, aucune statistique d'usage, et ne
 transmet rien "en arriere-plan" a l'insu de l'utilisateur.
 
-Trois fonctionnalites precises effectuent des requetes reseau (cinq avec
-les moteurs IA optionnels Groq et DeepL). Chacune est decrite ci-dessous
-avec exactement ce qui est envoye, quand, et comment la desactiver si tu
-le souhaites.
+Cinq fonctionnalites precises effectuent des requetes reseau, plus les
+fournisseurs IA que tu ajoutes toi-meme (OpenRouter, DeepSeek direct,
+Mistral, endpoint personnalise). Chacune est decrite ci-dessous avec
+exactement ce qui est envoye, quand, et comment la desactiver si tu le
+souhaites.
 
 ### 1. Traduction en ligne (Google Translate)
 Quand tu utilises la fonction de traduction (bouton "Traduire" dans
@@ -75,7 +76,33 @@ la traduction en ligne est permise).
   Traduction en ligne -- cette case autorise ou bloque TOUS les moteurs
   en ligne (Google, Groq comme DeepL)
 
-### 4. Verification de nouvelle version (GitHub)
+### 4. Fournisseurs IA (OpenRouter, DeepSeek, autres -- optionnel)
+Quand tu ajoutes un fournisseur dans Options > Traduction > Fournisseurs
+IA (OpenRouter, DeepSeek direct, Groq, Mistral, Unsloth/Ollama ou tout
+endpoint OpenAI-compatible), les messages envoyes a son API contiennent le
+texte a traduire et le contexte de traduction (consigne de style, paires
+du glossaire). Les maillons locaux (Unsloth, Ollama, 127.0.0.1) ne sortent
+jamais de ta machine.
+
+- **Quoi** : uniquement le texte a traduire, protege (balises, nombres et
+  placeholders retires), la consigne systeme et les paires du glossaire ;
+  jamais un fichier entier
+- **Quand** : uniquement pendant une traduction ou un test que tu lances
+  explicitement, et seulement si un maillon de ce fournisseur est actif
+- **Ou vont les cles API** : dans ta configuration locale
+  (`~/.empyrion_editor/settings.json`), jamais dans le depot ; chaque
+  fournisseur ne recoit que sa propre cle
+- **Budget** : les modeles payants sont desactives par defaut. Tu dois
+  cocher « Autoriser les modeles payants » et saisir un plafond mensuel ;
+  le compteur de depense reste local. Quota, erreur API ou plafond atteint
+  => repli automatique sur les maillons gratuits puis sur les autres
+  moteurs
+- **Comment desactiver** : retire le fournisseur dans le dialogue, choisis
+  un autre moteur dans le sous-menu Moteur de traduction, ou decoche
+  Options > Traduction en ligne (cette case bloque les fournisseurs
+  distants ; un maillon local reste utilisable)
+
+### 5. Verification de nouvelle version (GitHub)
 Au demarrage, l'application interroge l'API publique de GitHub
 (`api.github.com`) pour savoir si une version plus recente a ete publiee.
 Cette requete ne contient aucune information personnelle -- uniquement une
@@ -88,7 +115,7 @@ reseau, pas specifique a ce logiciel).
 Cette verification echoue silencieusement si elle ne peut pas aboutir (pas
 de connexion, etc.) et n'empeche jamais l'application de demarrer.
 
-### 5. Bouton "Signaler"
+### 6. Bouton "Signaler"
 Le bouton "Signaler" (rapport de bug) n'envoie rien directement depuis
 l'application -- il ouvre ton navigateur systeme habituel sur une page
 GitHub Issues pre-remplie. L'envoi effectif ne se produit que si tu choisis
@@ -111,8 +138,10 @@ locally on your machine, on your own scenario files. It does not collect
 any personal data, does not track usage statistics, and never sends
 anything "in the background" without your knowledge.
 
-Four specific features make network requests (five with the optional Groq and DeepL online engines). Each is described below
-with exactly what is sent, when, and how to disable it if you wish.
+Five specific features make network requests, plus any AI provider you
+add yourself (OpenRouter, direct DeepSeek, Mistral, custom endpoint).
+Each is described below with exactly what is sent, when, and how to
+disable it if you wish.
 
 ### 1. Online translation (Google Translate)
 When you use the translation feature (the "Translate" button in the CSV
@@ -173,7 +202,31 @@ if you pasted your own key, and only if online translation is allowed).
   translation -- this checkbox allows or blocks ALL online engines
   (Google, Groq as well as DeepL)
 
-### 4. New version check (GitHub)
+### 4. AI providers (OpenRouter, DeepSeek, others -- optional)
+When you add a provider in Options > Translation > AI providers
+(OpenRouter, direct DeepSeek, Groq, Mistral, Unsloth/Ollama or any
+OpenAI-compatible endpoint), the messages sent to its API contain the text
+to translate and the translation context (style directive, glossary
+pairs). Local links (Unsloth, Ollama, 127.0.0.1) never leave your machine.
+
+- **What**: only the text to translate, protected (tags, numbers and
+  placeholders stripped), the system directive and glossary pairs; never a
+  whole file
+- **When**: only during a translation or test you explicitly start, and
+  only if a link of that provider is active
+- **Where the API keys go**: into your local configuration
+  (`~/.empyrion_editor/settings.json`), never into the repository; each
+  provider only receives its own key
+- **Budget**: paid models are disabled by default. You must check "Allow
+  paid models" and set a monthly cap; the spend counter stays local.
+  Quota, API error or cap reached => automatic fallback to free links,
+  then to the other engines
+- **How to disable**: remove the provider in the dialog, pick another
+  engine in the Translation engine submenu, or uncheck Options > Online
+  translation (this checkbox blocks remote providers; a local link remains
+  usable)
+
+### 5. New version check (GitHub)
 On startup, the application queries GitHub's public API
 (`api.github.com`) to check whether a newer version has been published.
 This request contains no personal information -- just a standard "what is
@@ -186,7 +239,7 @@ specific to this software).
 This check fails silently if it cannot complete (no connection, etc.) and
 never prevents the application from starting.
 
-### 5. "Report" button
+### 6. "Report" button
 The "Report" (bug report) button does not send anything directly from the
 application -- it opens your regular system browser to a pre-filled
 GitHub Issues page. The report is only actually submitted if you then

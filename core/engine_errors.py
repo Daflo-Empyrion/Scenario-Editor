@@ -37,7 +37,14 @@ class EngineError(RuntimeError):
 
 
 class QuotaExhaustedError(EngineError):
-    """Plafond du fournisseur atteint (debit ou quota) -- basculable."""
+    """Plafond du fournisseur atteint (debit ou quota) -- basculable.
+
+    retry_after : delai annonce par le service (secondes, 0 si inconnu) --
+    le routeur IA s'en sert pour caler le repos du maillon."""
+
+    def __init__(self, message: str, retry_after: float = 0.0):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class EngineUnavailableError(EngineError):

@@ -35,3 +35,10 @@ ATL/
 tools/yamlcheck/bin/
 tools/yamlcheck/obj/
 tools/yamlcheck/publish/
+
+# Fichiers de travail jetables : lots de traduction, scripts d'analyse
+# ponctuels, notes de release en cours, archives locales. Jamais dans le
+# depot (vecu 24/10 : 300+ entrees de bruit dans git status).
+/_*
+!/__init__.py
+inventaire_cles_items.md

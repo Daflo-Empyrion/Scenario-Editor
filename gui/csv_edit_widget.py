@@ -258,6 +258,40 @@ class CsvEditWidget(QWidget):
         if editable:
             QTimer.singleShot(0, self._offer_review_resume)
 
+    def assistant_surface(self):
+        """Contrat assistant : contexte = cellule courante, outils = lecture
+        du tableau, applier = validation contre la table vivante + snapshot
+        undo + repeuplement. Onglet en lecture seule : pas de surface outillee
+        (le chat simple reste disponible)."""
+        if not self.editable:
+            return None
+        from core.ai.assistant.surfaces import csv as surface
+        from core.ai.assistant.surfaces.base import SurfaceBinding
+        return SurfaceBinding(
+            name=surface.SURFACE,
+            instruction=surface.INSTRUCTION,
+            context=lambda: surface.context(
+                self.path.name, self.doc.header or [],
+                self._snapshot_table(), self.table.currentRow(),
+                self.table.currentColumn()),
+            registry=lambda: surface.registry(self.doc.header or [],
+                                              self.doc.rows),
+            apply=self._apply_assistant_changes)
+
+    def _apply_assistant_changes(self, changes):
+        from core.ai.assistant.surfaces import csv as surface
+        # La table peut porter des editions non sauvegardees : elle fait foi.
+        self._sync_doc_from_table()
+        problems = surface.validate(self.doc.header or [], self.doc.rows,
+                                    changes)
+        if problems:
+            return False, problems[0]
+        self._snapshot_undo()
+        written = surface.apply(self.doc.header or [], self.doc.rows, changes)
+        self._populate_table()
+        self._set_modified(True)
+        return (True, "") if written else (False, "csv_nothing_written")
+
     def _populate_table(self):
         """Remplit la table depuis self.doc.rows -- redimensionne D'ABORD la
         table sur len(self.doc.rows) (setRowCount) avant de placer les
@@ -369,8 +403,11 @@ class CsvEditWidget(QWidget):
         col_name = self.doc.header[col] if self.doc.header and col < len(self.doc.header) else str(col)
         menu = QMenu(self)
         action_search = menu.addAction(t("search.in_column_action", name=col_name))
+        action_explain = menu.addAction(t("ctx.explain_ai"))
         chosen = menu.exec(self.table.horizontalHeader().viewport().mapToGlobal(pos))
-        if chosen == action_search:
+        if chosen == action_explain:
+            self._explain_cell(self.table.currentRow(), col)
+        elif chosen == action_search:
             idx = self.search_scope.findData(col)
             if idx >= 0:
                 self.search_scope.setCurrentIndex(idx)
@@ -552,6 +589,7 @@ class CsvEditWidget(QWidget):
             action_dup = None
             if self.on_duplicate_row:
                 action_dup = menu.addAction(t("csv.duplicate_row_action"))
+            action_explain = menu.addAction(t("ctx.explain_ai"))
 
             lang_actions = {}
             if self.on_translate_cell and text.strip():
@@ -560,11 +598,13 @@ class CsvEditWidget(QWidget):
                     a = translate_menu.addAction(label)
                     lang_actions[a] = (code, label)
 
-            if not action_copy and not action_dup and not lang_actions:
+            if not action_copy and not action_dup and not lang_actions and not action_explain:
                 return
 
             chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
-            if action_copy and chosen == action_copy:
+            if action_explain and chosen == action_explain:
+                self._explain_cell(row_idx, item.column())
+            elif action_copy and chosen == action_copy:
                 self.on_copy_row(row_values)
             elif action_dup and chosen == action_dup:
                 self.on_duplicate_row(row_values)
@@ -583,6 +623,8 @@ class CsvEditWidget(QWidget):
         menu.addAction(t("ctx.paste"), self._do_paste)
         menu.addAction(t("ctx.clear_content"), self._do_delete_content)
         action_del_row = menu.addAction(t("ctx.delete_rows"))
+        menu.addSeparator()
+        action_explain = menu.addAction(t("ctx.explain_ai")) if item else None
         menu.addSeparator()
 
         text = item.text() if item else ""
@@ -621,6 +663,10 @@ class CsvEditWidget(QWidget):
         if item is None:
             return
 
+        if action_explain is not None and chosen == action_explain:
+            self._explain_cell(item.row(), item.column())
+            return
+
         if action_bbcode is not None and chosen == action_bbcode:
             new_text = open_bbcode_tool(self, text)
             if new_text is not None:
@@ -636,6 +682,20 @@ class CsvEditWidget(QWidget):
             return
         target_code, target_label = lang_actions[chosen]
         self._translate_single_cell(item, text, target_code, target_label)
+
+    def _explain_cell(self, row: int, col: int) -> None:
+        """Popup « Expliquer avec IA » : lit la TABLE vivante (editions non
+        enregistrees comprises) comme famille de valeurs de la colonne."""
+        if row < 0 or col < 0:
+            return
+        from core.explain import csv_context
+        from gui.explain_dialog import open_ai_explanation
+        rows = []
+        for r in range(self.table.rowCount()):
+            rows.append([self.table.item(r, c).text() if self.table.item(r, c) else ""
+                         for c in range(self.table.columnCount())])
+        open_ai_explanation(self, csv_context(
+            self.doc.header or [], rows, row, col, self.path.name))
 
     def _translate_single_cell(self, item: QTableWidgetItem, text: str, target_code: str, target_label: str):
         """Traduit une cellule et propose de remplacer soit la cellule elle-meme, soit

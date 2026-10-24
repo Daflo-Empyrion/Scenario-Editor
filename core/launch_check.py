@@ -26,8 +26,10 @@ projet ET du corpus officiel :
   rendu la galaxie VIDE ;
 - playfield reference par Sectors absent de Playfields/ (deploiement
   partiel) ;
-- PrefabName des playfields introuvable dans Prefabs/ (vecu forum : le POI
-  n'apparait pas, « Playfield POI 'X' not found »).
+- `Prefab:`/`PrefabName:` des playfields introuvable dans Prefabs/ (vecu
+  forum : le POI n'apparait pas, « Playfield POI 'X' not found ») ;
+- `GroupName:` de POI introuvable dans les groupes des prefabs (lus dans
+  l'en-tete .epb, propriete 21 — pas besoin de bplib/partie en cours).
 """
 import os
 import re
@@ -42,12 +44,18 @@ from core.sectors_merge import (find_broken_systems, find_duplicate_playfields,
                                 _strip_quotes, _systems)
 from core.yamllite.parser import parse_yaml_file
 
-_PREFAB_RE = re.compile(r'PrefabName:\s*([^,\r\n]+?)\s*(?:,|$)', re.M)
+_PREFAB_RE = re.compile(r'Prefab(?:Name)?:[ \t]*([^,\r\n#]+)', re.M)
+_GROUP_NAME_RE = re.compile(r'GroupName:[ \t]*([^,\r\n#]+)', re.M)
+_POI_CONFIG_GROUP_RE = re.compile(r'-\s*GroupName:[ \t]*([^,\r\n#]+)')
 _EGROUP_DEF_RE = re.compile(r'\{\s*EGroup\s+Name:\s*([^,\r\n}]+)')
 _SPAWN_ENTITY_RE = re.compile(r'\{\s*\+?\s*Entity\s+Name:\s*([^,\r\n}]+)')
 _ENTITIES_RE = re.compile(r'^(\s*)Entities:\s*$')
 _NAMES_RE = re.compile(r'^\s*(?:-\s*)?Names:\s*(.+)$')
 _GALAXY_INDEX_RE = re.compile(r'^Child (StarRegion|Territory)_(\d+)$')
+# bloc nomme en tete d'un playfield : `DroneBaseSetup:` puis `Random:` /
+# `Fixed:` avec un `GroupName:` a l'interieur — ce GroupName designe le bloc
+# local, pas un groupe de prefab (vecu 22/10 : alerte a tort)
+_TOP_KEY_RE = re.compile(r'^([A-Za-z0-9_.\- ]+):[ \t]*$')
 
 # formes de valeurs pour le check « valeurs » (dictionnaire vanille)
 _NUM_RE = re.compile(
@@ -95,22 +103,67 @@ def _find_sectors_yaml(root: Path) -> Path | None:
     return None
 
 
-def _index_prefabs(*roots: Path) -> set[str]:
-    """Noms de prefabs disponibles (basenames sans extension, casefold)."""
+def _index_prefabs(*roots: Path):
+    """(noms disponibles, groupes/tags declarés par les prefabs).
+
+    Un playfield reference un prefab par `Prefab:` ou `PrefabName:` avec le
+    nom de FICHIER ou le Name interne de l'en-tete (les deux different
+    souvent) : les deux sont indexes. Les groupes viennent de la propriete 21
+    des .epb — la source que `_PoiGroupsConfig.yaml` appelle « groupes deja
+    definis dans les fichiers blueprint » — plus les groupes que ce fichier
+    declare ; aucun boot du jeu n'est necessaire (vecu 22/10 : bplib export
+    exige une partie en cours)."""
+    from core.epb_blueprint import read_header
+
     names: set[str] = set()
+    groups: set[str] = set()
     for base in roots:
         if not base or not Path(base).is_dir():
             continue
         for dirpath, _dirs, files in os.walk(base):
             for fn in files:
-                if fn.lower().endswith(".epb"):
-                    names.add(Path(fn).stem.casefold())
-    return names
+                if not fn.lower().endswith(".epb"):
+                    continue
+                path = Path(dirpath) / fn
+                names.add(path.stem.casefold())
+                header = read_header(path)
+                if header is None:
+                    continue
+                name, raw_groups = header
+                if name:
+                    names.add(name.casefold())
+                for group in raw_groups.split(","):
+                    if group.strip():
+                        groups.add(group.strip().casefold())
+        for cfg in Path(base).rglob("_PoiGroupsConfig.yaml"):
+            try:
+                text = cfg.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            for line in _active_lines(text):
+                match = _POI_CONFIG_GROUP_RE.search(line)
+                if match:
+                    groups.add(match.group(1).strip().strip("'\"").casefold())
+    return names, groups
 
 
-def _check_prefabs(playfields_root: Path, available: set[str],
-                   rel_prefix: str) -> list[LaunchIssue]:
-    issues: list[LaunchIssue] = []
+def _active_lines(text: str):
+    """Lignes hors commentaire : un `# Prefab:` commente decrit ce qui est
+    DESACTIVE (YAML-009), ce n'est pas une reference a verifier."""
+    for line in text.splitlines():
+        body = line.split("#", 1)[0]
+        if body.strip():
+            yield body
+
+
+def _index_setups(playfields_root: Path) -> set[str]:
+    """Blocs de premier niveau des playfields (`DroneBaseSetup:` /
+    `R2DroneBase:` puis `Random:` ou `Fixed:` contenant un `GroupName:`).
+
+    Un `GroupName` peut designer un de ces blocs locaux au lieu d'un groupe
+    de prefab : c'est la forme utilisee par `playfield_static.yaml` pour les
+    setups de drones (vecu 22/10 : alerte a tort sur DroneBaseSetup)."""
+    names: set[str] = set()
     for pf_dir in sorted(playfields_root.iterdir()) if playfields_root.is_dir() else []:
         if not pf_dir.is_dir() or pf_dir.name.startswith('+'):
             continue
@@ -122,18 +175,71 @@ def _check_prefabs(playfields_root: Path, available: set[str],
                                            errors="replace")
             except OSError:
                 continue
-            for m in _PREFAB_RE.finditer(text):
-                name = m.group(1).strip().strip('"').split(" #")[0].strip()
-                if not name or name.casefold() in available:
-                    continue
-                line = text.count("\n", 0, m.start()) + 1
-                issues.append(LaunchIssue(
-                    check="prefabs",
-                    path=f"{rel_prefix}/{yaml_file.parent.name}/{yaml_file.name}",
-                    line=line, severity="error",
-                    message=f"PrefabName '{name}' introuvable dans "
-                            f"Prefabs/ (le POI n'apparaitra pas en jeu)",
-                ))
+            for line in text.splitlines():
+                m = _TOP_KEY_RE.match(line)
+                if m:
+                    names.add(m.group(1).strip().casefold())
+    return names
+
+
+def _check_prefabs(playfields_root: Path, names: set[str],
+                   groups: set[str], rel_prefix: str) -> list[LaunchIssue]:
+    """References des playfields aux prefabs, en UNE passe sur les fichiers :
+
+    - `Prefab:` / `PrefabName:` absents des prefabs disponibles -> ERREUR
+      (le POI n'apparaitra pas) ;
+    - `GroupName:` absent des groupes declares par les .epb / noms de prefabs
+      / `_PoiGroupsConfig.yaml` -> AVERTISSEMENT. La vanille elle-meme en
+      reference une cinquantaine (fichiers de travail/edition) et le moteur
+      ne les controle qu'au chargement du playfield : au boot, seul un
+      playfield spatial est charge (vecu 22/10 : FarrSpaceDef). Une ligne par
+      GROUPE, pas par occurrence : 331 lignes sur RE2-RPG noieraient le reste.
+    """
+    # marqueurs volontaires : « pas de POI ici », pas des groupes
+    sentinels = {"nullpoi", "none", "null", "0"}
+    issues: list[LaunchIssue] = []
+    missing: dict[str, tuple[str, set[str]]] = {}
+    for pf_dir in sorted(playfields_root.iterdir()) if playfields_root.is_dir() else []:
+        if not pf_dir.is_dir() or pf_dir.name.startswith('+'):
+            continue
+        for yaml_file in sorted(pf_dir.glob("*.yaml")):
+            if yaml_file.name.startswith('+'):
+                continue
+            try:
+                text = yaml_file.read_text(encoding="utf-8-sig",
+                                           errors="replace")
+            except OSError:
+                continue
+            rel = f"{rel_prefix}/{yaml_file.parent.name}/{yaml_file.name}"
+            for number, line in enumerate(text.splitlines(), 1):
+                body = line.split("#", 1)[0]
+                for m in _PREFAB_RE.finditer(body):
+                    name = m.group(1).strip().strip('"\'')
+                    if not name or name.casefold() in names:
+                        continue
+                    issues.append(LaunchIssue(
+                        check="prefabs", path=rel, line=number,
+                        severity="error",
+                        message=f"Prefab '{name}' introuvable dans "
+                                f"Prefabs/ (le POI n'apparaitra pas en jeu)"))
+                for m in _GROUP_NAME_RE.finditer(body):
+                    name = m.group(1).strip().strip('"\'')
+                    key = name.casefold()
+                    if not name or key in sentinels or key in groups:
+                        continue
+                    entry = missing.get(key)
+                    if entry is None:
+                        entry = missing[key] = (name, set())
+                    entry[1].add(rel)
+    for name, files in missing.values():
+        issues.append(LaunchIssue(
+            check="poi_groups", path=sorted(files)[0], line=0,
+            severity="warning",
+            message=f"groupe de POI '{name}' inconnu — aucun prefab, setup "
+                    f"local ni _PoiGroupsConfig.yaml ne le declare "
+                    f"({len(files)} playfield(s) : le POI ne sera pas "
+                    f"genere ; si le groupe vient du scenario source, "
+                    f"importer ses prefabs)"))
     return issues
 
 
@@ -542,17 +648,17 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
             message=f"playfield '{pf}' reference par Sectors mais absent de "
                     f"Playfields/ (deploiement partiel ?)"))
 
-    # --- PrefabName des playfields (POI fantomes en jeu) ---
-    available = _index_prefabs(root / "Prefabs",
-                               Path(vanilla_content) / "Prefabs" if vanilla_content else None)
-    issues.extend(_check_prefabs(playfields_root, available,
+    # --- Prefabs des playfields (`Prefab:` et `PrefabName:`) + groupes de
+    # POI (`GroupName:`), sans boot du jeu : les groupes sont lus dans
+    # l'en-tete des .epb (propriete 21) — unique source fiable en dehors
+    # d'une partie en cours (bplib export) ---
+    prefab_names, prefab_groups = _index_prefabs(
+        root / "Prefabs",
+        Path(vanilla_content) / "Prefabs" if vanilla_content else None)
+    issues.extend(_check_prefabs(playfields_root, prefab_names,
+                                 prefab_groups | prefab_names
+                                 | _index_setups(playfields_root),
                                  playfields_root.name))
-
-    # --- POIs fantomes : PAS de check statique fiable — sur RE2-RPG, le
-    # moteur n'a rejete qu'UN groupe (FarrSpaceDef) quand la sous-chaine en
-    # soupconnait 25 ; seule source fiable = le BOOT DEDIE, dont le log
-    # « Blueprint group 'X' not found or empty! » est capture par la case
-    # « tester le chargement reel » du bilan.
 
     # --- groupes d'entites (Entities:/Names:) vs EGroupsConfig.ecf +
     # EClassConfig.ecf (scenario OU vanille — EGroup et Entity se fusionnent

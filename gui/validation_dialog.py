@@ -25,13 +25,13 @@ Affiche les problemes dans un arbre Fichier > Bloc > Probleme, avec filtres
 par niveau et double-clic pour ouvrir le fichier concerne au bon endroit.
 """
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem,
-    QCheckBox, QPushButton, QHeaderView,
+    QCheckBox, QPushButton, QHeaderView, QMessageBox,
 )
 
 from core.i18n import t
@@ -39,6 +39,23 @@ from core.ecf.validation import ValidationIssue, validate_scenario
 from gui.theme import icon, icon_size
 from gui import theme as _theme
 from gui.results_window_helpers import export_text_to_file
+
+
+def explain_question(issue: ValidationIssue) -> str:
+    """Question envoyee a l'assistant pour une erreur reelle (testable sans
+    interface) : fichier, bloc, code et message d'origine."""
+    block = ""
+    if issue.block is not None:
+        ident = issue.block.get("Id") or issue.block.get("Name") or ""
+        name = issue.block.get("Name") or ""
+        block = f"{issue.block.kind} [{ident}]".strip()
+        if name and name != ident:
+            block += f" {name}"
+    return t("assistant.explain_issue",
+             file=issue.file_path.name if issue.file_path else "?",
+             block=block or "?",
+             code=issue.code,
+             message=issue.message)
 
 
 class ValidationDialog(QDialog):
@@ -88,6 +105,7 @@ class ValidationDialog(QDialog):
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.tree.itemSelectionChanged.connect(self._refresh_explain_button)
         layout.addWidget(self.tree)
 
         bottom_row = QHBoxLayout()
@@ -95,6 +113,14 @@ class ValidationDialog(QDialog):
         self.summary_label.setObjectName("mutedLabel")
         bottom_row.addWidget(self.summary_label)
         bottom_row.addStretch()
+
+        self.btn_explain = QPushButton(icon("fa5s.magic", "#4a7dfc"),
+                                       t("assistant.explain_issue_btn"))
+        self.btn_explain.setIconSize(icon_size())
+        self.btn_explain.setObjectName("secondaryButton")
+        self.btn_explain.setEnabled(False)
+        self.btn_explain.clicked.connect(self._explain_selected)
+        bottom_row.addWidget(self.btn_explain)
 
         btn_refresh = QPushButton(icon("fa5s.sync-alt", "#4a7dfc"), t("results_window.btn_refresh"))
         btn_refresh.setIconSize(icon_size())
@@ -217,6 +243,27 @@ class ValidationDialog(QDialog):
         if hasattr(edit_widget, "select_block_by_identity"):
             identity = issue.block.get('Id') or issue.block.get_property('Name') or ""
             edit_widget.select_block_by_identity(identity)
+
+    def _selected_issue(self) -> Optional[ValidationIssue]:
+        item = self.tree.currentItem()
+        if item is None:
+            return None
+        issue = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        return issue if isinstance(issue, ValidationIssue) else None
+
+    def _refresh_explain_button(self) -> None:
+        if hasattr(self, "btn_explain"):
+            self.btn_explain.setEnabled(self._selected_issue() is not None)
+
+    def _explain_selected(self) -> None:
+        issue = self._selected_issue()
+        if issue is None:
+            QMessageBox.information(self, t("validation.dialog_title"),
+                                    t("assistant.explain_issue_none"))
+            return
+        opener = getattr(self.main_window, "_open_assistant", None)
+        if callable(opener):
+            opener(explain_question(issue))
 
     def _export_results(self):
         """Exporte l'integralite des resultats (tous fichiers, tous niveaux --

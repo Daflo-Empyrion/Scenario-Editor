@@ -60,6 +60,18 @@ LEGACY_TARGET = "fr"
 _LOCK = threading.Lock()
 _cache: Optional[List[dict]] = None  # [{"src":..., "dst":..., "target":..., "on": bool}]
 
+# GARDE-FOU (21/10/2026) : au-dela de ce nombre, le glossaire n'est plus une
+# terminologie mais une memoire de traduction auto-alimentee. Vecu reel :
+# 7559 entrees, 0,28 s par ligne (71 s pour 182 lignes) et des mots
+# ordinaires remplaces dans les phrases ('no' -> 'Non', 'welcome' ->
+# 'Accueillir'), d'ou des traductions mixtes. Au-dela, on n'applique PLUS le
+# glossaire (fichier et entrees intacts ; le dialogue l'affiche en rouge).
+# Le cache de motifs evite de recompiler a chaque cellule.
+MAX_APPLY_ENTRIES = 500
+_PATTERN_CACHE: dict = {}  # target -> (generation, patterns|None, skip_count)
+_CACHE_GEN = 0  # incremente a chaque (re)chargement ou ecriture du glossaire
+_last_skip_count = 0
+
 # separement : caracteres interdits dans une entree (balises, jetons)
 _FORBIDDEN_RE = re.compile(r"[\[\]{}\\]|XXTAG|XXGLOS", re.IGNORECASE)
 _TOKEN_RE = re.compile(r"XXGLOS(\d+)XX")
@@ -84,23 +96,27 @@ def _normalize_entry(entry: dict) -> dict:
 
 
 def _load_locked() -> List[dict]:
-    global _cache
+    global _cache, _CACHE_GEN
     if _cache is None:
         try:
             data = json.loads(GLOSSARY_FILE.read_text(encoding="utf-8"))
             _cache = [_normalize_entry(e) for e in data] if isinstance(data, list) else []
         except Exception:
             _cache = []
+        _CACHE_GEN += 1
     return _cache
 
 
 def _save_locked(entries: List[dict]) -> None:
+    global _CACHE_GEN
     try:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         GLOSSARY_FILE.write_text(
             json.dumps(entries, ensure_ascii=False, indent=1), encoding="utf-8")
     except OSError:
         pass
+    _CACHE_GEN += 1
+    _PATTERN_CACHE.clear()
 
 
 def entries() -> List[dict]:
@@ -108,16 +124,30 @@ def entries() -> List[dict]:
         return [dict(e) for e in _load_locked()]
 
 
+def reset_cache() -> None:
+    """Vide le cache memoire (tests, remplacement externe du fichier) --
+    la prochaine lecture recharge le glossaire et invalide les motifs."""
+    global _cache, _CACHE_GEN
+    with _LOCK:
+        _cache = None
+        _CACHE_GEN += 1
+        _PATTERN_CACHE.clear()
+
+
+def _active_from(entries_list: List[dict], target: str) -> List[Tuple[str, str]]:
+    return sorted(
+        ((e["src"], e["dst"]) for e in entries_list
+         if e.get("on", True) and e.get("src") and e.get("dst")
+         and e.get("target") == target
+         and _src_is_valid(e["src"])),
+        key=lambda pair: len(pair[0]), reverse=True)
+
+
 def active_entries(target: str = LEGACY_TARGET) -> List[Tuple[str, str]]:
     """[(source, traduction imposee)] des entrees actives pour la langue
     cible `target`, les plus longues d'abord (priorite d'application)."""
     with _LOCK:
-        return sorted(
-            ((e["src"], e["dst"]) for e in _load_locked()
-             if e.get("on", True) and e.get("src") and e.get("dst")
-             and e.get("target") == target
-             and _src_is_valid(e["src"])),
-            key=lambda pair: len(pair[0]), reverse=True)
+        return _active_from(_load_locked(), target)
 
 
 def add_entry(src: str, dst: str, enabled: bool = True,
@@ -179,10 +209,51 @@ def auto_feed_ok(source_text: str) -> bool:
     courte pour etre une terminologie (<= AUTO_FEED_MAX_WORDS mots) ET
     contenant au moins un caractere alphanumerique (une cellule '-' seule
     validee avait cree l'entree toxique '-' -> liste inventee, vecu
-    20/09/2026)."""
+    20/09/2026). Au-dela de MAX_APPLY_ENTRIES, l'alimentation automatique
+    s'arrete : le glossaire n'est plus applique de toute facon."""
     if not _src_is_valid(source_text):
         return False
+    with _LOCK:
+        if len(_load_locked()) >= MAX_APPLY_ENTRIES:
+            return False
     return 0 < len(source_text.split()) <= AUTO_FEED_MAX_WORDS
+
+
+def _compiled_patterns(target: str):
+    """Motifs precompiles dans l'ordre d'application, ou None si le
+    glossaire depasse MAX_APPLY_ENTRIES (non applique)."""
+    global _last_skip_count
+    with _LOCK:
+        entries_list = _load_locked()
+        generation = _CACHE_GEN
+        cached = _PATTERN_CACHE.get(target)
+        if cached is not None and cached[0] == generation:
+            _last_skip_count = cached[2]
+            return cached[1]
+        # compter AVANT de trier : un glossaire de 7500 entrees doit etre
+        # ecarte sans payer le tri a chaque cellule.
+        active = [(e["src"], e["dst"]) for e in entries_list
+                  if e.get("on", True) and e.get("src") and e.get("dst")
+                  and e.get("target") == target
+                  and _src_is_valid(e["src"])]
+        if len(active) > MAX_APPLY_ENTRIES:
+            _last_skip_count = len(active)
+            _PATTERN_CACHE[target] = (generation, None, len(active))
+            return None
+        _last_skip_count = 0
+        active.sort(key=lambda pair: len(pair[0]), reverse=True)
+        compiled = [
+            (re.compile(r"\b" + re.escape(src) + r"\b", re.IGNORECASE), dst)
+            for src, dst in active
+        ]
+        _PATTERN_CACHE[target] = (generation, compiled, 0)
+        return compiled
+
+
+def apply_skipped() -> int:
+    """Nombre d'entrees actives quand la derniere application a ete refusee
+    (0 si le glossaire a ete applique ou est vide) -- diagnostic UI."""
+    return _last_skip_count
 
 
 def apply_glossary(text: str, target: str = LEGACY_TARGET
@@ -190,14 +261,15 @@ def apply_glossary(text: str, target: str = LEGACY_TARGET
     """Remplace les termes actifs du glossaire POUR LA LANGUE CIBLE
     `target` par des jetons XXGLOS<n>XX. Retourne (texte_jetonnes,
     [(jeton, traduction_imposee)]). Chaine et liste vides si le glossaire
-    est vide ou sans entree pour cette langue (appel sans cout)."""
-    active = active_entries(target)
-    if not active:
+    est vide, sans entree pour cette langue, ou trop gros (garde-fou
+    MAX_APPLY_ENTRIES : un glossaire de 7500 entrees est une memoire de
+    traduction, pas une terminologie -- voir le dialogue)."""
+    patterns = _compiled_patterns(target)
+    if not patterns:
         return text, []
     replacements: List[Tuple[str, str]] = []
-    for i, (src, dst) in enumerate(active):
+    for i, (pattern, dst) in enumerate(patterns):
         token = f"XXGLOS{i}XX"
-        pattern = re.compile(r"\b" + re.escape(src) + r"\b", re.IGNORECASE)
         if pattern.search(text):
             text = pattern.sub(token, text)
             replacements.append((token, dst))

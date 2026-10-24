@@ -57,6 +57,23 @@ def test_transform_clamp_operation():
     assert report.changes[0].new_value == "1000"
 
 
+def test_transform_multiply_respects_bounds():
+    """Une probabilite 0.8 x2 donne 1.6, hors de l'echelle 0..1 du jeu : le plafond
+    optionnel de multiply doit borner le resultat dans la meme passe."""
+    doc = parse_ecf_file(FIXTURE)
+    rule = TransformRule(property_key="param1", operation="multiply", amount=2.0,
+                          min_value=0.0, max_value=0.6, recursive=True)
+    report = apply_transform(doc, rule)
+    assert sorted(c.new_value for c in report.changes) == ["0.6", "0.6"]
+
+
+def test_transform_multiply_leaves_values_inside_bounds_untouched():
+    doc = parse_ecf_file(FIXTURE)
+    rule = TransformRule(property_key="param1", operation="multiply", amount=1.0,
+                          max_value=0.6, recursive=True)
+    assert apply_transform(doc, rule).changes == []
+
+
 def test_transform_no_matching_key_yields_no_changes():
     doc = parse_ecf_file(FIXTURE)
     rule = TransformRule(property_key="ThisKeyDoesNotExist", operation="add", amount=1.0)

@@ -404,12 +404,12 @@ DEFAULT_TRANSLATION_TIMEOUT_S = 15.0
 # non configures/installes sont sautes, et un maillon qui echoue est mis au
 # repos (cooldown) pour ne pas marteler un service mort sur chaque cellule.
 # ---------------------------------------------------------------------------
-_FALLBACK_ORDER = ("groq", "deepl", "google", "nllb", "argos")
-_ENGINE_LABELS = {"groq": "Groq", "deepl": "DeepL", "google": "Google",
+_FALLBACK_ORDER = ("ai", "groq", "deepl", "google", "nllb", "argos")
+_ENGINE_LABELS = {"ai": "IA", "groq": "Groq", "deepl": "DeepL", "google": "Google",
                   "nllb": "NLLB", "argos": "Argos"}
 # Durees de repos apres une erreur basculable : le quota DeepL est MENSUEL
 # (inutile de reessayer avant longtemps), les pannes reseau sont brèves.
-_LINK_DOWN_S = {"groq": 60, "deepl": 1800, "google": 60,
+_LINK_DOWN_S = {"ai": 60, "groq": 60, "deepl": 1800, "google": 60,
                 "nllb": 120, "argos": 120}
 # Groq : cooldown restant annonce par l'API au-dela duquel le maillon est
 # SAUTE sans meme tenter l'appel (sinon le throttle dormait jusqu'au
@@ -463,7 +463,15 @@ def _fallback_chain(primary: str, target: str) -> list:
     for eng in [primary] + [e for e in _FALLBACK_ORDER if e != primary]:
         if eng in ("groq", "deepl", "google") and not online_ok:
             continue
-        if eng == "groq":
+        if eng == "ai":
+            from .ai import router as ai_router
+            if not ai_router.configured():
+                continue
+            # un maillon LOCAL (Unsloth/Ollama) reste utilisable sans la
+            # permission "Traduction en ligne" (aucune donnee ne sort).
+            if not online_ok and not ai_router.has_local_links():
+                continue
+        elif eng == "groq":
             from . import groq_provider
             if not groq_provider.is_configured():
                 continue
@@ -485,6 +493,12 @@ def _translate_with_engine(eng: str, gtext: str, target: str, source: str,
     """Un maillon de la chaine : traduction SANS glossaire (la restauration
     du glossaire est faite UNE fois par l'appelant). Erreurs typees pour
     les maillons en ligne ; TimeoutError possible sur Google."""
+    if eng == "ai":
+        from .ai import router as ai_router
+        return _translate_llm_whole_cell(
+            gtext, source, target,
+            translate_whole=ai_router.translate_whole,
+            translate_fn=ai_router.translate)
     if eng == "groq":
         from . import groq_provider
         return _translate_llm_whole_cell(
@@ -643,6 +657,14 @@ def _translate_via_chain(gtext: str, gloss_replacements: list, primary: str,
             raise
         except (QuotaExhaustedError, EngineUnavailableError,
                 TimeoutError) as e:
+            if eng == "ai":
+                # Le routeur IA gere ses repos PAR MAILLON (modele absent,
+                # 429 par fournisseur, plafond). Un repos moteur de 60 s ici
+                # desactivait toute l'IA apres un seul lot transitoire : les
+                # cellules suivantes partaient sur Groq alors qu'un autre
+                # maillon free etait disponible. On le laisse retenter.
+                errors.append((eng, str(e)))
+                continue
             seconds = _LINK_DOWN_S.get(eng, 60)
             if eng == "groq":
                 from . import groq_provider
@@ -656,13 +678,18 @@ def _translate_via_chain(gtext: str, gloss_replacements: list, primary: str,
             # Filet final : une page d'erreur servie "avec succes" par un
             # moteur (LLM hallucinant, MT limite) n'est JAMAIS une
             # traduction -- maillon ecarte, le suivant prend le relais.
-            seconds = _LINK_DOWN_S.get(eng, 60)
-            _mark_link_down(eng, seconds)
+            if eng != "ai":
+                _mark_link_down(eng, _LINK_DOWN_S.get(eng, 60))
             errors.append((eng, "page d'erreur moteur"))
             continue
-        _set_fallback_note("" if eng == primary else
-                           t("trans.fallback_used",
-                             engine=_ENGINE_LABELS[eng]))
+        note = "" if eng == primary else t("trans.fallback_used",
+                                           engine=_ENGINE_LABELS[eng])
+        ai_error = next((msg for failed, msg in errors if failed == "ai"), "")
+        if note and ai_error:
+            # Rendre VISIBLE pourquoi l'IA a laisse passer (quota, 429,
+            # plafond...) au lieu du seul nom du moteur de secours.
+            note += " -- IA : " + ai_error[:140]
+        _set_fallback_note(note)
         _debug_note(eng, gtext, translated,
                     fallback=eng != primary)
         return glossary.restore_glossary(translated, gloss_replacements)
@@ -710,6 +737,19 @@ def _translate_legacy_single(gtext: str, gloss_replacements: list,
     # ci-dessus reste utilisable meme desactive (aucune donnee n'est envoyee,
     # juste une reutilisation locale d'un resultat deja obtenu precedemment).
     # Voir core/settings.py:get_online_translation_enabled() et PRIVACY.md.
+    if engine == "ai":
+        # Maillons IA : le routeur filtre lui-meme les fournisseurs distants
+        # quand la permission est desactivee ; un maillon local reste permis.
+        from .ai import router as ai_router
+        if (not _settings.get_online_translation_enabled()
+                and not ai_router.has_local_links()):
+            _raise_online_disabled()
+        ai_result = _translate_llm_whole_cell(
+            gtext, source, target,
+            translate_whole=ai_router.translate_whole,
+            translate_fn=ai_router.translate)
+        return glossary.restore_glossary(ai_result, gloss_replacements)
+
     if not _settings.get_online_translation_enabled():
         _raise_online_disabled(_offline_error)
 
@@ -912,6 +952,42 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
     from . import settings as _settings
     engine = _settings.get_translation_engine()
     fallback_on = _settings.get_engine_fallback_enabled()
+    # Mode LOTS des maillons IA : une requete pour plusieurs cellules. Le
+    # routeur enchaine ses propres fournisseurs (free puis payant).
+    if (engine == "ai" and _settings.get_ai_batch_enabled()
+            and len(still) > 1):
+        from .ai import budget as _ai_budget
+        from .ai import router as _ai_router
+        if _ai_router.has_available_links():
+            from . import glossary
+            gtexts, gloss_replacements = [], []
+            for _i, text in still:
+                gtext, replacements = glossary.apply_glossary(text, target)
+                gtexts.append(gtext)
+                gloss_replacements.append(replacements)
+            try:
+                translated_list = _translate_llm_cells_batch(
+                    gtexts, source, target,
+                    translate_batch=_ai_router.translate_batch,
+                    translate_whole=_ai_router.translate_whole,
+                    translate_fn=_ai_router.translate)
+            except AuthError:
+                raise
+            except (QuotaExhaustedError, EngineUnavailableError, TimeoutError):
+                if not fallback_on:
+                    raise
+                # Pas de repos moteur ici : le routeur a deja mis au repos
+                # les maillons fautifs ; les cellules suivantes doivent
+                # pouvoir retenter l'IA (un autre maillon free, un 429
+                # expire) au lieu de partir sur Groq pendant 60 s.
+            else:
+                _ai_budget.flush()
+                for (i, _text), translated, replacements, gtext in zip(
+                        still, translated_list, gloss_replacements, gtexts):
+                    _debug_note("ai", gtext, translated)
+                    results[i] = (glossary.restore_glossary(
+                        translated, replacements), "engine")
+                return results
     # _link_available : apres un echec quota, Groq est au repos (aligne
     # sur le reset annonce) -- ne pas repartir en requete lot, la chaine
     # sert les cellules directement (vecu 19/09/2026 : pokes gaspilles).
@@ -961,4 +1037,7 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
         translated = _engine_dispatch(gtext, replacements, target, source,
                                       DEFAULT_TRANSLATION_TIMEOUT_S)
         results[i] = (translated, "engine")
+    if engine == "ai":
+        from .ai import budget as _ai_budget
+        _ai_budget.flush()
     return results

@@ -229,6 +229,15 @@ class MainWindow(QMainWindow):
         "menu.tools.*". Raccourcis affiches dans le menu (P3). Groupes
         explicites (17/09/2026) : exploration, PDA, gestion du projet."""
         self.menu_tools = self.menuBar().addMenu(t("menu.tools"))
+        self.action_assistant = self.menu_tools.addAction(t("menu.tools.assistant"))
+        self.action_assistant.setShortcut("Ctrl+Shift+A")
+        self.action_assistant.triggered.connect(self._open_assistant)
+        self.action_assistant_palette = self.menu_tools.addAction(
+            t("menu.tools.assistant_palette"))
+        self.action_assistant_palette.setShortcut("Ctrl+K")
+        self.action_assistant_palette.triggered.connect(
+            self._open_assistant_palette)
+        self.menu_tools.addSeparator()
         self.action_search_scenario = self.menu_tools.addAction(t("menu.file.search_scenario"))
         self.action_search_scenario.setShortcut("Ctrl+Shift+F")
         self.action_search_scenario.triggered.connect(self._open_search_dialog)
@@ -260,6 +269,14 @@ class MainWindow(QMainWindow):
         self.action_trader_audit.triggered.connect(self._open_trader_audit_dialog)
         self.action_correlation = self.menu_tools.addAction(t("menu.tools.correlation"))
         self.action_correlation.triggered.connect(self._open_correlation_dialog)
+        self.action_recipe_balance = self.menu_tools.addAction(
+            t("menu.tools.recipe_balance"))
+        self.action_recipe_balance.triggered.connect(
+            self._open_recipe_balance_dialog)
+        self.action_unlock_cost = self.menu_tools.addAction(
+            t("menu.tools.unlock_cost"))
+        self.action_unlock_cost.triggered.connect(
+            self._open_unlock_cost_dialog)
         self.action_bundles = self.menu_tools.addAction(t("menu.tools.bundles"))
         self.action_bundles.triggered.connect(self._open_bundles_dialog)
         self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
@@ -271,9 +288,19 @@ class MainWindow(QMainWindow):
         self.action_yaml_check = self.menu_tools.addAction(t("menu.tools.yaml_check"))
         self.action_yaml_check.setToolTip(t("menu.tools.yaml_check.tip"))
         self.action_yaml_check.triggered.connect(self._open_yaml_check)
+        self.action_reintegrate = self.menu_tools.addAction(
+            t("menu.tools.reintegrate"))
+        self.action_reintegrate.setToolTip(t("menu.tools.reintegrate.tip"))
+        self.action_reintegrate.triggered.connect(self._open_reintegrate)
         self.menu_tools.addSeparator()
         self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
+
+    def _open_reintegrate(self):
+        """Dossiers de Playfields non declares par Sectors : les reposer dans
+        un systeme existant (secteur libre, nom unique, backup + undo)."""
+        from gui.playfield_reintegrate_dialog import open_reintegrate
+        open_reintegrate(self, self)
 
     def _open_yaml_compare_tool(self):
         """Outil autonome (demande 07/10) : comparer/fusionner DEUX
@@ -470,11 +497,14 @@ class MainWindow(QMainWindow):
             t("menu.options.engine_groq"))
         self.action_engine_deepl = self.menu_engine.addAction(
             t("menu.options.engine_deepl"))
+        self.action_engine_ai = self.menu_engine.addAction(
+            t("menu.options.engine_ai"))
         for engine_id, action in (("google", self.action_engine_google),
                                   ("argos", self.action_engine_argos),
                                   ("nllb", self.action_engine_nllb),
                                   ("groq", self.action_engine_groq),
-                                  ("deepl", self.action_engine_deepl)):
+                                  ("deepl", self.action_engine_deepl),
+                                  ("ai", self.action_engine_ai)):
             action.setCheckable(True)
             action.setChecked(engine_id == current_engine)
             action.triggered.connect(
@@ -511,8 +541,14 @@ class MainWindow(QMainWindow):
         self.action_groq.triggered.connect(self._open_groq_setup)
         self.action_deepl = self.menu_translation.addAction(t("menu.options.deepl"))
         self.action_deepl.triggered.connect(self._open_deepl_setup)
+        self.action_ai_providers = self.menu_translation.addAction(
+            t("menu.options.ai_providers"))
+        self.action_ai_providers.triggered.connect(self._open_ai_providers)
         self.action_glossary = self.menu_translation.addAction(t("menu.options.glossary"))
         self.action_glossary.triggered.connect(self._open_glossary)
+        self.action_repair_glossary = self.menu_translation.addAction(
+            t("menu.options.glossary_repair"))
+        self.action_repair_glossary.triggered.connect(self._open_glossary_repair)
         self.action_vanilla_content = self.menu_translation.addAction(
             t("menu.options.vanilla_content"))
         self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
@@ -1761,6 +1797,13 @@ class MainWindow(QMainWindow):
         self.action_engine_deepl.setToolTip(
             t("menu.options.engine_deepl.tip_ok") if has_deepl
             else t("menu.options.engine_deepl.tip_none"))
+        # IA multi-fournisseurs : disponible des qu'un maillon est configure
+        from core.ai import router as ai_router
+        has_ai = ai_router.configured()
+        self.action_engine_ai.setEnabled(has_ai)
+        self.action_engine_ai.setToolTip(
+            t("menu.options.engine_ai.tip_ok") if has_ai
+            else t("menu.options.engine_ai.tip_none"))
         # triggered n'est emis que par un clic utilisateur : pas besoin de
         # bloquer les signaux pour synchroniser l'affichage
         self.action_engine_google.setChecked(engine == "google")
@@ -1768,6 +1811,7 @@ class MainWindow(QMainWindow):
         self.action_engine_nllb.setChecked(has_nllb and engine == "nllb")
         self.action_engine_groq.setChecked(has_groq and engine == "groq")
         self.action_engine_deepl.setChecked(has_deepl and engine == "deepl")
+        self.action_engine_ai.setChecked(has_ai and engine == "ai")
 
     def _switch_translation_engine(self, engine_id: str):
         """Choix radio du sous-menu Moteur : persiste et signale en barre
@@ -1778,7 +1822,8 @@ class MainWindow(QMainWindow):
                     "argos": "argos.engine_name_argos",
                     "nllb": "argos.engine_name_nllb",
                     "groq": "argos.engine_name_groq",
-                    "deepl": "argos.engine_name_deepl"}[engine_id]
+                    "deepl": "argos.engine_name_deepl",
+                    "ai": "argos.engine_name_ai"}[engine_id]
         self.statusBar().showMessage(
             t("argos.engine_switched", engine=t(name_key)), 8000)
 
@@ -1805,6 +1850,13 @@ class MainWindow(QMainWindow):
         self._glossary_dialog = GlossaryDialog(self)
         self._glossary_dialog.show()
 
+    def _open_glossary_repair(self):
+        """Réparation du glossaire : tri terminology/phrases, vanille puis
+        IA, revue cochable, sauvegarde avant écriture."""
+        from gui.glossary_repair_dialog import GlossaryRepairDialog
+        self._glossary_repair_dialog = GlossaryRepairDialog(self)
+        self._glossary_repair_dialog.show()
+
     def _open_nllb_setup(self):
         """Assistant du moteur local NLLB (Meta, CTranslate2) -- qualite
         superieure a Argos, 100 % local, installation en un clic."""
@@ -1819,6 +1871,345 @@ class MainWindow(QMainWindow):
         from gui.groq_setup_dialog import GroqSetupDialog
         self._groq_dialog = GroqSetupDialog(self)
         self._groq_dialog.show()
+
+    def _open_ai_providers(self):
+        """Fournisseurs IA (OpenRouter free/payant, DeepSeek direct, Groq,
+        locaux...) : registre, maillons ordonnes, budget et test."""
+        from gui.ai_providers_dialog import AiProvidersDialog
+        self._ai_dialog = AiProvidersDialog(self)
+        self._ai_dialog.show()
+
+    def _open_assistant(self, question: str = ""):
+        """Fenetre flottante de l'assistant (Q8) : contexte de l'onglet actif
+        joint a la demande, historique par scenario (hors de l'arbre du
+        scenario, donc jamais deploye)."""
+        from core.ai.assistant.session import history_path
+        from gui.assistant_dialog import AssistantDialog
+
+        root = self.workspace.working_root if self.workspace else None
+        dialog = getattr(self, "_assistant_dialog", None)
+        if dialog is None:
+            dialog = AssistantDialog(
+                parent=self,
+                history_path=history_path(root) if root else None,
+                surface_provider=self._assistant_surface)
+            self._assistant_dialog = dialog
+        else:
+            if root:
+                dialog.set_history_path(history_path(root))
+            dialog.set_surface_provider(self._assistant_surface)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        if question:
+            dialog.ask(question)
+
+    def _open_assistant_palette(self):
+        from gui.assistant_palette import AssistantPalette
+        palette = AssistantPalette(self)
+        try:
+            if palette.exec() != QDialog.DialogCode.Accepted:
+                return
+            kind, text = palette.choice()
+        finally:
+            palette.deleteLater()
+        if kind == "ask":
+            self._open_assistant(text)
+
+    def _assistant_surface(self):
+        """Surface de l'onglet actif : un editeur qui expose
+        `assistant_surface()` (ECF, CSV) fournit son contexte, ses outils de
+        lecture et son applier (revue + undo). Les autres onglets gardent un
+        contexte minimal (selection de texte).
+
+        Des qu'un scenario est ouvert, les outils de lecture A L'ECHELLE DU
+        SCENARIO (lister, chercher, lire, bloc d'un autre ECF) sont ajoutes :
+        c'est ce qui permet de repondre « ou est reference X » sans changer
+        d'onglet (vecu 21/10)."""
+        from core.ai.assistant.surfaces.base import (
+            READ_ONLY_IMPORT_INSTRUCTION, READ_ONLY_INSTRUCTION,
+            SurfaceBinding, with_scenario_tools)
+        from core.ai.assistant.tools import ToolRegistry
+        from gui.assistant_context import tab_context
+
+        tab = self.tabs.currentWidget() if hasattr(self, "tabs") else None
+        binding = None
+        for candidate in (tab, getattr(tab, "edit_widget", None)):
+            getter = getattr(candidate, "assistant_surface", None)
+            if callable(getter):
+                try:
+                    binding = getter()
+                except Exception:  # noqa: BLE001 -- onglet en cours de montage
+                    binding = None
+                if binding is not None:
+                    break
+        workspace = getattr(self, "workspace", None)
+        if binding is None:
+            title = self.tabs.tabText(self.tabs.currentIndex()) if tab else ""
+            # Aucun editeur a l'ecran : seul l'import A/B a un ecrivain
+            # (revue + undo de l'espace de travail). Sans espace de travail,
+            # rien n'est ecrivable -- on ne fait donc pas proposer de
+            # changement : le modele donne les valeurs en prose.
+            binding = SurfaceBinding(
+                name="tab",
+                context=lambda: tab_context(tab, title),
+                registry=lambda: ToolRegistry(),
+                apply=lambda changes: (False, "unsupported"),
+                instruction=(READ_ONLY_IMPORT_INSTRUCTION if workspace
+                             else READ_ONLY_INSTRUCTION),
+                produces_changeset=workspace is not None,
+                kinds=("scenario_import",) if workspace else ())
+        if workspace is not None:
+            binding = with_scenario_tools(
+                binding, workspace.working_root,
+                {"a": workspace.source_a_root, "b": workspace.source_b_root})
+            binding = self._with_scenario_import(binding)
+        return binding
+
+    def _with_scenario_import(self, binding):
+        """Etend l'applier de l'assistant : les lignes `scenario_import`
+        (fichier, dossier ou bloc ECF pris dans A/B) sont ecrites ici avec
+        l'undo de l'espace de travail, les autres restent a l'editeur actif.
+        L'ecriture n'a lieu qu'apres la revue du ChangeSet (Q33)."""
+        from core.ai.assistant.surfaces.base import SurfaceBinding
+
+        inner = binding.apply
+
+        def apply(changes):
+            rest = [c for c in changes if c.kind != "scenario_import"]
+            if rest:
+                ok, problem = inner(rest)
+                if not ok:
+                    return False, problem
+            imports = [c for c in changes if c.kind == "scenario_import"]
+            return self._apply_scenario_imports(imports) if imports else (True, "")
+
+        return SurfaceBinding(name=binding.name, context=binding.context,
+                              registry=binding.registry, apply=apply,
+                              instruction=binding.instruction,
+                              expand=self._expand_imports,
+                              produces_changeset=binding.produces_changeset,
+                              kinds=binding.kinds)
+
+    def _expand_imports(self, changeset):
+        """Une ligne 'scenario_import ... #Bloc+deps' -> UNE LIGNE PAR
+        DEPENDANCE, cochable individuellement. Le developpement est calcule
+        ici et non par le modele : 60 cibles recopiees par un LLM = chemins
+        inventes et sortie tronquee. Les non-resolues completes le rapport
+        CSV de la revue."""
+        from core.ai.assistant.changeset import MAX_CHANGES, Change, ChangeSet
+        from core.ecf.dependencies import resolve
+        from core.scenario_import import parse_target
+
+        ws = self.workspace
+        if ws is None:
+            return changeset
+        roots = {"a": ws.source_a_root, "b": ws.source_b_root}
+        expanded, report = [], list(changeset.report)
+        parents, tabs = set(), set()
+        seen = {(row.get("type"), row.get("reference"), row.get("from"))
+                for row in report if isinstance(row, dict)}
+        for change in changeset.changes:
+            target = (parse_target(change.target)
+                      if change.kind == "scenario_import" else None)
+            if target is None or not target.with_deps \
+                    or target.scope not in roots:
+                expanded.append(change)
+                continue
+            resolution = resolve(roots[target.scope], target.rel,
+                                 target.ident, ws.working_root)
+            parents |= {entry["parent"] for entry in resolution.techtree
+                        if entry["parent"]}
+            tabs |= {tab for entry in resolution.techtree
+                     for tab in entry["tabs"]}
+            if len(expanded) + len(resolution.imports) > MAX_CHANGES:
+                expanded.append(change)     # trop long : ligne globale
+                continue
+            for entry in resolution.imports:
+                expanded.append(Change(
+                    kind="scenario_import",
+                    target=f"{target.scope}:{entry['target']}",
+                    old="absent", new=entry["reason"],
+                    reason=entry["reason"]))
+            for item in resolution.unresolved:
+                key = (item.kind, item.ref,
+                       f"{item.from_rel}#{item.from_ident}")
+                if key in seen:
+                    continue
+                seen.add(key)
+                report.append({"type": item.kind, "reference": item.ref,
+                               "from": key[2], "reason": item.reason})
+        summary = changeset.summary
+        if parents or tabs:
+            # L'arbre technologique n'est PAS importe : l'utilisateur doit
+            # savoir qu'il reste a le raccorder (avertissement en tete de la
+            # revue, donc visible avant d'appliquer).
+            def _names(values):
+                ordered = sorted(values)
+                text = ", ".join(ordered[:10])
+                return text + ("…" if len(ordered) > 10 else "")
+
+            lines = []
+            if parents:
+                lines.append(t("assistant.import_techtree_parents",
+                               names=_names(parents)))
+            if tabs:
+                lines.append(t("assistant.import_techtree_tabs",
+                               names=_names(tabs)))
+            lines.append(t("assistant.import_techtree_hint"))
+            summary = ((summary + "\n\n") if summary else "") + "\n".join(lines)
+        return ChangeSet(changes=expanded, summary=summary, report=report)
+
+    def _apply_scenario_imports(self, changes):
+        """Importe des cibles "<a|b>:<relatif>[#bloc][+deps]" dans la copie
+        de travail. `+deps` resout le graphe complet (recette, ingredients,
+        Ref, icones, localisation) au moment de l'apply : l'arbre
+        technologique est volontairement EXCLU et signale comme avertissement. Le
+        modele ne recopie qu'une ligne. Les fichiers/dossiers passent par les
+        moteurs de fusion existants (jamais d'ecrasement aveugle d'un
+        ECF/CSV) ; les blocs d'un meme fichier sont ecrits en UNE passe.
+        Echec en cours de route = tout est annule."""
+        from core.ecf.dependencies import clear_cache, resolve
+        from core.scenario_import import import_blocks, parse_target
+        from core.workspace import (merge_file_into_working,
+                                    merge_folder_into_working)
+        from core.workspace_undo import (FileStateUndo, FolderStateUndo,
+                                         MultiFileStateUndo, capture_file,
+                                         capture_folder)
+
+        ws = self.workspace
+        if ws is None:
+            return False, "scenario_import_unavailable"
+        roots = {"a": ws.source_a_root, "b": ws.source_b_root}
+        labels = {"a": "Scenario A", "b": "Scenario B"}
+        undos, touched = [], []
+
+        def abort(code):
+            for undo in reversed(undos):
+                try:
+                    undo.undo()
+                except Exception:  # noqa: BLE001 -- best effort, deja en echec
+                    pass
+            clear_cache()
+            return False, code
+
+        def same_or_inside(tip: str, path: Path) -> bool:
+            try:
+                return bool(tip) and Path(tip).is_relative_to(path)
+            except (OSError, ValueError):
+                return False
+
+        def unsaved(dest: Path) -> bool:
+            for i in range(self.tabs.count()):
+                widget = self.tabs.widget(i)
+                if same_or_inside(self.tabs.tabToolTip(i) or "", dest) and \
+                        getattr(widget, "is_modified", lambda: False)():
+                    return True
+            return False
+
+        # 1) DEVELOPPER les +deps et tout verifier AVANT la premiere
+        # ecriture : une cible manquante ou un onglet modifie sur une cible
+        # serait ferme ensuite (perte de ses editions).
+        plan = []
+        unresolved_rows = []
+        for change in changes:
+            target = parse_target(change.target)
+            src_root = roots.get(target.scope) if target else None
+            if target is None or src_root is None:
+                return False, "scenario_import_invalid"
+            raws = [change.target]
+            if target.with_deps:
+                resolution = resolve(src_root, target.rel, target.ident,
+                                     ws.working_root)
+                if not resolution.imports:
+                    return False, "scenario_import_failed"
+                raws = [f"{target.scope}:{entry['target']}"
+                        for entry in resolution.imports]
+                for item in resolution.unresolved:
+                    unresolved_rows.append({
+                        "type": item.kind, "reference": item.ref,
+                        "from": f"{item.from_rel}#{item.from_ident}",
+                        "reason": item.reason})
+            for raw in raws:
+                sub = parse_target(raw)
+                if sub is None:
+                    return False, "scenario_import_invalid"
+                source = Path(src_root) / sub.rel
+                if not source.exists():
+                    return False, "scenario_import_missing"
+                dest = ws.working_root / sub.rel
+                if unsaved(dest):
+                    return False, "scenario_import_unsaved"
+                plan.append((sub, src_root, source, dest))
+
+        # 2) Les BLOCS d'un meme fichier en une seule reecriture.
+        grouped = {}
+        files = []
+        for sub, src_root, source, dest in plan:
+            if sub.ident:
+                grouped.setdefault(dest, []).append((source, sub.ident))
+            else:
+                files.append((sub, src_root, source, dest))
+
+        for dest, blocks in grouped.items():
+            prior = capture_file(dest)
+            undos.append(FileStateUndo(
+                dest, prior, t("assistant.import_undo_file", name=dest.name)))
+            ok, _statuses, code = import_blocks(blocks, dest)
+            if not ok:
+                return abort(code or "scenario_import_failed")
+            touched.append(dest)
+
+        for sub, src_root, source, dest in files:
+            if source.is_dir():
+                existed, prior = capture_folder(dest)
+                undos.append(FolderStateUndo(
+                    dest, existed, prior,
+                    t("assistant.import_undo_folder", name=dest.name)))
+                try:
+                    merge_folder_into_working(ws, source, src_root,
+                                              labels[sub.scope])
+                except Exception:  # noqa: BLE001 -- remonte comme refus
+                    return abort("scenario_import_failed")
+            else:
+                prior = capture_file(dest)
+                undos.append(FileStateUndo(
+                    dest, prior,
+                    t("assistant.import_undo_file", name=dest.name)))
+                try:
+                    merge_file_into_working(ws, source, src_root,
+                                            labels[sub.scope])
+                except Exception:  # noqa: BLE001
+                    return abort("scenario_import_failed")
+            touched.append(dest)
+
+        if undos:
+            self._push_workspace_undo(MultiFileStateUndo(
+                undos, t("assistant.import_undo_group", n=len(undos))))
+        clear_cache()
+        ws.rescan_working()
+        self._populate_tree(self.tree_working, ws.working)
+        for i in reversed(range(self.tabs.count())):
+            tip = self.tabs.tabToolTip(i) or ""
+            if any(same_or_inside(tip, path) for path in touched):
+                self.tabs.removeTab(i)
+        message = t("assistant.import_done", n=len(touched))
+        if unresolved_rows:
+            # Rapport EXHAUSTIF hors du scenario (le jeu charge tous les
+            # fichiers d'un scenario : un CSV parasite y serait fatal).
+            from core.ai.assistant.changeset import ChangeSet
+            from time import strftime
+            path = (settings.CONFIG_DIR / "imports"
+                    / f"non_importees_{strftime('%Y%m%d-%H%M%S')}.csv")
+            try:
+                count = ChangeSet(report=unresolved_rows
+                                  ).write_report_csv(path)
+                message += " " + t("assistant.import_report_saved",
+                                   n=count, path=str(path))
+            except OSError:
+                pass
+        self.statusBar().showMessage(message)
+        return True, ""
 
     def _set_extra_icons_dialog(self):
         """Dossier d'icones supplementaires (icones de MODS, ex RE2) : fusionne
@@ -1901,6 +2292,30 @@ class MainWindow(QMainWindow):
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
         dlg = CorrelationDialog(self, working)
+        dlg.exec()
+
+    def _open_recipe_balance_dialog(self):
+        """Recettes de craft coherentes : cout vs puissance reelle
+        (core/recipe_balance.py) — composition vanille pour les blocs
+        existants, isotonique par famille, lot cochable, backup central."""
+        from gui.recipe_balance_dialog import RecipeBalanceDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = RecipeBalanceDialog(self, working)
+        dlg.exec()
+
+    def _open_unlock_cost_dialog(self):
+        """Couts de deblocage : UnlockCost de l'arbre technologique face au
+        niveau et a la puissance (core/unlock_balance.py) — zeros remplis,
+        plafonds 1000 ramenes, lot cochable, backup central."""
+        from gui.unlock_cost_dialog import UnlockCostDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = UnlockCostDialog(self, working)
         dlg.exec()
 
     def _open_bundles_dialog(self):
@@ -2345,12 +2760,12 @@ class MainWindow(QMainWindow):
 
         dialog = StartupDialog(projects, self)
         if dialog.exec() != StartupDialog.DialogCode.Accepted:
-            if dialog.project_to_remove:
-                project_store.remove_project(dialog.project_to_remove.working)
+            for record in dialog.removed_projects:
+                project_store.remove_project(record.working)
             return
 
-        if dialog.project_to_remove:
-            project_store.remove_project(dialog.project_to_remove.working)
+        for record in dialog.removed_projects:
+            project_store.remove_project(record.working)
 
         if dialog.want_new_project:
             self.new_project_dialog()
@@ -2426,7 +2841,9 @@ class MainWindow(QMainWindow):
         filtre en direct (textChanged -> _filter_tree)."""
         search = fluent_pilot.make_search_box()
         search.setPlaceholderText(t("panel.filter_files"))
-        search.setToolTip(t("panel.filter_files"))
+        # PAS de setToolTip : le placeholder dit deja la meme chose, et une
+        # bulle sur un widget Fluent echappait au theme (bulle sombre vecue
+        # en theme L 24/10/2026).
         search.setClearButtonEnabled(True)
         search.textChanged.connect(lambda text, tr=tree: self._filter_tree(tr, text))
         layout.addWidget(search)

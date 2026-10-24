@@ -60,6 +60,10 @@ class GlossaryDialog(QDialog):
         intro = QLabel(t("glossary.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)
+        self.limit_label = QLabel("")
+        self.limit_label.setWordWrap(True)
+        self.limit_label.setStyleSheet("color: #b02a2a;")
+        layout.addWidget(self.limit_label)
 
         add_row = QHBoxLayout()
         self.src_edit = QLineEdit()
@@ -110,6 +114,13 @@ class GlossaryDialog(QDialog):
 
     def _reload(self) -> None:
         entries = glossary.entries()
+        active = sum(1 for e in entries if e.get("on", True))
+        if active > glossary.MAX_APPLY_ENTRIES:
+            self.limit_label.setText(t(
+                "glossary.too_many", count=active,
+                max=glossary.MAX_APPLY_ENTRIES))
+        else:
+            self.limit_label.setText("")
         entries.sort(key=lambda e: (_lang_label(e.get("target", "fr")).lower(),
                                     e["src"].lower()))
         self.table.setRowCount(len(entries))

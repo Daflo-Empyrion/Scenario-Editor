@@ -95,6 +95,38 @@ def test_glossary_remove_and_toggle_are_per_target(glossary_file):
     assert any(e.get("target") == "de" for e in glossary.entries())
 
 
+def test_glossary_too_large_is_not_applied(glossary_file):
+    """Garde-fou 21/10/2026 : un glossaire auto-alimente de 7500 entrees
+    n'est plus applique (mots ordinaires remplaces dans les phrases), le
+    fichier reste intact et l'auto-alimentation s'arrete."""
+    entries = [
+        {"src": f"term{i}", "dst": f"terme{i}", "target": "fr", "on": True}
+        for i in range(glossary.MAX_APPLY_ENTRIES + 1)]
+    glossary_file.write_text(json.dumps(entries), encoding="utf-8")
+    glossary.reset_cache()
+    text, repl = glossary.apply_glossary("term0 term1", target="fr")
+    assert text == "term0 term1" and repl == []
+    assert glossary.apply_skipped() == glossary.MAX_APPLY_ENTRIES + 1
+    assert len(glossary.entries()) == glossary.MAX_APPLY_ENTRIES + 1
+    assert glossary.auto_feed_ok("Fusion Cell") is False
+    # une fois le glossaire nettoye, il redevient actif
+    glossary_file.write_text(json.dumps([
+        {"src": "Warp Drive", "dst": "moteur de distorsion",
+         "target": "fr", "on": True}]), encoding="utf-8")
+    glossary.reset_cache()
+    text, repl = glossary.apply_glossary("The warp drive", target="fr")
+    assert repl
+    assert glossary.apply_skipped() == 0
+
+
+def test_glossary_pattern_cache_invalidated(glossary_file):
+    glossary.add_entry("Warp Drive", "moteur de distorsion")
+    assert glossary.apply_glossary("warp drive")[1]
+    glossary.add_entry("Fusion Cell", "cellule de fusion")
+    _text, repl = glossary.apply_glossary("warp drive and fusion cell")
+    assert len(repl) == 2
+
+
 def test_glossary_case_insensitive_longest_first(glossary_file):
     glossary.add_entry("Warp", "warp FR")
     glossary.add_entry("Warp Drive", "moteur de distorsion")

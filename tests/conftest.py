@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import gc
 import os
 import sys
 from pathlib import Path
@@ -55,3 +56,37 @@ def _no_real_central_backups(tmp_path, monkeypatch):
     les fixtures de test polluaient le dossier reel de sauvegardes)."""
     monkeypatch.setattr("core.fsutil.central_backup",
                         lambda p, kind="sectors": tmp_path / "backup.yaml")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_vanilla_config(monkeypatch):
+    """Aucun test ne lit la config vanilla installee (l'arbre technologique
+    reporte les patchs '+Block'/'+Item' de la config de base : un test sur
+    des fixtures synthetiques deviendrait dependant de l'installation du
+    poste). Les tests qui veulent la base la passent explicitement."""
+    monkeypatch.setattr("core.settings.get_vanilla_content_path", lambda: "")
+
+
+@pytest.fixture(autouse=True)
+def _collect_qt_cycles():
+    """PyQt6 + Python 3.14 : les cycles de widgets (tableaux, items YAML)
+    accumules pendant toute la session faisaient crasher en access violation
+    le gc.collect() d'un test ulterieur (vecu 20/10 en plein suite). Une
+    collecte APRES chaque test garde le tas propre et evite le ramassage
+    massif tardif ; les tests restent independants.
+
+    Les dialogues NON detruits par leur test figeaient ce gc (vecu 22/10 :
+    test_launch_check et test_epb_check_dialog passaient puis le processus
+    ne rendait jamais la main) : on detruit ceux qui restent ouverts avant
+    la collecte — un test ne doit de toute facon rien laisser ouvert."""
+    yield
+    from PyQt6 import sip
+    from PyQt6.QtWidgets import QApplication, QDialog
+    app = QApplication.instance()
+    if app is not None:
+        for widget in app.topLevelWidgets():
+            # un dialogue deja detruit par Qt reste dans la liste : son
+            # wrapper Python est mort, le supprimer de nouveau leve
+            if isinstance(widget, QDialog) and not sip.isdeleted(widget):
+                sip.delete(widget)
+    gc.collect()

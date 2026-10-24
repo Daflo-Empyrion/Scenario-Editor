@@ -123,7 +123,73 @@ class TechTree:
         return [n for n in self.nodes if n.parent_name == name]
 
 
-def _extract_nodes(path: Path, source: str) -> List[TechTreeNode]:
+def _node_name(block: EcfBlock) -> Optional[str]:
+    return block.get('Name') or block.get_property('Name')
+
+
+def _index_by_name(doc, accepted_kinds, patches_only: bool = False) -> Dict[str, EcfBlock]:
+    """Index Name -> bloc. La DERNIERE declaration gagne (convention du
+    projet, voir market_balance.load_index). patches_only ne garde que les
+    '+Block'/'+Item', seules declarations de la config de base que le jeu
+    reporte sur les blocs du scenario (voir _effective)."""
+    index: Dict[str, EcfBlock] = {}
+    for b in doc.iter_blocks():
+        if patches_only:
+            if not b.kind.startswith('+'):
+                continue
+        elif b.kind not in accepted_kinds:
+            continue
+        name = _node_name(b)
+        if name:
+            index[name] = b
+    return index
+
+
+def _base_patches(path: Path, vanilla_root: Optional[str]) -> Dict[str, EcfBlock]:
+    """Patchs '+Block'/'+Item' de la config de BASE du jeu pour le meme
+    fichier (vanilla_root pointe sur le dossier Content de l'installation).
+    Vide si le chemin n'est pas renseigne ou le fichier absent."""
+    if not vanilla_root:
+        return {}
+    base = Path(vanilla_root) / 'Configuration' / path.name
+    if not base.exists():
+        return {}
+    return _index_by_name(get_parsed_doc(base), set(), patches_only=True)
+
+
+def _effective(index: Dict[str, EcfBlock], patches: Dict[str, EcfBlock],
+               name: str, key: str, depth: int = 0):
+    """Valeur d'une propriete telle que le JEU la voit, dans cet ordre :
+    1. declaration du scenario, 2. patch '+Block'/'+Item' de la config de
+    base, 3. chaine Ref (memes regles, garde de profondeur 12).
+
+    Le point 2 est le piege du 24/10/2026 : OreScanner n'a AUCUNE propriete
+    d'arbre dans le scenario (les quatre lignes sont commentees), affiche
+    pourtant dans l'onglet Outils en jeu -- la vanilla le patche en '+Item'
+    avec TechTreeNames: Tools, et le jeu reporte ce patch. Commenter une
+    propriete dans le scenario ne l'efface donc pas : il faut la redeclarer
+    explicitement pour la neutraliser."""
+    b = index.get(name)
+    if b is not None:
+        value = b.get_property(key)
+        if value is not None:
+            return value
+    patch = patches.get(name)
+    if patch is not None:
+        value = patch.get_property(key)
+        if value is not None:
+            return value
+    if depth >= 12:
+        return None
+    ref = b.get_property('Ref') if b is not None else None
+    if not ref and patch is not None:
+        ref = patch.get_property('Ref')
+    if not ref:
+        return None
+    return _effective(index, patches, ref.strip().strip('"'), key, depth + 1)
+
+
+def _extract_nodes(path: Path, source: str, vanilla_root: Optional[str] = None) -> List[TechTreeNode]:
     # Parse via le CACHE (voir core/ecf/doc_cache.py -- retour utilisateur du
     # 31/08/2026 : latence de plusieurs secondes a chaque clic dans l'arbre,
     # chaque clic re-parsant des fichiers entiers) : l'ouverture du dialogue
@@ -142,17 +208,19 @@ def _extract_nodes(path: Path, source: str) -> List[TechTreeNode]:
     # necessiter de resolution via la chaine Ref -- confirme sur
     # FuelTankMSLarge (+Block), TechTreeNames present explicitement.
     accepted_kinds = {base_kind, '+' + base_kind}
+    index = _index_by_name(doc, accepted_kinds)
+    patches = _base_patches(path, vanilla_root)
     nodes: List[TechTreeNode] = []
     for b in doc.iter_blocks():
         if b.kind not in accepted_kinds:
             continue
-        name = b.get('Name') or b.get_property('Name')
+        name = _node_name(b)
         if not name:
             continue
-        categories = parse_quoted_list(b.get_property('TechTreeNames'))
+        categories = parse_quoted_list(_effective(index, patches, name, 'TechTreeNames'))
         if not categories or all(c in _EXCLUDED_CATEGORY_VALUES for c in categories):
             continue
-        level_raw = b.get_property('UnlockLevel')
+        level_raw = _effective(index, patches, name, 'UnlockLevel')
         if level_raw is None:
             # Un noeud avec une vraie categorie mais sans UnlockLevel n'a
             # jamais ete observe dans les vrais fichiers (voir docstring) --
@@ -162,14 +230,14 @@ def _extract_nodes(path: Path, source: str) -> List[TechTreeNode]:
             unlock_level = int(level_raw.strip())
         except (ValueError, AttributeError):
             continue
-        cost_raw = b.get_property('UnlockCost')
+        cost_raw = _effective(index, patches, name, 'UnlockCost')
         try:
             unlock_cost = int(cost_raw.strip()) if cost_raw is not None else 0
         except ValueError:
             unlock_cost = 0
-        parent = b.get_property('TechTreeParent')
+        parent = _effective(index, patches, name, 'TechTreeParent')
         parent = parent.strip().strip('"') or None if parent else None
-        custom_icon = b.get_property('CustomIcon')
+        custom_icon = _effective(index, patches, name, 'CustomIcon')
         icon_key = custom_icon.strip() if custom_icon else name
         nodes.append(TechTreeNode(
             name=name, source=source, unlock_level=unlock_level, unlock_cost=unlock_cost,
@@ -178,30 +246,39 @@ def _extract_nodes(path: Path, source: str) -> List[TechTreeNode]:
     return nodes
 
 
-def load_tech_tree(blocks_path: Optional[Path], items_path: Optional[Path]) -> TechTree:
+def load_tech_tree(blocks_path: Optional[Path], items_path: Optional[Path],
+                   vanilla_root: Optional[str] = None) -> TechTree:
     """Charge l'arbre technologique complet a partir des fichiers de la copie
     de travail. L'un des deux chemins peut etre None (fichier absent du
-    scenario) -- l'arbre est alors construit avec ce qui est disponible."""
+    scenario) -- l'arbre est alors construit avec ce qui est disponible.
+
+    vanilla_root = dossier Content de l'installation du jeu (defaut : reglage
+    de l'application) ; sert a reporter les patchs '+Block'/'+Item' de la
+    config de base que le jeu applique sur les blocs du scenario. Passe ""
+    pour un arbre strictement limite au scenario (tests, CLI)."""
+    if vanilla_root is None:
+        from .settings import get_vanilla_content_path
+        vanilla_root = get_vanilla_content_path()
     nodes: List[TechTreeNode] = []
     if blocks_path is not None and blocks_path.exists():
-        nodes.extend(_extract_nodes(blocks_path, 'block'))
+        nodes.extend(_extract_nodes(blocks_path, 'block', vanilla_root))
     if items_path is not None and items_path.exists():
-        nodes.extend(_extract_nodes(items_path, 'item'))
+        nodes.extend(_extract_nodes(items_path, 'item', vanilla_root))
     return TechTree(nodes=nodes)
 
 
 def set_unlock_level(path: Path, name: str, new_level: int) -> bool:
     """Ecrit un nouveau UnlockLevel sur le bloc/item identifie par Name, dans
-    le fichier donne, et sauvegarde. Retourne False si le bloc est introuvable
-    ou n'a pas de UnlockLevel existant (on ne cree jamais la propriete a
-    l'aveugle -- un noeud sans UnlockLevel n'est de toute facon pas affiche
-    dans l'arbre, voir _extract_nodes)."""
+    le fichier donne, et sauvegarde. CREE la propriete si elle est absente :
+    l'arbre affiche aussi les noeuds dont le niveau vient d'un patch de la
+    config de base ou d'un Ref (voir _effective) -- sans creation, editer
+    OreScanner echouerait au lieu de fixer explicitement la valeur."""
     doc = parse_ecf_file(path)
     for b in doc.iter_blocks():
         if b.get('Name') == name or b.get_property('Name') == name:
             if b.get_property('UnlockLevel') is None:
-                return False
-            if not b.set_property('UnlockLevel', str(new_level)):
+                add_property_line(b, [('UnlockLevel', str(new_level))])
+            elif not b.set_property('UnlockLevel', str(new_level)):
                 return False
             atomic_write_text(path, doc.render())
             return True
@@ -215,8 +292,8 @@ def set_unlock_cost(path: Path, name: str, new_cost: int) -> bool:
     for b in doc.iter_blocks():
         if b.get('Name') == name or b.get_property('Name') == name:
             if b.get_property('UnlockCost') is None:
-                return False
-            if not b.set_property('UnlockCost', str(new_cost)):
+                add_property_line(b, [('UnlockCost', str(new_cost))])
+            elif not b.set_property('UnlockCost', str(new_cost)):
                 return False
             atomic_write_text(path, doc.render())
             return True
@@ -230,13 +307,13 @@ def move_to_category(path: Path, name: str, new_category: str) -> bool:
     'ajouter'). La valeur est reecrite entre guillemets meme pour une seule
     categorie (compatible avec le parseur dans tous les cas, evite tout
     risque de scission accidentelle si le nom de categorie contenait une
-    virgule)."""
+    virgule). CREE la propriete si elle vient d'un patch/Ref."""
     doc = parse_ecf_file(path)
     for b in doc.iter_blocks():
         if b.get('Name') == name or b.get_property('Name') == name:
             if b.get_property('TechTreeNames') is None:
-                return False
-            if not b.set_property('TechTreeNames', f'"{new_category}"'):
+                add_property_line(b, [('TechTreeNames', f'"{new_category}"')])
+            elif not b.set_property('TechTreeNames', f'"{new_category}"'):
                 return False
             atomic_write_text(path, doc.render())
             return True

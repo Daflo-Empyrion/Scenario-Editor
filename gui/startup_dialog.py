@@ -38,7 +38,10 @@ class StartupDialog(QDialog):
         self.projects = projects
         self.chosen_project: Optional[ProjectRecord] = None
         self.want_new_project = False
-        self.project_to_remove: Optional[ProjectRecord] = None
+        # TOUS les projets retires pendant la session du dialogue (plusieurs
+        # clics sur « Retirer ») : ne garder que le dernier faisait
+        # reapparaitre les autres au lancement suivant (vecu 24/10/2026).
+        self.removed_projects: List[ProjectRecord] = []
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(t("startup.subtitle")))
@@ -91,6 +94,8 @@ class StartupDialog(QDialog):
         item = self.list_widget.currentItem()
         if not item:
             return
-        self.project_to_remove = item.data(1000)
+        record = item.data(1000)
+        if record is not None:
+            self.removed_projects.append(record)
         row = self.list_widget.row(item)
         self.list_widget.takeItem(row)

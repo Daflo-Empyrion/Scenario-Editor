@@ -123,6 +123,23 @@ def icon_size() -> QSize:
 # core/themes.py). Les noms de variables gardent leur forme historique
 # (PRIMARY, NAVY, BG...) par souci de continuite avec le reste du code.
 # ------------------------------------------------------------------
+def _tooltip_colors(palette: dict) -> tuple:
+    """Couleurs d'infobulle SOLIDES pour le theme : les degrades
+    (nav_gradient) ne sont pas fiables sur QTipLabel et laissent Qt
+    retomber sur un rendu natif sombre, y compris sur les themes clairs
+    (vecu 24/10/2026, theme L). Fond clair -> bulle claire ; fond sombre
+    -> bulle sombre."""
+    bg = (palette.get("bg") or "#ffffff").lstrip("#")
+    try:
+        r, g, b = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+        light_bg = (0.299 * r + 0.587 * g + 0.114 * b) >= 128
+    except ValueError:
+        light_bg = True
+    if light_bg:
+        return palette["surface_alt"], palette["text_primary"]
+    return palette["surface"], palette["text_primary"]
+
+
 def build_stylesheet(palette: dict) -> str:
     PRIMARY = palette["accent"]
     PRIMARY_DARK = palette["accent_hover"]
@@ -139,6 +156,7 @@ def build_stylesheet(palette: dict) -> str:
     TEXT_ON_PRIMARY = palette["text_on_primary"]
     NAV_TEXT = palette["nav_text"]
     FONT_FAMILY = palette["font_family"]
+    TOOLTIP_BG, TOOLTIP_FG = _tooltip_colors(palette)
 
     base = f"""
 * {{
@@ -420,11 +438,12 @@ QProgressBar::chunk {{
     border-radius: 7px;
 }}
 
-/* --- Info-bulles --- */
+/* --- Info-bulles : couleurs SOLIDES (jamais de degrade : QTipLabel
+       retombe sinon sur le rendu natif sombre, meme en theme clair) --- */
 QToolTip {{
-    background: {NAVY};
-    color: {NAV_TEXT};
-    border: none;
+    background: {TOOLTIP_BG};
+    color: {TOOLTIP_FG};
+    border: 1px solid {BORDER};
     border-radius: 6px;
     padding: 6px 10px;
 }}
@@ -507,6 +526,17 @@ def apply_theme(app, theme_id: str = None):
     RED = palette["danger"]
     RED_DARK = palette["danger_dark"]
     FONT_FAMILY = palette["font_family"]
+
+    # Palette ToolTip : les tooltips affiches par des widgets portant leur
+    # PROPRE feuille de style (widgets Fluent, fiche info...) peuvent
+    # echapper aux regles QSS de l'application et retomber sur la palette
+    # native de Windows (bulle sombre en mode sombre systeme, vecu theme L).
+    from PyQt6.QtGui import QColor, QPalette
+    tooltip_bg, tooltip_fg = _tooltip_colors(palette)
+    app_palette = app.palette()
+    app_palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(tooltip_bg))
+    app_palette.setColor(QPalette.ColorRole.ToolTipText, QColor(tooltip_fg))
+    app.setPalette(app_palette)
 
     app.setStyleSheet(build_stylesheet(palette))
 

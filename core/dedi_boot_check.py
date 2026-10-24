@@ -35,6 +35,14 @@ from pathlib import Path
 _CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 _READY_RE = re.compile(r"Server started listening on port", re.I)
 _SECTORS_RE = re.compile(r"Loaded sector file .* with (\d+) playfields", re.I)
+# Scenario REELLEMENT lu : sur un dossier absent le jeu GENERe un
+# Sectors.yaml par defaut (43 playfields, vecu 22/10) et atteint quand meme
+# « listening » — sans ces deux marqueurs le bilan validerait une galaxie
+# qui n'est pas la sienne.
+_SECTORS_COPY_RE = re.compile(
+    r"Copying Sectors\.yaml from (.+?)[\\/]Sectors", re.I)
+_SECTORS_GEN_RE = re.compile(
+    r"Generating Sectors\.yaml in (.+?)[\\/]Sectors", re.I)
 _ERROR_PATTERNS = (
     re.compile(r"-EXC-", re.I),
     re.compile(r"-ERR-", re.I),
@@ -44,6 +52,10 @@ _ERROR_PATTERNS = (
     re.compile(r"Issue with deserializing", re.I),
 )
 _SAVE_NAME = "_TestChargementEditeur"
+# Dossier jetable sous Content/Scenarios : le moteur ne charge QUE cet
+# emplacement, donc la copie de travail y est installee le temps du boot.
+TEMP_SCENARIO = "_TestChargementEditeur"
+_MARKER = ".test_chargement_editeur"
 
 
 @dataclass
@@ -58,6 +70,66 @@ class DediBootResult:
 
 def dedi_exe(game_root: Path) -> Path:
     return Path(game_root) / "DedicatedServer" / "EmpyrionDedicated.exe"
+
+
+def scenario_root(game_root: Path, scenario_name: str) -> Path:
+    return Path(game_root) / "Content" / "Scenarios" / scenario_name
+
+
+def install_temp_scenario(game_root: Path, source_root: Path):
+    """Installe la copie de travail sous Content/Scenarios/<jetable>.
+    Retourne (dossier installe ou None, probleme). Le marqueur est ecrit
+    AVANT la copie : un dossier reserve laisse par un test interrompu est
+    reconnu et remplace, un dossier homonyme qui n'est pas a nous est
+    REFUSE (jamais de suppression d'un vrai scenario)."""
+    dest = scenario_root(game_root, TEMP_SCENARIO)
+    if dest.exists():
+        if not (dest / _MARKER).is_file():
+            return None, (f"dossier reserve deja present et non cree par "
+                          f"l'editeur : {dest}")
+        shutil.rmtree(dest, ignore_errors=True)
+    try:
+        dest.mkdir(parents=True)
+        (dest / _MARKER).write_text("test de chargement — supprimable\n",
+                                    encoding="utf-8")
+        shutil.copytree(source_root, dest, dirs_exist_ok=True)
+    except OSError as e:
+        shutil.rmtree(dest, ignore_errors=True)
+        return None, f"copie du scenario impossible : {e}"
+    return dest, ""
+
+
+def _same_root(logged: str, expected: Path) -> bool:
+    return (Path(logged).as_posix().rstrip("/").casefold()
+            == expected.as_posix().rstrip("/").casefold())
+
+
+def check_loaded_scenario(result: DediBootResult, text: str,
+                          expected: Path) -> None:
+    """Le log atteste-t-il que `expected` a ete charge ? Un scenario
+    introuvable ne fait pas echouer le demarrage : le jeu genere une galaxie
+    par defaut, l'ecoute et le bilan conclut « pret » (vecu 22/10 — dossiers
+    de production supprimes). On degrade donc `ready` et on dit pourquoi."""
+    generated = _SECTORS_GEN_RE.search(text)
+    copied = _SECTORS_COPY_RE.search(text)
+    if generated:
+        result.ready = False
+        result.issues.append(
+            f"le jeu a GENere un Sectors.yaml (scenario introuvable) : "
+            f"{expected.name} n'a pas ete charge")
+        return
+    if not copied:
+        if result.ready:
+            result.ready = False
+            result.issues.append(
+                "log sans « Copying Sectors.yaml from » : impossible de "
+                f"confirmer que {expected.name} a ete charge")
+        return
+    if not _same_root(copied.group(1), expected):
+        result.ready = False
+        result.issues.append(
+            f"scenario charge != demande : {copied.group(1)} "
+            f"(attendu {expected})")
 
 
 def is_dedi_running() -> bool:
@@ -170,12 +242,18 @@ def run_dedi_boot_check(game_root: Path, scenario_name: str,
                         timeout_s: float = 300.0,
                         progress=None,
                         bplib_export: bool = False,
-                        export_path: Path | None = None) -> DediBootResult:
+                        export_path: Path | None = None,
+                        source_root: Path | None = None) -> DediBootResult:
     """Boot le dedi sur `scenario_name` (nom DOSSIER sous
     Content/Scenarios — le scenario INSTALLE, pas la copie de travail),
     attend le demarrage (ou les erreurs), tue l'arbre de processus, supprime
     la sauvegarde jetable et retourne le resultat. `progress(text)` est
     appelee a chaque etape notable (derniere ligne du log).
+
+    `source_root` : teste CETTE copie de travail au lieu d'un scenario
+    installe — elle est copiee sous Content/Scenarios/<jetable>, le moteur
+    ne charge que cet emplacement, puis la copie est supprimee. Valider
+    avant la synchro production, sans toucher aux scenarios du jeu.
 
     bplib_export=True : apres le demarrage, envoie la commande console
     « bplib export <fichier> » par telnet (liste OFFICIELLE des groupes de
@@ -187,8 +265,25 @@ def run_dedi_boot_check(game_root: Path, scenario_name: str,
     if not exe.is_file():
         result.issues.append(f"dedie introuvable : {exe}")
         return result
+    installed = None
+    if source_root is not None:
+        if progress:
+            progress(f"installation de la copie de travail dans "
+                     f"Content/Scenarios/{TEMP_SCENARIO}...")
+        installed, problem = install_temp_scenario(game_root, Path(source_root))
+        if installed is None:
+            result.issues.append(problem)
+            return result
+        scenario_name = TEMP_SCENARIO
+    expected = scenario_root(game_root, scenario_name)
+    if not expected.is_dir():
+        # Le jeu ne proteste pas : il genererait une galaxie par defaut et
+        # le bilan validerait autre chose que le scenario demande.
+        result.issues.append(f"scenario introuvable : {expected}")
+        return result
 
     saves_dir = game_root / "Saves"
+    saves_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = saves_dir / "_test_chargement_editeur.yaml"
     yaml_path.write_text(build_test_yaml(scenario_name, telnet=bplib_export),
                          encoding="utf-8")
@@ -198,6 +293,10 @@ def run_dedi_boot_check(game_root: Path, scenario_name: str,
     if log_path.exists():
         log_path.unlink()
     save_dir = saves_dir / "Games" / _SAVE_NAME
+    # Une sauvegarde laissee par un test precedent (processus tue avant la
+    # purge) serait RECHARGEE : le jeu ignorerait CustomScenario et le bilan
+    # validerait l'ancien scenario. Le test part toujours d'une partie neuve.
+    shutil.rmtree(save_dir, ignore_errors=True)
 
     if progress:
         progress("demarrage du dedie...")
@@ -214,6 +313,9 @@ def run_dedi_boot_check(game_root: Path, scenario_name: str,
                 shutil.rmtree(save_dir, ignore_errors=True)
         except OSError:
             pass
+        if installed is not None:
+            # apres le kill de l'arbre : le dedi ne doit plus rien lire
+            shutil.rmtree(installed, ignore_errors=True)
         try:
             yaml_path.unlink()
         except OSError:
@@ -287,6 +389,7 @@ def run_dedi_boot_check(game_root: Path, scenario_name: str,
         except OSError:
             text = ""
         result.issues.extend(_parse_log_issues(text))
+        check_loaded_scenario(result, text, expected)
         result.log_path = str(log_path)
         cleanup()
 

@@ -16,6 +16,7 @@
 """
 Reglages persistants simples de l'application.
 """
+import copy
 import json
 import logging
 import threading
@@ -388,6 +389,87 @@ def set_groq_style(style: str) -> None:
     _set('groq_style', (style or '').strip()[:500])
 
 
+# --- Socle IA multi-fournisseurs (v1.17.0, 20/10/2026) --------------------
+# ai_providers : comptes (id, label, base_url, key, kind, cap_usd,
+#                 models_order) -- la cle reste LOCALE dans settings.json.
+# ai_links     : maillons ordonnes (provider, model, tier, price_in,
+#                 price_out, enabled) ; l'ordre de la liste = priorite.
+# Le payant est DESACTIVE par defaut ; un plafond <= 0 refuse les maillons
+# payants (core/ai/budget.py).
+
+def get_ai_providers() -> list:
+    data = _get('ai_providers', [])
+    return copy.deepcopy(data) if isinstance(data, list) else []
+
+
+def set_ai_providers(providers: list) -> None:
+    _set('ai_providers', [copy.deepcopy(p) for p in (providers or [])
+                          if isinstance(p, dict)])
+
+
+def get_ai_links() -> list:
+    data = _get('ai_links', [])
+    return copy.deepcopy(data) if isinstance(data, list) else []
+
+
+def set_ai_links(links: list) -> None:
+    _set('ai_links', [copy.deepcopy(link) for link in (links or [])
+                      if isinstance(link, dict)])
+
+
+def get_ai_paid_enabled() -> bool:
+    """Autorisation EXPLICITE des maillons payants (defaut : non)."""
+    return _get('ai_paid_enabled', False)
+
+
+def set_ai_paid_enabled(enabled: bool) -> None:
+    _set('ai_paid_enabled', bool(enabled))
+
+
+def get_ai_monthly_cap_usd() -> float:
+    """Plafond mensuel global des depenses IA ($), 0 = non defini (les
+    maillons payants sont refuses tant qu'aucun plafond n'est saisi)."""
+    try:
+        return float(_get('ai_monthly_cap_usd', 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def set_ai_monthly_cap_usd(cap: float) -> None:
+    try:
+        _set('ai_monthly_cap_usd', max(0.0, float(cap)))
+    except (TypeError, ValueError):
+        pass
+
+
+def get_ai_spend() -> dict:
+    """Compteur du mois : {'month': 'YYYY-MM', 'total': $, 'providers': {...}}."""
+    data = _get('ai_spend', {})
+    return copy.deepcopy(data) if isinstance(data, dict) else {}
+
+
+def set_ai_spend(state: dict) -> None:
+    _set('ai_spend', copy.deepcopy(state) if isinstance(state, dict) else {})
+
+
+def get_ai_style() -> str:
+    """Consigne de style des maillons IA (repli sur groq_style)."""
+    return _get('ai_style', '')
+
+
+def set_ai_style(style: str) -> None:
+    _set('ai_style', (style or '').strip()[:500])
+
+
+def get_ai_batch_enabled() -> bool:
+    """Mode lots des maillons IA (une requete pour plusieurs cellules)."""
+    return _get('ai_batch_enabled', True)
+
+
+def set_ai_batch_enabled(enabled: bool) -> None:
+    _set('ai_batch_enabled', bool(enabled))
+
+
 def get_extra_icons_dir() -> str:
     """Dossier d'icones supplementaires (icônes de MODS, ex RE2) fusionne en
     PRIORITE HAUTE dans l'index d'icones (apres les sources vanille/scenario,
@@ -407,7 +489,7 @@ def get_translation_engine() -> str:
 
 
 def set_translation_engine(engine: str) -> None:
-    if engine in ('google', 'argos', 'nllb', 'groq', 'deepl'):
+    if engine in ('google', 'argos', 'nllb', 'groq', 'deepl', 'ai'):
         _set('translation_engine', engine)
 
 

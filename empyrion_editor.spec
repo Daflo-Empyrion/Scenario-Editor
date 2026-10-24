@@ -162,6 +162,11 @@ a = Analysis(
         # PyQt6 depuis la 6.11).
         'PyQt6.QtPdf',
         'PyQt6.QtPdfWidgets',
+        # Socle IA : imports fonction-level depuis translation.py et le menu
+        # (PyInstaller les detecte mal) -- garantit l'embarquement.
+        'core.ai', 'core.ai.client', 'core.ai.providers', 'core.ai.budget',
+        'core.ai.router', 'gui.ai_providers_dialog',
+        'core.glossary_repair', 'gui.glossary_repair_dialog',
         *_dt_hiddenimports, *_bs4_hiddenimports, *_requests_hiddenimports,
         *_certifi_hiddenimports, *_qfw_hiddenimports, *_qfwl_hiddenimports,
         *_ug_hiddenimports, *_pip_hiddenimports,

@@ -202,6 +202,36 @@ class YamlEditWidget(QWidget):
                 mark_modified(item, 1)
             it += 1
 
+    def assistant_surface(self):
+        """Contrat assistant : contexte = entree selectionnee, outils = lecture
+        du document VIVANT, applier = validation contre la valeur actuelle +
+        snapshot undo + reconstruction de l'arbre."""
+        if not self.editable:
+            return None
+        from core.ai.assistant.surfaces import yaml_surface
+        from core.ai.assistant.surfaces.base import SurfaceBinding
+        return SurfaceBinding(
+            name=yaml_surface.SURFACE,
+            instruction=yaml_surface.INSTRUCTION,
+            context=lambda: yaml_surface.context(
+                self.doc, self._current_entry, self.path.name),
+            registry=lambda: yaml_surface.registry(self.doc),
+            apply=self._apply_assistant_changes)
+
+    def _apply_assistant_changes(self, changes):
+        from core.ai.assistant.surfaces import yaml_surface
+        problems = yaml_surface.validate(self.doc, changes)
+        if problems:
+            return False, problems[0]
+        self._snapshot_undo()
+        written = yaml_surface.apply(self.doc, changes)
+        self._current_entry = None
+        self.value_edit.clear()
+        self.value_edit.setEnabled(False)
+        self._populate_tree()
+        self._set_modified(True)
+        return (True, "") if written else (False, "yaml_nothing_written")
+
     def _snapshot_undo(self):
         """A appeler AVANT toute modification -- sauvegarde l'etat actuel du document
         (texte serialise) pour pouvoir l'annuler."""
@@ -242,8 +272,12 @@ class YamlEditWidget(QWidget):
         if entry.comment:
             cleaned = entry.comment.lstrip('#').strip()
             if cleaned:
-                item.setToolTip(0, f"<b>{label}</b><br>{cleaned}")
-                item.setToolTip(1, f"<b>{label}</b><br>{cleaned}")
+                # Source du fichier : etiquetee, pour ne pas la confondre
+                # avec un texte d'interface (le fichier peut etre en anglais).
+                tip = (f"<b>{label}</b><br>"
+                       + t("yaml.tooltip_file_comment", text=cleaned))
+                item.setToolTip(0, tip)
+                item.setToolTip(1, tip)
         for child in entry.children:
             if isinstance(child, YamlEntry):
                 item.addChild(self._make_item(child))
@@ -288,6 +322,7 @@ class YamlEditWidget(QWidget):
         label = entry.key or (entry.value[:30] if entry.value else "?")
 
         menu = QMenu(self)
+        action_explain = menu.addAction(t("ctx.explain_ai"))
         action_copy = None
         if self.on_copy_entry:
             action_copy = menu.addAction(t("yaml.copy_entry_action", label=label))
@@ -301,13 +336,30 @@ class YamlEditWidget(QWidget):
             action_dup = menu.addAction(t("yaml.duplicate_action"))
 
         chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
-        if action_copy and chosen == action_copy:
+        if chosen == action_explain:
+            self._explain_entry(entry, key_path)
+        elif action_copy and chosen == action_copy:
             self.on_copy_entry(entry, key_path)
         elif action_dup and chosen == action_dup:
             if self.on_duplicate_entry:
                 self.on_duplicate_entry(entry, key_path)
             else:
                 self._duplicate_entry_in_place(entry)
+
+    def _current_key_path(self) -> list:
+        """Chemin des cles ancetres de l'entree courante (vide s'il n'y a
+        pas de selection dans l'arbre)."""
+        item = self.tree.currentItem()
+        return self._get_key_path_for_item(item) if item is not None else []
+
+    def _explain_entry(self, entry, key_path=None) -> None:
+        """Popup « Expliquer avec IA » pour l'entree YAML (chemin complet)."""
+        from core.explain import yaml_context
+        from gui.explain_dialog import open_ai_explanation
+        key = entry.key or ""
+        path = "/".join([*key_path, key]) if key_path else key
+        open_ai_explanation(self, yaml_context(
+            self.doc, key, entry.value, path, self.path.name))
 
     def _find_siblings(self, entry: "YamlEntry"):
         """Liste contenant entry (doc.nodes ou children d'une entree), None sinon.
@@ -487,8 +539,15 @@ class YamlEditWidget(QWidget):
 
     def _show_value_context_menu(self, pos):
         menu = self.value_edit.createStandardContextMenu()
-        if not self.editable or not self._current_entry:
-            menu.exec(self.value_edit.viewport().mapToGlobal(pos))
+        entry = self._current_entry
+        action_explain = None
+        if entry is not None and entry.key:
+            menu.addSeparator()
+            action_explain = menu.addAction(t("ctx.explain_ai"))
+        if not self.editable or entry is None:
+            chosen = menu.exec(self.value_edit.viewport().mapToGlobal(pos))
+            if action_explain is not None and chosen == action_explain:
+                self._explain_entry(entry, self._current_key_path())
             return
 
         cursor = self.value_edit.textCursor()
@@ -506,6 +565,9 @@ class YamlEditWidget(QWidget):
 
         chosen = menu.exec(self.value_edit.viewport().mapToGlobal(pos))
 
+        if action_explain is not None and chosen == action_explain:
+            self._explain_entry(entry, self._current_key_path())
+            return
         if action_bbcode is not None and chosen == action_bbcode:
             new_text = open_bbcode_tool(self, selected)
             if new_text is not None:

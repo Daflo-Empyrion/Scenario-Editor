@@ -86,3 +86,16 @@ def test_widget_sets_tooltip_on_language_header(csv_widget):
     header_item = csv_widget.table.horizontalHeaderItem(1)
     assert header_item is not None
     assert header_item.toolTip() != ""
+
+
+def test_tooltips_follow_the_interface_language(monkeypatch):
+    """Vecu 22/10 : phrases en francais en dur dans une interface anglaise."""
+    from core import settings
+    from core.csv_column_glossary import get_csv_column_tooltip
+
+    monkeypatch.setattr(settings, "get_language", lambda: "en")
+    assert "Unique technical identifier" in get_csv_column_tooltip("KEY")
+    assert "Text shown" in get_csv_column_tooltip("English")
+    monkeypatch.setattr(settings, "get_language", lambda: "fr")
+    assert "Texte affiché" in get_csv_column_tooltip("English")
+    assert "anglais" in get_csv_column_tooltip("English").lower()

@@ -539,6 +539,13 @@ class BlockInfoCardWidget(QWidget):
         self._pending_edit_key: Optional[str] = None
         self._pending_edit_from_template: bool = False
         self._inline_rows: list = []
+        # Description non traduite (repli anglais de Localization.csv) :
+        # traductions deja obtenues par (cle Info, langue) + job en cours --
+        # une seule requete par description, jamais une par reconstruction.
+        self._desc_done: dict = {}
+        self._desc_job = None
+        self._desc_job_key: Optional[tuple] = None
+        self._desc_note: Optional[QLabel] = None
         self._base_point_size = QApplication.font().pointSizeF() or 9.0
         # Fenetre-outil INDEPENDANTE plutot qu'un simple widget enfant --
         # bug reel signale par l'utilisateur (29/08/2026) : en tant que
@@ -841,6 +848,7 @@ class BlockInfoCardWidget(QWidget):
     # -- construction du contenu ---------------------------------------------
 
     def _clear_content(self) -> None:
+        self._desc_note = None  # label detruit par deleteLater ci-dessous
         while self._content_layout.count():
             child = self._content_layout.takeAt(0)
             w = child.widget()
@@ -863,6 +871,13 @@ class BlockInfoCardWidget(QWidget):
             desc.setTextFormat(Qt.TextFormat.RichText)
             desc.setWordWrap(True)
             self._content_layout.addWidget(desc)
+            if card.description_untranslated:
+                note = QLabel(t("block_info.desc_untranslated"))
+                note.setStyleSheet(f"color: {_CARD_BORDER}; font-style: italic;")
+                note.setWordWrap(True)
+                self._content_layout.addWidget(note)
+                self._desc_note = note
+                self._translate_description(card)
             self._add_separator()
 
         if card.stat_fields:
@@ -912,6 +927,58 @@ class BlockInfoCardWidget(QWidget):
                 if row._source_key == key and row._from_template == tpl:
                     row.start_edit()
                     break
+
+    def _translate_description(self, card: BlockInfoCard) -> None:
+        """Traduit en arriere-plan la description affichee en anglais (colonne
+        de la langue de l'interface vide dans Localization.csv). Une seule
+        requete par (cle Info, langue) et par fiche : la traduction passe par
+        la pile existante (memoire vanille, puis moteur configure)."""
+        from core.i18n import get_language
+        lang = get_language()
+        text = card.description_text
+        if lang == "en" or not text:
+            return
+        key = (card.info_key, lang)
+        if key in self._desc_done:
+            self._apply_description_translation(card, self._desc_done[key])
+            return
+        if self._desc_job_key == key:
+            return
+        from gui.translation_worker import BatchTranslationWorker
+        self._desc_job_key = key
+        job = BatchTranslationWorker([text], lang, self)
+        self._desc_job = job
+        job.item_done.connect(
+            lambda _i, tr, err, _src: self._on_description_translated(key, tr, err))
+        job.finished_all.connect(self._on_description_job_done)
+        job.start()
+
+    def _on_description_job_done(self) -> None:
+        self._desc_job = None
+        self._desc_job_key = None
+
+    def _on_description_translated(self, key: tuple, translated: str,
+                                    error: str) -> None:
+        if not translated:
+            if error and self._desc_note is not None:
+                self._desc_note.setText(t("block_info.desc_translate_failed"))
+            return
+        self._desc_done[key] = translated
+        card = self._current_card
+        if card is not None:
+            from core.i18n import get_language
+            if (card.info_key, get_language()) == key:
+                self._apply_description_translation(card, translated)
+
+    def _apply_description_translation(self, card: BlockInfoCard,
+                                       translated: str) -> None:
+        from core.block_info_card import description_html
+        card.description_text = translated
+        card.description_html = description_html(translated)
+        card.description_untranslated = False
+        if self._current_card is card:
+            # differe : peut etre appele pendant la construction de la fiche
+            QTimer.singleShot(0, self._rebuild_content)
 
     def _make_row(self, label: str, value: str, source_key: Optional[str],
                    source_raw_value: Optional[str], from_template: bool,

@@ -39,10 +39,13 @@ precedente :
    Regle deduite et confirmee sur ces deux chaines (et leurs branches
    secondaires, ex: Core a aussi CoreT2Large(20) et Eden_CPUExtenderAuxCV(150)
    qui NE continuent PAS la voie principale) : quand un noeud a plusieurs
-   enfants, SEUL celui au UnlockCost LE PLUS BAS continue sur la MEME voie
-   (meme ligne horizontale) ; chaque AUTRE enfant demarre une NOUVELLE voie,
-   reliee par un coude (segment vertical puis horizontal) -- voir
-   gui/tech_tree_widget.py pour le dessin du coude.
+   enfants, SEUL le PREMIER DECLARE (Id ECF le plus bas) continue sur la
+   MEME voie (meme ligne horizontale) ; chaque AUTRE enfant demarre une
+   NOUVELLE voie, reliee par un coude (segment vertical puis horizontal) --
+   voir gui/tech_tree_widget.py pour le dessin du coude.
+   Le critere etait 'cout le plus bas' jusqu'au 24/10/2026 : une capture du
+   jeu l'a contredit (ThrusterSVRoundLarge garde LargeT2, cout 15, sur sa
+   ligne et renvoie JetRound1x3x1, cout 12, sur la ligne suivante).
 
 3. ORDRE VERTICAL des voies (quelle voie apparait au-dessus de quelle autre) :
    verifie le 29/08/2026 sur le vrai BlocksConfig.ecf Steam vanilla -- la voie
@@ -135,15 +138,24 @@ def compute_node_positions(nodes: List[TechTreeNode],
         except (TypeError, ValueError):
             return (1, n.name)
 
-    def _continuation_sort_key(n: TechTreeNode):
-        """Selection du SEUL enfant qui continue la voie de son parent --
-        cout le plus bas (verifie independamment sur donnees reelles, voir
-        docstring du module)."""
-        return (n.unlock_cost, n.unlock_level, n.name)
+    def _continuation(parent: TechTreeNode, kids: List[TechTreeNode]) -> TechTreeNode:
+        """Selection du SEUL enfant qui continue la voie de son parent.
+        Deux regles, verifiees sur les captures du jeu du 24/10/2026 (onglets
+        Base et Petit vaisseau) :
+        1. seuls les enfants partageant EXACTEMENT les categories du parent
+           sont candidats (RepairStation -> RepairBayConsole, pas
+           RepairBayBA qui n'est que 'Base' quand son parent est
+           'Base,Capital Vessel') ;
+        2. parmi eux le PREMIER DECLARE (Id ECF) -- et non le moins cher
+           (ThrusterSVRoundLarge garde LargeT2, cout 15, et renvoie
+           JetRound1x3x1, cout 12, sur la ligne suivante).
+        Repli sur tous les enfants si aucun ne partage les categories."""
+        same_categories = [k for k in kids if k.categories == parent.categories]
+        return sorted(same_categories or kids, key=_id_sort_key)[0]
 
     roots_display_order = sorted(roots, key=_id_sort_key)
-    children_by_continuation: Dict[str, List[TechTreeNode]] = {
-        parent: sorted(kids, key=_continuation_sort_key) for parent, kids in children_of.items()
+    continuation_of: Dict[str, TechTreeNode] = {
+        parent: _continuation(by_name[parent], kids) for parent, kids in children_of.items()
     }
     children_by_display_order: Dict[str, List[TechTreeNode]] = {
         parent: sorted(kids, key=_id_sort_key) for parent, kids in children_of.items()
@@ -163,12 +175,13 @@ def compute_node_positions(nodes: List[TechTreeNode],
         visited.add(node.name)
         x = level_to_x_fraction(node.unlock_level, milestones)
         positions[node.name] = NodePosition(node_name=node.name, x_fraction=x, row=row, branches_from_parent=branches)
-        kids_for_continuation = children_by_continuation.get(node.name)
-        if not kids_for_continuation:
+        kids = children_by_display_order.get(node.name)
+        if not kids:
             return
-        continuing = kids_for_continuation[0]
-        _place(continuing, row, False)  # cout le plus bas -> continue CETTE voie
-        for kid in children_by_display_order.get(node.name, []):
+        continuing = continuation_of.get(node.name)
+        if continuing is not None:
+            _place(continuing, row, False)  # premier declare des memes categories -> CETTE voie
+        for kid in kids:
             if kid is not continuing:
                 _place(kid, _new_row(), True)  # les autres -> nouvelle voie, ordre par Id
 

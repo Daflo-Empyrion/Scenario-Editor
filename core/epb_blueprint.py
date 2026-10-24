@@ -199,6 +199,64 @@ def _skip_block_groups(r: "_BinReader") -> None:
                 _read_string_skip(r)
 
 
+def read_header(path: os.PathLike, max_bytes: int = 262144):
+    """(Name, groupes) d'un .epb, ou None si illisible.
+
+    Les groupes (et tags) sont la propriete 21, separes par des virgules :
+    c'est « les groupes deja definis dans les fichiers blueprint » dont parle
+    `_PoiGroupsConfig.yaml`. Les lire ici evite un boot du jeu (bplib export
+    exige une partie en cours). Le Name (propriete 7) differe souvent du nom
+    de fichier ; les playfields peuvent referencer l'un ou l'autre.
+
+    Lecture BORNEE au debut du fichier : l'en-tete precede toujours les
+    donnees compressees. Toute anomalie rend None — un prefab exotique ne
+    doit pas interrompre le scan du scenario."""
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read(max_bytes)
+        if struct.unpack_from("<I", data, 0)[0] != EPB_MAGIC:
+            return None
+        version = struct.unpack_from("<I", data, 4)[0]
+        r = _BinReader(data)
+        r.u32()
+        r.u32()
+        if version > 1:
+            r.u8()
+        if version <= 2:
+            return None
+        r.i32(); r.i32(); r.i32()
+        r.u16()
+        count = r.u16()
+        name = groups = ""
+        for _ in range(count):
+            key = r.i32()
+            r.boolean(); r.boolean(); r.boolean()
+            ptype = r.u8()
+            # type 0 : la valeur est la chaine ; 1-5 : valeur puis NOM de
+            # propriete (les deux consommes pour rester aligne)
+            if ptype == 0:
+                value = r.string()
+            elif ptype == 1:
+                r.boolean(); value = r.string()
+            elif ptype == 2:
+                r.i32(); value = r.string()
+            elif ptype == 3:
+                r.f32(); value = r.string()
+            elif ptype == 4:
+                r.f32(); r.f32(); r.f32(); value = r.string()
+            elif ptype == 5:
+                r.i64(); value = r.string()
+            else:
+                return None
+            if ptype == 0 and key == 7:
+                name = value
+            elif ptype == 0 and key == 21:
+                groups = value
+        return name, groups
+    except (OSError, struct.error, IndexError, EpbError):
+        return None
+
+
 def _7bit_encode(n: int) -> bytes:
     out = bytearray()
     while True:

@@ -42,6 +42,19 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from core import translation
 
 
+def batch_engine_enabled() -> bool:
+    """Le worker groupe-t-il plusieurs cellules par requete ? Groq (mode
+    lots historique) et le moteur IA (meme plafond de debit) : une requete
+    pour N cellules, bornes calculees par translation.batch_chunks."""
+    from core import settings as _settings
+    engine = _settings.get_translation_engine()
+    if engine == "groq":
+        return _settings.get_groq_batch_enabled()
+    if engine == "ai":
+        return _settings.get_ai_batch_enabled()
+    return False
+
+
 class BatchTranslationWorker(QThread):
     progress = pyqtSignal(int, int)        # (index_en_cours, total) -- avant chaque texte
     # (index, traduction, message_erreur_vide_si_ok, source : memory/vanilla/engine)
@@ -68,14 +81,11 @@ class BatchTranslationWorker(QThread):
             from core import spellcheck as _sp
             if _sp.is_available():
                 spellcheck = _sp
-        # MODE LOTS (v1.8.0) : moteur Groq + case lots active -> plusieurs
-        # cellules par requete (tier gratuit plafonne en debit ~30 req/min).
-        # Les bornes par lot (cellules/caracteres) sont calculees dans
-        # core/translation.batch_chunks ; l'arret utilisateur est pris en
-        # compte ENTRE deux requetes.
-        from core import settings as _settings
-        use_batch = (_settings.get_translation_engine() == "groq"
-                     and _settings.get_groq_batch_enabled())
+        # MODE LOTS : moteur Groq ou IA avec la case lots active -> plusieurs
+        # cellules par requete (tiers gratuits plafonnes en debit). Les bornes
+        # par lot sont calculees dans core/translation.batch_chunks ; l'arret
+        # utilisateur est pris en compte ENTRE deux requetes.
+        use_batch = batch_engine_enabled()
         i = 0
         while i < total:
             if self._stop_requested:

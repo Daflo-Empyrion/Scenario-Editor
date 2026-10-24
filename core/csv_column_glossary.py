@@ -24,20 +24,29 @@ Localization.csv. Un seul glossaire generique suffit donc, plutot qu'un
 glossaire par nom de fichier comme pour les ECF.
 """
 
+from core.i18n import t
+
 _KEY_COLUMN_NAMES = {"key"}
 
-# Nom de colonne (normalise en minuscules) -> nom de langue affichable.
-_LANGUAGE_COLUMNS = {
-    "english": "anglais", "en": "anglais",
-    "français": "français", "francais": "français", "fr": "français",
-    "deutsch": "allemand", "de": "allemand", "german": "allemand",
-    "español": "espagnol", "espanol": "espagnol", "es": "espagnol", "spanish": "espagnol",
-    "italiano": "italien", "it": "italien", "italian": "italien",
-    "polski": "polonais", "pl": "polonais", "polish": "polonais",
-    "русский": "russe", "russian": "russe", "ru": "russe",
-    "português": "portugais", "portugues": "portugais", "portuguese": "portugais", "pt": "portugais",
-    "中文": "chinois", "chinese": "chinois", "zh": "chinois",
-    "日本語": "japonais", "japanese": "japonais", "ja": "japonais",
+# Colonne de langue -> cle i18n du nom de langue (le libelle suit la
+# langue de l'interface, pas celle du fichier ouvert).
+_LANGUAGE_KEYS = {
+    "english": "lang.english", "en": "lang.english",
+    "français": "lang.french", "francais": "lang.french",
+    "fr": "lang.french",
+    "deutsch": "lang.german", "de": "lang.german", "german": "lang.german",
+    "español": "lang.spanish", "espanol": "lang.spanish",
+    "es": "lang.spanish", "spanish": "lang.spanish",
+    "italiano": "lang.italian", "it": "lang.italian",
+    "italian": "lang.italian",
+    "polski": "lang.polish", "pl": "lang.polish", "polish": "lang.polish",
+    "русский": "lang.russian", "russian": "lang.russian",
+    "ru": "lang.russian",
+    "português": "lang.portuguese", "portugues": "lang.portuguese",
+    "portuguese": "lang.portuguese", "pt": "lang.portuguese",
+    "中文": "lang.chinese", "chinese": "lang.chinese", "zh": "lang.chinese",
+    "日本語": "lang.japanese", "japanese": "lang.japanese",
+    "ja": "lang.japanese",
 }
 
 
@@ -47,14 +56,18 @@ def get_csv_column_tooltip(column_name: str) -> str:
     (fichiers de traduction KEY + langues) -- pas une explication generee
     au hasard, un format constant verifie sur plusieurs vrais fichiers.
     Retourne une chaine vide si la colonne ne correspond a aucun motif
-    connu (mieux vaut aucune infobulle qu'une explication incertaine)."""
+    connu (mieux vaut aucune infobulle qu'une explication incertaine).
+    Les PHRASES suivent la langue de l'interface (vecu 22/10 : elles
+    etaient en francais en dur, donc en francais dans l'UI anglaise)."""
     if not column_name:
         return ""
     normalized = column_name.strip().lower()
     if normalized in _KEY_COLUMN_NAMES:
-        return (f"<b>{column_name}</b><br>Identifiant technique unique (jeton) "
-                f"reference ailleurs dans le scenario -- ne pas traduire, ne pas modifier.")
-    language = _LANGUAGE_COLUMNS.get(normalized)
-    if language:
-        return f"<b>{column_name}</b><br>Texte affiche aux joueurs configures en {language}."
+        return (f"<b>{column_name}</b><br>"
+                + t("csv.tooltip_key_column"))
+    language_key = _LANGUAGE_KEYS.get(normalized)
+    if language_key:
+        return (f"<b>{column_name}</b><br>"
+                + t("csv.tooltip_language_column",
+                    language=t(language_key)))
     return ""
