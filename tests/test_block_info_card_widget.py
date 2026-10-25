@@ -649,3 +649,90 @@ def test_inline_combo_popup_survives_focus_steal(qapp):
     qapp.processEvents()
     assert row._editor is None
     assert received == [("HitPoints", "80", "120", False)]
+
+
+# ---------------------------------------------------------------------------
+# Traduction automatique des fiches (25/10/2026) : DESACTIVEE par defaut —
+# l'utilisateur decide ; hors option, la description EN reste affichee et
+# montre ce qui reste a traduire en jeu.
+# ---------------------------------------------------------------------------
+
+def test_auto_translate_info_disabled_by_default(monkeypatch):
+    """Le DEFAUT du reglage est False : aucune trad auto sans decision."""
+    from core import settings as _settings
+    real_get = _settings._get
+    monkeypatch.setattr(_settings, "_get",
+                        lambda key, default: default)  # fichier utilisateur ignore
+    assert _settings.get_auto_translate_info() is False
+    assert real_get is not None
+
+
+class _SpySignal:
+    def connect(self, *a, **k):
+        pass
+
+
+def _spy_worker(monkeypatch):
+    """Remplace le worker par une classe espion (aucun appel reseau)."""
+    import gui.translation_worker as tw
+    calls = []
+
+    class _SpyWorker:
+        item_done = _SpySignal()
+        finished_all = _SpySignal()
+
+        def __init__(self, texts, lang, parent=None, **kw):
+            calls.append(list(texts))
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(tw, "BatchTranslationWorker", _SpyWorker)
+    return calls
+
+
+def test_auto_translate_off_starts_no_worker(qapp, sample_card, monkeypatch):
+    from core import settings as _settings
+    monkeypatch.setattr(_settings, "get_auto_translate_info", lambda: False)
+    from gui.block_info_card_widget import BlockInfoCardWidget
+    card = sample_card
+    card.description_untranslated = True
+    card.info_key = "FuelTankMSLarge"
+    w = BlockInfoCardWidget()
+    calls = _spy_worker(monkeypatch)
+    w.show_card("FuelTankMSLarge", card, None)
+    assert calls == []          # aucune requete sans le consentement
+    assert w._desc_note is not None   # la note « non traduite » reste : vue de ce qui reste a faire
+
+
+def test_auto_translate_on_starts_worker(qapp, sample_card, monkeypatch):
+    from core import settings as _settings
+    monkeypatch.setattr(_settings, "get_auto_translate_info", lambda: True)
+    # la fiche lit core.i18n.get_language (pas settings) : patcher la bonne
+    import core.i18n
+    monkeypatch.setattr(core.i18n, "get_language", lambda: "fr")
+    from gui.block_info_card_widget import BlockInfoCardWidget
+    card = sample_card
+    card.description_untranslated = True
+    card.info_key = "FuelTankMSLarge"
+    card.description_text = "Fuel tank description"   # vide = sortie avant worker
+    w = BlockInfoCardWidget()
+    calls = _spy_worker(monkeypatch)
+    w.show_card("FuelTankMSLarge", card, None)
+    assert len(calls) == 1 and calls[0] == [card.description_text]
+
+
+def test_menu_action_auto_translate_wired(qapp, monkeypatch, tmp_path):
+    """Construction + chemin connecte : l'action du sous-menu Traduction
+    reflete le reglage et l'ecrit au basculement."""
+    from core import settings as _settings
+    from gui.main_window import MainWindow
+    monkeypatch.setattr(_settings, "get_auto_translate_info", lambda: False)
+    stored: list = []
+    monkeypatch.setattr(_settings, "set_auto_translate_info",
+                        lambda v: stored.append(v))
+    window = MainWindow()
+    action = window.action_auto_translate_info
+    assert action.isCheckable() and action.isChecked() is False
+    action.setChecked(True)   # le basculement emet deja toggled(True)
+    assert stored == [True]

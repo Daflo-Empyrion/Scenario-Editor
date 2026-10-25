@@ -515,7 +515,7 @@ class TechTreeDialog(QDialog):
         self._reload_path(path)
         # Le lien parent-enfant a change : la disposition en voies de TOUTE
         # categorie affichant ce noeud doit etre recalculee (voir
-        # core.tech_tree_layout.compute_node_positions).
+        # core.tech_tree_layout.compute_layout).
         for view in self._views.values():
             if view.category in node.categories:
                 view.rebuild()

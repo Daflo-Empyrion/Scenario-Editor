@@ -70,7 +70,7 @@ from PyQt6.QtWidgets import (
 from core.i18n import t
 from core.tech_tree import TechTree, TechTreeNode
 from core.tech_tree_icons import resolve_icon_path, load_icon_bytes
-from core.tech_tree_layout import MILESTONE_LEVELS, level_to_x_fraction, x_fraction_to_level
+from core.tech_tree_layout import compute_layout, nearest_level
 from gui.theme import icon, BORDER, TEXT_GRAY, CARD_BG, BG, PRIMARY as PRIMARY_HIGHLIGHT
 
 # Bornes de la mise en page adaptative (voir _compute_metrics) : en dessous
@@ -398,6 +398,12 @@ class TechTreeCategoryView(QGraphicsView):
         # redimensionnement ; remplacent les anciennes constantes module
         # COLUMN_WIDTH/ROW_HEIGHT/HEADER_HEIGHT/ICON_SIZE.
         self._col_w, self._row_h, self._header_h, self._icon_size = _compute_metrics(_DEFAULT_VIEW_WIDTH)
+        # Niveaux d'en-tete POUR CETTE CATEGORIE, derives des donnees comme
+        # le jeu (niveaux DISTINCTS presents dans l'arbre de la categorie,
+        # triés -- ConfigTree.FindView). Plus de grille fixe : la liste
+        # ci-dessous n'est que la valeur d'affichage initiale avant le
+        # premier rebuild().
+        self._levels = [1, 3, 5, 7, 10, 12, 15, 20, 25]
 
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -408,7 +414,7 @@ class TechTreeCategoryView(QGraphicsView):
     # -- metriques adaptatives ------------------------------------------------
 
     def _current_metrics(self):
-        return _compute_metrics(float(max(1, self.viewport().width())))
+        return _compute_metrics(float(max(1, self.viewport().width())), len(self._levels))
 
     def resizeEvent(self, event) -> None:
         """Recalcule la mise en page adaptative quand la largeur change
@@ -471,7 +477,7 @@ class TechTreeCategoryView(QGraphicsView):
         font.setBold(True)
         font.setPixelSize(max(12, int(self._header_h * 0.42)))
         painter.setFont(font)
-        for i, level in enumerate(MILESTONE_LEVELS):
+        for i, level in enumerate(self._levels):
             scene_x = i * self._col_w + 8
             view_point = self.mapFromScene(scene_x, 0)
             painter.drawText(view_point.x(), int(self._header_h * 0.62),
@@ -487,26 +493,24 @@ class TechTreeCategoryView(QGraphicsView):
         tout changement affectant la liste des noeuds de cette categorie
         (deplacement d'un noeud VERS ou DEPUIS cette categorie) et au
         redimensionnement (mise en page adaptative)."""
-        from core.tech_tree_layout import compute_node_positions
+        layout = compute_layout(self.tech_tree, self.category)
+        self._levels = layout.levels or [1]
+        self._col_w, self._row_h, self._header_h, self._icon_size = self._current_metrics()
 
         self.scene.clear()
         self._items_by_name.clear()
         self._connectors.clear()
         self._connector_branches.clear()
 
-        nodes = self.tech_tree.nodes_in_category(self.category)
-        positions = compute_node_positions(nodes)
+        nodes = layout.draw_order
+        positions = layout.positions
 
-        # Grille de niveaux FIXE (voir core.tech_tree_layout.MILESTONE_LEVELS)
-        # -- confirmee identique sur 10 captures d'ecran F3 reelles, ne varie
-        # pas selon les donnees du scenario. Les LIBELLES ('Niveau X') ne sont
-        # PLUS des items de scene (ils scrolleraient avec le contenu) -- voir
-        # paintEvent() ci-dessus, qui les dessine en surimpression FIXE du
-        # viewport (demande explicite : rester visibles pendant le defilement
-        # vertical). Seules les lignes verticales en pointilles (reperes de
-        # colonne) restent dans la scene, elles doivent bien defiler avec le
-        # contenu.
-        for i in range(len(MILESTONE_LEVELS)):
+        # Grille de niveaux DERIVEE DES DONNEES comme le jeu (niveaux
+        # distincts de la categorie, triés -- voir core.tech_tree_layout) :
+        # les libelles 'Niveau X' sont dessines en surimpression FIXE du
+        # viewport (paintEvent ci-dessus) ; seules les lignes verticales en
+        # pointilles restent dans la scene (elles defilent avec le contenu).
+        for i in range(len(self._levels)):
             line = QGraphicsLineItem(i * self._col_w + self._col_w / 2, self._header_h,
                                       i * self._col_w + self._col_w / 2, self._header_h + 5000)
             line.setPen(QPen(QColor(BORDER), 1, Qt.PenStyle.DotLine))
@@ -527,9 +531,13 @@ class TechTreeCategoryView(QGraphicsView):
             self._items_by_name[node.name] = item
 
         for node in nodes:
-            if node.parent_name and node.parent_name in by_name:
+            # Parent DANS L'ARBRE de la categorie (verite du layout, egale a
+            # node.parent_name dans les arbres valides) -- un ancetre insere
+            # par une chaine est relie a son parent de CHAINE.
+            tree_parent = positions[node.name].parent_name
+            if tree_parent and tree_parent in by_name:
                 branches = positions[node.name].branches_from_parent
-                self._add_connector(node.parent_name, node.name, branches)
+                self._add_connector(tree_parent, node.name, branches)
 
         # La marge superieure ne doit JAMAIS remonter au-dessus de y=0 : le
         # bandeau d'en-tete fixe (voir paintEvent) occupe les _header_h
@@ -590,7 +598,16 @@ class TechTreeCategoryView(QGraphicsView):
     # -- interactions -------------------------------------------------------
 
     def _column_x_for_level(self, level: int) -> float:
-        return level_to_x_fraction(level) * self._col_w + self._col_w / 2
+        """Abscisse du CENTRE de la colonne d'un niveau = index du niveau
+        parmi les niveaux distincts de la categorie (regle du jeu, voir
+        core.tech_tree_layout). Repli sur la colonne la plus proche si le
+        niveau n'existe pas ici (drag en cours vers un niveau absent)."""
+        if level in self._levels:
+            idx = self._levels.index(level)
+        else:
+            idx = min(range(len(self._levels)),
+                      key=lambda i: abs(self._levels[i] - level)) if self._levels else 0
+        return idx * self._col_w + self._col_w / 2
 
     def _row_y(self, row: int) -> float:
         return self._header_h + row * self._row_h + 10
@@ -624,9 +641,9 @@ class TechTreeCategoryView(QGraphicsView):
     def on_node_dropped(self, item: "_TechNodeItem") -> None:
         """Fin de glisser horizontal ET/OU vertical (voir docstring de
         _TechNodeItem) :
-        - X -> convertit en niveau reel le plus proche PARMI LES JALONS FIXES
-          du jeu (voir core.tech_tree_layout.x_fraction_to_level -- grille de
-          9 niveaux confirmee sur de vraies captures F3), persiste via
+        - X -> convertit en niveau reel le plus proche PARMI LES NIVEAUX
+          DISTINCTS de la categorie (voir core.tech_tree_layout.nearest_level
+          -- colonnes derivees des donnees comme le jeu), persiste via
           level_changed si le niveau a change.
         - Y -> convertit en numero de ligne le plus proche. Si la ligne a
           reellement change (reorganisation manuelle), declenche le mode
@@ -637,9 +654,11 @@ class TechTreeCategoryView(QGraphicsView):
         old_row = item._row
         center_x = item.pos().x() + item.pixmap().width() / 2
         x_fraction = (center_x - self._col_w / 2) / self._col_w
-        new_level = x_fraction_to_level(x_fraction)
+        new_level = nearest_level(x_fraction, self._levels)
         new_row = self._row_for_y(item.pos().y())
 
+        if new_level is None:
+            return
         self.snap_item_to_position(item, new_level, new_row)
         if new_level != item.node.unlock_level:
             self.level_changed.emit(item.node.name, new_level)
@@ -743,15 +762,16 @@ class TechTreeCategoryView(QGraphicsView):
         menu.exec(screen_pos)
 
 
-def _compute_metrics(view_width: float):
+def _compute_metrics(view_width: float, n_levels: int = 9):
     """Metriques de la mise en page ADAPTATIVE (demande du 31/08/2026) :
     (largeur_colonne, hauteur_ligne, hauteur_bandeau, taille_icone).
-    Largeur de colonne = largeur utile / 9 jalons (bornee) -> les niveaux
-    1 a 25 restent TOUS visibles sans scroll horizontal a toute resolution ;
-    icone ~45% de la colonne (bornée), ligne et bandeau proportionnels --
-    lisible du petit portable au 4K. Fonction libre pour rester testable
-    sans PyQt6 (meme principe que core/tech_tree_layout.py)."""
-    col_w = max(COL_MIN, min(COL_MAX, view_width / len(MILESTONE_LEVELS)))
+    Largeur de colonne = largeur utile / nombre de niveaux DE LA CATEGORIE
+    (derives des donnees, voir core.tech_tree_layout ; 9 en vanilla) -- les
+    colonnes restent toutes visibles sans scroll horizontal ; icone ~45% de
+    la colonne (bornée), ligne et bandeau proportionnels. Fonction libre pour
+    rester testable sans PyQt6 (meme principe que core/tech_tree_layout.py)."""
+    n_levels = max(1, n_levels)
+    col_w = max(COL_MIN, min(COL_MAX, view_width / n_levels))
     icon_size = int(max(ICON_MIN, min(ICON_MAX, col_w * 0.45)))
     row_h = int(icon_size * 1.55) + 12
     header_h = max(32, int(icon_size * 0.5))

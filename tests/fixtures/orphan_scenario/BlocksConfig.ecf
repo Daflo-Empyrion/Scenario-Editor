@@ -1,3 +1,4 @@
 { Block Id: 500, Name: RedDoor
+  Material: Device
   ExecuteOnActivate: "Token:1"
 }

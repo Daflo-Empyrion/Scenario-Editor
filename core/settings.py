@@ -461,6 +461,18 @@ def set_ai_style(style: str) -> None:
     _set('ai_style', (style or '').strip()[:500])
 
 
+def get_auto_translate_info() -> bool:
+    """Traduction AUTOMATIQUE de la description des fiches info (appelee a
+    l'ouverture de la fiche, appelle le moteur configure). DESACTIVEE par
+    defaut (25/10/2026) : c'est l'utilisateur qui decide de traduire, et la
+    description non traduite restee visible montre ce qui reste a traduire."""
+    return _get('auto_translate_info', False)
+
+
+def set_auto_translate_info(enabled: bool) -> None:
+    _set('auto_translate_info', bool(enabled))
+
+
 def get_ai_batch_enabled() -> bool:
     """Mode lots des maillons IA (une requete pour plusieurs cellules)."""
     return _get('ai_batch_enabled', True)

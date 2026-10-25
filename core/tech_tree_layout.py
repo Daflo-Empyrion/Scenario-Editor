@@ -15,183 +15,238 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Positionnement visuel des noeuds de l'arbre technologique pour une categorie
-donnee -- REECRIT le 28/08/2026 apres comparaison directe avec des captures
-d'ecran F3 EN JEU (10 captures fournies par l'utilisateur) et les vraies
-valeurs ECF correspondantes. Deux erreurs corrigees par rapport a la version
-precedente :
+Disposition des noeuds de l'arbre technologique (F3) -- REECRIT le 25/10/2026
+sur l'ALGORITHME EXACT DU JEU (fenetre PanelTechTree : construction de
+l'arbre par le chargeur de configs, disposition par la fenetre ; regles
+verifiees contre le chargement reel du jeu, build 25/09/2026).
 
-1. GRILLE DE NIVEAUX FIXE, pas une colonne par valeur reellement trouvee dans
-   les fichiers. Les 9 jalons ci-dessous (MILESTONE_LEVELS) sont ceux
-   affiches en-tete du vrai F3 (identiques sur les 10 captures). Un noeud
-   dont le niveau tombe ENTRE deux jalons (ex: niveau 2 ou 4, confirmes
-   presents dans ItemsConfig.ecf/BlocksConfig.ecf reels alors qu'ils
-   n'apparaissent PAS en en-tete) est positionne par INTERPOLATION LINEAIRE
-   entre les deux jalons encadrants, pas sur une colonne dediee.
+Toutes les regles ci-dessous sont celles du moteur, pas des deductions :
 
-2. DISPOSITION EN VOIES (lanes), pas une ligne par enfant. Verifie sur 2
-   chaines reelles completes (recoupees avec les couts affiches sur les
-   captures, qui correspondent exactement) :
-   - Core(cout 0) -> CPUExtenderBAT2(7) -> CPUExtenderBAT3(12) ->
-     CPUExtenderBAT4R(20) -> CPUExtenderBAT5(25)
-   - GeneratorBA(4) -> GeneratorMS(14) -> GeneratorMST2(20) ->
-     FusionReactorSmall(30) -> FusionReactorLarge(40)
-   Regle deduite et confirmee sur ces deux chaines (et leurs branches
-   secondaires, ex: Core a aussi CoreT2Large(20) et Eden_CPUExtenderAuxCV(150)
-   qui NE continuent PAS la voie principale) : quand un noeud a plusieurs
-   enfants, SEUL le PREMIER DECLARE (Id ECF le plus bas) continue sur la
-   MEME voie (meme ligne horizontale) ; chaque AUTRE enfant demarre une
-   NOUVELLE voie, reliee par un coude (segment vertical puis horizontal) --
-   voir gui/tech_tree_widget.py pour le dessin du coude.
-   Le critere etait 'cout le plus bas' jusqu'au 24/10/2026 : une capture du
-   jeu l'a contredit (ThrusterSVRoundLarge garde LargeT2, cout 15, sur sa
-   ligne et renvoie JetRound1x3x1, cout 12, sur la ligne suivante).
+1. ARBRE PAR CATEGORIE = union des CHAINES. Pour chaque feuille (item ou bloc
+   declarant la categorie avec UnlockLevel >= 1), le jeu remonte la chaine
+   TechTreeParent (parent resolu par NOM, item d'abord puis bloc ; max 7
+   ancetres) et insere la chaine racine -> feuille dans l'arbre de la
+   categorie. Un ANCIEN de la chaine peut ne PAS declarer la categorie
+   (ex: TechTreeNames: Hidden) : il apparait quand meme comme noeud interne
+   -- c'est ce que l'ancienne heuristique « memes categories » approximait.
 
-3. ORDRE VERTICAL des voies (quelle voie apparait au-dessus de quelle autre) :
-   verifie le 29/08/2026 sur le vrai BlocksConfig.ecf Steam vanilla -- la voie
-   'GeneratorBA' (Id ECF 498, cout 4) apparait AU-DESSUS de la voie 'Core'
-   (Id ECF 558, cout 0) dans le jeu, alors que le cout est plus bas pour
-   Core -- un tri par cout donnerait donc l'ordre INVERSE de la realite.
-   L'ordre reel suit l'Id ECF croissant (probablement l'ordre de declaration
-   dans le fichier, dont l'Id est un proxy fiable). S'applique a la fois aux
-   racines (voies independantes) et aux branchements (enfants qui ne
-   continuent pas la voie de leur parent) -- la SELECTION du continuateur
-   reste basee sur le cout le plus bas (deja verifiee independamment), seul
-   l'ORDRE D'AFFICHAGE des voies change de critere.
+2. ORDRE D'INSERTION = ordre de traitement des feuilles : ITEMS d'abord (Id
+   croissant), PUIS BLOCS (Id croissant pour les blocs avec Id, puis ordre de
+   declaration pour les sans-Id ; en vanilla ce second ordre == ordre du
+   fichier). Un enfant apparait a la position ou la PREMIERE feuille de son
+   sous-arbre a ete traitee.
+
+3. TRI STABLE par TechTreeSortIndex (valeur <= 0 -> dernier, l'ordre
+   d'insertion est conserve entre egaux) applique a CHAQUE niveau, racines
+   comprises (tri du chargeur de l'arbre). Vanilla n'utilise jamais cette
+   propriete : l'ordre d'insertion decide alors de tout.
+
+4. COLONNES = INDEX DU NIVEAU parmi les niveaux DISTINCTS de l'arbre de la
+   categorie, triés (ConfigTree.FindView + ResolveProcess). PAS les valeurs
+   brutes, PAS une grille fixe : l'ancienne liste figee MILESTONE_LEVELS
+   [1,3,5,7,10,12,15,20,25] n'etait que le resultat de cet algorithme sur la
+   vanilla. Un scenario qui n'a que les niveaux 2 et 9 a deux colonnes.
+
+5. LIGNES : parcours en profondeur des enfants dans l'ordre final ; un noeud
+   est place a la colonne de son niveau (cellules vides de remplissage si la
+   colonne courante est en retard) ; s'il a des enfants ils continuent sur la
+   MEME ligne ; une FEUILLE termine sa ligne -- la voie suivante demarre
+   dessous (fenetre F3, ToggleDomain). Il n'y a donc pas de
+   « continuateur » choisi : TOUS les enfants restent sur la ligne du parent
+   tant qu'aucun n'est une feuille, et chaque feuille coupe.
+   (L'ancienne regle « premier enfant declare de memes categories continue »
+   etait une approximation de ce mecanisme, contredite dans des cas limites.)
+
+6. ORDRE DES ONGLETS : un jeton TechTreeNames peut porter un indice explicite
+   « Nom$2 » (le chargeur de l'arbre le strip et le memorise) ; les
+   categories avec indice positif viennent d'abord par indice croissant, les
+   autres apres, hors « Hidden ». Entre egaux le jeu conserve l'ordre
+   d'iteration d'un Dictionary Mono (ordre de hachage, non reproductible
+   simplement) : repli de l'editeur = ordre vanilla confirme par captures
+   (KNOWN_CATEGORY_ORDER) puis decouvrete. Vanilla n'a aucun $N.
 
 Isole de gui/tech_tree_widget.py pour rester testable sans PyQt6.
 """
-from dataclasses import dataclass
-from typing import Dict, List
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
-from .tech_tree import TechTreeNode
+from .tech_tree import TechTree, TechTreeNode
 
-# Jalons de niveau REELS affiches en en-tete du F3 en jeu (identiques sur les
-# 10 captures d'ecran fournies par l'utilisateur, section Base ET les autres
-# onglets) -- valeur fixe du jeu, PAS derivee des donnees du scenario.
-MILESTONE_LEVELS: List[int] = [1, 3, 5, 7, 10, 12, 15, 20, 25]
-
-
-def level_to_x_fraction(level: int, milestones: List[int] = MILESTONE_LEVELS) -> float:
-    """Position horizontale continue en 'unites de colonne' (0.0 = premier
-    jalon, len(milestones)-1 = dernier), interpolee lineairement entre les
-    deux jalons qui encadrent `level`. Clampee aux bornes si `level` est
-    en-dehors de la plage des jalons (ex: niveau 30 -> meme position que le
-    dernier jalon 25, confirme sur les captures ou plusieurs noeuds de
-    niveau > 25 restent alignes avec la derniere colonne 'Niveau 25')."""
-    if not milestones:
-        return 0.0
-    if level <= milestones[0]:
-        return 0.0
-    if level >= milestones[-1]:
-        return float(len(milestones) - 1)
-    for i in range(len(milestones) - 1):
-        lo, hi = milestones[i], milestones[i + 1]
-        if lo <= level <= hi:
-            return i + ((level - lo) / (hi - lo) if hi != lo else 0.0)
-    return 0.0
-
-
-def x_fraction_to_level(x_fraction: float, milestones: List[int] = MILESTONE_LEVELS) -> int:
-    """Inverse de level_to_x_fraction, utilise lors d'un glisser (voir
-    gui/tech_tree_widget.py) : aimante sur le JALON le plus proche (index
-    entier le plus proche), pas sur une valeur interpolee -- glisser une
-    icone doit toujours la deposer sur l'un des 9 niveaux reels du jeu, jamais
-    sur une valeur arbitraire entre deux jalons."""
-    if not milestones:
-        return int(round(x_fraction))
-    idx = max(0, min(len(milestones) - 1, round(x_fraction)))
-    return milestones[idx]
+# Le jeu (ConfigTree.FindDeployment) jette au 8e ANCESTRE d'une chaine
+# (compteur global > 5 a l'entree) — l'editeur s'arrete a la meme borne pour
+# rester fidele, proprement (sans exception) pour ne jamais faire disparaitre
+# le reste de l'arbre.
+_MAX_ANCESTORS = 7
 
 
 @dataclass
 class NodePosition:
     node_name: str
-    x_fraction: float  # voir level_to_x_fraction -- position continue, pas un index de colonne
+    x_fraction: float      # colonne (index du niveau dans CategoryLayout.levels)
     row: int
-    branches_from_parent: bool  # True = demarre une NOUVELLE voie (coude a dessiner), False = continue la voie de son parent (ou racine de voie)
+    branches_from_parent: bool  # True = ligne differente de celle du parent (coude)
+    parent_name: Optional[str] = None  # parent DANS l'arbre de la categorie (None = racine)
 
 
-def compute_node_positions(nodes: List[TechTreeNode],
-                            milestones: List[int] = MILESTONE_LEVELS) -> Dict[str, NodePosition]:
-    """Calcule (x_fraction, ligne, branchement) pour chaque noeud d'UNE
-    categorie (deja filtree par l'appelant, voir TechTree.nodes_in_category()).
-    Voir le docstring du module pour les deux regles verifiees sur donnees
-    reelles : continuation de voie par cout le plus bas (point 2), ordre
-    d'affichage des voies par Id ECF croissant (point 3) -- deux criteres
-    DISTINCTS, verifies independamment l'un de l'autre."""
-    by_name = {n.name: n for n in nodes}
-    children_of: Dict[str, List[TechTreeNode]] = {}
-    roots: List[TechTreeNode] = []
-    for n in nodes:
-        if n.parent_name and n.parent_name in by_name:
-            children_of.setdefault(n.parent_name, []).append(n)
-        else:
-            roots.append(n)
+@dataclass
+class CategoryLayout:
+    """Resultat du calcul pour UNE categorie : tout ce dont le widget a
+    besoin -- niveaux d'en-tete, noeuds a dessiner (l'arbre complet, ancetres
+    inclus), position de chacun."""
+    levels: List[int] = field(default_factory=list)
+    draw_order: List[TechTreeNode] = field(default_factory=list)
+    positions: Dict[str, NodePosition] = field(default_factory=dict)
 
-    def _id_sort_key(n: TechTreeNode):
-        """Ordre d'affichage des voies -- Id ECF croissant (verifie sur
-        donnees reelles, voir docstring du module). Repli sur le nom pour
-        les rares noeuds sans Id numerique, apres tous les noeuds avec Id."""
-        try:
-            return (0, int(n.ecf_id))
-        except (TypeError, ValueError):
-            return (1, n.name)
 
-    def _continuation(parent: TechTreeNode, kids: List[TechTreeNode]) -> TechTreeNode:
-        """Selection du SEUL enfant qui continue la voie de son parent.
-        Deux regles, verifiees sur les captures du jeu du 24/10/2026 (onglets
-        Base et Petit vaisseau) :
-        1. seuls les enfants partageant EXACTEMENT les categories du parent
-           sont candidats (RepairStation -> RepairBayConsole, pas
-           RepairBayBA qui n'est que 'Base' quand son parent est
-           'Base,Capital Vessel') ;
-        2. parmi eux le PREMIER DECLARE (Id ECF) -- et non le moins cher
-           (ThrusterSVRoundLarge garde LargeT2, cout 15, et renvoie
-           JetRound1x3x1, cout 12, sur la ligne suivante).
-        Repli sur tous les enfants si aucun ne partage les categories."""
-        same_categories = [k for k in kids if k.categories == parent.categories]
-        return sorted(same_categories or kids, key=_id_sort_key)[0]
+# ---------------------------------------------------------------------------
+# Ordre de traitement des feuilles (regle 2)
+# ---------------------------------------------------------------------------
 
-    roots_display_order = sorted(roots, key=_id_sort_key)
-    continuation_of: Dict[str, TechTreeNode] = {
-        parent: _continuation(by_name[parent], kids) for parent, kids in children_of.items()
-    }
-    children_by_display_order: Dict[str, List[TechTreeNode]] = {
-        parent: sorted(kids, key=_id_sort_key) for parent, kids in children_of.items()
-    }
+def _int_id(node: TechTreeNode) -> Optional[int]:
+    try:
+        return int(str(node.ecf_id).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _leaf_sort_key(node: TechTreeNode) -> Tuple:
+    """Items d'abord (Id croissant), puis blocs avec Id (Id croissant), puis
+    blocs sans Id (ordre de declaration). Repli sur l'ordre de declaration
+    pour un item sans Id (jamais observe)."""
+    iid = _int_id(node)
+    if node.source == 'item':
+        return (0, iid if iid is not None else 10 ** 9, node.seq)
+    if iid is not None:
+        return (1, iid, node.seq)
+    return (2, 0, node.seq)
+
+
+def _sort_key_stable(node: TechTreeNode) -> float:
+    """Tri stable par TechTreeSortIndex ; <= 0 passe APRES tout indice positif
+    (ConfigTree.OrderFunction : OrderBy(v <= 0 ? int.MaxValue : v))."""
+    return float('inf') if node.sort_index <= 0 else float(node.sort_index)
+
+
+@dataclass
+class _TreeNode:
+    node: TechTreeNode
+    children: List['_TreeNode'] = field(default_factory=list)
+
+
+def _build_category_tree(tree: TechTree, category: str) -> List[_TreeNode]:
+    """Reproduit ConfigTree.RebuildSelection : chaines feuille->ancetres
+    inserees racine->feuille, puis tri stable par TechTreeSortIndex."""
+    by_key: Dict[Tuple[str, str], TechTreeNode] = {(n.source, n.name): n for n in tree.nodes}
+    # Le jeu resout un parent par NOM, item d'abord, bloc ensuite
+    # (ConfigTree.FindDeployment : DomainLayout.ChangeCondition puis
+    # PartitionDictionary.GenerateWindow).
+    by_name: Dict[str, TechTreeNode] = {}
+    for n in tree.nodes:
+        if n.source == 'item':
+            by_name.setdefault(n.name, n)
+    for n in tree.nodes:
+        if n.source == 'block':
+            by_name.setdefault(n.name, n)
+
+    roots: List[_TreeNode] = []
+    placed: Dict[Tuple[str, str], _TreeNode] = {}
+
+    leaves = [n for n in tree.nodes if category in n.categories and n.unlock_level >= 1]
+    for leaf in sorted(leaves, key=_leaf_sort_key):
+        # Chaine feuille -> racine (le jeu la construit en remontant puis
+        # insere en partant de la racine).
+        chain: List[TechTreeNode] = [leaf]
+        seen = {(leaf.source, leaf.name)}
+        current = leaf
+        while len(chain) <= _MAX_ANCESTORS:
+            parent_name = current.parent_name
+            if not parent_name:
+                break
+            parent = by_name.get(parent_name)
+            if parent is None or (parent.source, parent.name) in seen:
+                break
+            chain.append(parent)
+            seen.add((parent.source, parent.name))
+            current = parent
+        # Insertion racine -> feuille (ConfigTree.SplitControl)
+        level_children = roots
+        for tn in reversed(chain):
+            key = (tn.source, tn.name)
+            existing = placed.get(key)
+            if existing is None:
+                existing = _TreeNode(node=tn)
+                level_children.append(existing)
+                placed[key] = existing
+            level_children = existing.children
+
+    def _sort_level(children: List[_TreeNode]) -> List[_TreeNode]:
+        # Recursif d'abord (ConfigTree.OrderFunction trie les petits avant
+        # les grands), puis tri stable du niveau courant.
+        for child in children:
+            if child.children:
+                _sort_level(child.children)
+        children.sort(key=lambda tn: _sort_key_stable(tn.node))
+        return children
+
+    return _sort_level(roots)
+
+
+def compute_layout(tree: TechTree, category: str) -> CategoryLayout:
+    """Calcule la disposition EXACTE du F3 pour une categorie (voir le
+    docstring du module pour l'algorithme et sa source dans le jeu)."""
+    roots = _build_category_tree(tree, category)
+
+    draw_order: List[TechTreeNode] = []
+    tree_nodes: List[TechTreeNode] = []
+
+    def _collect(tn_list: List[_TreeNode]) -> None:
+        for tn in tn_list:
+            draw_order.append(tn.node)
+            tree_nodes.append(tn.node)
+            if tn.children:
+                _collect(tn.children)
+
+    _collect(roots)
+
+    levels = sorted({n.unlock_level for n in tree_nodes})
+    tier_col = {level: i for i, level in enumerate(levels)}
 
     positions: Dict[str, NodePosition] = {}
-    visited: set = set()
-    row_state = {'next': -1}
+    # Cellule courante (col, row) -- reproduit ToggleDomain : une feuille
+    # termine sa ligne, les enfants continuent sur la ligne du parent.
+    state = {'col': 0, 'row': 0}
 
-    def _new_row() -> int:
-        row_state['next'] += 1
-        return row_state['next']
+    def _walk(tn_list: List[_TreeNode], tree_parent: Optional[str], parent_row: Optional[int]) -> None:
+        for tn in tn_list:
+            target = tier_col[tn.node.unlock_level]
+            if state['col'] < target:
+                state['col'] = target  # cellules vides de remplissage
+            col, row = state['col'], state['row']
+            name = tn.node.name
+            positions[name] = NodePosition(
+                node_name=name,
+                x_fraction=float(col),
+                row=row,
+                branches_from_parent=parent_row is not None and row != parent_row,
+                parent_name=tree_parent,
+            )
+            state['col'] = col + 1
+            if tn.children:
+                _walk(tn.children, name, row)
+            else:
+                state['row'] += 1  # la feuille coupe la ligne (regle 5)
+                state['col'] = 0
 
-    def _place(node: TechTreeNode, row: int, branches: bool) -> None:
-        if node.name in visited:
-            return  # garde-fou anti-cycle (TechTreeParent invalide/circulaire)
-        visited.add(node.name)
-        x = level_to_x_fraction(node.unlock_level, milestones)
-        positions[node.name] = NodePosition(node_name=node.name, x_fraction=x, row=row, branches_from_parent=branches)
-        kids = children_by_display_order.get(node.name)
-        if not kids:
-            return
-        continuing = continuation_of.get(node.name)
-        if continuing is not None:
-            _place(continuing, row, False)  # premier declare des memes categories -> CETTE voie
-        for kid in kids:
-            if kid is not continuing:
-                _place(kid, _new_row(), True)  # les autres -> nouvelle voie, ordre par Id
+    _walk(roots, None, None)
 
-    for root in roots_display_order:
-        _place(root, _new_row(), False)
+    return CategoryLayout(levels=levels, draw_order=draw_order, positions=positions)
 
-    # Filet de securite : tout noeud non atteint (cycle TechTreeParent) est
-    # tout de meme place, pour ne jamais faire disparaitre un noeud reel.
-    for n in nodes:
-        if n.name not in positions:
-            _place(n, _new_row(), True)
 
-    return positions
+def nearest_level(x_fraction: float, levels: List[int]) -> Optional[int]:
+    """Niveau le plus proche d'une abscisse en unites de colonne -- utilisé
+    par le glisser-deposer du widget pour aimanter sur un niveau REEL de la
+    categorie (les colonnes affichées sont les niveaux presents, regle 4)."""
+    if not levels:
+        return None
+    idx = max(0, min(len(levels) - 1, round(x_fraction)))
+    return levels[idx]

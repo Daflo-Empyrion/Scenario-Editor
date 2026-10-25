@@ -75,12 +75,17 @@ def test_load_tech_tree_includes_plus_block_and_plus_item(working_files):
 
 def test_load_tech_tree_excludes_hidden_even_with_unlock_level(working_files):
     """Cas reel confirme : HeavyPistol a TechTreeNames=Hidden ET UnlockLevel=1
-    simultanement -- doit rester exclu (voir docstring du module)."""
+    simultanement -- jamais AFFICHE. Depuis le 25/10/2026 (algorithme du jeu
+    du jeu), un noeud Hidden peut rester DANS le modele comme ANCIEN
+    d'une chaine (masquer n'efface pas un ancetre) : l'exclusion se joue sur
+    les categories affichables, pas sur la presence du noeud."""
     blocks, items = working_files
     tree = load_tech_tree(blocks, items)
-    names = {n.name for n in tree.nodes}
-    assert "HeavyPistol" not in names
-    assert "TurretMSPlasma" not in names  # Hidden, sans UnlockLevel
+    assert "Hidden" not in tree.categories()
+    for category in tree.categories():
+        names = {n.name for n in tree.nodes_in_category(category)}
+        assert "HeavyPistol" not in names
+        assert "TurretMSPlasma" not in names
 
 
 def test_load_tech_tree_excludes_node_without_tech_tree_names(working_files):

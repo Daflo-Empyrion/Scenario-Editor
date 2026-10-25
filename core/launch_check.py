@@ -399,8 +399,8 @@ def _iter_ecf_pairs(doc, filename):
 
 def _index_value_shapes(conf_dir: Path) -> dict:
     """(fichier, kind, propriete) -> {familles} observees dans la VANILLE :
-    le seul « schema » fiable des types de valeurs — le jeu ne le documente
-    pas et ses classes sont obfusquees."""
+    un « schema » fiable des types de valeurs, sans dependance au moteur
+    (qui ne documente pas ses champs)."""
     shapes: dict = {}
     for f in conf_dir.glob("*.ecf"):
         try:
@@ -689,4 +689,11 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
     # --- valeurs numeriques sans 'type:' (lues en string par le jeu,
     # invisibles au boot dedie qui n'instancie pas le monde) ---
     issues.extend(_check_numeric_types(root))
+
+    # --- chargeurs du moteur repliques (regles verifiees contre le
+    # chargement reel du jeu, 25/10/2026) : les
+    # exceptions fatales des chargeurs ECF/TechTree du jeu, listees d'un
+    # coup — le boot reel n'en montre qu'une par iteration ---
+    from .engine_loaders import run_engine_loader_checks
+    issues.extend(run_engine_loader_checks(root, vanilla_content))
     return issues

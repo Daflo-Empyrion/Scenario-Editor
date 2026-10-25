@@ -2607,6 +2607,10 @@
   "fr": "Traduction en ligne (Google Translate) -- envoie le texte a traduire a Google, voir PRIVACY.md",
   "en": "Online translation (Google Translate) -- sends the text to be translated to Google, see PRIVACY.md"
  },
+ "menu.options.auto_translate_info": {
+  "fr": "Traduction automatique des fiches (description du jeu) -- DESACTIVEE par defaut : appelle le moteur de traduction configure a chaque ouverture de fiche ; hors option, la description non traduite reste visible et montre ce qui reste a traduire en jeu",
+  "en": "Automatic card translation (game description) -- OFF by default: calls the configured translation engine on every card open; when off, the untranslated description stays visible and shows what still needs translating in game"
+ },
  "merge.disabled_title": {
   "fr": "Fusion desactivee",
   "en": "Merging disabled"

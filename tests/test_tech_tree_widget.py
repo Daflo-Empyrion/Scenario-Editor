@@ -369,21 +369,23 @@ def test_double_click_emits_node_activated(tree_and_view_factory):
 
 
 # ---------------------------------------------------------------------------
-# Mise en page ADAPTATIVE (demande du 31/08/2026 : les 9 jalons 1..25
-# restent visibles a toute resolution, icones/badge a l'echelle).
+# Mise en page ADAPTATIVE (demande du 31/08/2026 ; depuis le 25/10/2026 le
+# nombre de colonnes est le nombre de NIVEAUX DISTINCTS de la categorie,
+# derive des donnees comme le jeu -- 9 en vanilla).
 # ---------------------------------------------------------------------------
 
 def test_compute_metrics_all_columns_fit_any_width():
-    """La largeur de colonne x 9 jalons ne depasse JAMAIS la largeur utile
-    (des que la fenetre est au moins 9 x COL_MIN) : tout est visible sans
-    scroll horizontal, du petit portable au 4K."""
-    from gui.tech_tree_widget import _compute_metrics, COL_MIN, COL_MAX, MILESTONE_LEVELS
-    for width in (900, 1200, 1366, 1920, 2560, 3840, 5000):
-        col_w, row_h, header_h, icon_size = _compute_metrics(float(width))
-        assert col_w * len(MILESTONE_LEVELS) <= max(width, COL_MIN * len(MILESTONE_LEVELS)) + 0.01
-        assert col_w >= COL_MIN and col_w <= COL_MAX
-        assert row_h > icon_size  # la ligne loge son icone
-        assert header_h >= 32
+    """La largeur de colonne x nombre de colonnes ne depasse JAMAIS la largeur
+    utile (des que la fenetre est au moins n x COL_MIN) : tout est visible
+    sans scroll horizontal, du petit portable au 4K."""
+    from gui.tech_tree_widget import _compute_metrics, COL_MIN, COL_MAX
+    for n_levels in (2, 5, 9, 12):
+        for width in (900, 1200, 1366, 1920, 2560, 3840, 5000):
+            col_w, row_h, header_h, icon_size = _compute_metrics(float(width), n_levels)
+            assert col_w * n_levels <= max(width, COL_MIN * n_levels) + 0.01
+            assert col_w >= COL_MIN and col_w <= COL_MAX
+            assert row_h > icon_size  # la ligne loge son icone
+            assert header_h >= 32
 
 
 def test_compute_metrics_icon_stays_within_bounds():

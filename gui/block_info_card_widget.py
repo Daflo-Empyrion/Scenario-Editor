@@ -934,6 +934,12 @@ class BlockInfoCardWidget(QWidget):
         requete par (cle Info, langue) et par fiche : la traduction passe par
         la pile existante (memoire vanille, puis moteur configure)."""
         from core.i18n import get_language
+        from core.settings import get_auto_translate_info
+        if not get_auto_translate_info():
+            # Option DESACTIVEE (defaut) : aucune requete exterieure sans
+            # decision de l'utilisateur -- la note « non traduite » reste
+            # affichee et montre ce qui reste a traduire (vue jeu).
+            return
         lang = get_language()
         text = card.description_text
         if lang == "en" or not text:

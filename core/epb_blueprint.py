@@ -16,8 +16,7 @@
 
 """Lecture, verification et edition des blueprints .epb d'Empyrion.
 
-Format reconstruit depuis le code du jeu (v1.19.2, decompilation de
-Blueprint.cs / BlueprintHeader.cs / ImageProvider.cs / SimpleBitStream.cs) :
+Format reconstruit et verifie contre le moteur du jeu (v1.19.2) :
 
   .epb = [header binaire][i32 taille][byte][bool][entree zip locale]
          [repertoire central zip]
@@ -447,7 +446,7 @@ class EpbBlueprint:
         # champ taille du jeu : num couvre entree locale + repertoire
         # central + EOCD (verifie sur fichiers reels v23/v25/v31) ; le
         # parse du header peut desaligner sur une version plus ancienne
-        # que la decompilation (vecu : prefab v25, champs inconnus)
+        # que la version de reference du format (vecu : prefab v25, champs inconnus)
         pk = data.find(b"PK\x03\x04")
         while pk >= 6:
             num = struct.unpack_from("<i", data, pk - 6)[0]

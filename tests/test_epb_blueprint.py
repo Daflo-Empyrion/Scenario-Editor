@@ -111,7 +111,8 @@ def epb_file(tmp_path):
 
 
 def test_parse_header_older_with_unknown_fields(epb_file, tmp_path):
-    # header plus ancien que la decompilation (vecu : prefab v25) : des
+    # header plus ancien que la version de reference du format (vecu :
+    # prefab v25) : des
     # champs supplementaires desalignent le parse -> la frontiere zip est
     # trouvee par l'ancrage PK valide, le fichier reste lisible et sauvable
     raw = epb_file.read_bytes()

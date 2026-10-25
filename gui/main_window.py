@@ -474,6 +474,18 @@ class MainWindow(QMainWindow):
         self.action_toggle_online_translation.setCheckable(True)
         self.action_toggle_online_translation.setChecked(settings.get_online_translation_enabled())
         self.action_toggle_online_translation.toggled.connect(settings.set_online_translation_enabled)
+        # Traduction AUTOMATIQUE des fiches info (25/10/2026) : DESACTIVEE
+        # par defaut — c'est l'utilisateur qui decide de traduire (chaque
+        # ouverture de fiche sinon appelait le moteur configure a son insu) ;
+        # option off, la description non traduite reste visible et montre ce
+        # qui reste a traduire pour le jeu.
+        self.action_auto_translate_info = self.menu_translation.addAction(
+            t("menu.options.auto_translate_info"))
+        self.action_auto_translate_info.setCheckable(True)
+        self.action_auto_translate_info.setChecked(
+            settings.get_auto_translate_info())
+        self.action_auto_translate_info.toggled.connect(
+            settings.set_auto_translate_info)
         # Moteur de traduction ACTIF : choix radio exclusif (demande du
         # 17/09/2026 -- la case binaire Argos ne disait pas quel moteur
         # tournait, et NLLB n'y figurait pas). La case "Traduction en ligne

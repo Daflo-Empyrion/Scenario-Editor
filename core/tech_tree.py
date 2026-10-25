@@ -35,6 +35,10 @@ l'utilisateur avec legende annotee) :
                   d'UnlockLevel).
   TechTreeParent: Name du noeud parent (racine si absent). Un noeud racine
                   reel n'a PAS cette propriete du tout (pas de valeur vide).
+  TechTreeSortIndex: ordre des voies au sein d'un parent et ordre des
+                  onglets via « Nom$N » dans TechTreeNames (regles du
+                  moteur, session du 25/10/2026 -- la vanilla ne les
+                  utilise pas ; voir core/tech_tree_layout.py).
   CustomIcon    : nom d'icone explicite a utiliser (repli sur Name si absent)
                   -- confirme par le commentaire d'en-tete du vrai
                   BlocksConfig.ecf : "Use with an existing Icon to show it
@@ -50,7 +54,7 @@ session pour verifier le mapping exact code -> libelle affiche.
 """
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from .ecf.model import EcfBlock, EcfProperty, add_property_line, remove_property_line
 from .ecf.doc_cache import get_parsed_doc
@@ -84,6 +88,8 @@ class TechTreeNode:
     parent_name: Optional[str] = None  # None = noeud racine
     icon_key: str = ""                 # CustomIcon si present, sinon Name
     ecf_id: Optional[str] = None       # Id ECF si present (Items/certains Blocks)
+    sort_index: int = 0                # TechTreeSortIndex (tri des voies, voir layout)
+    seq: int = 0                       # ordre de declaration dans le fichier
 
 
 @dataclass
@@ -92,6 +98,9 @@ class TechTree:
     categorie et par nom. Construit par load_tech_tree() ci-dessous."""
     nodes: List[TechTreeNode] = field(default_factory=list)
     _by_name: Dict[str, TechTreeNode] = field(default_factory=dict, repr=False)
+    # Indice d'onglet explicite « Nom$N » vu dans un TechTreeNames (jeu :
+    # ConfigTree.OpenNetwork). Première rencontre gagne ; vide en vanilla.
+    category_sort_index: Dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._by_name = {n.name: n for n in self.nodes}
@@ -100,17 +109,30 @@ class TechTree:
         return self._by_name.get(name)
 
     def categories(self) -> List[str]:
-        """Categories reellement presentes, triees : d'abord celles de
-        KNOWN_CATEGORY_ORDER (dans cet ordre), puis toute categorie
-        supplementaire (scenario modde) par ordre alphabetique."""
+        """Categories reellement affichables (Hidden exclu), ordonnees comme
+        le F3 : categories a indice explicite $N d'abord (croissant), puis
+        l'ordre vanilla confirme par captures, puis le reste par ordre
+        alphabetique (repli : entre egaux le jeu conserve un ordre de hachage
+        Mono non reproductible -- voir core/tech_tree_layout.py, regle 6)."""
         found = set()
         for n in self.nodes:
-            found.update(n.categories)
+            found.update(c for c in n.categories if c not in _EXCLUDED_CATEGORY_VALUES)
         known = [c for c in KNOWN_CATEGORY_ORDER if c in found]
         extra = sorted(found - set(KNOWN_CATEGORY_ORDER))
-        return known + extra
+
+        def _key(c: str) -> Tuple:
+            idx = self.category_sort_index.get(c, 0)
+            ordered = idx if idx > 0 else None
+            fallback = known.index(c) if c in known else len(known) + extra.index(c)
+            return (0 if ordered is not None else 1, ordered if ordered is not None else 0, fallback)
+
+        return sorted(found, key=_key)
 
     def nodes_in_category(self, category: str) -> List[TechTreeNode]:
+        """Noeuds DECLARANT la categorie (feuilles potentielles -- le jeu
+        n'en garde que celles avec UnlockLevel >= 1, voir tech_tree_layout ;
+        l'arbre affiche inclut en plus leurs ancetres, qui peuvent ne pas
+        declarer la categorie)."""
         return [n for n in self.nodes if category in n.categories]
 
     def levels(self) -> List[int]:
@@ -189,7 +211,23 @@ def _effective(index: Dict[str, EcfBlock], patches: Dict[str, EcfBlock],
     return _effective(index, patches, ref.strip().strip('"'), key, depth + 1)
 
 
-def _extract_nodes(path: Path, source: str, vanilla_root: Optional[str] = None) -> List[TechTreeNode]:
+def _split_category_token(token: str) -> Tuple[str, Optional[int]]:
+    """Un jeton TechTreeNames peut porter un indice d'onglet explicite
+    « Nom$2 » que le jeu strip et memorise (ConfigTree.OpenNetwork : le nom
+    SANS le suffixe devient la categorie, le numero son ordre d'onglet).
+    Retourne (nom_nettoye, indice ou None)."""
+    token = token.strip()
+    if '$' not in token:
+        return token, None
+    name, _, suffix = token.rpartition('$')
+    try:
+        return name, int(suffix.strip())
+    except ValueError:
+        return token, None
+
+
+def _extract_nodes(path: Path, source: str, vanilla_root: Optional[str] = None,
+                   category_index: Optional[Dict[str, int]] = None) -> List[TechTreeNode]:
     # Parse via le CACHE (voir core/ecf/doc_cache.py -- retour utilisateur du
     # 31/08/2026 : latence de plusieurs secondes a chaque clic dans l'arbre,
     # chaque clic re-parsant des fichiers entiers) : l'ouverture du dialogue
@@ -211,37 +249,55 @@ def _extract_nodes(path: Path, source: str, vanilla_root: Optional[str] = None) 
     index = _index_by_name(doc, accepted_kinds)
     patches = _base_patches(path, vanilla_root)
     nodes: List[TechTreeNode] = []
+    seq = 0
     for b in doc.iter_blocks():
         if b.kind not in accepted_kinds:
             continue
         name = _node_name(b)
         if not name:
             continue
-        categories = parse_quoted_list(_effective(index, patches, name, 'TechTreeNames'))
-        if not categories or all(c in _EXCLUDED_CATEGORY_VALUES for c in categories):
+        seq += 1
+        categories: List[str] = []
+        for token in parse_quoted_list(_effective(index, patches, name, 'TechTreeNames')) or []:
+            clean, tab_index = _split_category_token(token)
+            if not clean:
+                continue
+            categories.append(clean)
+            if tab_index is not None and category_index is not None:
+                # Premiere rencontre gagne ; le jeu LEVE une exception sur un
+                # conflit d'indices -- l'editeur reste permissif.
+                category_index.setdefault(clean, tab_index)
+        # Un noeud sans AUCUNE propriete d'arbre n'entre jamais dans le
+        # modele. Un noeud avec TechTreeParent est garde MEME si toutes ses
+        # categories sont exclues (Hidden) ou sans UnlockLevel : le jeu
+        # l'insere quand meme comme ANCIEN des chaines qui le referencent
+        # (ConfigTree.RebuildSelection ne filtre que les FEUILLES) -- c'est
+        # le piege du 24/10 : commenter/masquer n'efface pas un ancetre.
+        has_parent = _effective(index, patches, name, 'TechTreeParent')
+        if not categories and not has_parent:
             continue
         level_raw = _effective(index, patches, name, 'UnlockLevel')
-        if level_raw is None:
-            # Un noeud avec une vraie categorie mais sans UnlockLevel n'a
-            # jamais ete observe dans les vrais fichiers (voir docstring) --
-            # exclu plutot que de deviner un niveau par defaut.
-            continue
         try:
-            unlock_level = int(level_raw.strip())
+            unlock_level = int(level_raw.strip()) if level_raw is not None else 0
         except (ValueError, AttributeError):
-            continue
+            unlock_level = 0
         cost_raw = _effective(index, patches, name, 'UnlockCost')
         try:
             unlock_cost = int(cost_raw.strip()) if cost_raw is not None else 0
         except ValueError:
             unlock_cost = 0
-        parent = _effective(index, patches, name, 'TechTreeParent')
-        parent = parent.strip().strip('"') or None if parent else None
+        parent = has_parent.strip().strip('"') or None if has_parent else None
         custom_icon = _effective(index, patches, name, 'CustomIcon')
         icon_key = custom_icon.strip() if custom_icon else name
+        sort_raw = _effective(index, patches, name, 'TechTreeSortIndex')
+        try:
+            sort_index = int(sort_raw.strip()) if sort_raw is not None else 0
+        except (ValueError, AttributeError):
+            sort_index = 0
         nodes.append(TechTreeNode(
             name=name, source=source, unlock_level=unlock_level, unlock_cost=unlock_cost,
             categories=categories, parent_name=parent, icon_key=icon_key, ecf_id=b.get('Id'),
+            sort_index=sort_index, seq=seq,
         ))
     return nodes
 
@@ -260,11 +316,12 @@ def load_tech_tree(blocks_path: Optional[Path], items_path: Optional[Path],
         from .settings import get_vanilla_content_path
         vanilla_root = get_vanilla_content_path()
     nodes: List[TechTreeNode] = []
+    category_index: Dict[str, int] = {}
     if blocks_path is not None and blocks_path.exists():
-        nodes.extend(_extract_nodes(blocks_path, 'block', vanilla_root))
+        nodes.extend(_extract_nodes(blocks_path, 'block', vanilla_root, category_index))
     if items_path is not None and items_path.exists():
-        nodes.extend(_extract_nodes(items_path, 'item', vanilla_root))
-    return TechTree(nodes=nodes)
+        nodes.extend(_extract_nodes(items_path, 'item', vanilla_root, category_index))
+    return TechTree(nodes=nodes, category_sort_index=category_index)
 
 
 def set_unlock_level(path: Path, name: str, new_level: int) -> bool:
