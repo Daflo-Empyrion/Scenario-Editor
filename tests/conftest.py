@@ -21,6 +21,15 @@ from pathlib import Path
 
 import pytest
 
+# CI 3.12 (vecu 30/10, build v2.2.0) : le GC cyclique finalise une lambda
+# qfluentwidgets sur un objet Qt detruit -> access violation FATALE du
+# processus, a n'importe quel moment de collecte. Le GC cyclique reste
+# DESACTIVE toute la session sous 3.12 (refcounting libere le non-cyclique ;
+# les cycles fuient en memoire, acceptable en CI). Le garde collecte ci-
+# dessous reste active sous 3.14 (dev).
+if sys.version_info < (3, 14):
+    gc.disable()
+
 # Ajoute la racine du projet (parent de tests/) au sys.path pour importer core
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
