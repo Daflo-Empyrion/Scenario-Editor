@@ -89,4 +89,12 @@ def _collect_qt_cycles():
             # wrapper Python est mort, le supprimer de nouveau leve
             if isinstance(widget, QDialog) and not sip.isdeleted(widget):
                 sip.delete(widget)
-    gc.collect()
+    # Ce garde vise les AV de collecte tardive sous 3.14 (vecu 20/10).
+    # Sous 3.12 (CI), gc.collect() par test peut toucher une lambda
+    # qfluentwidgets d'un objet detruit par un test anterieur : access
+    # violation FATALE du processus (vecu 30/10 sur le build v2.2.0) —
+    # la CI 3.12 retrouve le comportement connu-bon de v2.1.0 en sautant
+    # la collecte (les imports Qt restent du même processus, la pression
+    # memoire d'une suite complete reste acceptable).
+    if sys.version_info >= (3, 14):
+        gc.collect()
