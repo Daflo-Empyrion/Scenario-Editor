@@ -88,7 +88,15 @@ def _collect_qt_cycles():
     test_launch_check et test_epb_check_dialog passaient puis le processus
     ne rendait jamais la main) : on detruit ceux qui restent ouverts avant
     la collecte — un test ne doit de toute facon rien laisser ouvert."""
-    yield
+    if sys.version_info < (3, 14):
+        # CI 3.12 (vecu 30/10, build v2.2.0) : detruire un dialogue avec des
+        # enfants qfluentwidgets declenche leurs lambdas de deregistrement
+        # pendant une collecte -> access violation FATALE du processus, et
+        # le gc y etant desactive (import), rien ne peut finaliser ces
+        # objets sans crash. On ne detruit RIEN et on ne collecte PAS : les
+        # dialogues restent en vie jusqu'a la fin du job (comportement
+        # memoire acceptable en CI, ~2 500 tests).
+        return
     from PyQt6 import sip
     from PyQt6.QtWidgets import QApplication, QDialog
     app = QApplication.instance()
@@ -98,12 +106,4 @@ def _collect_qt_cycles():
             # wrapper Python est mort, le supprimer de nouveau leve
             if isinstance(widget, QDialog) and not sip.isdeleted(widget):
                 sip.delete(widget)
-    # Ce garde vise les AV de collecte tardive sous 3.14 (vecu 20/10).
-    # Sous 3.12 (CI), gc.collect() par test peut toucher une lambda
-    # qfluentwidgets d'un objet detruit par un test anterieur : access
-    # violation FATALE du processus (vecu 30/10 sur le build v2.2.0) —
-    # la CI 3.12 retrouve le comportement connu-bon de v2.1.0 en sautant
-    # la collecte (les imports Qt restent du même processus, la pression
-    # memoire d'une suite complete reste acceptable).
-    if sys.version_info >= (3, 14):
-        gc.collect()
+    gc.collect()
