@@ -44,16 +44,6 @@ jobs:
   tests:
     runs-on: windows-latest
     timeout-minutes: 60
-    strategy:
-      matrix:
-        include:
-          - python-version: '3.14'
-    steps:
-      - name: Recuperer le code
-        uses: actions/checkout@v7
-
-      - name: Installer Python
-        uses: actions/setup-python@v7
     steps:
       - name: Recuperer le code
         uses: actions/checkout@v7
@@ -61,7 +51,7 @@ jobs:
       - name: Installer Python
         uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.14'
 
       - name: Installer les dependances (appli + dev)
         run: |
