@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (QComboBox, QDialog, QHBoxLayout, QLabel,
                              QWidget, QTreeWidgetItem)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.pda import schema
 from core.pda.model import (CHAPTER_REQUIRED_DEFAULTS, PdaModel)
 from core.yamllite.model import YamlEntry
@@ -197,6 +198,7 @@ class PdaEditorDialog(QDialog):
         self.btn_export_md.setToolTip(t("pda.export.md.tooltip"))
         self.btn_export_md.clicked.connect(self._export_markdown)
         close_row.addWidget(self.btn_export_md)
+        add_info_button(close_row, "pda.info_html")
         close_row.addStretch()
         btn_close = QPushButton(t("btn.close"))
         btn_close.setObjectName("primaryButton")

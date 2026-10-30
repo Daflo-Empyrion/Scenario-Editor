@@ -36,6 +36,7 @@ from core.correlation_balance import (OK, OUTLIER, SPECS, WHITELIST,
                                       analyze_correlations, apply_changes,
                                       make_changes)
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.ewa_async import async_call
 from gui.msgboxes import ask_yes_no, info
 from gui.window_geometry import track
@@ -83,6 +84,7 @@ class CorrelationDialog(QDialog):
             self.cmb_spec.addItem(t(f"corr.spec_{key}"), key)
         self.cmb_spec.currentIndexChanged.connect(self._spec_changed)
         params.addWidget(self.cmb_spec)
+        add_info_button(params, "correl.info_html")
         params.addStretch(1)
         self.btn_run = QPushButton(t("corr.analyze"))
         self.btn_run.clicked.connect(self._analyze)

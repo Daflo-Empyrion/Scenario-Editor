@@ -21,8 +21,9 @@ n'est jamais charge (229 dossiers sur RE2-RPG). Ce module les repose dans des
 SYSTEMES EXISTANTS — soleil deja present, `GalaxyConfig` inchange — en calquant
 le corpus :
 
-- planete / geante / station / asteroide / espace : NOUVEAU secteur, espace
-  sur un anneau de 30 unite (jamais une file sur un axe) ;
+- planete / geante / station / asteroide / espace : NOUVEAU secteur pose sur
+  une ORBITE VERTICALE autour de l'ETOILE du systeme (centre = secteur du
+  soleil, plan Y-Z : axes puis diagonales, pas de 30 unite, rayon croissant) ;
 - lune et orbite : LIGNE a offset dans le secteur d'une planete existante
   (`['4500, 5000, 8000', Lune, Type]`, orbite a `0,0,0`) — c'est ce que la
   carte systeme attend ; un secteur propre casse l'infobulle ;
@@ -69,13 +70,10 @@ _SURFACE = ("planet", "moon", "gasgiant")
 _MOON_OFFSETS = [(4500, 5000, 8000), (-10695, 8475, -6228),
                  (5500, 10000, 12000), (-8000, 6000, 4000),
                  (9000, -7000, 5000), (-6000, -9000, 7000)]
-# anneau : axes puis diagonales, rayon croissant (evite la file sur un axe)
-_RING = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1),
-         (1, 1, 0), (-1, 1, 0), (1, -1, 0), (-1, -1, 0),
-         (1, 0, 1), (-1, 0, 1), (1, 0, -1), (-1, 0, -1),
-         (0, 1, 1), (0, -1, 1), (0, 1, -1), (0, -1, -1),
-         (1, 1, 1), (-1, 1, 1), (1, -1, 1), (1, 1, -1),
-         (-1, -1, 1), (-1, 1, -1), (1, -1, -1), (-1, -1, -1)]
+# orbite verticale autour de l'etoile (choix utilisateur, vu sur la premiere
+# generation 22-23/10) : plan Y-Z, axes puis diagonales, rayon croissant
+_RING = [(0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1),
+         (0, 1, 1), (0, -1, 1), (0, 1, -1), (0, -1, -1)]
 
 
 @dataclass(frozen=True)
@@ -158,6 +156,18 @@ def _gas_style(type_name: str) -> Tuple[str, str]:
 
 
 _TYPE_RE = re.compile(r"^PlayfieldType:[ 	]*(\w+)", re.M)
+# un playfield est un dossier qui porte au moins une de ces definitions
+_DEFINITIONS = ("playfield.yaml", "playfield_static.yaml",
+                "playfield_dynamic.yaml", "space_dynamic.yaml",
+                "terrain.ecf", "sun_static.yaml")
+
+
+def _is_playfield(folder: Path) -> bool:
+    """Un dossier sans aucune definition n'est pas un playfield mais un
+    CONTENEUR (`Playfields/Reforged/` sur RE2 = quatre starters). Le declarer
+    dans `Sectors.yaml` fait echouer le chargement du scenario : « Playfield
+    Reforged has unknown playfield type Undefined » (vecu 25/10)."""
+    return any((folder / name).is_file() for name in _DEFINITIONS)
 
 
 def _playfield_type(folder: Path) -> str:
@@ -285,7 +295,8 @@ def find_orphans(root) -> List[Orphan]:
     pf_root = root / "Playfields"
     orphans: List[Orphan] = []
     for folder in sorted(pf_root.iterdir() if pf_root.is_dir() else []):
-        if not folder.is_dir() or folder.name.startswith("+"):
+        if (not folder.is_dir() or folder.name.startswith("+")
+                or not _is_playfield(folder)):
             continue
         if folder.name.casefold() in refs:
             continue
@@ -324,6 +335,7 @@ def _orbit_types(root: Path) -> List[str]:
     found = [folder.name for folder in
              (pf_root.iterdir() if pf_root.is_dir() else [])
              if folder.is_dir() and not folder.name.startswith("+")
+             and _is_playfield(folder)
              and "orbit" in folder.name.casefold()
              and _is_space(folder)]
     return sorted(found)
@@ -349,14 +361,32 @@ def _system_orbit_type(system: YamlEntry, orbit_types: List[str]) -> str:
     return orbit_types[0] if orbit_types else ""
 
 
-def _ring_coords(used: set):
-    """Secteurs libres en anneau : rayon 30, 60, ... sur les 26 directions
-    (jamais une file sur un axe, vecu 22/10)."""
+def _sun_coords(system: YamlEntry) -> Tuple[int, int, int]:
+    """Coordonnees de l'etoile du systeme (secteur dont un playfield est un
+    soleil) ; (0, 0, 0) si introuvable — c'est le centre de l'orbite
+    verticale : plusieurs systemes de corpus ont une etoile DECALEE."""
+    sectors_entry = _find_child(system, "Sectors")
+    for sector in _seq_items(sectors_entry) if sectors_entry is not None else []:
+        playfields = _find_child(sector, "Playfields")
+        for row in _seq_items(playfields) if playfields is not None else []:
+            fields = _split_flow(row.value) if row.value else []
+            if len(fields) >= 3 and fields[2].casefold().startswith("sun"):
+                key = _coords_key(_coords_text(sector))
+                if len(key) == 3:
+                    return (int(key[0]), int(key[1]), int(key[2]))
+    return (0, 0, 0)
+
+
+def _ring_coords(used: set, center: Tuple[int, int, int] = (0, 0, 0)):
+    """Secteurs libres en orbite verticale autour du centre : pas de 30,
+    rayon 30, 60, ... sur les 8 directions du plan Y-Z (axes puis
+    diagonales — l'allure de la premiere generation)."""
     radius = 1
     while radius <= 20:
         for dx, dy, dz in _RING:
-            coords = (dx * radius * _STEP, dy * radius * _STEP,
-                      dz * radius * _STEP)
+            coords = (center[0] + dx * radius * _STEP,
+                      center[1] + dy * radius * _STEP,
+                      center[2] + dz * radius * _STEP)
             if _coords_key(f"{coords[0]},{coords[1]},{coords[2]}") not in used:
                 yield coords
         radius += 1
@@ -397,8 +427,8 @@ def plan_placements(root, picks: Iterable[str],
                     per_system: int = 2) -> List[Placement]:
     """Placement propose, AUCUNE ecriture : les playfields sont repartis par
     lots de `per_system` sur tous les systemes (rotation), chaque nouveau
-    secteur sur un anneau de 30 ; lunes et orbites vont en offset dans le
-    secteur d'une planete du meme systeme."""
+    secteur sur l'orbite verticale de l'etoile du systeme ; lunes et orbites
+    vont en offset dans le secteur d'une planete du meme systeme."""
     root = Path(root)
     path = sectors_yaml(root)
     if path is None:
@@ -411,6 +441,7 @@ def plan_placements(root, picks: Iterable[str],
         return []
     per_system = max(1, int(per_system))
     used_coords = {}                 # systeme -> coordonnees prises
+    centers = {}                     # systeme -> coordonnees de l'etoile
     hosts = {}                       # systeme -> liste des hotes
     host_index: dict = {}            # rotation des hotes par systeme
     for system in systems:
@@ -419,6 +450,7 @@ def plan_placements(root, picks: Iterable[str],
         used_coords[name] = {_coords_key(_coords_text(s))
                              for s in _seq_items(sectors_entry)} \
             if sectors_entry is not None else set()
+        centers[name] = _sun_coords(system)
         hosts[name] = _host_sectors(system)
     used_names = _playfield_names(solar)
     orphans = {o.type_name: o for o in find_orphans(root)}
@@ -454,7 +486,8 @@ def plan_placements(root, picks: Iterable[str],
                                         host_coords))
             continue
         used = used_coords.setdefault(system, set())
-        coords = next((c for c in _ring_coords(used)), None)
+        coords = next((c for c in _ring_coords(used, centers.get(system,
+                       (0, 0, 0)))), None)
         if coords is None:
             continue
         used.add(_coords_key(f"{coords[0]},{coords[1]},{coords[2]}"))

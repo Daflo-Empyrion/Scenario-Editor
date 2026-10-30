@@ -59,6 +59,67 @@ def _run(root: Path) -> list:
     return run_engine_loader_checks(root, "")
 
 
+TEMPLATE_BLOCK = (
+    "{ Block Id: 1, Name: BlockA\n"
+    "  Mass: 1\n"
+    "}\n\n"
+)
+
+
+def test_template_inconnu_est_fatal_message_exact(tmp_path):
+    """« No item/block with name 'X' existing » — vecu 28/10 sur un template
+    visant un bloc present en vanille seule (la config du scenario remplace
+    celle de la base) ; le chargeur avorte TOUS les templates suivants."""
+    root = _scenario(
+        tmp_path, blocks=TEMPLATE_BLOCK,
+        templates=(
+            "{ Template Name: GhostTpl\n"
+            "  CraftTime: 5\n"
+            "}\n\n"))
+    issues = [i for i in _run(root) if "chargeur templates" in i.message]
+    assert len(issues) == 1
+    assert "No item/block with name 'GhostTpl' existing" in issues[0].message
+
+
+def test_template_ingredient_inconnu_et_quantites_invalides(tmp_path):
+    root = _scenario(
+        tmp_path, blocks=TEMPLATE_BLOCK,
+        templates=(
+            "{ Template Name: BlockA\n"
+            "  CraftTime: 5\n"
+            "  { Child Inputs\n"
+            "    UnknownItem: 2\n"
+            "    BlockA: 1.5\n"
+            "    BlockA: -3\n"
+            "  }\n"
+            "}\n\n"))
+    messages = [i.message for i in _run(root) if "chargeur templates" in i.message]
+    assert any("Missing item with name 'UnknownItem'" in m for m in messages)
+    assert any("quantite non entiere '1.5'" in m for m in messages)
+    assert any("count cannot be negative" in m for m in messages)
+
+
+def test_template_sans_crafttime(tmp_path):
+    root = _scenario(
+        tmp_path, blocks=TEMPLATE_BLOCK,
+        templates="{ Template Name: BlockA\n}\n\n")
+    messages = [i.message for i in _run(root) if "chargeur templates" in i.message]
+    assert any("Template must have a CraftTime property." in m for m in messages)
+
+
+def test_templates_valides_ne_produisent_rien(tmp_path):
+    root = _scenario(
+        tmp_path, blocks=TEMPLATE_BLOCK,
+        items="{ Item Id: 9, Name: ItemA\n}\n\n",
+        templates=(
+            "{ Template Name: BlockA\n"
+            "  CraftTime: 5\n"
+            "  { Child Inputs\n"
+            "    ItemA: 2\n"
+            "  }\n"
+            "}\n\n"))
+    assert not [i for i in _run(root) if "chargeur templates" in i.message]
+
 def _messages(issues: list) -> str:
     return "\n".join(i.message for i in issues)
 
@@ -183,8 +244,9 @@ def test_block_ref_unknown_is_fatal(tmp_path):
         "  Material: Device\n"
         "}\n"))
     issues = [i for i in _run(root) if "not found for block" in i.message]
-    assert len(issues) == 1
-    assert "NoSuchBlock" in issues[0].message
+    # _check_blocks (bloc ignore) + _check_ref_order (cible manquante)
+    assert len(issues) == 2
+    assert all("NoSuchBlock" in i.message for i in issues)
 
 
 def test_block_name_resolution_is_case_sensitive(tmp_path):
@@ -238,6 +300,33 @@ def test_block_texture_quoted_values_are_accepted(tmp_path):
         '  Texture: "101,102,103"\n'
         "}\n"))
     assert not [i for i in _run(root) if "texture id" in i.message]
+
+
+def test_block_typed_string_property_is_fatal(tmp_path):
+    """Vecu 27/10 : `Radiation: 8, type: int` -> le chargeur lit la valeur
+    comme CHAINE (Values[...] -> as string) puis Single.Parse ; l'annotation
+    type: stocke un objet typé -> null -> ArgumentNullException fatale +
+    cascade PageEditor (374 NRE). La vanille n'annote jamais ces cles."""
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: TestBlockA\n"
+        "  Material: Device\n"
+        "  Radiation: 8, type: int, display: true\n"
+        "}\n"))
+    issues = [i for i in _run(root) if "Single.Parse(null)" in i.message]
+    assert len(issues) == 1
+    assert "Radiation" in issues[0].message
+    assert "TestBlockA" in issues[0].message
+
+
+def test_block_untyped_radiation_is_accepted(tmp_path):
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: TestBlockA\n"
+        "  Material: Device\n"
+        "  Radiation: 8, display: true\n"
+        "}\n"))
+    assert not [i for i in _run(root) if "Single.Parse(null)" in i.message]
 
 
 def test_block_class_damage_is_known(tmp_path):
@@ -296,6 +385,29 @@ def test_techtree_sort_indices_conflict_is_fatal(tmp_path):
         "}\n"))
     issues = [i for i in _run(root) if "different sort indices" in i.message]
     assert len(issues) == 1
+
+
+def test_techtree_child_level_must_exceed_parent(tmp_path):
+    """« Item unlock level of higher tier <= lower tier: X » (vecu 27/10 :
+    ShieldGeneratorPOI 1 sous ShieldGeneratorT0 15)."""
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: TestBlockA\n"
+        "  Material: Device\n"
+        '  TechTreeNames: "Base"\n'
+        "  UnlockLevel: 5\n"
+        "}\n\n"
+        "{ Block Name: TestBlockB\n"
+        "  Material: Device\n"
+        '  TechTreeNames: "Base"\n'
+        "  TechTreeParent: TestBlockA\n"
+        "  UnlockLevel: 5\n"
+        "}\n"))
+    issues = [i for i in _run(root)
+              if "higher tier <= lower tier" in i.message]
+    assert len(issues) == 1
+    assert "TestBlockB" in issues[0].message
+    assert "TestBlockA" in issues[0].message
 
 
 def test_no_template_found_is_warning(tmp_path):

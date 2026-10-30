@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (QComboBox, QDialog, QDoubleSpinBox,
                              QTableWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.trader_audit import (BROKEN, MF_NO_PRICE, NO_BUY, UNIFORM, ZERO,
                                TraderConfigDoc, analyze_traders, apply_traders)
 from gui.ewa_async import async_call
@@ -99,6 +100,7 @@ class TraderAuditDialog(QDialog):
         self.spin_fallback.setValue(100)
         self.spin_fallback.setToolTip(t("taudit.fallback.tip"))
         params.addWidget(self.spin_fallback)
+        add_info_button(params, "tradaud.info_html")
         params.addStretch(1)
         self.btn_run = QPushButton(t("taudit.analyze"))
         self.btn_run.clicked.connect(self._analyze)

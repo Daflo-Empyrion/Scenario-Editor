@@ -82,9 +82,18 @@ def test_dialog_builds(qapp):
     dlg = MarketPriceDialog(None)
     assert dlg.table.columnCount() == 9
     assert dlg.spin_margin.value() == 1.0
-    assert dlg.spin_craft.value() == 1.0
-    assert dlg.spin_cap.value() == 2.0
+    assert dlg.spin_fab.value() == 0.0
     assert dlg.btn_apply.isEnabled() is False
+
+
+def test_cost_display_keeps_decimals():
+    """Vecu 28/10 : une munition a un cout unitaire de 0.42 — l'ancien
+    arrondi entier affichait « 0 » en colonne cout."""
+    from gui.market_price_dialog import _fmt_cost
+    assert _fmt_cost(0.416) == "0.42"
+    assert _fmt_cost(0.0) == "0"
+    assert _fmt_cost(12.5) == "12.5"
+    assert _fmt_cost(1234.0) == "1 234"
 
 
 def test_full_flow_scan_filter_check_apply(qapp, tmp_path, monkeypatch):
@@ -156,3 +165,85 @@ def test_sort_keeps_rows_consistent(qapp, tmp_path, monkeypatch):
     dlg._analyze()
     dlg.table.sortItems(4)          # tri par prix decroissant/croissant
     assert dlg._by_name[dlg._name_at(_row(dlg, "Pillar"))].price == 5000
+
+
+def test_generation_flow(qapp, tmp_path, monkeypatch):
+    """Famille -> bouton Generer actif -> confirmation -> recette ecrite
+    dans Templates.ecf -> re-scan : l'item passe fabriquable."""
+    from test_market_balance import FAM_ITEMS, FAM_TEMPLATES
+    cdir = tmp_path / "Content" / "Configuration"
+    cdir.mkdir(parents=True)
+    (cdir / "ItemsConfig.ecf").write_text(FAM_ITEMS, encoding="utf-8")
+    (cdir / "Templates.ecf").write_text(FAM_TEMPLATES, encoding="utf-8")
+    (cdir / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 500, Name: Pillar\n  MarketPrice: 40\n}\n",
+        encoding="utf-8")
+    monkeypatch.setattr("gui.market_price_dialog.async_call",
+                        lambda owner, fn, on_done, on_fail=None, name="":
+                        on_done(fn()))
+    monkeypatch.setattr("gui.market_price_dialog.ask_yes_no",
+                        lambda *a, **k: True)
+    msgs = []
+    monkeypatch.setattr("gui.market_price_dialog.info",
+                        lambda parent, title, text: msgs.append(text))
+
+    dlg = MarketPriceDialog(None, str(tmp_path))
+    assert dlg.cmb_status.findData("famille") >= 0
+    assert dlg.btn_gen.isEnabled() is False
+    dlg._analyze()
+    assert dlg.btn_gen.isEnabled() is True        # OldPistol generable
+    row = _row(dlg, "OldPistol")
+    assert dlg._by_name["OldPistol"].status == "famille"
+
+    dlg.btn_gen.click()
+    tpath = tmp_path / "Content" / "Configuration" / "Templates.ecf"
+    assert "+Template Name: OldPistol" in tpath.read_text(encoding="utf-8")
+    assert msgs and "générée" in msgs[0]
+    # re-scan automatique : OldPistol est maintenant fabriquable
+    assert dlg._by_name["OldPistol"].status == "fabriquable"
+    assert dlg.btn_gen.isEnabled() is False       # plus rien a generer
+
+
+def test_status_filter_famille(qapp, tmp_path, monkeypatch):
+    from test_market_balance import FAM_ITEMS, FAM_TEMPLATES
+    cdir = tmp_path / "Content" / "Configuration"
+    cdir.mkdir(parents=True)
+    (cdir / "ItemsConfig.ecf").write_text(FAM_ITEMS, encoding="utf-8")
+    (cdir / "Templates.ecf").write_text(FAM_TEMPLATES, encoding="utf-8")
+    (cdir / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 500, Name: Pillar\n  MarketPrice: 40\n}\n",
+        encoding="utf-8")
+    monkeypatch.setattr("gui.market_price_dialog.async_call",
+                        lambda owner, fn, on_done, on_fail=None, name="":
+                        on_done(fn()))
+    dlg = MarketPriceDialog(None, str(tmp_path))
+    dlg._analyze()
+    dlg.cmb_status.setCurrentIndex(dlg.cmb_status.findData("famille"))
+    assert not dlg.table.isRowHidden(_row(dlg, "OldPistol"))
+    assert dlg.table.isRowHidden(_row(dlg, "PistolA"))
+
+
+def test_info_button_consequences_follow_spins(qapp, tmp_path):
+    """Le bouton info construit une fenetre dont le texte reflète les
+    VALEURS CHOISIES : multiplicateur, %/palier, derive 5 niveaux, et le
+    cas marge 1.0 = zero boucle."""
+    from PyQt6.QtWidgets import QTextBrowser
+    root = _scenario(tmp_path)
+    dlg = MarketPriceDialog(None, str(root))
+    assert dlg.btn_info.isEnabled()
+
+    dlg.spin_margin.setValue(1.10)
+    dlg.spin_fab.setValue(10.0)
+    info = dlg._build_info_dialog()
+    html = info._html
+    assert "1.21" in html                      # 1.10 x 1.10
+    assert "21" in html                        # +21 %/palier
+    assert "2.59" in html                      # derive 5 niveaux (1.21^5)
+    tb = info.findChild(QTextBrowser)
+    assert tb is not None and tb.toHtml()      # rendu HTML present
+
+    dlg.spin_margin.setValue(1.0)
+    dlg.spin_fab.setValue(0.0)
+    zero = dlg._build_info_dialog()
+    assert "1" in zero._html and "2.59" not in zero._html
+    assert "zéro boucle" in zero._html

@@ -34,6 +34,7 @@ from core.i18n import t
 from core.launch_check import LaunchIssue, run_launch_checks
 from core.settings import get_production_scenario_path, get_vanilla_content_path
 from gui.ewa_async import async_call
+from gui.module_info import add_info_button
 from gui.window_geometry import track
 
 
@@ -78,6 +79,7 @@ class LaunchCheckDialog(QDialog):
         self.btn_export.setEnabled(False)
         self.btn_export.clicked.connect(self._export_csv)
         buttons.addWidget(self.btn_export)
+        add_info_button(buttons, "launchcheck.info_html")
         buttons.addStretch(1)
         lay.addLayout(buttons)
 
@@ -260,7 +262,12 @@ class LaunchCheckDialog(QDialog):
         checks = {"sectors": t("launchcheck.check_sectors"),
                   "playfields": t("launchcheck.check_playfields"),
                   "prefabs": t("launchcheck.check_prefabs"),
-                  "poi_groups": t("launchcheck.check_poi_groups")}
+                  "poi_groups": t("launchcheck.check_poi_groups"),
+                  "spawn": t("launchcheck.check_spawn"),
+                  "warfare": t("launchcheck.check_warfare"),
+                  "pda": t("launchcheck.check_pda"),
+                  "scripts": t("launchcheck.check_scripts"),
+                  "tokens": t("launchcheck.check_tokens")}
         n_errors = 0
         for issue in issues:
             is_error = issue.severity == "error"

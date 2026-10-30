@@ -30,18 +30,29 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox,
                              QFileDialog, QHBoxLayout, QHeaderView, QLabel,
                              QLineEdit, QPushButton, QTableWidget,
-                             QTableWidgetItem, QVBoxLayout)
+                             QTableWidgetItem, QTextBrowser,
+                             QVBoxLayout)
+from gui.theme import icon
 
 from core.i18n import t
 from core.market_balance import (FABRIQUABLE, NON_VENDABLE, MarketIndex,
-                                 MarketReport, apply_changes, build_report,
-                                 load_index, make_changes, retarget)
+                                 MarketReport, apply_recipes, apply_changes,
+                                 build_report, load_index, make_changes,
+                                 plan_recipes, retarget,
+                                 single_input_suspects)
 from core.settings import get_vanilla_content_path
 from gui.ewa_async import async_call
+from gui.theme import icon
 from gui.msgboxes import ask_yes_no, info
 from gui.window_geometry import track
 
 _COLS = 9          # case, nom, type, statut, prix, cout, ratio, cible, delta
+
+
+def _fmt_cost(v: float) -> str:
+    """Cout avec 2 decimales utiles (0.42, 12.5, 1 234) — jamais ecrase a 0."""
+    text = f"{v:,.2f}".replace(",", " ")
+    return text.rstrip("0").rstrip(".") or "0"
 
 
 class _NumItem(QTableWidgetItem):
@@ -89,22 +100,15 @@ class MarketPriceDialog(QDialog):
         self.spin_margin.setValue(1.0)
         self.spin_margin.setToolTip(t("market.margin.tip"))
         params.addWidget(self.spin_margin)
-        params.addWidget(QLabel(t("market.craft")))
-        self.spin_craft = QDoubleSpinBox()
-        self.spin_craft.setRange(0.0, 10.0)
-        self.spin_craft.setDecimals(1)
-        self.spin_craft.setSingleStep(0.5)
-        self.spin_craft.setValue(1.0)
-        self.spin_craft.setToolTip(t("market.craft.tip"))
-        params.addWidget(self.spin_craft)
-        params.addWidget(QLabel(t("market.craft_cap")))
-        self.spin_cap = QDoubleSpinBox()
-        self.spin_cap.setRange(1.0, 5.0)
-        self.spin_cap.setDecimals(1)
-        self.spin_cap.setSingleStep(0.5)
-        self.spin_cap.setValue(2.0)
-        self.spin_cap.setToolTip(t("market.craft_cap.tip"))
-        params.addWidget(self.spin_cap)
+        params.addWidget(QLabel(t("market.fab")))
+        self.spin_fab = QDoubleSpinBox()
+        self.spin_fab.setRange(0.0, 500.0)
+        self.spin_fab.setDecimals(0)
+        self.spin_fab.setSingleStep(5.0)
+        self.spin_fab.setSuffix(" %")
+        self.spin_fab.setValue(0.0)
+        self.spin_fab.setToolTip(t("market.fab.tip"))
+        params.addWidget(self.spin_fab)
         params.addSpacing(12)
         params.addWidget(QLabel(t("market.bounds")))
         self.spin_bmin = QDoubleSpinBox()
@@ -125,14 +129,20 @@ class MarketPriceDialog(QDialog):
         self.btn_run = QPushButton(t("market.analyze"))
         self.btn_run.clicked.connect(self._analyze)
         params.addWidget(self.btn_run)
+        self.btn_info = QPushButton(icon("fa5s.question-circle", "#4a7dfc"),
+                                    t("market.info"))
+        self.btn_info.setToolTip(t("market.info.tip"))
+        self.btn_info.setObjectName("secondaryButton")
+        self.btn_info.clicked.connect(self._show_info)
+        params.addWidget(self.btn_info)
         lay.addLayout(params)
 
         # -------------------------------------------------- filtres
         filters = QHBoxLayout()
         self.cmb_status = QComboBox()
         self.cmb_status.addItem(t("market.filter_priced"), "__priced__")
-        for s in ("fabriquable", "groupe", "cousin", "materiau", "ancrage",
-                  "non_vendable"):
+        for s in ("fabriquable", "groupe", "cousin", "materiau", "famille",
+                  "ancrage", "non_vendable"):
             self.cmb_status.addItem(t(f"market.status.{s}"), s)
         self.cmb_status.addItem(t("market.filter_all"), "__all__")
         self.cmb_status.currentIndexChanged.connect(self._refilter)
@@ -180,6 +190,11 @@ class MarketPriceDialog(QDialog):
         self.btn_export.clicked.connect(self._export_csv)
         self.btn_export.setEnabled(False)
         buttons.addWidget(self.btn_export)
+        self.btn_gen = QPushButton(t("market.gen"))
+        self.btn_gen.setToolTip(t("market.gen.tip"))
+        self.btn_gen.clicked.connect(self._generate)
+        self.btn_gen.setEnabled(False)
+        buttons.addWidget(self.btn_gen)
         buttons.addStretch(1)
         self.btn_apply = QPushButton(t("market.apply"))
         self.btn_apply.clicked.connect(self._apply)
@@ -189,12 +204,47 @@ class MarketPriceDialog(QDialog):
 
         self.status_label = QLabel("")
         lay.addWidget(self.status_label)
+        self._plans = []
 
-        for spin in (self.spin_margin, self.spin_craft, self.spin_cap):
+        for spin in (self.spin_margin, self.spin_fab):
             spin.valueChanged.connect(self._retarget)
         for spin in (self.spin_bmin, self.spin_bmax):
             spin.valueChanged.connect(self._refilter)
         track(self, "market_price", (1280, 720))
+
+    # ------------------------------------------------------- infos
+
+    def _build_info_dialog(self) -> QDialog:
+        """Fenetre de comprehension : consequences DES VALEURS CHOISIES
+        (marge/fabrication des spins) + regles du module."""
+        margin = self.spin_margin.value()
+        fab = self.spin_fab.value()
+        mult = margin * (1.0 + fab / 100.0)
+        zero = abs(mult - 1.0) < 1e-9
+        drift5 = f"{mult ** 5:.2f}".rstrip("0").rstrip(".")
+        html = t("market.info_html",
+                 margin=f"{margin:g}", fab=f"{fab:g}",
+                 mult=f"{mult:.2f}".rstrip("0").rstrip("."),
+                 profit=f"{round((mult - 1) * 100, 2):g}", drift5=drift5,
+                 loop=(t("market.info_zero") if zero
+                       else t("market.info_loop")),
+                 drift=(t("market.info_drift_zero", drift5=drift5) if zero
+                        else t("market.info_drift", drift5=drift5)))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(t("market.info"))
+        lay = QVBoxLayout(dlg)
+        tb = QTextBrowser()
+        tb.setHtml(html)
+        dlg._html = html
+        lay.addWidget(tb)
+        btn = QPushButton(t("btn.close"))
+        btn.clicked.connect(dlg.accept)
+        lay.addWidget(btn)
+        track(dlg, "market_info", (780, 660))
+        return dlg
+
+    def _show_info(self):
+        self._build_info_dialog().exec()
 
     # ----------------------------------------------------------- scan
 
@@ -215,13 +265,12 @@ class MarketPriceDialog(QDialog):
         self.btn_run.setEnabled(False)
         self.status_label.setText(t("market.running"))
         vanilla = get_vanilla_content_path() or ""
-        margin, craft, cap = (self.spin_margin.value(), self.spin_craft.value(),
-                              self.spin_cap.value())
+        margin, fab = self.spin_margin.value(), self.spin_fab.value()
 
         def work():
             idx, van = load_index(root, vanilla)
             return idx, van, build_report(idx, van, margin=margin,
-                                          craft_pct=craft, craft_cap=cap)
+                                          fab_pct=fab)
 
         async_call(self, work,
                    on_done=lambda res: self._on_analyzed(*res),
@@ -241,13 +290,19 @@ class MarketPriceDialog(QDialog):
         self._fill_table()
         n_changes = sum(1 for e in report.entries
                         if e.target is not None and e.price != e.target)
+        self._plans, skipped = plan_recipes(idx, report)
+        n_sus = len(single_input_suspects(idx, report))
         self.status_label.setText(t(
             "market.done", n=len(report.entries),
             f=sum(1 for e in report.entries if e.price is not None),
-            c=report.counts.get(FABRIQUABLE, 0), k=n_changes))
+            c=report.counts.get(FABRIQUABLE, 0), k=n_changes)
+            + " " + t("market.suspects_note", n=n_sus)
+            + " " + t("market.gen_count", n=len(self._plans),
+                      s=len(skipped)))
         for b in (self.btn_oob, self.btn_check_all, self.btn_uncheck,
                   self.btn_export, self.btn_apply):
             b.setEnabled(True)
+        self.btn_gen.setEnabled(bool(self._plans))
 
     # ---------------------------------------------------------- table
 
@@ -293,7 +348,9 @@ class MarketPriceDialog(QDialog):
         status_item.setToolTip(e.detail or status_item.text())
         t_.setItem(row, 3, status_item)
         self._num(row, 4, e.price)
-        self._num(row, 5, round(e.cost) if e.cost is not None else None)
+        # cout affiche avec 2 decimales significatives : une munition a un
+        # cout unitaire de 0.42 — l'arrondi entier affichait "0"
+        self._num(row, 5, e.cost, fmt=_fmt_cost)
         ratio = (e.price / e.cost) if (e.price and e.cost) else None
         self._num(row, 6, round(ratio, 2) if ratio is not None else None,
                   fmt=lambda v: f"{v:g}")
@@ -392,7 +449,7 @@ class MarketPriceDialog(QDialog):
         if self._report is None or self._idx is None:
             return
         retarget(self._report, self._idx, margin=self.spin_margin.value(),
-                 craft_pct=self.spin_craft.value(), craft_cap=self.spin_cap.value())
+                 fab_pct=self.spin_fab.value())
         self.table.setUpdatesEnabled(False)
         for row in range(self.table.rowCount()):
             name = self._name_at(row)
@@ -429,6 +486,31 @@ class MarketPriceDialog(QDialog):
         async_call(self, work, on_done=_done, on_fail=self._on_fail,
                    name="market-apply")
 
+    def _generate(self):
+        """Ecrit les recettes generees (matieres de famille dosees pour
+        atteindre la cible de prix) dans Templates.ecf."""
+        if self._running or not self._plans:
+            return
+        if not ask_yes_no(self, t("market.title"),
+                          t("market.gen_confirm", n=len(self._plans))):
+            return
+        self._running = True
+        self.btn_gen.setEnabled(False)
+        plans, root = self._plans, self.path_edit.text().strip()
+
+        def work():
+            return apply_recipes(plans, root)
+
+        def _done(res):
+            self._running = False
+            self.btn_gen.setEnabled(True)
+            info(self, t("market.title"),
+                 t("market.gen_done", n=res[1], path=res[0]))
+            self._analyze()
+
+        async_call(self, work, on_done=_done, on_fail=self._on_fail,
+                   name="market-gen")
+
     def _export_csv(self):
         """Export CSV point-virgule UTF-8 BOM (comme le bilan lancement)."""
         if not self._report:
@@ -449,8 +531,11 @@ class MarketPriceDialog(QDialog):
                 writer.writerow([e.name, e.kind,
                                  t(f"market.status.{e.status}"),
                                  e.price if e.price is not None else "",
-                                 round(e.cost) if e.cost is not None else "",
+                                 round(e.cost, 2) if e.cost is not None else "",
                                  ratio,
                                  e.target if e.target is not None else "",
                                  e.detail])
+            for s in single_input_suspects(self._idx, self._report):
+                writer.writerow(["#SUSPECT", s["template"], s["input"],
+                                 s["qty"], s["input_price"], s["output"]])
         self.status_label.setText(t("market.csv_done", path=out))

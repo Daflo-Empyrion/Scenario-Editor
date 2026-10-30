@@ -1,0 +1,193 @@
+{ +Block Name: BlockHeat
+  CustomIcon: LJBlockHeat
+  IndexName: Generator
+  Class: Generator
+  Group: cpgGenerator
+  EssentialCategory: cpgGenerator
+  Material: metalhard
+  Shape: ModelEntity
+  ShowBlockName: false
+  Model: @models/Blocks/Misc/EntitySpawnerPlateThinPrefab
+  Collide: "bullet,rocket,melee,sight"
+  DropMeshfile: Entities/Misc/DropContainerNewPrefab             #Large container box; Available variants: see start of this document!
+  StackSize: 1000
+  EnergyOut: 1, type: int, display: true, formatter: Watt
+  CPUIn: 1, type: int, display: true
+  Place: Free
+  AllowPlacingAt: "Base,MS", display: true
+  SizeInBlocks: "1,1,1", display: true
+  SizeInBlocksLocked: "Base,MS"
+  Volume: 1, type: float, display: true, formatter: Liter
+  Mass: 1, type: float, display: true, formatter: Kilogram
+  TemplateRoot: GeneratorBA
+  PickupTarget: GeneratorBA
+  AllowedInBlueprint: false, display: true
+  BlockColor: "110,110,110"
+  SymType: 4
+  IsOxygenTight: false, display: true 
+  IsIgnoreLC: true
+  IsAccessible: true, type: bool
+  HitPoints: 5000, type: int, display: true
+  IsActivateable: false
+  TurretTargetIgnore: true
+  Temperature: 1200, display: true
+}
+
+{ +Block Name: CommunicatorProgenitor01
+   Info: bkiCommunicatorProgenitor01, display: true
+  
+  Model: @models2/Devices/CommunicatorProgenitor01Prefab  
+  # Mesh-Damage-1: Mesh/D0
+  # Mesh-Damage-2: Mesh/D1
+  # Mesh-Damage-3: Mesh/D2
+  # Mesh-Damage-4: Mesh/D3 
+  DropMeshfile: Entities/Misc/DropContainerNewPrefab             #Large container box; Available variants: see start of this document!
+  
+  Material: hullcombatcharged  
+  Shape: ModelEntity   
+  ShowBlockName: true
+  
+  Class: NPCDialogue    
+  NPCModelRotation: false
+  #Group: cpgCrewStationAlien  
+  
+  SizeInBlocks: "1,1,1", display: true
+  SizeInBlocksLocked: "Base,MS"  
+  #BlockColor: "110,110,110" 
+  Place: Free
+  AllowPlacingAt: "Base,MS", display: true
+  IsAccessible: false, type: bool
+  IsOxygenTight: false, display: true  
+  StackSize: 1000 
+  
+  AllowedInBlueprint: false, display: true
+  RepairToTemplate: false, display: true
+  
+  Mass: 5000, type: float, display: true, formatter: Kilogram
+  Volume: 200, type: float, display: true, formatter: Liter 
+  
+  EnergyIn: 1, type: int, display: true, formatter: Watt
+  CPUIn: 1, type: int, display: true
+  HitPoints: 1500, type: int, display: true
+  
+  BlastParticleIndex: 10
+  BlastRadius: 2
+  BlastDamage: 10
+}
+
+{ +Block Name: ContainerProgenitor01 
+  Info: bkiContainerProgenitor01, display: true
+  
+  Model: @models2/Devices/ContainerProgenitor01Prefab  
+  # Mesh-Damage-1: Mesh/D0
+  # Mesh-Damage-2: Mesh/D1
+  # Mesh-Damage-3: Mesh/D2
+  # Mesh-Damage-4: Mesh/D3 
+  DropMeshfile: Entities/Misc/DropContainerNewPrefab             #Large container box; Available variants: see start of this document!
+  DropInventoryEntity: DropContainer
+
+  Material: hullcombatcharged  
+  Shape: ModelEntity   
+  ShowBlockName: true
+  
+  Class: Container
+  IndexName: Container
+  Group: cpgCargoBox
+  LootList: 91    # Testing   
+  
+  Place: Free 
+  AllowPlacingAt: "Base,MS", display: true
+  SizeInBlocks: "1,1,1", display: true
+  SizeInBlocksLocked: "Base,MS"
+  #BlockColor: "110,110,110" 
+  StackSize: 1000 
+  
+  IsActivateableInCP: true
+  IsLockable: true
+  IsOxygenTight: false, display: true
+
+  AllowedInBlueprint: false, display: true
+  RepairToTemplate: false, display: true
+  
+  Mass: 5000, type: float, display: true, formatter: Kilogram
+  Volume: 200, type: float, display: true, formatter: Liter
+  VolumeCapacity: 8000, type: float, display: true, formatter: Liter   
+  
+  EnergyIn: 1, type: int, display: true, formatter: Watt
+  CPUIn: 1, type: int, display: true
+  HitPoints: 1500, type: int, display: true
+  
+  BlastParticleIndex: 10
+  BlastRadius: 2
+  BlastDamage: 10
+}
+
+{ +Block Name: ContainerProgenitor01Large 
+  Info: bkiContainerProgenitor01Large, display: true
+  
+  Model: @models2/Devices/ContainerProgenitor01LargePrefab  
+  # Mesh-Damage-1: Mesh/D0
+  # Mesh-Damage-2: Mesh/D1
+  # Mesh-Damage-3: Mesh/D2
+  # Mesh-Damage-4: Mesh/D3 
+  DropMeshfile: Entities/Misc/DropContainerNewPrefab             #Large container box; Available variants: see start of this document!
+  DropInventoryEntity: DropContainer
+
+  Material: hullcombatcharged  
+  Shape: ModelEntity   
+  ShowBlockName: true
+  
+  Class: Container
+  IndexName: Container
+  Group: cpgCargoBox
+  LootList: 93    # Testing   
+  
+  Place: Free 
+  AllowPlacingAt: "Base,MS", display: true
+  SizeInBlocks: "1,2,1", display: true
+  SizeInBlocksLocked: "Base,MS"
+  #BlockColor: "110,110,110" 
+  StackSize: 1000 
+  
+  IsActivateableInCP: true
+  IsLockable: true
+  IsOxygenTight: false, display: true
+
+  AllowedInBlueprint: false, display: true
+  RepairToTemplate: false, display: true
+  
+  Mass: 9000, type: float, display: true, formatter: Kilogram
+  Volume: 900, type: float, display: true, formatter: Liter
+  VolumeCapacity: 16000, type: float, display: true, formatter: Liter   
+  
+  EnergyIn: 2, type: int, display: true, formatter: Watt
+  CPUIn: 2, type: int, display: true
+  HitPoints: 2500, type: int, display: true
+  
+  BlastParticleIndex: 10
+  BlastRadius: 2
+  BlastDamage: 10
+}
+
+{ +Block Name: LeverProgenitorStand
+  Class: Switch
+  Group: cpgSignal
+  Material: hullcombatcharged
+  Shape: ModelEntity
+  Model: @models2/Devices/LeverProgenitorStandPrefab
+  DropMeshfile: Entities/Misc/DropContainerNewPrefab             #Large container box; Available variants: see start of this document!
+  TemplateRoot: SensorTriggerBlocks
+  PickupTarget: SensorTriggerBlocks
+  Place: Face
+  # ModelOffset: "0,0.5,0"
+  # SizeInBlocks: "1,1,1"
+  IsActivateable: true
+  IsLockable: true
+  Mass: 1, type: float, display: true, formatter: Kilogram
+  AllowPlacingAt: "Base,MS", display: true
+  SizeInBlocksLocked: "Base,MS"
+  ModelScaleLocked: true
+  Sound: UseActions/DetectorScan
+  EnergyIn: 1, type: int, display: true, formatter: Watt
+  CPUIn: 10, type: int, display: true
+}

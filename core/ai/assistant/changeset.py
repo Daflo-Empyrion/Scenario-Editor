@@ -111,13 +111,23 @@ def parse_change_set(text: str) -> Tuple[Optional[ChangeSet], List[str]]:
         for item in data.get("changes") or []:
             if not isinstance(item, dict):
                 continue
-            changes.append(Change(
+            change = Change(
                 kind=str(item.get("kind") or ""),
                 target=str(item.get("target") or ""),
                 old=str(item.get("old") if item.get("old") is not None else ""),
                 new=str(item.get("new") if item.get("new") is not None else ""),
                 reason=str(item.get("reason") or ""),
-            ))
+            )
+            # no-op (old == new, vide ou repris a l'identique) : le modele
+            # declare un champ sans le changer — vecu 26/10, deux formes :
+            # Names/Types laisses vides d'un remplissage de formulaire, et
+            # Category recopiee a l'identique. On elimine, sinon
+            # changement_sans_effet invalide TOUT le jeu de changements.
+            # Un kind INCONNU reste : validate doit le signaler.
+            if (change.kind in CHANGE_KINDS
+                    and change.old.strip() == change.new.strip()):
+                continue
+            changes.append(change)
         result = ChangeSet(
             changes=changes,
             summary=str(data.get("summary") or ""),

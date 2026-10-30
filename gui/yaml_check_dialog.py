@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout,
                              QTreeWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.settings import get_production_scenario_path
 from core.yaml_game_check import (YamlCheckError, YamlFinding, ensure_checker,
                                   run_yaml_check)
@@ -44,6 +45,7 @@ class YamlCheckDialog(QDialog):
         self._running = False
 
         lay = QVBoxLayout(self)
+        add_info_button(lay, "yamlcheck2.info_html")
         row = QHBoxLayout()
         row.addWidget(QLabel(t("yamlcheck.scenario")))
         self.path_edit = QLineEdit(working_root)

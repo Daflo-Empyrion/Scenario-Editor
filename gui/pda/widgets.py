@@ -86,11 +86,16 @@ class TokenTextField(QWidget):
     le jeton seul sinon.
     Le menu contextuel de traduction existant est installe sur le champ."""
 
-    def __init__(self, model, allow_empty=True, multiline_hint=False, parent=None):
+    def __init__(self, model, allow_empty=True, multiline_hint=False, parent=None,
+                 default_prefix=""):
         super().__init__(parent)
         self.model = model
         self.token = ""
-        self.prefix = ""       # prefixe de format ('mbox;20') ou ''
+        # prefixe de format ('mbox;20') ou '' ; default_prefix s'applique aux
+        # valeurs SANS prefixe (ex. StartMessage de chapitre : le moteur exige
+        # 'type;param|texte', sinon il affiche MALFORMED_START_MESSAGE).
+        self.prefix = ""
+        self.default_prefix = default_prefix
         self.raw_text = ""     # valeur d'origine NON jeton (texte brut YAML)
         self._loading = False
         layout = QHBoxLayout(self)
@@ -122,6 +127,8 @@ class TokenTextField(QWidget):
         self._loading = True
         from core.pda.model import _TOKEN_RE, split_token_value
         self.prefix, candidate = split_token_value(value or "")
+        if not self.prefix:
+            self.prefix = self.default_prefix
         self.raw_text = ""
         text = ""
         if _TOKEN_RE.match(candidate):

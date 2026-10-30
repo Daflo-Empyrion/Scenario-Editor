@@ -45,6 +45,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.ecf.block_creation import find_file_by_name
 from core.tech_tree import (
     load_tech_tree, set_unlock_level, set_unlock_cost, move_to_category,
@@ -97,6 +98,7 @@ class TechTreeDialog(QDialog):
         layout = QVBoxLayout(self)
 
         top_row = QHBoxLayout()
+        add_info_button(top_row, "techtree.info_html")
         top_row.addStretch()
         self.selected_info_label = QLabel(t("techtree.no_selection"))
         top_row.addWidget(self.selected_info_label)

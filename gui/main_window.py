@@ -277,6 +277,31 @@ class MainWindow(QMainWindow):
             t("menu.tools.unlock_cost"))
         self.action_unlock_cost.triggered.connect(
             self._open_unlock_cost_dialog)
+        self.action_spawn_waves = self.menu_tools.addAction(
+            t("menu.tools.spawn_waves"))
+        self.action_spawn_waves.triggered.connect(
+            self._open_spawn_waves_dialog)
+        self.action_tokens = self.menu_tools.addAction(
+            t("menu.tools.tokens"))
+        self.action_tokens.triggered.connect(self._open_token_dialog)
+        self.action_faction_warfare = self.menu_tools.addAction(
+            t("menu.tools.faction_warfare"))
+        self.action_faction_warfare.triggered.connect(
+            self._open_faction_warfare_dialog)
+        self.action_rankings = self.menu_tools.addAction(
+            t("menu.tools.rankings"))
+        self.action_rankings.triggered.connect(self._open_rankings_dialog)
+        self.action_pda_scripts = self.menu_tools.addAction(
+            t("menu.tools.pda_scripts"))
+        self.action_pda_scripts.triggered.connect(self._open_pda_scripts_dialog)
+        self.action_progression = self.menu_tools.addAction(
+            t("menu.tools.progression"))
+        self.action_progression.triggered.connect(
+            self._open_progression_dialog)
+        self.action_difficulty = self.menu_tools.addAction(
+            t("menu.tools.difficulty"))
+        self.action_difficulty.triggered.connect(
+            self._open_difficulty_dialog)
         self.action_bundles = self.menu_tools.addAction(t("menu.tools.bundles"))
         self.action_bundles.triggered.connect(self._open_bundles_dialog)
         self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
@@ -292,6 +317,15 @@ class MainWindow(QMainWindow):
             t("menu.tools.reintegrate"))
         self.action_reintegrate.setToolTip(t("menu.tools.reintegrate.tip"))
         self.action_reintegrate.triggered.connect(self._open_reintegrate)
+        self.action_digest = self.menu_tools.addAction(
+            t("menu.tools.digest"))
+        self.action_digest.triggered.connect(self._open_scenario_digest)
+        self.action_cartoon = self.menu_tools.addAction(
+            t("menu.tools.cartoon"))
+        self.action_cartoon.triggered.connect(self._open_cartoon_dialog)
+        self.action_coherence = self.menu_tools.addAction(
+            t("menu.tools.coherence"))
+        self.action_coherence.triggered.connect(self._open_coherence_dialog)
         self.menu_tools.addSeparator()
         self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
@@ -2328,6 +2362,125 @@ class MainWindow(QMainWindow):
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
         dlg = UnlockCostDialog(self, working)
+        dlg.exec()
+
+    def _open_spawn_waves_dialog(self):
+        """Ondes de spawn : vue transversale des 550+ playfields (POIs,
+        garnisons, vaisseaux spatiaux, patrouilles) + edition groupée des
+        densites avec apercu modifiable (core/spawn_waves.py)."""
+        from gui.spawn_waves_dialog import SpawnWavesDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = SpawnWavesDialog(self, working)
+        dlg.exec()
+
+    def _open_token_dialog(self):
+        """Jetons de quete (TokenConfig.ecf) : table editable, usages reels
+        'Token:XXXX' dans le scenario, creation a Id libre (core/token_config.py)."""
+        from gui.token_config_dialog import TokenConfigDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = TokenConfigDialog(self, working)
+        dlg.exec()
+
+    def _open_faction_warfare_dialog(self):
+        """Space Base Defense (FactionWarfare.ecf) : prix d'attaque par niveau
+        de faction, renforts de defense spatiale, unites et scenarios
+        (lecture) — core/faction_warfare.py."""
+        from gui.faction_warfare_dialog import FactionWarfareDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = FactionWarfareDialog(self, working)
+        dlg.exec()
+
+    def _open_rankings_dialog(self):
+        """Classements du PDA (SqlQueries.txt) : boîtes, requêtes SQL, état,
+        désactivation / retour aux classements par défaut (core/sql_rankings.py)."""
+        from gui.sql_rankings_dialog import SqlRankingsDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = SqlRankingsDialog(self, working)
+        dlg.exec()
+
+    def _open_pda_scripts_dialog(self):
+        """Scripts de gameplay (PDA C#) : modèles vérifiés par compilation
+        réelle contre les assemblies du jeu (core/pda/script_gen.py)."""
+        from gui.pda_script_dialog import PdaScriptDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = PdaScriptDialog(self, working)
+        dlg.exec()
+
+    def _open_progression_dialog(self):
+        """Danger & progression (lecture seule) : danger par playfield,
+        récompenses des chapitres, coût des attaques, face aux médianes
+        (core/progression_balance.py)."""
+        from gui.progression_dialog import ProgressionDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = ProgressionDialog(self, working)
+        dlg.exec()
+
+    def _open_scenario_digest(self):
+        """Fiche du scénario : contenu joueur par origine, monde (playfields,
+        planètes, POI), difficulté vs vanille — export Markdown FR/EN pour
+        une note de version Workshop/Discord (core/scenario_digest.py)."""
+        from gui.scenario_digest_dialog import ScenarioDigestDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = ScenarioDigestDialog(self, working_root=working)
+        dlg.exec()
+
+    def _open_cartoon_dialog(self):
+        """Look cartoon : preset visuel data (terrain + ciels des
+        playfields), previsualisation puis application + synchro
+        production (core/cartoon_look.py)."""
+        from gui.cartoon_dialog import CartoonDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = CartoonDialog(self, working_root=working)
+        dlg.exec()
+
+    def _open_coherence_dialog(self):
+        """Contrôle de cohérence global : tous les moteurs d'analyse en
+        lecture seule (bilan F5, marchands, prix marché, recettes,
+        UnlockCost, corrélations, spawns, progression) consolidés en
+        constatations avec module de correction conseillé
+        (core/coherence_audit.py)."""
+        from gui.coherence_dialog import CoherenceDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = CoherenceDialog(self, working_root=working)
+        dlg.exec()
+
+    def _open_difficulty_dialog(self):
+        """Réglage du danger : palier de coefficients par domaine, aperçu
+        modifiable, garde-fous, backup et annulation
+        (core/difficulty_tuning.py)."""
+        from gui.difficulty_dialog import DifficultyDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = DifficultyDialog(self, working)
         dlg.exec()
 
     def _open_bundles_dialog(self):

@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
 from core.epb_blueprint import (EpbBlueprint, load_block_catalog,
                                 scan_epb_files)
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.epb_view_3d import EpbView3D, block_color
 from gui.msgboxes import ask_yes_no
 from gui.window_geometry import track
@@ -119,6 +120,7 @@ class EpbCheckDialog(QDialog):
         self.chk_problems.setChecked(True)
         self.chk_problems.toggled.connect(self._apply_filter)
         row_filter.addWidget(self.chk_problems)
+        add_info_button(row_filter, "epbcheck.info_html")
         row_filter.addStretch(1)
         lay.addLayout(row_filter)
         self.btn_analyze = QPushButton(t("epb.analyze"))

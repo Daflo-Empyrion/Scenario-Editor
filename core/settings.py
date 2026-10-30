@@ -182,6 +182,16 @@ def set_backup_root(kind: str, path: str) -> None:
     _set(f'backup_root_{kind}', path)
 
 
+def get_cartoon_preset() -> dict:
+    """Facteurs du preset visuel « cartoon » (dict brut, sans garantie de
+    type/plage — la normalisation vit dans core/cartoon_look.py)."""
+    return _get('cartoon_preset', None) or {}
+
+
+def set_cartoon_preset(preset: dict) -> None:
+    _set('cartoon_preset', dict(preset or {}))
+
+
 def get_language_chosen() -> bool:
     return _get('language_chosen', False)
 

@@ -82,7 +82,8 @@ def _json(result):
 
 def test_tools_are_registered_under_the_active_surface(root):
     tools = _tools(root)
-    assert tools.names() == ["catalog_search", "file_read", "scenario_find",
+    assert tools.names() == ["catalog_search", "file_read",
+                             "scenario_balance_report", "scenario_find",
                              "scenario_list_files", "scenario_read_block",
                              "yaml_list_entries", "yaml_read_entry"]
     assert tools.schemas("csv") == []

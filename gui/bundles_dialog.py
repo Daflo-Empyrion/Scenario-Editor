@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel,
                              QTreeWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.window_geometry import track
 
 
@@ -44,6 +45,7 @@ class BundlesDialog(QDialog):
     def _build_ui(self):
         from PyQt6.QtWidgets import QAbstractItemView
         lay = QVBoxLayout(self)
+        add_info_button(lay, "bundles.info_html")
         lay.addWidget(QLabel(t("bundles.intro")))
 
         self.edits = {}

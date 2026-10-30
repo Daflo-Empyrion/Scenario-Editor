@@ -853,8 +853,8 @@ application backs up and stays undoable.
 valued at their own market price, divided by `OutputCount`, cascading (a
 crafted component is worth the cost of ITS recipe). The formula is tunable
 live: **margin** (x1.00 = the RE2 philosophy "price = cost"; vanilla sits
-around x8) and **time factor** (+1% per 30 s of `CraftTime`, capped at x2 by
-default). Every object gets a **status**:
+around x8) and **fabrication** (a % of the raw-material price added:
+price = cost × margin × (1 + %) — 0 = neutral). Every object gets a **status**:
 
 - **Craftable** — direct recipe, reliable cost
 - **Group template** — cost via the upgrade group's template (`TemplateRoot`)

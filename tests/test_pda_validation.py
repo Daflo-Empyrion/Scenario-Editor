@@ -216,3 +216,157 @@ def test_types_on_check_without_types_is_warning(good_model):
     issues = [i for i in validate_action(good_model, chapter, task, action)
               if i.code == "PDA-A7"]
     assert issues and issues[0].severity == "warning"
+
+# ------------------------------------------------------------------ A9
+# Une seule valeur hors enum empeche le jeu de charger TOUT le PDA
+# (« Requested value 'true' was not found » sur Required: true, vecu 26/10).
+
+def test_a9_flags_bool_on_required(good_model):
+    bad = GOOD_YAML.replace(
+        "Check: SubjectKilled",
+        "Check: SubjectKilled\n            Required: true")
+    model = PdaModel(parse_yaml_text(bad), parse_csv_text(GOOD_CSV))
+    a9 = [i for i in validate_model(model) if i.code == "PDA-A9"]
+    assert len(a9) == 1 and a9[0].severity == "error"
+    assert "NeedOne" in a9[0].message
+
+
+def test_a9_covers_chapter_activation_block():
+    """Required apparait aussi dans ChapterActivation, hors de l'arbre
+    chapitres->taches->actions."""
+    yaml = GOOD_YAML.replace(
+        "    Tasks:",
+        "    ChapterActivation:\n"
+        "      - Check: StructureSpawned\n"
+        "        Names:\n"
+        "          - Base\n"
+        "        Required: false\n"
+        "    Tasks:")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    a9 = [i for i in validate_model(model) if i.code == "PDA-A9"]
+    assert len(a9) == 1 and "false" in a9[0].message
+
+
+def test_a9_accepts_corpus_values(good_model):
+    yaml = GOOD_YAML.replace(
+        "Check: SubjectKilled",
+        "Check: SubjectKilled\n            Required: NeedAll\n"
+        "            NamesRequired: NeedOne")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model) if i.code == "PDA-A9"] == []
+
+
+def test_a9_flags_bad_chapter_category():
+    yaml = GOOD_YAML.replace("Category: SoloMission", "Category: true")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    a9 = [i for i in validate_model(model) if i.code == "PDA-A9"]
+    assert len(a9) == 1 and "Category" in a9[0].message
+# ------------------------------------------------------------------ A10/A11
+# Vecu 26/10 : « Chapter ... has malformed StartMessage » (jeton nu) et
+# telemetrie a segment vide + NRE localisation (jeton sans anglais).
+
+def test_a10_flags_chapter_start_message_without_prefix(good_model):
+    yaml = GOOD_YAML.replace(
+        "    PlayerLevel: 5",
+        "    PlayerLevel: 5\n    StartMessage: pda_Mm1Nn2O")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    a10 = [i for i in validate_model(model) if i.code == "PDA-A10"]
+    assert len(a10) == 1 and a10[0].severity == "warning"
+
+
+def test_a10_accepts_prefixed_and_empty():
+    base = GOOD_YAML.replace(
+        "    PlayerLevel: 5",
+        "    PlayerLevel: 5\n    StartMessage: norm;20|pda_Mm1Nn2O")
+    model = PdaModel(parse_yaml_text(base), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model) if i.code == "PDA-A10"] == []
+    # bloc scalaire multi-lignes : non flagge
+    block = GOOD_YAML.replace(
+        "    PlayerLevel: 5",
+        "    PlayerLevel: 5\n    StartMessage: >-\n      dlg;Some_Dialog")
+    model = PdaModel(parse_yaml_text(block), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model) if i.code == "PDA-A10"] == []
+
+
+def test_a11_flags_title_token_without_english():
+    model = PdaModel(parse_yaml_text(GOOD_YAML), parse_csv_text(GOOD_CSV))
+    model.csv_doc.rows = [r for r in model.csv_doc.rows
+                          if r[0] != "pda_Jj9Kk0L"]
+    a11 = [i for i in validate_model(model) if i.code == "PDA-A11"]
+    # le jeton sert d'ActionTitle (erreur) + Description et CompletedMessage
+    # (avertissements)
+    assert len(a11) == 3
+    assert sum(1 for i in a11 if i.severity == "error") == 1
+
+
+def test_a11_warning_for_non_title_tokens():
+    yaml = GOOD_YAML.replace(
+        "            Amount: 10",
+        "            Amount: 10\n            Headline: pda_NoEn1X")
+    csv = GOOD_CSV + "pda_NoEn1X,,\n"
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(csv))
+    a11 = [i for i in validate_model(model) if i.code == "PDA-A11"]
+    assert len(a11) == 1 and a11[0].severity == "warning"
+# ------------------------------------------------------------------ A12
+# Vecu 26/10 : « Check: BlockDestroyed + Types: IronResource + Amount 500 »
+# affichait 0/500 en jeu. Le forage de terrain emet OresDropped, jamais
+# BlockDestroyed (reserve aux blocs poses) ; une action PDA ne recoit pas
+# OresDropped. Le comptage passe par ItemsPickedUp + nom d'OBJET.
+
+def test_a12_flags_blockdestroyed_on_a_resource():
+    yaml = GOOD_YAML.replace(
+        "            Check: SubjectKilled\n            Names:\n              - ZiraxTrooper",
+        "            Check: BlockDestroyed\n            Names:\n              - IronResource")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    a12 = [i for i in validate_model(model) if i.code == "PDA-A12"]
+    assert len(a12) == 1 and a12[0].severity == "warning"
+    assert "ItemsPickedUp" in a12[0].message
+
+
+def test_a12_ignores_items_picked_up_and_plain_blocks():
+    ok_item = GOOD_YAML.replace(
+        "            Check: SubjectKilled\n            Names:\n              - ZiraxTrooper",
+        "            Check: ItemsPickedUp\n            Names:\n              - IronOre")
+    model = PdaModel(parse_yaml_text(ok_item), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model) if i.code == "PDA-A12"] == []
+    ok_block = GOOD_YAML.replace("Check: SubjectKilled", "Check: BlockDestroyed")
+    model2 = PdaModel(parse_yaml_text(ok_block), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model2) if i.code == "PDA-A12"] == []
+# ------------------------------------------------------------------ A13
+# Vecu 26/10 : ItemsPickedUp + Names (seul) laissait le compteur a 0/500.
+# Le handler passe name=null a FormatMenu : seuls les Types (id d'objet)
+# sont compares. Forme officielle : Types: IronOre + Amount.
+
+def test_a13_flags_items_picked_up_with_names_only():
+    yaml = GOOD_YAML.replace(
+        "            Check: SubjectKilled\n            Names:\n              - ZiraxTrooper",
+        "            Check: ItemsPickedUp\n            Names:\n              - IronOre")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    a13 = [i for i in validate_model(model) if i.code == "PDA-A13"]
+    assert len(a13) == 1 and a13[0].severity == "error"
+    assert "Types" in a13[0].message
+
+
+def test_a13_accepts_types_form():
+    yaml = GOOD_YAML.replace(
+        "            Check: SubjectKilled\n            Names:\n              - ZiraxTrooper",
+        "            Check: ItemsPickedUp\n            Types:\n              - IronOre")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model) if i.code == "PDA-A13"] == []
+# ------------------------------------------------------------------ A10 bis
+# Le moteur (ReduceDomain) renvoie MALFORMED_START_MESSAGE sur un
+# StartMessage de chapitre sans '|' : c'est ce qui s'affichait dans la
+# fenetre de briefing (vecu 26/10). L'application ecrit desormais
+# norm;20| automatiquement (TokenTextField.default_prefix).
+
+def test_a10_flags_bare_token_and_accepts_prefixed():
+    yaml = GOOD_YAML.replace(
+        "    PlayerLevel: 5",
+        "    PlayerLevel: 5\n    StartMessage: pda_Mm1Nn2O")
+    model = PdaModel(parse_yaml_text(yaml), parse_csv_text(GOOD_CSV))
+    assert len([i for i in validate_model(model) if i.code == "PDA-A10"]) == 1
+    prefixed = GOOD_YAML.replace(
+        "    PlayerLevel: 5",
+        "    PlayerLevel: 5\n    StartMessage: norm;20|pda_Mm1Nn2O")
+    model2 = PdaModel(parse_yaml_text(prefixed), parse_csv_text(GOOD_CSV))
+    assert [i for i in validate_model(model2) if i.code == "PDA-A10"] == []

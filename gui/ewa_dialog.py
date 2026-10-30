@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.theme import icon
 from gui.window_geometry import track
 
@@ -223,6 +224,7 @@ class EwaServerDialog(QDialog):
         for tab, title_key in zip(self._tabs, titles):
             self.tabs.addTab(tab, t(title_key))
         self.tabs.currentChanged.connect(self._tab_changed)
+        add_info_button(layout, "ewa.info_html")
         layout.addWidget(self.tabs, 1)
 
         self._poll_timer = QTimer(self)

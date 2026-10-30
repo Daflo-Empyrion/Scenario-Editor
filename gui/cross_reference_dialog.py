@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.ecf.cross_reference_check import (
     CROSS_REFERENCE_CHECKS, CrossRefContext, CrossRefIssue, run_checks,
     apply_dialogue_ref_fix,
@@ -98,6 +99,7 @@ class CrossReferenceDialog(QDialog):
         btn_export.clicked.connect(self._export_results)
         bottom_row.addWidget(btn_export)
 
+        add_info_button(bottom_row, "xref.info_html")
         bottom_row.addStretch()
         btn_close = QPushButton(t("btn.close"))
         btn_close.setObjectName("secondaryButton")

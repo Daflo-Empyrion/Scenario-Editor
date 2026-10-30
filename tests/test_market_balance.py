@@ -181,7 +181,7 @@ def test_recursive_cost_with_output_count(tmp_path):
     e = _entry(rep, "IronIngot")
     assert e.status == FABRIQUABLE
     assert e.cost == 10.0        # 10 x RockDust(2) / OutputCount 2
-    assert e.target == 10        # marge 1.0, craft 10 s -> x1.003 -> 10.03
+    assert e.target == 10        # marge 1.0, fabrication 0 % -> prix = cout
 
 
 def test_base_item_is_leaf_priced_by_market(tmp_path):
@@ -259,23 +259,21 @@ def test_no_price_is_never_writable(tmp_path):
     assert e.target is None
 
 
-def test_craft_time_factor_and_cap(tmp_path):
+def test_fabrication_percent_applied_on_material_cost(tmp_path):
     idx, _ = load_index(_scenario(tmp_path)[0], "")
-    rep = build_report(idx, margin=1.0, craft_pct=1.0, craft_step=30.0,
-                       craft_cap=2.0)
-    e = _entry(rep, "Machine")     # CraftTime 60 s -> facteur 1.02
-    assert e.target == 82          # 80 x 1.02 = 81.6
-    rep2 = build_report(idx, margin=1.0, craft_pct=100.0, craft_step=30.0,
-                        craft_cap=2.0)
-    # craft_pct 100 : 60 s -> 1+1x2 = 3 -> plafonne x2 -> 160
-    assert _entry(rep2, "Machine").target == 160
+    rep = build_report(idx, margin=1.0, fab_pct=0.0)
+    e = _entry(rep, "Machine")
+    assert e.target == 80          # 0 % : prix = cout des matieres
+    rep2 = build_report(idx, margin=1.0, fab_pct=50.0)
+    # +50 % du cout des matieres : 80 x 1.5 = 120
+    assert _entry(rep2, "Machine").target == 120
 
 
 def test_retarget_recomputes_without_reparse(tmp_path):
     idx, _ = load_index(_scenario(tmp_path)[0], "")
     rep = build_report(idx)
-    retarget(rep, idx, margin=2.0, craft_pct=0.0, craft_step=30.0, craft_cap=2.0)
-    assert _entry(rep, "Machine").target == 160   # 80 x 2, craft neutralise
+    retarget(rep, idx, margin=2.0, fab_pct=0.0)
+    assert _entry(rep, "Machine").target == 160   # 80 x 2, fabrication neutre
 
 
 def test_make_changes_skips_unchanged_and_apply_writes(tmp_path):
@@ -283,7 +281,7 @@ def test_make_changes_skips_unchanged_and_apply_writes(tmp_path):
     idx, _ = load_index(root, "")
     rep = build_report(idx)
     # IronIngot : prix 4 -> cible 10 ; HullChild : sans cible (ancrage)
-    # -> rien ; Machine : 120 -> 82
+    # -> rien ; Machine : 120 -> 80
     changes = make_changes(idx, rep, {"IronIngot", "HullChild", "Machine"})
     by_name = {c.name: c for c in changes}
     assert set(by_name) == {"IronIngot", "Machine"}
@@ -293,7 +291,7 @@ def test_make_changes_skips_unchanged_and_apply_writes(tmp_path):
     assert done[items_path] == 2
     text = items_path.read_text(encoding="utf-8")
     assert "MarketPrice: 10" in text
-    assert "MarketPrice: 82" in text
+    assert "MarketPrice: 80" in text
 
 
 def test_apply_adds_line_when_inherited_price(tmp_path):
@@ -333,3 +331,137 @@ def test_roundtrip_parser_keeps_other_properties(tmp_path):
             encoding="utf-8")
         assert "{ Item Name: RockDust" in text
         assert "StackSize: 100" in text
+
+
+# -- coherence globale (30/10) : famille, suspects, recettes generees -------
+
+FAM_ITEMS = """{ Item Name: RockDust
+  MarketPrice: 2
+}
+{ Item Name: IronIngot
+  MarketPrice: 10
+}
+{ Item Name: PistolA
+  MarketPrice: 100
+}
+{ Item Name: PistolB
+  MarketPrice: 200
+}
+{ Item Name: PistolC
+  MarketPrice: 150
+}
+{ Item Name: OldPistol
+  MarketPrice: 1
+}
+{ Item Name: GoldCoin
+  MarketPrice: 50
+}
+{ Item Name: GoldBar
+  MarketPrice: 50
+}
+{ Item Name: IronOre
+  MarketPrice: 3
+}
+"""
+
+FAM_TEMPLATES = """{ Template Name: IronIngot
+  CraftTime: 10
+  OutputCount: 2
+  { Child Inputs
+    RockDust: 10
+  }
+}
+{ Template Name: PistolA
+  CraftTime: 10
+  { Child Inputs
+    IronIngot: 10
+  }
+}
+{ Template Name: PistolB
+  CraftTime: 10
+  { Child Inputs
+    IronIngot: 20
+  }
+}
+{ Template Name: PistolC
+  CraftTime: 10
+  { Child Inputs
+    IronIngot: 15
+  }
+}
+{ Template Name: GoldCoin
+  CraftTime: 5
+  { Child Inputs
+    GoldBar: 1
+  }
+}
+{ Template Name: IronOre
+  BaseItem: true
+  { Child Inputs
+    RockDust: 10
+  }
+}
+"""
+
+
+def _fam_scenario(tmp_path):
+    cdir = tmp_path / "Content" / "Configuration"
+    cdir.mkdir(parents=True)
+    (cdir / "ItemsConfig.ecf").write_text(FAM_ITEMS, encoding="utf-8")
+    (cdir / "Templates.ecf").write_text(FAM_TEMPLATES, encoding="utf-8")
+    (cdir / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 500, Name: Pillar\n  MarketPrice: 40\n}\n",
+        encoding="utf-8")
+    return tmp_path
+
+
+def test_famille_median_gives_target_to_anchor(tmp_path):
+    """OldPistol (prix 1, sans recette) herite la MEDIANE de la famille
+    pistol (PistolA 100 / B 200 / C 150 -> 150)."""
+    from core.market_balance import FAMILLE, load_index, build_report
+    root = _fam_scenario(tmp_path)
+    idx, _van = load_index(root)
+    rep = build_report(idx)
+    e = next(x for x in rep.entries if x.name == "OldPistol")
+    assert e.status == FAMILLE
+    assert e.target == 150
+    assert "pistol" in (e.detail or "")
+
+
+def test_single_input_suspects_flags_1to1_and_skips_baseitem(tmp_path):
+    from core.market_balance import load_index, build_report, \
+        single_input_suspects
+    root = _fam_scenario(tmp_path)
+    idx, _van = load_index(root)
+    rep = build_report(idx)
+    sus = single_input_suspects(idx, rep)
+    names = [s["template"] for s in sus]
+    assert "GoldCoin" in names          # 1:1, aucune valeur ajoutee
+    assert "IronOre" not in names       # BaseItem ancre : recette figurative
+
+
+def test_plan_and_apply_generated_recipe(tmp_path, monkeypatch):
+    """La recette generee reprend le modele de famille le plus proche,
+    dose au prorata des cibles ; apres application l'item passe
+    fabriquable et n'est plus propose."""
+    from core.market_balance import (apply_recipes, build_report,
+                                     load_index, plan_recipes)
+    root = _fam_scenario(tmp_path)
+    monkeypatch.setattr("core.market_balance.central_backup",
+                        lambda path, kind: tmp_path / "bak" / path.name)
+    idx, _van = load_index(root)
+    rep = build_report(idx)
+    plans, _skipped = plan_recipes(idx, rep)
+    plan = next(p for p in plans if p.name == "OldPistol")
+    assert plan.target == 150 and plan.inputs == [("IronIngot", 15)]
+    _path, n = apply_recipes(plans, root)
+    assert n == len(plans)
+    tpath = root / "Content" / "Configuration" / "Templates.ecf"
+    text = tpath.read_text(encoding="utf-8")
+    assert "+Template Name: OldPistol" in text
+    idx2, _v = load_index(root)
+    rep2 = build_report(idx2)
+    e = next(x for x in rep2.entries if x.name == "OldPistol")
+    assert e.status == FABRIQUABLE and e.target == 150
+    plans2, _s = plan_recipes(idx2, rep2)
+    assert all(p.name != "OldPistol" for p in plans2)

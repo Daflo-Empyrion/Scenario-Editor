@@ -49,7 +49,7 @@ from core.i18n import get_language, t
 from core.pda_mission import (
     collect_used_names, collect_used_block_types, collect_all_tokens, generate_token,
     ObjectiveSpec, RewardSpec, RepeatSpec, TierSpec, create_chapter, create_tier_chain,
-    add_pda_text_entries,
+    create_tier_tasks, add_pda_text_entries,
 )
 from gui.assistant_worker import SurfaceWorker
 from gui.translate_context_menu import install_translate_context_menu
@@ -400,6 +400,10 @@ class PdaMissionDialog(QDialog):
         self.delay_hours_spin.setEnabled(False)
         self.delay_hours_spin.setToolTip(t("pda_mission.tooltip_delay_hours"))
         repeat_layout.addRow(t("pda_mission.delay_hours"), self.delay_hours_spin)
+        self.single_chapter_check = QCheckBox(t("pda_mission.single_chapter"))
+        self.single_chapter_check.setChecked(True)
+        self.single_chapter_check.setToolTip(t("pda_mission.single_chapter.tooltip"))
+        repeat_layout.addRow(self.single_chapter_check)
         outer_layout.addWidget(self.repeat_box)
 
         self._add_tier()
@@ -608,9 +612,22 @@ class PdaMissionDialog(QDialog):
             ])
         else:
             tiers = [tw.to_tier_spec() for tw in self.tier_widgets]
-            chapters = create_tier_chain(self.doc, self.csv_doc, tiers, category)
-            if not chapters:
-                QMessageBox.critical(self, t("pda_mission.title"), t("pda_mission.err_no_chapters_key"))
-                return
+            if self.single_chapter_check.isChecked():
+                # UN chapitre, une TACHE par palier (demande 26/10 : le
+                # dialogue creait un chapitre par palier).
+                chapter = create_tier_tasks(
+                    self.doc, self.csv_doc, tiers, category,
+                    chapter_title=tiers[0].title_text,
+                    chapter_description=tiers[0].description_text)
+                if chapter is None:
+                    QMessageBox.critical(self, t("pda_mission.title"),
+                                         t("pda_mission.err_no_chapters_key"))
+                    return
+            else:
+                chapters = create_tier_chain(self.doc, self.csv_doc, tiers, category)
+                if not chapters:
+                    QMessageBox.critical(self, t("pda_mission.title"),
+                                         t("pda_mission.err_no_chapters_key"))
+                    return
 
         self.accept()

@@ -26,7 +26,7 @@ CountMinMax/DronesMinMax sont des listes [min, max], DroneProb est une
 fraction 0.0-1.0 (jamais un pourcentage 0-100).
 """
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .parsers_utils import parse_float_or, parse_min_max
 from .playfield_editor import find_random_poi_items, get_item_params, get_properties_value
@@ -44,6 +44,7 @@ class PoiStats:
     regen_after: str = ""
     spawn_near: str = ""
     extra: dict = field(default_factory=dict)
+    item: Optional[object] = None   # entree YAML source (edition vivante)
 
     @property
     def estimated_drones_min(self) -> int:
@@ -80,6 +81,7 @@ def compute_poi_stats(doc) -> List[PoiStats]:
             regen_after=get_properties_value(item, "RegenAfter") or "",
             spawn_near=params.get("SpawnPOINear", ""),
             extra=params,
+            item=item,
         ))
     return stats
 

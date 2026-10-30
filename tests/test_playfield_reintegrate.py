@@ -93,6 +93,18 @@ def test_orphans_are_classified_by_kind(tmp_path):
     assert "Ancien" not in orphans          # ce n'est pas un dossier
 
 
+def test_container_folder_is_not_an_orphan(tmp_path):
+    """`Playfields/Reforged/` (RE2) ne contient que des starters : le declarer
+    dans Sectors.yaml fait refuser le chargement du scenario (« Playfield
+    Reforged has unknown playfield type Undefined », vecu 25/10)."""
+    root = _build(tmp_path)
+    starter = root / "Playfields" / "Reforged" / "AridStarter"
+    starter.mkdir(parents=True)
+    (starter / "playfield_static.yaml").write_text(
+        "PlayfieldType: Planet\n", encoding="utf-8")
+    assert "Reforged" not in {o.type_name for o in find_orphans(root)}
+
+
 def test_plan_spreads_across_systems_and_rings(tmp_path):
     root = _build(tmp_path)
     plan = plan_placements(
@@ -107,12 +119,25 @@ def test_plan_spreads_across_systems_and_rings(tmp_path):
     moon = by_name["Start_MoonIce"]
     assert moon.mode == "row" and moon.sector == (3, 0, 0)
     assert moon.coords == (4500, 5000, 8000)
-    # anneau, jamais une file sur un axe
+    # orbite verticale autour de l'etoile (0,0,0) : premier point libre
     planet = by_name["EdenOcean2"]
-    assert planet.mode == "sector" and planet.coords == (30, 0, 0)
+    assert planet.mode == "sector" and planet.coords == (0, 30, 0)
     assert planet.map_type == ""            # une planete n'a pas de type
     assert by_name["EdenGasDwarfBlue"].map_type == "GasGiant"
     assert by_name["EdenSpace_AsteroidT1"].map_type == "AsteroidFieldFew"
+
+
+def test_orbit_is_centered_on_a_shifted_sun(tmp_path):
+    """Etoile DECALEE : l'orbite verticale tourne autour d'ELLE, pas de
+    l'origine (des systemes du corpus ont un soleil hors [0,0,0])."""
+    root = _build(tmp_path)
+    text = (root / "Sectors" / "Sectors.yaml").read_text(encoding="utf-8")
+    text = text.replace("- Coordinates: [0, 0, 0]\n        SectorMapType: None",
+                        "- Coordinates: [5, 2, 1]\n        SectorMapType: None",
+                        1)                    # seul le soleil d'Alpha
+    (root / "Sectors" / "Sectors.yaml").write_text(text, encoding="utf-8")
+    plan = plan_placements(root, ["EdenOcean2"])
+    assert plan[0].coords == (5, 32, 1)
 
 
 def test_moon_is_skipped_without_a_host_planet(tmp_path):
@@ -136,7 +161,7 @@ def test_apply_writes_corpus_shaped_entries(tmp_path):
     applied, details = apply_placements(root, plan)
     assert details == [] and applied == len(plan)
     text = (root / "Sectors" / "Sectors.yaml").read_text(encoding="utf-8")
-    assert "Coordinates: [30, 0, 0]" in text
+    assert "Coordinates: [0, 30, 0]" in text
     # planete : pas de SectorMapType, 7 champs
     assert "['0, 0, 0', EdenOcean2, EdenOcean2, '', '', '', '']" in text
     # lune : ligne a offset dans le secteur de la planete
@@ -170,7 +195,7 @@ def test_preview_shows_sectors_rows_and_removals(tmp_path):
                            per_system=2)
     preview = render_preview(plan, find_legacy(root))
     assert "retirer : secteur Beta [4, 0, 0]" in preview
-    assert "- Coordinates: [30, 0, 0]" in preview
+    assert "- Coordinates: [0, 30, 0]" in preview
     assert "SectorMapType: None" not in preview        # planete : pas de type
     assert "['4500, 5000, 8000', Start_MoonIce, Start_MoonIce]" in preview
 
@@ -225,7 +250,7 @@ def test_dialog_lists_kinds_and_previews(qapp, tmp_path):
         assert dialog.legacy_check.isChecked()            # ancien secteur vu
         assert _check_by_type(dialog, "EdenOcean2")
         dialog._preview()
-        assert "- Coordinates: [30, 0, 0]" in dialog.preview.toPlainText()
+        assert "- Coordinates: [0, 30, 0]" in dialog.preview.toPlainText()
         assert "retirer" in dialog.preview.toPlainText()
         assert dialog.btn_apply.isEnabled()
     finally:

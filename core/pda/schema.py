@@ -108,6 +108,20 @@ CATEGORIES = ("SoloMission", "FactionMission", "Tutorial", "Knowledgebase", "FAQ
 ACTIVATABLE = ("Always", "Never", "WhenRewarded", "ByLevel", "ByReputation", "ByCredits", "WhenChecked")
 VISIBILITY = ("Always", "Never", "WhenRewarded", "WhileCompleted", "WhenChecked", "ByLevel", "ByReputation")
 GUIDING = ("Destination", "TempIndoor")
+# enum ListRequirement du moteur (ModApi) : PAS un booleen — « true » fait
+# echouer la deserialization de TOUT le PDA (« Requested value 'true' was
+# not found », vecu 26/10). Le corpus utilise NeedOne (147) et NeedAll (5).
+LIST_REQUIREMENT = ("NeedOne", "NeedAll")
+# cles dont la valeur est un enum du moteur, avec leurs valeurs valides —
+# verifiees recursivement dans TOUT le PDA (voir validation._enum_type_issues)
+ENUM_KEYS = {
+    "Required": LIST_REQUIREMENT,
+    "NamesRequired": LIST_REQUIREMENT,
+    "Guiding": GUIDING,
+    "Category": CATEGORIES,
+    "Activatable": ACTIVATABLE,
+    "Visibility": VISIBILITY,
+}
 REWARD_TYPES = ("XP", "UP", "Reputation", "ReputationTarget", "LevelTarget", "LevelIncrease")
 
 # Fenetres UI observees pour WindowOpened/WindowClosed (pool statique + les
@@ -126,9 +140,10 @@ ACTION_COMMON_FIELDS: Tuple[FieldSpec, ...] = (
     _f("IsOrdered", KIND_BOOL, "pda.field.is_ordered"),
     _f("IsOptional", KIND_BOOL, "pda.field.is_optional",
        tooltip_key="pda.field.is_optional.tooltip"),
-    _f("Required", KIND_BOOL, "pda.field.required",
-       tooltip_key="pda.field.required.tooltip"),
-    _f("NamesRequired", KIND_BOOL, "pda.field.names_required"),
+    _f("Required", KIND_ENUM, "pda.field.required",
+       enum_values=LIST_REQUIREMENT, default="NeedOne"),
+    _f("NamesRequired", KIND_ENUM, "pda.field.names_required",
+       enum_values=LIST_REQUIREMENT, default="NeedOne"),
     _f("TriggerDistance", KIND_INT, "pda.field.trigger_distance", default="50"),
     _f("GuidingDistance", KIND_INT, "pda.field.guiding_distance", default="-1"),
     _f("Guiding", KIND_ENUM, "pda.field.guiding", enum_values=GUIDING),
@@ -268,6 +283,37 @@ CHECKS: Dict[str, CheckSpec] = {s.check: s for s in (
     CheckSpec("BiomeChanged", "pda.check.biome_changed.label", "pda.check.biome_changed.desc", fields=(
         _f("Names", KIND_NAMES, "pda.field.names_biome", pool=POOL_BIOME),
     ), uses_names=True),
+    # --- declencheurs observes dans les fichiers du jeu (PDA vanilla/defaut)
+    # et absents de la premiere cartographie du schema ---
+    CheckSpec("ItemsConsumed", "pda.check.items_consumed.label", "pda.check.items_consumed.desc", fields=(
+        _f("Types", KIND_TYPES, "pda.field.types_item", pool=POOL_ITEM),
+        _f("Amount", KIND_INT, "pda.field.amount", default="1"),
+    ), uses_types=True, amount_optional=True),
+    CheckSpec("HoldingItem", "pda.check.holding_item.label", "pda.check.holding_item.desc", fields=(
+        _f("Types", KIND_TYPES, "pda.field.types_item", pool=POOL_ITEM),
+    ), uses_types=True),
+    CheckSpec("ArmorEquipped", "pda.check.armor_equipped.label", "pda.check.armor_equipped.desc", fields=(
+        _f("Types", KIND_TYPES, "pda.field.types_item"),
+    ), uses_types=True),
+    CheckSpec("ArmorBoostEquipped", "pda.check.armor_boost.label", "pda.check.armor_boost.desc", fields=(
+        _f("Types", KIND_TYPES, "pda.field.types_item"),
+    ), uses_types=True),
+    CheckSpec("ConstructionQueueContains", "pda.check.construction_queue.label", "pda.check.construction_queue.desc", fields=(
+        _f("Names", KIND_NAMES, "pda.field.names_structure", pool=POOL_UNIT),
+        _f("Types", KIND_TYPES, "pda.field.types_item", pool=POOL_ITEM),
+    ), uses_names=True, uses_types=True),
+    CheckSpec("StructureProduced", "pda.check.structure_produced.label", "pda.check.structure_produced.desc", fields=(
+        _f("Names", KIND_NAMES, "pda.field.names_structure"),
+    ), uses_names=True),
+    CheckSpec("ViewSelected", "pda.check.view_selected.label", "pda.check.view_selected.desc", fields=(
+        _f("Names", KIND_NAMES, "pda.field.names_view"),
+    ), uses_names=True),
+    CheckSpec("AttackWave", "pda.check.attack_wave.label", "pda.check.attack_wave.desc"),
+    CheckSpec("WaveDestroyed", "pda.check.wave_destroyed.label", "pda.check.wave_destroyed.desc"),
+    CheckSpec("SetTimer", "pda.check.set_timer.label", "pda.check.set_timer.desc"),
+    CheckSpec("PlayerStatChanged", "pda.check.player_stat.label", "pda.check.player_stat.desc", fields=(
+        _f("Names", KIND_NAMES, "pda.field.names_stat"),
+    ), uses_names=True),
 )}
 
 
@@ -379,8 +425,10 @@ ACTIVATION_FIELDS: Tuple[FieldSpec, ...] = (
     _f("PopupActivatesChapter", KIND_BOOL, "pda.activation.popup_activates"),
     _f("NotifyMessage", KIND_TOKEN, "pda.activation.notify_message"),
     _f("MessageTime", KIND_INT, "pda.activation.message_time"),
-    _f("Required", KIND_BOOL, "pda.field.required"),
-    _f("NamesRequired", KIND_BOOL, "pda.field.names_required"),
+    _f("Required", KIND_ENUM, "pda.field.required",
+       enum_values=LIST_REQUIREMENT, default="NeedOne"),
+    _f("NamesRequired", KIND_ENUM, "pda.field.names_required",
+       enum_values=LIST_REQUIREMENT, default="NeedOne"),
 )
 
 

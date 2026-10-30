@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from protocol.cases import (
     CATEGORIES, cases_by_category, category_label,
     localized_case, protocol_to_markdown,
@@ -88,6 +89,7 @@ class TestProtocolDialog(QDialog):
         self.btn_start_session.setObjectName("primaryButton")
         self.btn_start_session.clicked.connect(self._start_session)
         start_row.addWidget(self.btn_start_session)
+        add_info_button(start_row, "testproto.info_html")
         start_row.addStretch()
         layout.addLayout(start_row)
 

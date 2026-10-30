@@ -906,8 +906,8 @@ L'aperçu liste chaque changement proposé, **cochable un par un**, avant toute
 des ingrédients valorisés à leur propre prix marché, divisée par `OutputCount`,
 en cascade (un composant fabriqué vaut le coût de SA recette). La formule est
 réglable en direct : **marge** (x1.00 = la philosophie RE2 « prix = coût », la
-vanille est vers x8) et **facteur temps** (+1 % par tranche de 30 s de
-`CraftTime`, plafonné x2 par défaut). Chaque objet reçoit un **statut** :
+vanille est vers x8) et **fabrication** (% du prix des matières premières
+ajouté : prix = coût × marge × (1 + %) — 0 = neutre). Chaque objet reçoit un **statut** :
 
 - **Fabriquable** — recette directe, coût fiable
 - **Template de groupe** — coût via le template du groupe d'upgrade

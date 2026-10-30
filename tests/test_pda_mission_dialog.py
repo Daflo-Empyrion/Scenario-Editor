@@ -388,6 +388,7 @@ def test_tier_group_titles_numbered_correctly(dialog):
 
 def test_three_tier_mission_creates_three_chained_chapters(dialog):
     from core.pda_mission import list_chapters
+    dialog.single_chapter_check.setChecked(False)   # mode chaine explicite
     before = len(list_chapters(dialog.doc))
 
     for i, (tw_getter, amount) in enumerate([(lambda: dialog.tier_widgets[0], 1000),
@@ -413,6 +414,7 @@ def test_three_tier_mission_creates_three_chained_chapters(dialog):
 def test_tier_chain_reparses_and_is_chained_correctly(dialog):
     from core.pda_mission import list_chapters
     from core.yamllite.parser import parse_yaml_text
+    dialog.single_chapter_check.setChecked(False)   # mode chaine explicite
 
     for i in range(3):
         if i > 0:
@@ -432,6 +434,36 @@ def test_tier_chain_reparses_and_is_chained_correctly(dialog):
 
     activatables = [next(c.value for c in ch.children if c.key == "Activatable") for ch in new_chapters]
     assert activatables == ["Always", "WhenRewarded", "WhenRewarded"]
+
+
+def test_tiers_become_tasks_of_one_chapter_by_default(dialog):
+    """Demande 26/10 : le dialogue creait un chapitre par palier. Par defaut
+    les paliers sont des TACHES successives d'un seul chapitre."""
+    from core.pda_mission import list_chapters
+    from core.yamllite.parser import parse_yaml_text
+
+    before = len(list_chapters(dialog.doc))
+    for i in range(3):
+        if i > 0:
+            dialog._add_tier()
+        tier = dialog.tier_widgets[i]
+        tier.title_en_edit.setText(f"Mine tier {i + 1}")
+        tier.names_editor.combo.setCurrentText("WeakZiraxSoldier")
+        tier.names_editor._on_add()
+        tier.amount_spin.setValue(10 * (i + 1))
+    assert dialog.single_chapter_check.isChecked()
+
+    dialog._on_create()
+
+    chapters = list_chapters(dialog.doc)
+    assert len(chapters) == before + 1                  # UN seul chapitre
+    chapter = chapters[-1]
+    tasks_node = next(c for c in chapter.children if c.key == "Tasks")
+    task_titles = [c.value for c in tasks_node.children if c.key == "TaskTitle"]
+    assert len(task_titles) == 3                        # une tache par palier
+
+    reparsed = parse_yaml_text(dialog.doc.render())
+    assert reparsed is not None
 
 
 def test_validation_checks_every_tier_not_just_first(dialog, monkeypatch):

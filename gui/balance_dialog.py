@@ -30,6 +30,7 @@ from core.balance_rules import (POLICIES, RULE_CATALOG, BalanceConfig,
                                 apply_proposals, load_inventory,
                                 propose_changes)
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.window_geometry import track
 
 COL_NEW = 4
@@ -65,6 +66,7 @@ class BalanceDialog(QDialog):
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
+        add_info_button(lay, "balance1.info_html")
         lay.addWidget(QLabel(t("balance.intro")))
 
         row = QHBoxLayout()

@@ -35,6 +35,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QBrush
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.scenario_diff import compare_scenarios, ScenarioDiffResult, FileDiffEntry
 from gui.theme import icon, icon_size
 from gui import theme as _theme
@@ -92,6 +93,7 @@ class ScenarioCompareDialog(QDialog):
         self.checkbox_show_unchanged = QCheckBox(t("compare.show_unchanged"))
         self.checkbox_show_unchanged.toggled.connect(self._populate_tree)
         top_row.addWidget(self.checkbox_show_unchanged)
+        add_info_button(top_row, "scompare.info_html")
         top_row.addStretch()
         self.summary_label = QLabel("")
         self.summary_label.setObjectName("mutedLabel")

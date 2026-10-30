@@ -149,8 +149,10 @@ def test_prefab_check_reads_prefab_syntax_and_ignores_comments(tmp_path):
         "- Prefab: GhostBase\n"             # fantome : erreur
         "- Prefab: # Desactive\n", encoding="utf-8")
     errs = [i for i in run_launch_checks(root, "") if i.check == "prefabs"]
-    assert len(errs) == 1
+    # le .epb factice est illisible pour le mapping -> 1 warning supplementaire
+    assert len(errs) == 2
     assert "GhostBase" in errs[0].message and errs[0].line == 4
+    assert "illisibles" in errs[1].message
 
 
 def test_poi_groups_are_read_from_prefab_headers(tmp_path):
@@ -552,3 +554,180 @@ def test_numeric_without_type_on_ref_block(tmp_path):
     assert issues[0].check == "types"
     assert issues[0].severity == "warning"
     assert "HitPoints" in issues[0].message
+
+
+# ---------------------------------------------------------------------------
+# ondes de spawn (core/spawn_waves.py branche dans run_launch_checks) :
+# patrouilles actives sans base -> warning W310 ; geantes gazeuses [0,0]
+# volontaires et zones de taux a liste mixte -> JAMAIS alertees
+# ---------------------------------------------------------------------------
+
+ACTIVE_PATROL = """PlayfieldType: Temperate
+
+DroneSpawning:
+    Random:
+        - DronesMinMax: [ 2, 3 ]
+          CenterX: 100
+"""
+
+
+def test_launch_check_spawn_patrol_without_base(tmp_path):
+    root = _build_scenario(tmp_path)
+    pf = root / "Playfields" / "EdenHive"
+    pf.mkdir()
+    (pf / "playfield_static.yaml").write_text(ACTIVE_PATROL,
+                                              encoding="utf-8")
+    issues = run_launch_checks(root, "")
+    spawn = [i for i in issues if i.check == "spawn"]
+    assert len(spawn) == 1
+    assert spawn[0].severity == "warning"
+    assert "[W310]" in spawn[0].message
+    assert spawn[0].path == "Playfields/EdenHive/playfield_static.yaml"
+
+
+def test_launch_check_spawn_clean_playfields(tmp_path):
+    root = _build_scenario(tmp_path)
+    assert [i for i in run_launch_checks(root, "") if i.check == "spawn"] == []
+
+
+def _write_blocks_config(path, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+
+
+def test_ref_must_target_an_earlier_block(tmp_path):
+    # le chargeur ECF resout les Ref au fil du fichier : cible APRES = fatal
+    # client (vecu 27/10 : 352 NRE) ; l'ordre vanille place la cible avant
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    _write_blocks_config(conf / "BlocksConfig.ecf", (
+        "{ Block Name: B\n"
+        "  Ref: A\n"
+        "}\n"
+        "\n"
+        "{ Block Name: A\n"
+        "  Mass: 1, type: float\n"
+        "}\n"))
+    issues = [i for i in run_launch_checks(root, "") if i.check == "engine"
+              and "Ref:" in i.message]
+    assert len(issues) == 1 and "APRÈS" in issues[0].message
+
+    # ordre correct : plus aucune alerte Ref
+    _write_blocks_config(conf / "BlocksConfig.ecf", (
+        "{ Block Name: A\n"
+        "  Mass: 1, type: float\n"
+        "}\n"
+        "\n"
+        "{ Block Name: B\n"
+        "  Ref: A\n"
+        "}\n"))
+    issues = [i for i in run_launch_checks(root, "") if i.check == "engine"
+              and "Ref:" in i.message]
+    assert issues == []
+
+
+def test_ref_target_must_exist(tmp_path):
+    root = _build_scenario(tmp_path)
+    _write_blocks_config(root / "Content" / "Configuration" / "BlocksConfig.ecf",
+                         "{ Block Name: B\n  Ref: GhostBlock\n}\n")
+    issues = [i for i in run_launch_checks(root, "")
+              if i.severity == "error" and "GhostBlock" in i.message]
+    # _check_blocks (bloc ignore) + _check_ref_order (cible manquante)
+    assert len(issues) == 2
+    assert all("GhostBlock" in i.message for i in issues)
+
+
+def test_idmapping_flags_blocks_missing_from_config(tmp_path):
+    from test_epb_blueprint import build_epb
+    root = _build_scenario(tmp_path)
+    _write_blocks_config(
+        root / "Content" / "Configuration" / "BlocksConfig.ecf",
+        "{ Block Name: BlockConnu\n  Mass: 1, type: float\n}\n")
+    build_epb(root / "Prefabs" / "T.epb",
+              mapping={1: "BlockConnu", 2: "BlockAbsent"})
+    issues = [i for i in run_launch_checks(root, "")
+              if i.check == "prefabs" and "BlockAbsent" in i.message]
+    assert len(issues) == 1
+    assert "1 prefab(s)" in issues[0].message
+    assert "BlockConnu" not in issues[0].message
+
+
+def test_idmapping_flags_library_blueprint_missing_vanilla_block(tmp_path):
+    from test_epb_blueprint import build_epb
+    root = _build_scenario(tmp_path)
+    _write_blocks_config(
+        root / "Content" / "Configuration" / "BlocksConfig.ecf",
+        "{ Block Name: BlockConnu\n  Mass: 1, type: float\n}\n")
+    steam = tmp_path / "steamapps"
+    content = steam / "common" / "Game" / "Content"
+    vconf = content / "Configuration"
+    vconf.mkdir(parents=True)
+    (vconf / "BlocksConfig.ecf").write_text(
+        "{ Block Name: BlockVanille\n  Mass: 1, type: float\n}\n",
+        encoding="utf-8")
+    (content / "Prefabs").mkdir()
+    bp = steam / "common" / "Game" / "Saves" / "Blueprints" / "BP"
+    bp.mkdir(parents=True)
+    build_epb(bp / "BP.epb",
+              mapping={1: "BlockVanille", 2: "BlockAutreMod"})
+    issues = [i for i in run_launch_checks(root, str(content))
+              if "bibliotheque" in i.path]
+    assert len(issues) == 1
+    assert "BlockVanille" in issues[0].message
+    assert "BlockAutreMod" not in issues[0].message
+
+
+def test_block_groups_duplicates_and_unknown(tmp_path):
+    root = _build_scenario(tmp_path)
+    _write_blocks_config(
+        root / "Content" / "Configuration" / "BlocksConfig.ecf",
+        "{ Block Name: BlockA\n  Mass: 1, type: float\n}\n"
+        "\n"
+        "{ Block Name: BlockB\n  Mass: 1, type: float\n}\n")
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True, exist_ok=True)
+    (conf / "BlockGroupsConfig.ecf").write_text(
+        ' { BlockGroup Name: G1\n'
+        '   MaxCount: 4\n'
+        '   Blocks: "BlockA,BlockB"\n'
+        ' }\n'
+        '\n'
+        ' { BlockGroup Name: G2\n'
+        '   MaxCount: 2\n'
+        '   Blocks: "BlockB,BlockGhost"\n'
+        ' }\n', encoding="utf-8")
+    issues = [i for i in run_launch_checks(root, "")
+              if i.check == "blockgroups"]
+    dup = [i for i in issues if "deja dans" in i.message]
+    unk = [i for i in issues if "introuvable" in i.message]
+    assert len(dup) == 1 and "'G1'" in dup[0].message and "'G2'" in dup[0].message
+    assert len(unk) == 1 and "BlockGhost" in unk[0].message
+
+
+def test_compound_without_subdesc_is_flagged(tmp_path):
+    root = _build_scenario(tmp_path)
+    pf = root / "Playfields" / "Pf1"
+    body = (
+        "POIs:\n"
+        "    - Name: [ SomePOI ]\n"
+        "      Position:\n"
+        "         PosXZMinMax: [750, 2500]\n"
+        "      Compound:\n"
+        "        CountMinMax: [1, 1]\n"
+        "        Name: [CompoundX, CompoundX]\n"
+        "        DistanceMinMax: [100, 150]\n")
+    (pf / "space_dynamic.yaml").write_text(body, encoding="utf-8")
+    issues = [i for i in run_launch_checks(root, "")
+              if "Compound POI 'CompoundX'" in i.message]
+    # le jeu logue par OCCURRENCE : la liste cite CompoundX deux fois
+    assert len(issues) == 2
+
+    # sous-descripteur declare : plus aucune alerte
+    body += (
+        "\n    - Type: BA_Alien\n"
+        "      Name: [CompoundX]\n"
+        "      IsCompoundSubDesc: True\n")
+    (pf / "space_dynamic.yaml").write_text(body, encoding="utf-8")
+    issues = [i for i in run_launch_checks(root, "")
+              if "Compound POI 'CompoundX'" in i.message]
+    assert issues == []

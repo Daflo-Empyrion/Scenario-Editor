@@ -146,7 +146,7 @@ aussi depuis le menu Aide de l'application.
   pourcentage, apercu cochable avant ecriture
 - **Prix marche par cout de fabrication** : chaque MarketPrice face au cout
   reel de sa recette (Templates.ecf, cascade, OutputCount), formule reglable
-  (marge + facteur temps de craft), statuts par objet (fabriquable, template
+  (marge + % de fabrication sur le cout des matieres), statuts par objet (fabriquable, template
   de groupe, cousin de tier, prix/masse materiau, ancrage manuel, non
   vendable), filtres et selection en masse, prix entiers, backup central et
   re-scan automatique

@@ -32,10 +32,11 @@ Resolution en cascade :
   5. sinon                                            -> 'ancrage' (prix
      manuel, aucune proposition) ; sans MarketPrice  -> 'non_vendable'
 
-Formule cible : prix = cout x marge x facteur_craft, facteur_craft =
-min(1 + craft_pct/100 x CraftTime/craft_step, cap) — defaut +1 %/30 s
-plafonne x2, PAS de renormalisation (decision utilisateur 16/10).
-Prix ENTIERS >= 1 (regle projet economie).
+Formule cible : prix = cout x marge x (1 + fab_pct/100) — la fabrication
+ajoute un pourcentage du prix des matieres premieres (decision utilisateur
+28/10 : remplace l'ancien facteur temps +x %/30 s, peu pertinent quand la
+majorite des crafts durent moins de 30 s). PAS de renormalisation
+(decision utilisateur 16/10). Prix ENTIERS >= 1 (regle projet economie).
 
 Cout recursif : Somme(qte x prix_marche(ingredient)) / OutputCount ; un
 BaseItem avec prix est une feuille (valorise au marche, on ne descend pas).
@@ -57,17 +58,17 @@ from typing import Dict, List, Optional, Tuple
 from core.ecf.model import (EcfBlock, EcfDocument, EcfProperty,
                             add_property_line, normalized_kind)
 from core.ecf.parser import parse_ecf_file
-from core.fsutil import atomic_write_text
+from core.fsutil import atomic_write_text, central_backup
 
-# Valeurs par defaut validees avec l'utilisateur (16/10/2026)
+# Valeurs par defaut validees avec l'utilisateur (16/10/2026, ajustees 28/10)
 DEFAULT_MARGIN = 1.0        # philosophie RE2 : prix = cout
-DEFAULT_CRAFT_PCT = 1.0     # +1 % de prix par tranche de craft_step secondes
-DEFAULT_CRAFT_STEP = 30.0   # secondes
-DEFAULT_CRAFT_CAP = 2.0     # facteur craft maximal (x2)
+DEFAULT_FAB_PCT = 0.0       # % du cout des matieres ajoute (fabrication)
 
-FABRIQUABLE, GROUPE, COUSIN, MATERIAU, ANCRAGE, NON_VENDABLE = (
-    "fabriquable", "groupe", "cousin", "materiau", "ancrage", "non_vendable")
-STATUSES = (FABRIQUABLE, GROUPE, COUSIN, MATERIAU, ANCRAGE, NON_VENDABLE)
+FABRIQUABLE, GROUPE, COUSIN, MATERIAU, FAMILLE, ANCRAGE, NON_VENDABLE = (
+    "fabriquable", "groupe", "cousin", "materiau", "famille", "ancrage",
+    "non_vendable")
+STATUSES = (FABRIQUABLE, GROUPE, COUSIN, MATERIAU, FAMILLE, ANCRAGE,
+            NON_VENDABLE)
 
 _TIER_RE = re.compile(r"^(.*?T)(\d+)$")
 
@@ -302,18 +303,8 @@ def _unit_cost(idx: MarketIndex, name: str, seen: frozenset
     return total / t.output_count, ""
 
 
-def _craft_time_of(idx: MarketIndex, tname: Optional[str]) -> float:
-    t = idx.templates.get(tname) if tname else None
-    return t.craft_time if t else 0.0
-
-
-def _apply_formula(cost: float, craft_time: float, margin: float,
-                   craft_pct: float, craft_step: float, craft_cap: float) -> int:
-    factor = 1.0
-    if craft_step > 0 and craft_pct > 0:
-        factor = min(1.0 + (craft_pct / 100.0) * (craft_time / craft_step),
-                     craft_cap)
-    return max(1, round(cost * margin * factor))
+def _apply_formula(cost: float, margin: float, fab_pct: float) -> int:
+    return max(1, round(cost * margin * (1.0 + fab_pct / 100.0)))
 
 
 def _material_price_per_mass(entries: List[MarketEntry], idx: MarketIndex
@@ -357,11 +348,171 @@ def _cousin_target(idx: MarketIndex, van: Optional[MarketIndex], name: str
     return max(1, round(prev_price * ratio))
 
 
+def _tokens(name: str) -> set:
+    """Tokens significatifs d'un nom : separation camelCase + non-alphabetique,
+    >= 4 caracteres, marques/marqueurs ecartes."""
+    stop = {"eden", "atl", "uch", "legacy", "player", "epic", "dual",
+            "trench", "admin", "test"}
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", name)
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", s)
+    return {w.lower() for w in re.split(r"[^A-Za-z]+", s)
+            if len(w) >= 4 and w.lower() not in stop}
+
+
+def famille_targets(report: MarketReport, idx: MarketIndex,
+                    min_members: int = 3) -> int:
+    """Cible = MEDIANE des cibles de la famille (tokens partagees) pour les
+    vendables restes sans proposition (ancrage). Familles de
+    < min_members membres ignorees ; les items en cycle de recettes ne sont
+    jamais proposes. Retourne le nombre de cibles posees."""
+    fam: Dict[str, List[int]] = {}
+    for e in report.entries:
+        if e.status in (FAMILLE, ANCRAGE, NON_VENDABLE) or e.target is None:
+            continue
+        for w in _tokens(e.name):
+            fam.setdefault(w, []).append(e.target)
+    fam = {w: sorted(v)[len(v) // 2] for w, v in fam.items()
+           if len(v) >= min_members}
+    placed = 0
+    for e in report.entries:
+        if e.status != ANCRAGE or e.target is not None:
+            continue
+        if "cycle" in (e.detail or ""):
+            continue
+        toks = [w for w in _tokens(e.name) if w in fam]
+        if not toks:
+            continue
+        best = max(toks, key=lambda w: sum(
+            1 for o in report.entries
+            if o.status not in (FAMILLE, ANCRAGE, NON_VENDABLE)
+            and o.target is not None and w in _tokens(o.name)))
+        e.status = FAMILLE
+        e.target = fam[best]
+        e.detail += f" ; mediane de famille [{best}]"
+        placed += 1
+    return placed
+
+
+def single_input_suspects(idx: MarketIndex, report: MarketReport
+                          ) -> List[Dict[str, object]]:
+    """Recettes A INGRÉDIENT UNIQUE ou l'entree vaut ~le prix de sortie
+    (1:1 sans valeur ajoutee) : liste pour decision manuelle — jamais
+    modifiees automatiquement."""
+    by_name = {e.name: e for e in report.entries}
+    out: List[Dict[str, object]] = []
+    for tname, t in idx.templates.items():
+        if t.base_item:
+            continue           # materiel premier ancre : recette figurative
+        ins = [(m, q) for m, q in t.inputs if q != 0]
+        if len(ins) != 1:
+            continue
+        e = by_name.get(tname)
+        if e is None or e.price is None:
+            continue
+        mat, qty = ins[0]
+        pin = resolve_price(idx, mat)
+        if pin is None:
+            continue
+        unit_in = float(pin) / max(1, t.output_count)
+        val = (e.target if e.target is not None else e.price)
+        if unit_in * qty >= 0.95 * val:
+            out.append({"template": tname, "input": mat, "qty": qty,
+                        "input_price": pin, "output": val})
+    return out
+
+
+@dataclass
+class RecipePlan:
+    """Recette GENEREE : matieres de la famille dosées pour atteindre la
+    cible de prix de l'item (politique prix = cout)."""
+    name: str
+    target: int
+    craft_time: int
+    inputs: List[Tuple[str, int]]
+    source: str
+
+
+def plan_recipes(idx: MarketIndex, report: MarketReport
+                 ) -> Tuple[List[RecipePlan], List[str]]:
+    """Recettes proposables pour les vendables sans recette utilisable :
+    le modele = la recette d'un membre de la meme famille dont la cible est
+    la plus proche, dosee au prorata target_cible / target_membre.
+    Exclus : items en cycle, cibles <= 1 (placeholders), sans membre modele.
+    Retourne (plans, candidats ecartes avec raison)."""
+    by_name = {e.name: e for e in report.entries}
+    fam_members: Dict[str, List[str]] = {}
+    for e in report.entries:
+        if e.status in (FAMILLE, ANCRAGE, NON_VENDABLE) or e.target is None:
+            continue
+        if e.name in idx.templates:
+            for w in _tokens(e.name):
+                fam_members.setdefault(w, []).append(e.name)
+    plans: List[RecipePlan] = []
+    skipped: List[str] = []
+    for e in report.entries:
+        if e.status not in (FAMILLE, COUSIN, MATERIAU, ANCRAGE):
+            continue
+        if e.target is None or e.target <= 1:
+            if e.price is not None and e.status != ANCRAGE:
+                skipped.append(f"{e.name}: cible <= 1 (placeholder ?)")
+            continue
+        if "cycle" in (e.detail or ""):
+            skipped.append(f"{e.name}: cycle de recettes")
+            continue
+        toks = [w for w in _tokens(e.name) if w in fam_members]
+        if not toks:
+            skipped.append(f"{e.name}: aucun modele de famille")
+            continue
+        best_m, best_gap = None, None
+        for w in toks:
+            for m in fam_members[w]:
+                gap = abs((by_name[m].target or 0) - (e.target or 0))
+                if best_gap is None or gap < best_gap:
+                    best_m, best_gap = m, gap
+        mt = idx.templates.get(best_m)
+        me = by_name.get(best_m)
+        if mt is None or me is None or me.target is None:
+            skipped.append(f"{e.name}: modele de famille illisible")
+            continue
+        ratio = (e.target or 1) / max(1.0, float(me.target))
+        inputs = [(m, max(1, round(q * ratio))) for m, q in mt.inputs
+                  if q != 0]
+        if not inputs:
+            skipped.append(f"{e.name}: modele de famille vide")
+            continue
+        plans.append(RecipePlan(name=e.name, target=e.target,
+                                craft_time=mt.craft_time or 10,
+                                inputs=inputs, source=best_m))
+    return plans, skipped
+
+
+def apply_recipes(plans: List[RecipePlan], root) -> Tuple[Path, int]:
+    """Ecrit les recettes generees en fin de Templates.ecf (+Template,
+    name-based, conventions du projet) : backup central du fichier avant,
+    ecriture atomique, revalidation par le parseur. Retourne (chemin, n)."""
+    cdir = config_dir(root)
+    path = cdir / "Templates.ecf"
+    central_backup(path, "market_recipes")
+    blocks = []
+    for pl in plans:
+        ins = "\n".join(f"    {m}: {q}" for m, q in pl.inputs)
+        blocks.append(
+            f"{{ +Template Name: {pl.name}\n"
+            f"  CraftTime: {pl.craft_time}\n"
+            f'  Target: "SurvC,SmallC,HoverC,BaseC,LargeC,AdvC"\n'
+            f"  {{ Child Inputs\n{ins}\n  }}\n}}\n")
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if text and not text.endswith("\n"):
+        text += "\n"
+    text += "\n" + "\n".join(blocks)
+    atomic_write_text(path, text)
+    parse_ecf_file(path)                    # revalidation : echec = exception
+    return path, len(plans)
+
+
 def build_report(idx: MarketIndex, van: Optional[MarketIndex] = None,
                  margin: float = DEFAULT_MARGIN,
-                 craft_pct: float = DEFAULT_CRAFT_PCT,
-                 craft_step: float = DEFAULT_CRAFT_STEP,
-                 craft_cap: float = DEFAULT_CRAFT_CAP) -> MarketReport:
+                 fab_pct: float = DEFAULT_FAB_PCT) -> MarketReport:
     """Rapport complet : statut, cout, cible pour chaque bloc/item.
     Une seule passe ; les cibles supposent TOUTES appliquees en meme
     temps (cascade bottom-up)."""
@@ -410,23 +561,28 @@ def build_report(idx: MarketIndex, van: Optional[MarketIndex] = None,
             entry.target = max(1, round(ppm[mat] * mass))
             entry.detail += f" ; prix/masse du materiau {mat}"
     report = MarketReport(entries=entries)
+    retarget(report, idx, margin, fab_pct)
+    # repli FAMILLE : mediane des cibles des items partageant un token —
+    # APRES retarget (les cibles fabriquables/groupe doivent exister)
+    famille_targets(report, idx)
+    report.counts = {}
     for e in entries:
         report.counts[e.status] = report.counts.get(e.status, 0) + 1
-    retarget(report, idx, margin, craft_pct, craft_step, craft_cap)
     return report
 
 
 def retarget(report: MarketReport, idx: MarketIndex, margin: float,
-             craft_pct: float, craft_step: float = DEFAULT_CRAFT_STEP,
-             craft_cap: float = DEFAULT_CRAFT_CAP) -> None:
+             fab_pct: float = DEFAULT_FAB_PCT) -> None:
     """Recalcule les cibles a partir du COUT (fabriquables + groupes) quand
     un parametre bouge — CPU pur, sans re-parse. Les statuts de repli
     (cousin, materiau) ne dependent pas des parametres."""
     for e in report.entries:
         if e.cost is not None and e.cost > 0 and e.status in (FABRIQUABLE, GROUPE):
-            e.target = _apply_formula(e.cost,
-                                      _craft_time_of(idx, e.template),
-                                      margin, craft_pct, craft_step, craft_cap)
+            e.target = _apply_formula(e.cost, margin, fab_pct)
+    # les cibles FAMILLE suivent la mediane (les cibles sources viennent
+    # de bouger ci-dessus) — rafraichissement idempotent
+    if any(e.status == FAMILLE for e in report.entries):
+        famille_targets(report, idx)
 
 
 # ------------------------------------------------------------ application

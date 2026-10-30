@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.merge_dependencies import (DependencyFile, STATUS_CSV, STATUS_ECF,
                                      STATUS_NEW, STATUS_OVERWRITE, FilePlan,
                                      plan_folder_merge)
@@ -74,6 +75,7 @@ class FolderMergeReviewDialog(QDialog):
         btn_none = QPushButton(t("trans.uncheck_all"))
         btn_none.clicked.connect(lambda: self._set_all_checks(False))
         buttons.addWidget(btn_none)
+        add_info_button(buttons, "foldermerge.info_html")
         buttons.addStretch()
         self.btn_apply = QPushButton(t("mergeplan.btn_apply"))
         self.btn_apply.setObjectName("primaryButton")

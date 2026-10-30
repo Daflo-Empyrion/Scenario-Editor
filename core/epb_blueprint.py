@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import csv
 import os
+import re
 import struct
 import zlib
 from dataclasses import dataclass, field
@@ -177,8 +178,13 @@ def _skip_statistics(r: "_BinReader", version: int) -> None:
         r.u16()
         r.i32()
     r.f32(); r.f32(); r.f32(); r.f32()
-    r.boolean()
-    r.boolean()
+    if version != 28:
+        r.boolean()
+        r.boolean()
+    # v28 : les deux booléens finaux disparaissent (vérifié sur le corpus :
+    # 8/8 prefabs v28 -> l'octet suivant est le block-groups version 5 avec
+    # des comptages cohérents, et le booléen mapping-present lu a cette
+    # position vaut False = pas de BlockIdMapping dans ces fichiers)
 
 
 def _skip_block_groups(r: "_BinReader") -> None:
@@ -196,6 +202,113 @@ def _skip_block_groups(r: "_BinReader") -> None:
             r.u32()             # Vector3i packee
             if version > 1:
                 _read_string_skip(r)
+
+
+_NAME_BYTES = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_.\- ]{2,63}")
+
+
+def _scan_id_mapping(data: bytes, start: int = 8,
+                     end: Optional[int] = None):
+    """Repli v28+ : cherche un blob BlockIdMapping plausible par signature.
+
+    Le chemin strict echoue sur les prefabs dont le layout de statistiques
+    n'est pas cartographie (v28 : la lecture derive et cherche un nom de
+    1,6 Mo). Le blob est pourtant tres reconnaissable : present=1,
+    format=1, count i32 sane, puis count x (varint longueur 3-64 + nom
+    ASCII de bloc + u16 id local UNIQUE). Faux positif quasi impossible."""
+    pos = start
+    end = len(data)
+    while pos < end - 8:
+        if data[pos] != 1 or data[pos + 1] != 1:
+            pos += 1
+            continue
+        count = struct.unpack_from("<i", data, pos + 2)[0]
+        if not (1 <= count <= 1000):
+            pos += 1
+            continue
+        p = pos + 6
+        mapping: Dict[int, str] = {}
+        ids: Set[int] = set()
+        ok = True
+        for _ in range(count):
+            length, shift = 0, 0
+            while True:
+                if p >= end:
+                    ok = False
+                    break
+                b = data[p]
+                p += 1
+                length |= (b & 0x7F) << shift
+                if not (b & 0x80):
+                    break
+                shift += 7
+                if shift > 21:
+                    ok = False
+                    break
+            if (not ok or not (3 <= length <= 64)
+                    or p + length + 2 > end):
+                ok = False
+                break
+            name = data[p:p + length]
+            p += length
+            if not _NAME_BYTES.fullmatch(name):
+                ok = False
+                break
+            local_id = struct.unpack_from("<H", data, p)[0]
+            p += 2
+            if local_id in ids:
+                ok = False
+                break
+            ids.add(local_id)
+            mapping[local_id] = name.decode("ascii")
+        if ok and len(mapping) == count:
+            return mapping
+        pos += 1
+    return None
+
+
+def read_id_mapping(path: os.PathLike, max_bytes: int = 2_000_000):
+    """Mapping local_id -> nom de bloc embarque dans un .epb, ou None si
+    illisible.
+
+    C'est cette table que le jeu resout PAR NOM contre BlocksConfig au
+    chargement : un nom absent de la config produit « IdMapping: no name
+    for id X found in '<BP>' » et le bloc est ignore au spawn. La lecture
+    est BORNEE au header (le mapping precede les donnees compressees) —
+    ~30 s pour 5800 prefabs, sans decompression.
+
+    Deux chemins : le layout cartographie (versions lues par parse()) puis,
+    en repli, une recherche par signature qui rend lisibles les prefabs
+    v28+ a statistiques non cartographiees (vecu 27/10 : 1112 prefabs BAF_*/
+    BAJ_*/BAgs_* du corpus RE2)."""
+    data = b""
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read(max_bytes)
+        if struct.unpack_from("<I", data, 0)[0] != EPB_MAGIC:
+            return None
+        version = struct.unpack_from("<I", data, 4)[0]
+        r = _BinReader(data)
+        r.u32()
+        r.u32()
+        if version > 1:
+            r.u8()
+        if version <= 2:
+            return {}
+        r.i32(); r.i32(); r.i32()
+        _skip_properties(r)
+        _skip_statistics(r, version)
+        if version > 27:
+            if r.boolean():
+                return _read_block_id_mapping(r)
+            return {}
+        return {}
+    except (OSError, struct.error, IndexError, OverflowError, EpbError):
+        pass
+    if len(data) <= 8:
+        return None
+    pk = data.find(b"PK\x03\x04")
+    return _scan_id_mapping(data, 8, pk if pk > 8 else len(data))
 
 
 def read_header(path: os.PathLike, max_bytes: int = 262144):

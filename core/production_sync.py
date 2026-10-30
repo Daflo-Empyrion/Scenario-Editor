@@ -23,6 +23,7 @@ PAS la source A -- docstring erronee corrigee le 26/09/2026 apres vecu :
 un sync vs source A n'aurait jamais liste les fichiers identiques a A
 mais absents ou anciens dans la production)."""
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
@@ -133,3 +134,52 @@ def sync_to_production(files: Sequence[Tuple], working_root, prod_root,
                     raise OSError(f"{cache} : {e}") from e
                 bins += 1
     return copied, deleted, bins, saved_root
+
+
+def sync_backup_root() -> Path:
+    """Repertoire des sauvegardes de synchro : chaque copie ecrasee en
+    production y est archivee, horodatee (~/.empyrion_editor/production_sync)."""
+    return Path.home() / ".empyrion_editor" / "production_sync"
+
+
+def list_sync_backups() -> List[Path]:
+    root = sync_backup_root()
+    if not root.is_dir():
+        return []
+    return [p for p in sorted(root.iterdir()) if p.is_dir()]
+
+
+def restore_production_backup(prod_root, backup_dir
+                              ) -> Tuple[int, int, int, Optional[Path]]:
+    """Remonte les fichiers d'une sauvegarde de synchro (arborescence
+    miroir de la production) vers la production. L'etat ACTUEL des
+    fichiers concernes est archive D'ABORD (cumul horodate, meme
+    repertoire), et les caches .yaml.bin des playfields restaurees sont
+    supprimes (le jeu les regenere — meme regle que sync_to_production).
+    Retourne (restaures, archives, caches invalides, dossier d'archive)."""
+    prod_root = Path(prod_root)
+    backup_dir = Path(backup_dir)
+    files = [p for p in sorted(backup_dir.rglob("*")) if p.is_file()]
+    if not files:
+        return 0, 0, 0, None
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safety = backup_dir.parent / f"avant_restauration_{stamp}"
+    restored = archived = bins = 0
+    for f in files:
+        rel = f.relative_to(backup_dir)
+        dest = prod_root / rel
+        if dest.is_file():
+            spath = safety / rel
+            spath.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dest, spath)
+            archived += 1
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, dest)
+        restored += 1
+        if (rel.as_posix().lower().startswith('playfields/')
+                and dest.name.lower().endswith('.yaml')):
+            cache = dest.with_name(dest.name + '.bin')
+            if cache.exists():
+                cache.unlink()
+                bins += 1
+    return restored, archived, bins, safety

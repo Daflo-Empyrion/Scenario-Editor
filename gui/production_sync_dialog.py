@@ -22,11 +22,12 @@ manuel. Les fichiers ecrases sont sauvegardes avant remplacement."""
 import time
 from pathlib import Path
 
-from PyQt6.QtWidgets import (QApplication, QCheckBox, QDialog, QFileDialog,
-                             QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                             QPushButton, QVBoxLayout)
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
+                             QFileDialog, QHBoxLayout, QLabel, QListWidget,
+                             QListWidgetItem, QPushButton, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.window_geometry import track
 
 
@@ -100,6 +101,7 @@ class ProductionSyncDialog(QDialog):
         self.btn_close = QPushButton(t("prodsync.close_btn"))
         self.btn_close.clicked.connect(self.reject)
         row_btn.addWidget(self.btn_close)
+        add_info_button(row_btn, "prodsync.info_html")
         lay.addLayout(row_btn)
 
         self.chk_ask = QCheckBox(t("prodsync.no_more_propose"))
@@ -108,6 +110,56 @@ class ProductionSyncDialog(QDialog):
         self.chk_ask.toggled.connect(
             lambda on: self._set_propose(not on))
         lay.addWidget(self.chk_ask)
+
+        restore_row = QHBoxLayout()
+        restore_row.addWidget(QLabel(t("prodsync.restore_label")))
+        self.combo_backups = QComboBox()
+        restore_row.addWidget(self.combo_backups, 1)
+        self.btn_restore = QPushButton(t("prodsync.restore"))
+        self.btn_restore.setObjectName("secondaryButton")
+        self.btn_restore.clicked.connect(self._restore_backup)
+        restore_row.addWidget(self.btn_restore)
+        lay.addLayout(restore_row)
+        self._refresh_backups()
+
+    def _refresh_backups(self):
+        from core.production_sync import list_sync_backups
+        from gui.busy import run_long
+        self.combo_backups.clear()
+        self.combo_backups.addItems(
+            [b.name for b in run_long(self, list_sync_backups)])
+
+    def _restore_backup(self):
+        """Restaure une sauvegarde de synchro (fichiers ecrases lors d'une
+        copie precedente) vers la production : meme retour en arriere que
+        le module cartoon, cible production."""
+        from core.production_sync import (restore_production_backup,
+                                          sync_backup_root)
+        from gui.busy import run_long
+        from gui.msgboxes import ask_yes_no, critical, info
+        name = self.combo_backups.currentText()
+        if not name or self._working_root is None:
+            return
+        prod = Path(self.target_edit.text().strip())
+        if not prod.is_dir():
+            self.hint_label.setStyleSheet("color: #ff7070;")
+            self.hint_label.setText(t("prodsync.choose_target"))
+            return
+        if not ask_yes_no(self, t("prodsync.restore"),
+                          t("prodsync.restore_confirm", name=name)):
+            return
+        backup_dir = sync_backup_root() / name
+        try:
+            restored, archived, bins, safety = run_long(
+                self, lambda: restore_production_backup(prod, backup_dir))
+        except Exception as e:  # noqa: BLE001 - message en place
+            critical(self, t("err.title"), t("prodsync.copy_failed", error=e))
+            return
+        info(self, t("prodsync.restore"),
+             t("prodsync.restore_done", n=restored, a=archived, b=bins,
+               safety=safety))
+        self._refresh_backups()
+        self._scan()
 
     def _line_edit(self):
         from PyQt6.QtWidgets import QLineEdit

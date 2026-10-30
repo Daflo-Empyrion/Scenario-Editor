@@ -38,6 +38,7 @@ import subprocess
 import sys
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core import settings, backup_manager
 from gui.theme import icon, icon_size
 
@@ -119,6 +120,7 @@ class BackupManagerDialog(QDialog):
         btn_delete.setObjectName("secondaryButton")
         btn_delete.clicked.connect(self._delete_selected)
         actions_row.addWidget(btn_delete)
+        add_info_button(actions_row, f"backup.info_html_{self.kind}")
         actions_row.addStretch()
         layout.addLayout(actions_row)
 

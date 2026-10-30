@@ -35,6 +35,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.ecf.model import EcfBlock
 from core.ecf.variants import list_editable_fields_block
 from gui.property_edit_table import PropertyEditTable
@@ -67,6 +68,7 @@ class DuplicateVariantsDialog(QDialog):
         self._existing_names = {n for n in (existing_names or ()) if n}
 
         layout = QVBoxLayout(self)
+        add_info_button(layout, "dupvar.info_html")
         none_placeholder = t("dup.none_placeholder")
         if show_id_field:
             header_text = t("dup.current_block", id=current_id or none_placeholder,

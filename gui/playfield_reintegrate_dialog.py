@@ -17,10 +17,11 @@
 """Reintegration de playfields orphelins : liste cochable, lot par systeme,
 apercu des lignes YAML, application avec backup + undo, puis bilan.
 
-Le placement calque le corpus (voir core/playfield_reintegrate) : anneau de
-30 entre secteurs, lunes et orbites en offset dans le secteur d'une planete,
-`SectorMapType` seulement quand le jeu en attend un. Les secteurs ecrits par
-l'ancienne version (signature d'etoile) sont proposes a la suppression.
+Le placement calque le corpus (voir core/playfield_reintegrate) : orbite
+verticale autour de l'etoile du systeme (pas de 30), lunes et orbites en
+offset dans le secteur d'une planete, `SectorMapType` seulement quand le
+jeu en attend un. Les secteurs ecrits par l'ancienne version (signature
+d'etoile) sont proposes a la suppression.
 
 Rappel affiche : le jeu charge la COPIE du Sectors.yaml faite dans la
 sauvegarde — ces ajouts ne valent que pour une NOUVELLE partie.
@@ -34,6 +35,7 @@ from PyQt6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLabel,
 
 from core import settings
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.playfield_reintegrate import (apply_placements,
                                         find_legacy, find_missing_arrivals,
                                         find_orphans, plan_placements,
@@ -100,6 +102,7 @@ class PlayfieldReintegrateDialog(QDialog):
         btn_close = QPushButton(t("reintegrate.close"))
         buttons.addWidget(self.btn_preview)
         buttons.addWidget(self.btn_apply)
+        add_info_button(buttons, "reintegrate.info_html")
         buttons.addStretch(1)
         buttons.addWidget(btn_close)
         layout.addLayout(buttons)

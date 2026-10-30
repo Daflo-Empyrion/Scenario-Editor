@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.yaml_merge import YamlLineRow
 from gui.theme import icon
 from gui.window_geometry import track
@@ -104,6 +105,7 @@ class YamlLineMergeDialog(QDialog):
         self.btn_none = QPushButton(t("trans.uncheck_all"))
         self.btn_none.clicked.connect(lambda: self._set_all(False))
         row.addWidget(self.btn_none)
+        add_info_button(row, "linemerge.info_html")
         row.addStretch()
         self.btn_ok = QPushButton(icon("fa5s.check", "#ffffff"),
                                   t("mergepreview.btn_apply"))

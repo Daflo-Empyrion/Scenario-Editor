@@ -40,6 +40,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.galaxy_viewer import extract_solar_systems, classify_star_class
 from core.workspace_undo import FileStateUndo
 from gui.theme import icon, icon_size
@@ -414,6 +415,7 @@ class GalaxyViewerDialog(QDialog):
         self.summary_label = QLabel("")
         self.summary_label.setObjectName("mutedLabel")
         bottom_row.addWidget(self.summary_label)
+        add_info_button(bottom_row, "galaxy.info_html")
         bottom_row.addStretch()
 
         btn_refresh = QPushButton(icon("fa5s.sync-alt", "#4a7dfc"), t("results_window.btn_refresh"))

@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.yaml_merge import YamlUnit, analyze_yaml_merge, yaml_files_identical
 from gui.window_geometry import track
 
@@ -72,6 +73,7 @@ class YamlMergeReviewDialog(QDialog):
         self.btn_none = QPushButton(t("trans.uncheck_all"))
         self.btn_none.clicked.connect(lambda: self._set_all_checks(False))
         buttons.addWidget(self.btn_none)
+        add_info_button(buttons, "yamlmerge.info_html")
         buttons.addStretch()
         self.btn_poi = None
         if (self.working_yaml.name.lower() == "playfield_static.yaml"

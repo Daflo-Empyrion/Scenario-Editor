@@ -64,6 +64,11 @@ class PdaIssue:
     entry: Optional[YamlEntry] = None   # cible navigable (double-clic)
 
 
+_TITLE_KEYS = frozenset((
+    "ChapterTitle", "TaskTitle", "ActionTitle", "Headline",
+    "Description", "StartMessage", "CompletedMessage"))
+
+
 def _title(model, entry: YamlEntry) -> str:
     token = entry.value or ""
     text = model.csv_text(token, "English") if token else ""
@@ -106,6 +111,78 @@ def _list_values(entry: YamlEntry, key: str) -> List[str]:
 
 
 # ------------------------------------------------------------------ action
+
+def _enum_type_issues(model, entry, path) -> List[PdaIssue]:
+    """Valeurs hors enum : UNE seule valeur fautive fait echouer la
+    deserialization de TOUT le PDA par le jeu (« Requested value 'true' was
+    not found » sur Required: true, vecu 26/10 — plus aucune mission
+    affichee). Balayage RECURSIF de tout le sous-arbre : Required apparait
+    aussi dans ChapterActivation/RepeatConditions, hors de l'arbre
+    chapitres->taches->actions. ERREUR, pas avertissement."""
+    issues: List[PdaIssue] = []
+    stack: List[YamlEntry] = [entry]
+    while stack:
+        node = stack.pop()
+        for child in node.children:
+            if not isinstance(child, YamlEntry):
+                continue
+            values = schema.ENUM_KEYS.get(child.key)
+            if values:
+                value = (child.value or "").strip().strip("'\"")
+                if value and value not in values:
+                    issues.append(PdaIssue(
+                        "error", "PDA-A9", path,
+                        t("pda.val.bad_enum", key=child.key, value=value,
+                          values=", ".join(values)), child))
+            stack.append(child)
+    return issues
+
+
+_BLOCK_SCALARS = frozenset((">", ">-", ">+", "|", "|-", "|+"))
+
+
+def _start_message_issues(model, chapter, path) -> List[PdaIssue]:
+    """StartMessage du CHAPITRE non préfixé : le jeu journalise « Chapter
+    '...' has malformed StartMessage » et n'affiche pas le message (vecu
+    26/10). Format du corpus : norm;20|pda_xxx / mbox;20| / high;20| / dlg;...
+    — 280 préfixés, AUCUN nu (hors erreur vecue). Ne concerne QUE StartMessage :
+    CompletedMessage (148 nus) et SkipMessage (9 nus) sont tolérés par le jeu."""
+    value = _scalar(chapter, "StartMessage").strip().strip("'\"")
+    if (value and value not in _BLOCK_SCALARS
+            and not re.match(r"^(norm|mbox|high|dlg);", value)):
+        return [PdaIssue(
+            "warning", "PDA-A10", path,
+            t("pda.val.a10_message_prefix"), chapter)]
+    return []
+
+
+def _empty_english_issues(model, entry, path) -> List[PdaIssue]:
+    """Jeton qui ne resout RIEN en anglais (ligne absente du PDA.csv ou
+    texte vide) : la base de localisation du jeu est l'anglais — le PDA et
+    la telemetrieGameAnalytics lisent un titre vide (vecu 26/10 :
+    « PDA:Chapter::Act » a segment vide + NullReferenceException au
+    rechargement de la localisation). Titres = erreur, textes = avertissement."""
+    issues: List[PdaIssue] = []
+    stack: List[YamlEntry] = [entry]
+    while stack:
+        node = stack.pop()
+        for child in node.children:
+            if not isinstance(child, YamlEntry):
+                continue
+            token = (child.value or "").strip()
+            if child.key in _TITLE_KEYS and re.match(r"^[A-Za-z0-9_]*pda_[A-Za-z0-9]+$", token):
+                if not model.csv_text(token, "English").strip():
+                    # titre affiche dans la liste du PDA = erreur ; texte =
+                    # avertissement (anomalies preexistantes du corpus)
+                    severity = ("error" if child.key in
+                                ("ChapterTitle", "TaskTitle", "ActionTitle")
+                                else "warning")
+                    issues.append(PdaIssue(
+                        severity, "PDA-A11", path,
+                        t("pda.val.a11_empty_english", token=token), child))
+            stack.append(child)
+    return issues
+
 
 def validate_action(model, chapter, task, action) -> List[PdaIssue]:
     """A2 + A7 pour UNE action -- utilise en live par le panneau d'edition
@@ -168,6 +245,30 @@ def validate_action(model, chapter, task, action) -> List[PdaIssue]:
             issues.append(PdaIssue(
                 "warning", "PDA-A7", path,
                 t("pda.val.unused_types_field", check=t(spec.label_key)), action))
+
+    # -- A9 : valeurs hors enum (le jeu refuse alors TOUT le PDA)
+    issues.extend(_enum_type_issues(model, action, path))
+
+    # -- A12 : piège du minage — BlockDestroyed ne voit QUE les blocs posés
+    # sur une structure ; miner un gisement de terrain emet OresDropped /
+    # DrilledOrFilledBlocks, qu'aucune action PDA ne recoit. Le compteur
+    # reste donc a 0/Amount (vecu 26/10). Le comptage d'objets ramasses passe
+    # par ItemsPickedUp (handler : CompletedAmount += quantite >= Amount).
+    if check == "BlockDestroyed" and any(
+            value.endswith("Resource") for value in names + types):
+        issues.append(PdaIssue(
+            "warning", "PDA-A12", path,
+            t("pda.val.a12_mining"), action))
+
+    # -- A13 : ItemsPickedUp compare TYPES (id d'objet), jamais Names.
+    # Le handler appelle FormatMenu(type, meta, name: null, quantite) : avec
+    # seulement Names, le jeu journalise « Missing Name parameter » et le
+    # compteur reste a 0 (vecu 26/10). Forme qui marche (Tutorial officielle,
+    # Mining Contracts de Default Akua-Omicron) : Types: <Metal>Ore + Amount.
+    if check == "ItemsPickedUp" and names and not types:
+        issues.append(PdaIssue(
+            "error", "PDA-A13", path,
+            t("pda.val.a13_items_types"), action))
     return issues
 
 
@@ -231,6 +332,15 @@ def validate_model(model) -> List[PdaIssue]:
 
     for index, chapter in enumerate(chapters):
         issues.extend(validate_chapter(model, chapter, index, chapter_tokens))
+        # -- A9 : valeurs hors enum dans tout le sous-arbre du chapitre
+        # (actions, ChapterActivation, RepeatConditions...) — une seule
+        # valeur fautive empeche le chargement de TOUT le PDA
+        issues.extend(_enum_type_issues(model, chapter, _chain(model, chapter)))
+        # -- A10 : StartMessage du chapitre sans son prefixe de format
+        issues.extend(_start_message_issues(model, chapter, _chain(model, chapter)))
+        # -- A11 : jetons de titre resolvant vide en anglais (langue de base
+        # du jeu : telemetrie a segment vide + NRE a la relocalisation)
+        issues.extend(_empty_english_issues(model, chapter, _chain(model, chapter)))
 
         # -- A1 : titres trop longs (le HUD passe a la ligne au-dela)
         for task in model.tasks(chapter):
@@ -239,6 +349,13 @@ def validate_model(model) -> List[PdaIssue]:
 
     # -- A6 : jetons utilises absents du PDA.csv + jetons orphelins
     issues.extend(validate_csv_tokens(model))
+
+    # A9 : une meme entree est visitee par la marche recursive du chapitre ET
+    # par validate_action — un seul signalement par noeud fautif.
+    seen_a9: set = set()
+    issues = [i for i in issues
+              if i.code != "PDA-A9"
+              or (id(i.entry) not in seen_a9 and not seen_a9.add(id(i.entry)))]
 
     # Agr egation : un contenu reel contient des CENTAINES d'avertissements
     # du meme type (vecu 12/09/2026 : 862 actions sans CompletedMessage sur

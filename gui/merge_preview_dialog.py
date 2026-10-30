@@ -45,6 +45,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.ecf.merge import (ITEM_PROP_RE, merge_documents,
                             normalize_item_list, ordered_items,
                             renumber_item_lines)
@@ -331,6 +332,7 @@ class MergePreviewDialog(QDialog):
         btn_none = QPushButton(t("trans.uncheck_all"))
         btn_none.clicked.connect(lambda: self._set_all_checks(False))
         buttons.addWidget(btn_none)
+        add_info_button(buttons, "mergeprev.info_html")
         buttons.addStretch()
         btn_ok = QPushButton(t("mergepreview.btn_apply"))
         btn_ok.setObjectName("primaryButton")

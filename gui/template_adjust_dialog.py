@@ -32,6 +32,7 @@ from typing import Dict, List, Optional, Tuple
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTabWidget
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.template_recipe_editor import TemplateRecipeEditor
 
 
@@ -64,6 +65,7 @@ class TemplateAdjustDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(t("dup.adjust_template_hint")))
+        add_info_button(layout, "templadj.info_html")
 
         self.tabs = QTabWidget()
         self._editors: Dict[str, TemplateRecipeEditor] = {}

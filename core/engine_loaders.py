@@ -52,6 +52,7 @@ import re
 from typing import Dict, List, Optional, Set, Tuple
 
 from .ecf.doc_cache import get_parsed_doc
+from .ecf.model import EcfProperty
 from .ecf.parser import parse_ecf_file
 from .launch_check import LaunchIssue
 from .parsers_utils import parse_quoted_list
@@ -95,6 +96,16 @@ BLOCKSHAPE_CLASSES = {
 _CONF = "Content/Configuration"
 _MAX_ANCESTORS = 7          # le jeu jette au 8e ancetre (compteur > 5)
 _ALT_RE = re.compile(r"^(?:Alt)?([0-9]|1[0-9]|20)$")
+# proprietes que le client lit comme CHAINES (Values[...] -> as string) puis
+# passe a float.Parse : une annotation type: int|float|bool les stocke en
+# objet typé, get_Item rend null -> « Single.Parse(null) » fatale (vecu
+# 27/10 : Radiation: 8, type: int -> ArgumentNullException + cascade 374 NRE
+# au chargement ; la vanille n'annote JAMAIS ces cles)
+_STRING_READ_FLOATS = {
+    "Radiation", "LPHardnessScale", "LifetimeOnDrop", "Specular",
+    "Emissive", "Light", "MovementFactor",
+}
+_TYPED_MARKERS = {"int", "float", "bool"}
 
 
 def _name(b) -> Optional[str]:
@@ -498,6 +509,28 @@ def _check_blocks(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
                                  f"moteur (chargeur blocs) : « No shape class "
                                  f"'BlockShape{shape}' found » — {name}"))
 
+        # annotation type: sur une propriete lue comme CHAINE (voir
+        # _STRING_READ_FLOATS) : valeur stockee en objet typé -> null ->
+        # « Single.Parse(null) » fatale au chargement des blocs
+        for line in b.children:
+            if not isinstance(line, EcfProperty):
+                continue
+            markers = {v.strip().strip('"').lower()
+                       for k, v in line.pairs if k == 'type'}
+            if not markers & _TYPED_MARKERS:
+                continue
+            for key, _val in line.pairs:
+                if key in _STRING_READ_FLOATS:
+                    issues.append(_issue(
+                        rel, "error",
+                        f"moteur (chargeur blocs) : « Single.Parse(null) » — "
+                        f"'{key}' de {name} porte 'type: "
+                        f"{', '.join(sorted(markers & _TYPED_MARKERS))}' "
+                        f"alors que le chargeur lit cette propriete comme "
+                        f"CHAINE ; retirer 'type:' (forme vanille "
+                        f"'{key}: <nombre>, display: true')"))
+                    break
+
 # ---------------------------------------------------------------------------
 # TechTree — ConfigTree (+ parseur ECF)
 # ---------------------------------------------------------------------------
@@ -524,6 +557,25 @@ def _check_techtree(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
     for n in tree.nodes:
         if n.parent_name:
             parents[n.name] = n.parent_name
+
+    # niveau de l'enfant STRICTEMENT superieur a celui du parent (« Item
+    # unlock level of higher tier <= lower tier: X », vecu 27/10 :
+    # ShieldGeneratorPOI 1 sous ShieldGeneratorT0 15)
+    by_name = {n.name: n for n in tree.nodes}
+    for n in tree.nodes:
+        p = by_name.get(n.parent_name) if n.parent_name else None
+        if p is None or n.unlock_level is None or p.unlock_level is None:
+            continue
+        if n.unlock_level <= p.unlock_level:
+            conf_file = ("BlocksConfig.ecf" if n.source == "block"
+                         else "ItemsConfig.ecf")
+            issues.append(_issue(
+                f"{_CONF}/{conf_file}", "warning",
+                f"moteur (arbre technologique) : « Item unlock level of "
+                f"higher tier <= lower tier: {n.name} » — UnlockLevel "
+                f"{n.unlock_level} <= {p.unlock_level} du parent {p.name} ; "
+                f"relever le niveau de l'enfant (paliers 1/3/5/7/10/12/15/"
+                f"20/25, au-dela parent+1)"))
 
     def _chain_depth(name: str) -> Tuple[int, Optional[str]]:
         seen = {name}
@@ -615,6 +667,119 @@ def _check_ecf_parse(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
                     f"ignore par le jeu"))
 
 
+def _check_ref_order(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
+    """Chargeur ECF : un `Ref:` est resolu au fil du chargement SEQUENTIEL —
+    sa cible doit etre DECLAREE AVANT le bloc/item qui la reference, sinon
+    le client jette « Block '<cible>' not found for block '<nom>' » et la
+    table de blocs reste semi-initialisee (cascade de NRE a l'ecran de
+    chargement, vecu 27/10 : 352 NRE pour un Ref place apres un tri par
+    frequence). La vanille respecte cet ordre partout (0 ref avance,
+    verifie BlocksConfig + ItemsConfig)."""
+    for fname, kinds in (("BlocksConfig.ecf", ("Block", "+Block")),
+                         ("ItemsConfig.ecf", ("Item", "+Item"))):
+        path = ctx.conf / fname
+        if path is None or not path.exists():
+            continue
+        doc = get_parsed_doc(path)
+        declared = {_name(b) for b in doc.iter_blocks() if _name(b)}
+        seen: Set[str] = set()
+        for b in doc.iter_blocks():
+            name = _name(b)
+            ref = _prop(b, 'Ref')
+            if ref and name:
+                target = ref.strip().strip('"')
+                if target not in declared:
+                    issues.append(_issue(
+                        f"{_CONF}/{fname}", "error",
+                        f"Ref: '{target}' introuvable dans {fname} (referencé "
+                        f"par '{name}') — reintegrer le bloc depuis sa "
+                        f"source ; le jeu jette « Block '{target}' not "
+                        f"found for block '{name}' »"))
+                elif target not in seen:
+                    issues.append(_issue(
+                        f"{_CONF}/{fname}", "error",
+                        f"Ref: '{target}' déclaré APRÈS '{name}' — le "
+                        f"chargeur exige la cible AVANT (déplacer la "
+                        f"déclaration au-dessus) ; le jeu jette « Block "
+                        f"'{target}' not found for block '{name}' »"))
+            if name:
+                seen.add(name)
+
+
+
+def _check_templates(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
+    """Chargeur des Templates (OutlineFactory.JoinComponent) : chaque
+    Template doit resoudre son NOM DE SORTIE et chaque ingredient dans
+    Blocks/ItemsConfig — et uniquement dans CEUX DU SCENARIO : le jeu charge
+    la configuration du scenario A LA PLACE de celle de la base (vecu
+    28/10 : crash client « No item/block with name '_Acacia_Sapling_Fall'
+    existing » sur un template visant un bloc present en vanille seule ;
+    le chargeur jette, la boucle avorte et TOUS les templates suivants sont
+    perdus). Le dedi ne voit pas cette erreur (il charge les ECF au
+    demarrage d'un playfield, pas au boot) : seul le client la reveal."""
+    tpl_path = ctx.conf / "Templates.ecf"
+    if not tpl_path.exists():
+        return
+    exist: Dict[str, bool] = {}
+    for fname, kinds in (("BlocksConfig.ecf", {"Block", "+Block"}),
+                         ("ItemsConfig.ecf", {"Item", "+Item"})):
+        p = ctx.conf / fname
+        if p.exists():
+            for b in get_parsed_doc(p).iter_blocks():
+                if b.kind in kinds:
+                    n = _name(b)
+                    if n:
+                        exist[n] = True
+    for b in get_parsed_doc(tpl_path).iter_blocks():
+        if b.kind not in ("Template", "+Template"):
+            continue
+        name = _name(b)
+        if not name:
+            continue
+        if _prop(b, 'CraftTime') is None and b.get('CraftTime') is None:
+            issues.append(_issue(
+                f"{_CONF}/Templates.ecf", "error",
+                f"moteur (chargeur templates) : « Template must have a "
+                f"CraftTime property. » — {name}"))
+        if name not in exist:
+            issues.append(_issue(
+                f"{_CONF}/Templates.ecf", "error",
+                f"moteur (chargeur templates) : « No item/block with name "
+                f"'{name}' existing » — {name} n'existe ni dans "
+                f"BlocksConfig.ecf ni dans ItemsConfig.ecf DU SCENARIO (la "
+                f"config du scenario remplace celle de la base) ; le "
+                f"chargeur jette et avorte TOUS les templates suivants"))
+        for child in b.children:
+            if str(getattr(child, 'kind', '')).find('Child Inputs') < 0:
+                continue
+            for prop in child.children:
+                if not isinstance(prop, EcfProperty):
+                    continue
+                for key, value in prop.pairs:
+                    if not key:
+                        continue
+                    if key not in exist:
+                        issues.append(_issue(
+                            f"{_CONF}/Templates.ecf", "error",
+                            f"moteur (chargeur templates) : « Missing item "
+                            f"with name '{key}' » — ingredient de {name}"))
+                        continue
+                    qty = (value or "").strip().strip('"')
+                    digits = qty[1:] if qty[:1] == '-' else qty
+                    if digits.isdigit() and qty.startswith('-'):
+                        issues.append(_issue(
+                            f"{_CONF}/Templates.ecf", "error",
+                            f"moteur (chargeur templates) : « Template's "
+                            f"input item '{key}' count cannot be negative » "
+                            f"— {name}"))
+                    elif not digits.isdigit():
+                        issues.append(_issue(
+                            f"{_CONF}/Templates.ecf", "error",
+                            f"moteur (chargeur templates) : quantite non "
+                            f"entiere '{value}' pour '{key}' dans {name} — "
+                            f"int.Parse jette"))
+
+
 def run_engine_loader_checks(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     """Les checks « chargeurs du moteur » du bilan : repliquent les
     validations fatales des chargeurs ECF/TechTree du jeu (voir docstring du
@@ -623,7 +788,9 @@ def run_engine_loader_checks(root: Path, vanilla_content: str = "") -> list[Laun
                Path(vanilla_content) / "Configuration" if vanilla_content else None)
     issues: List[LaunchIssue] = []
     _check_ecf_parse(ctx, issues)
+    _check_ref_order(ctx, issues)
     _check_blocks(ctx, issues)
     _check_items(ctx, issues)
+    _check_templates(ctx, issues)
     _check_techtree(ctx, issues)
     return issues

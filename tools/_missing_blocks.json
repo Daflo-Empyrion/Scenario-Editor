@@ -1,0 +1,252 @@
+{
+ "found": {
+  "CockpitSV06_Event": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ConcreteFullDestroyedOnTouchEffect": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ConcreteThinDestroyedOnTouchEffect": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ConcreteThinDestroyedRemoteEffect": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "CryoPodTalonAr": [
+   "vanille",
+   "keller2"
+  ],
+  "ExplosiveSmallBlocksRadiusFull": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ExplosiveSmallBlocksSelfFull": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "FuelTankSVSmallEvent": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "GeneratorSVSmallEvent": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "HullFullLargeDestroyedOnTouchEffect": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "HullThinLargeDestroyedOnTouchEffect": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBCargoContainerSmall": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBCargoPalette01": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBCargoPalette02": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBCargoPalette03": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBCargoPalette04": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBContainerMS01Large": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBContainerMS04Large": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBContainerMS05Large": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBLockerTriple": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBScifiContainer2Large": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBScifiStorage": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBTribalBookcase2": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBTribalBox": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PLBTribalSacks": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "PortalRing3x3": [
+   "vanille",
+   "keller2"
+  ],
+  "PortalRing5x5": [
+   "vanille",
+   "keller2"
+  ],
+  "PortalRing87x87": [
+   "vanille",
+   "keller2"
+  ],
+  "RCSBlockSVEvent": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ShieldExtenderCV": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "StationConsoleTalonAr": [
+   "vanille",
+   "keller2"
+  ],
+  "TechPortal": [
+   "vanille",
+   "keller2"
+  ],
+  "TeleporterBAEpic": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TeleporterBAEvent": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ThrusterJetMSRound1x3x1": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ThrusterJetMSRound3x13x3V2": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "ThrusterSVSmallEvent": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TurretBaseArtilleryUpgrade": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TurretBaseCannonUpgrade": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TurretBaseFlakUpgrade": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TurretBaseMinigunUpgrade": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TurretBasePulseLaserUpgrade": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "TurretMSPlasmaFaction": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "VisionBox": [
+   "vanille",
+   "keller2"
+  ],
+  "WarpDriveCVEpic": [
+   "vanille",
+   "next+",
+   "RE1",
+   "keller1",
+   "keller2"
+  ],
+  "WeaponMSLaserFactionTalonar": [
+   "vanille",
+   "keller2"
+  ],
+  "WindowSloped2MS": [
+   "vanille",
+   "next+",
+   "RE1",
+   "keller1",
+   "keller2"
+  ],
+  "WoodFullDestroyedOnTouchEffectBlocks": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ],
+  "WoodThinDestroyedOnTouchEffectBlocks": [
+   "vanille",
+   "keller1",
+   "keller2"
+  ]
+ },
+ "notfound": [
+  "BlockHeat",
+  "CommunicatorProgenitor01",
+  "ContainerProgenitor01",
+  "ContainerProgenitor01Large",
+  "LeverProgenitorStand"
+ ]
+}

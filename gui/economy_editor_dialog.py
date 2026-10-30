@@ -23,6 +23,7 @@ from core.economy.model import RangeSpec, TradeItem
 from core.economy.trader_config import TraderConfigDoc, TraderItemRow, TraderView
 from core.economy.validation import validate_trader_doc
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.theme import icon
 
 CATALOG_MIME = "application/x-empyrion-economy-item"
@@ -191,6 +192,7 @@ class EconomyEditorDialog(QDialog):
         b_to_abs.setObjectName("secondaryButton")
         b_to_abs.clicked.connect(lambda: self._convert_selected(False))
         tbl_btns.addWidget(b_to_abs)
+        add_info_button(tbl_btns, "ecoedit.info_html")
         tbl_btns.addStretch()
         center.addLayout(tbl_btns)
 

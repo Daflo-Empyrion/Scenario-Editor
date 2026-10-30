@@ -151,6 +151,28 @@ def test_parse_change_set_reads_the_last_fenced_block():
     assert proposal.changes[0].new == "2"
 
 
+def test_parse_change_set_drops_noop_changes():
+    """Vecu 26/10 : le modele declare des champs sans les changer (Names
+    laisses vides d'un remplissage de formulaire, Category recopiee a
+    l'identique) — changement_sans_effet invalidait TOUT le jeu de
+    changements et le formulaire ne se remplissait pas. Un no-op est
+    elimine au parsing ; si TOUT est no-op, changeset_vide reste."""
+    change = ('{"kind": "pda_field", "target": "%s", "old": "%s", '
+              '"new": "%s"}')
+    text = ('```json\n{"changes": ['
+            + change % ("Tier1.Names", "", "") + ", "
+            + change % ("Category", "SoloMission", "SoloMission") + ", "
+            + change % ("Tier1.Check", "", "BlockDestroyed")
+            + "]}\n```")
+    proposal, problems = changeset.parse_change_set(text)
+    assert problems == []
+    assert [c.target for c in proposal.changes] == ["Tier1.Check"]
+    tout_noop = ('```json\n{"changes": ['
+                 + change % ("A", "x", "x") + "]}\n```")
+    proposal2, problems2 = changeset.parse_change_set(tout_noop)
+    assert problems2 == ["changeset_vide"] and proposal2.changes == []
+
+
 def test_parse_change_set_without_block_reports_absence():
     assert changeset.parse_change_set("aucun JSON ici") == (
         None, ["changeset_absent"])

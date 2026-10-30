@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QTableWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.settings import get_vanilla_content_path
 from core.unlock_balance import UnlockProposal, analyze, apply_proposals
 from gui.ewa_async import async_call
@@ -86,6 +87,7 @@ class UnlockCostDialog(QDialog):
         self.spin_max.setValue(0)
         self.spin_max.setToolTip(t("unlock.maxi.tip"))
         params.addWidget(self.spin_max)
+        add_info_button(params, "unlock.info_html")
         params.addStretch(1)
         self.btn_run = QPushButton(t("unlock.analyze"))
         self.btn_run.clicked.connect(lambda: self._analyze())

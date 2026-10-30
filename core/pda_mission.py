@@ -246,9 +246,16 @@ def create_action(spec: ObjectiveSpec, title_token: str, desc_token: str,
     action = create_entry("ActionTitle", title_token, indent=indent, is_sequence_item=True, eol=eol)
     action.children.append(create_entry("Description", desc_token, indent=child_indent, eol=eol))
     action.children.append(create_entry("Check", spec.check_type, indent=child_indent, eol=eol))
-    action.children.append(_make_list_of_scalars("Names", spec.names, child_indent, eol))
-    if spec.check_type == "BlockDestroyed" and spec.types:
-        action.children.append(_make_list_of_scalars("Types", spec.types, child_indent, eol))
+    # ItemsPickedUp : le moteur compare les TYPES (id d'objet) et ignore
+    # Names (name=null passe a FormatMenu) -> ecrire Types, jamais Names
+    # (verifie 26/10 sur la Tutorial officielle et Default Akua-Omicron).
+    if spec.check_type == "ItemsPickedUp":
+        action.children.append(_make_list_of_scalars(
+            "Types", spec.types or spec.names, child_indent, eol))
+    else:
+        action.children.append(_make_list_of_scalars("Names", spec.names, child_indent, eol))
+        if spec.check_type == "BlockDestroyed" and spec.types:
+            action.children.append(_make_list_of_scalars("Types", spec.types, child_indent, eol))
     action.children.append(create_entry("Amount", str(spec.amount), indent=child_indent, eol=eol))
     action.children.append(create_entry("AllowManualCompletion", "true", indent=child_indent, eol=eol))
     return action
@@ -439,3 +446,82 @@ def create_tier_chain(doc: YamlDocument, csv_doc, tiers: List[TierSpec], categor
 
     add_pda_text_entries(csv_doc, csv_entries)
     return created_chapters
+
+
+def create_tier_tasks(doc: YamlDocument, csv_doc, tiers: List[TierSpec], category: str,
+                      chapter_title: str = "", chapter_description: str = "") -> Optional[YamlEntry]:
+    """Cree UN SEUL Chapter dont les PALIERS sont des TACHES successives (une
+    tache par palier, dans l'ordre) — demande utilisateur du 26/10 : le
+    dialogue « Nouvelle mission PDA » produisait un chapitre par palier.
+
+    Les taches sont simplement listees dans l'ordre du chapter (le jeu les
+    affiche ensemble et le chapitre se complete quand toutes sont faites) :
+    aucun chainage RewardedTasks, dont le corpus n'offre pas de forme fiable.
+    Retourne le chapitre cree (None si 'Chapters' est introuvable)."""
+    if not tiers:
+        return None
+    root = find_chapters_root(doc)
+    if root is None:
+        return None
+
+    existing = list_chapters(doc)
+    indent = existing[0].indent if existing else "  "
+    eol = existing[0].eol if existing else "\r\n"
+    child_indent = indent + "  "
+    task_indent = child_indent + "  "
+
+    tokens_used = collect_all_tokens(doc)
+
+    def new_tok():
+        token = generate_token(tokens_used)
+        tokens_used.add(token)
+        return token
+
+    csv_entries: List[Tuple[str, str, str]] = []
+    title_token = new_tok()
+    desc_token = new_tok()
+    chapter = create_entry("ChapterTitle", title_token, indent=indent,
+                           is_sequence_item=True, eol=eol)
+    chapter.children.append(create_entry("Category", category, indent=child_indent, eol=eol))
+    chapter.children.append(create_entry("Activatable", "Always", indent=child_indent, eol=eol))
+    chapter.children.append(create_entry("Visibility", "Always", indent=child_indent, eol=eol))
+    chapter.children.append(create_entry("Description", desc_token, indent=child_indent, eol=eol))
+
+    tasks_node = create_entry("Tasks", "", indent=child_indent, eol=eol)
+    chapter_rewards: List[RewardSpec] = []
+    for tier in tiers:
+        task_token, action_title_token, action_desc_token = new_tok(), new_tok(), new_tok()
+        task = create_task([tier.objective], task_token,
+                           [(action_title_token, action_desc_token)], task_indent, eol)
+        # recompenses du palier : au niveau de la TACHE (chaque palier paie),
+        # le dernier alimente aussi le chapitre pour que la fin de mission
+        # soit recompensee une seule fois.
+        if tier.rewards:
+            rewards_node = create_entry("Rewards", "", indent=task_indent + "  ", eol=eol)
+            for r in tier.rewards:
+                rewards_node.children.append(
+                    create_reward_entry(r, task_indent + "    ", eol))
+            task.children.append(rewards_node)
+        tasks_node.children.append(task)
+
+        csv_entries.append((task_token, tier.title_text, tier.title_text))
+        csv_entries.append((action_title_token, tier.title_text, tier.title_text))
+        csv_entries.append((action_desc_token, tier.description_text, tier.description_text))
+        if tier.rewards:
+            chapter_rewards = tier.rewards
+
+    chapter.children.append(tasks_node)
+    if chapter_rewards:
+        rewards_node = create_entry("Rewards", "", indent=child_indent, eol=eol)
+        for r in chapter_rewards:
+            rewards_node.children.append(create_reward_entry(r, child_indent + "  ", eol))
+        chapter.children.append(rewards_node)
+
+    root.children.append(chapter)
+
+    title = chapter_title or tiers[0].title_text
+    description = chapter_description or tiers[0].description_text
+    csv_entries.insert(0, (title_token, title, title))
+    csv_entries.insert(1, (desc_token, description, description))
+    add_pda_text_entries(csv_doc, csv_entries)
+    return chapter

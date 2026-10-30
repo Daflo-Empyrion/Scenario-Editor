@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (QDialog, QLabel, QListWidget, QListWidgetItem,
                              QPushButton, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.theme import icon
 
 
@@ -20,6 +21,7 @@ class EconomyCheckDialog(QDialog):
         self.setWindowTitle(t("ecocheck.title"))
         self.setMinimumSize(640, 420)
         layout = QVBoxLayout(self)
+        add_info_button(layout, "ecocheck.info_html")
         intro = QLabel(t("ecocheck.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)

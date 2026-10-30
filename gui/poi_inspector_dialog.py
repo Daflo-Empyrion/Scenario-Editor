@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.poi_inspector import compute_poi_stats, aggregate_by_faction
 from gui.theme import icon, icon_size
 from gui.results_window_helpers import export_text_to_file
@@ -55,6 +56,7 @@ class PoiInspectorDialog(QDialog):
         self.summary_label = QLabel("")
         self.summary_label.setObjectName("mutedLabel")
         bottom_row.addWidget(self.summary_label)
+        add_info_button(bottom_row, "poiinsp.info_html")
         bottom_row.addStretch()
 
         btn_refresh = QPushButton(icon("fa5s.sync-alt", "#4a7dfc"), t("results_window.btn_refresh"))

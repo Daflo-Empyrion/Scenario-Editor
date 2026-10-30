@@ -521,6 +521,54 @@ def add_tools(tools: ToolRegistry, root, surface: str,
             handler=lambda args: _merge_plan(roots, args)))
 
 
+    tools.add(Tool(
+        name="scenario_balance_report", surface=surface, max_chars=6000,
+        description="Read-only danger/ progression summary of the working "
+                    "scenario: strongest playfields (spawn wave totals vs the "
+                    "median of their type), PDA chapters whose rewards are "
+                    "below/above their category median, and faction attack "
+                    "costs vs the median. Slow on big scenarios (tens of "
+                    "seconds). Use it before proposing balance changes.",
+        parameters={"properties": {"limit": {"type": "integer"}},
+                    "required": []},
+        handler=lambda args: _balance_text(
+            roots["working"], int(arg(args, "limit", "top") or 10))))
+
+
+def _balance_text(root, limit: int) -> dict:
+    """Resume compact et borne du tableau de bord (aucune ecriture)."""
+    from ....progression_balance import scan as scan_progression
+    limit = max(1, min(50, limit))
+    report = scan_progression(root)
+    playfields = sorted(report.playfields, key=lambda p: -p.danger_max)[:limit]
+    # les chapitres SANS recompense sortent du classement (455 sur RE2) :
+    # l'assistant doit voir ceux qui ont un enjeu
+    chapters = sorted((c for c in report.chapters if c.rewards),
+                      key=lambda c: -c.total_units)[:limit]
+    lines = ["PLAYFIELDS (danger max, median of their type):"]
+    for item in playfields:
+        med = report.playfield_medians.get(item.pf_type, 0)
+        lines.append(f"- {item.playfield} [{item.pf_type}] {item.danger_min}-"
+                     f"{item.danger_max} (median {med:g}, {item.status})")
+    lines.append("")
+    lines.append("PDA CHAPTERS (rewards vs category median):")
+    for chapter in chapters:
+        lines.append(f"- {chapter.title} [{chapter.category}] xp={chapter.xp} "
+                     f"up={chapter.up} rep={chapter.reputation} "
+                     f"({chapter.status})")
+    lines.append("")
+    lines.append("ATTACK COSTS (price lvl1 / lvl10, median "
+                 f"{report.attack_median:g}):")
+    for attack in report.attacks:
+        lines.append(f"- {attack.faction}: {attack.lvl1_min} / "
+                     f"{attack.lvl10_max} sd={attack.sd_group or '-'} "
+                     f"({attack.status})")
+    return {"text": chr(10).join(lines),
+            "playfields": len(report.playfields),
+            "chapters": len(report.chapters),
+            "attacks": len(report.attacks)}
+
+
 def _catalog(root: Path, text: str, limit: int) -> dict:
     # build_catalog et non load_catalog : ce dernier ecrit un cache disque
     # (~/.empyrion_editor), or un outil de lecture ne doit rien ecrire.

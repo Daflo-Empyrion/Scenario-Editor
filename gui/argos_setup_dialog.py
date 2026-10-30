@@ -41,6 +41,7 @@ from PyQt6.QtWidgets import (
 
 from core import argos_provider
 from core.i18n import t
+from gui.module_info import add_info_button
 
 
 class _Signals(QObject):
@@ -78,6 +79,7 @@ class ArgosSetupDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
+        add_info_button(layout, "argos.info_html")
         self.stack = QStackedWidget()
         layout.addWidget(self.stack, 1)
         layout.addWidget(self._build_log_box())

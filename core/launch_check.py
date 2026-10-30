@@ -33,8 +33,10 @@ projet ET du corpus officiel :
 """
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from core.ecf.model import EcfBlock, EcfProperty, normalized_kind
 from core.ecf.parser import parse_ecf_file
@@ -240,6 +242,260 @@ def _check_prefabs(playfields_root: Path, names: set[str],
                     f"({len(files)} playfield(s) : le POI ne sera pas "
                     f"genere ; si le groupe vient du scenario source, "
                     f"importer ses prefabs)"))
+    return issues
+
+
+def _declared_names(conf: Path) -> set[str]:
+    """Noms declares dans BlocksConfig + ItemsConfig (casefold)."""
+    names: set[str] = set()
+    for fname in ("BlocksConfig.ecf", "ItemsConfig.ecf"):
+        p = conf / fname
+        if not p.exists():
+            continue
+        for b in parse_ecf_file(p).iter_blocks():
+            nm = b.get('Name') or b.get_property('Name')
+            if nm:
+                names.add(nm.strip().strip('"').casefold())
+    return names
+
+
+# index de la bibliotheque (blueprints locaux + Workshop) — voir
+# _library_idmapping_index
+
+
+def _library_idmapping_index(
+        files: tuple[Path, ...]) -> dict[str, tuple[int, str, str]]:
+    """Noms de blocs des BLUEPRINTS de la bibliotheque (Saves/Blueprints +
+    .epb a la RACINE des items Workshop) : {nom casefold: (nb fichiers,
+    exemple, nom)}. Ce sont eux que le client parse au demarrage
+    (`SWS.QueryItems AllBlueprintsSubscr`) ; les prefabs des packs Workshop
+    (item/Prefabs/*.epb) ne sont PAS parses comme blueprints et restent hors
+    scan (le scenario les couvre via Prefabs/). 148 .epb : instantane."""
+    from core.epb_blueprint import read_id_mapping
+
+    def work(f: Path):
+        return f, read_id_mapping(f)
+
+    index: dict[str, tuple[int, str, str]] = {}
+    workers = min(16, (os.cpu_count() or 4) * 2)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for f, mapping in pool.map(work, files):
+            if not mapping:
+                continue
+            for name in set(mapping.values()):
+                if not name:
+                    continue
+                prev = index.get(name.casefold())
+                index[name.casefold()] = (
+                    (prev[0] + 1, prev[1], prev[2]) if prev
+                    else (1, f.name, name))
+    return index
+
+
+def _check_epb_idmapping(root: Path, config_names: set[str],
+                         vanilla_prefabs: Optional[Path],
+                         rel_prefix: str,
+                         library_files: tuple[Path, ...] = (),
+                         vanilla_names: Optional[set[str]] = None
+                         ) -> list[LaunchIssue]:
+    """Table BlockIdMapping embarquee de chaque .epb vs config du scenario :
+    le jeu resout chaque nom PAR NOM contre BlocksConfig/ItemsConfig au
+    chargement des en-tetes ; absent -> « IdMapping: no name for id X found
+    in '<BP>' » et le bloc est ignore au spawn (vecu 27/10 : 207 lignes, les
+    prefabs de la base non fusionnee). Lecture BORNEE au header (read_id_
+    mapping) : pas de decompression voxel ; les prefabs sans table (v28 et
+    antes) n'ont rien a verifier. Une ligne par nom absent, aggregates sur
+    tous les prefabs.
+
+    La BIBLIOTHEQUE (blueprints locaux + .epb a la racine des items
+    Workshop — pas les packs de prefabs) est scannee aussi : le client la
+    parse au demarrage, et un nom absent le fait jeter « Block 'X' not
+    found on block N » (vecu 27/10, Dreadspire). Seuls les noms qui existent
+    en VANILLE sont signales (reintegrables en copiant la definition) ; les
+    blocs d'autres mods sont hors de portee."""
+    from core.epb_blueprint import read_id_mapping
+    counts: dict[str, int] = {}
+    examples: dict[str, str] = {}
+    unreadable = checked = 0
+    roots = [root / "Prefabs"]
+    if vanilla_prefabs is not None and Path(vanilla_prefabs).is_dir():
+        roots.append(Path(vanilla_prefabs))
+    files = [f for base in roots for f in base.rglob("*.epb")]
+
+    def work(f: Path):
+        return f, read_id_mapping(f)
+
+    workers = min(16, (os.cpu_count() or 4) * 2)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for f, mapping in pool.map(work, files):
+            if mapping is None:
+                unreadable += 1
+                continue
+            checked += 1
+            for name in set(mapping.values()):
+                if name and name.casefold() not in config_names:
+                    counts[name] = counts.get(name, 0) + 1
+                    examples.setdefault(name, f.name)
+    issues: list[LaunchIssue] = []
+    if unreadable:
+        issues.append(LaunchIssue(
+            check="prefabs", path=f"{rel_prefix}/Prefabs", line=0,
+            severity="warning",
+            message=f"{unreadable} prefab(s) illisibles (format exotique) : "
+                    f"leur mapping de blocs n'a pas pu etre verifie"))
+    if counts:
+        ordered = sorted(counts.items(), key=lambda kv: -kv[1])
+        shown = ordered[:15]
+        for name, n in shown:
+            issues.append(LaunchIssue(
+                check="prefabs", path=f"{rel_prefix}/Prefabs", line=0,
+                severity="warning",
+                message=f"IdMapping: '{name}' absent de BlocksConfig/"
+                        f"ItemsConfig — bloc ignore au spawn ({n} prefab(s), "
+                        f"ex '{examples[name]}') ; reintegrer le bloc depuis "
+                        f"sa source ou substituer un bloc existant"))
+        if len(ordered) > len(shown):
+            rest = ", ".join(n for n, _ in ordered[len(shown):])
+            issues.append(LaunchIssue(
+                check="prefabs", path=f"{rel_prefix}/Prefabs", line=0,
+                severity="warning",
+                message=f"IdMapping: et {len(ordered) - len(shown)} autre(s) "
+                        f"nom(s) absent(s) de la config : {rest}"))
+    if library_files and vanilla_names:
+        index = _library_idmapping_index(tuple(library_files))
+        lib: list[tuple[int, str, str]] = []
+        for folded, (n, example, name) in index.items():
+            if folded in config_names or folded not in vanilla_names:
+                continue
+            lib.append((n, example, name))
+        lib.sort(key=lambda e: (-e[0], e[2].casefold()))
+        for n, example, name in lib[:15]:
+            issues.append(LaunchIssue(
+                check="prefabs", path=f"{rel_prefix}/bibliotheque", line=0,
+                severity="warning",
+                message=f"IdMapping: '{name}' (bloc vanille) absent de la "
+                        f"config — reference par la bibliotheque locale/"
+                        f"Workshop ({n} fichier(s), ex '{example}') ; le "
+                        f"client jette « Block '{name}' not found » au scan "
+                        f"des blueprints : reintegrer la definition vanille"))
+        if len(lib) > 15:
+            rest = ", ".join(name for _n, _e, name in lib[15:])
+            issues.append(LaunchIssue(
+                check="prefabs", path=f"{rel_prefix}/bibliotheque", line=0,
+                severity="warning",
+                message=f"IdMapping: et {len(lib) - 15} autre(s) bloc(s) "
+                        f"vanille absent(s) reference(s) par la bibliotheque "
+                        f": {rest}"))
+    return issues
+
+
+def _declared_block_names(path: Path) -> set[str]:
+    """Noms de blocs declares dans un BlocksConfig.ecf (avec ou sans Id)."""
+    if not path.exists():
+        return set()
+    doc = parse_ecf_file(path)
+    names = set()
+    for b in doc.iter_blocks():
+        nm = b.get('Name') or b.get_property('Name')
+        if nm:
+            names.add(nm.strip().strip('"').casefold())
+    return names
+
+
+def _check_block_groups(conf: Path, block_names: set[str]) -> list[LaunchIssue]:
+    """BlockGroupsConfig.ecf : un bloc n'appartient qu'a UN groupe (le
+    chargeur keyed par id de bloc) — la 2e occurrence est ignoree et la
+    limite MaxCount de ce groupe ne s'applique plus (« Block name 'X' is
+    duplicate in BlockGroups ecf file in '<g>' ») ; un nom absent de
+    BlocksConfig est ignore aussi (« not found in BlockGroups »)."""
+    path = conf / "BlockGroupsConfig.ecf"
+    if not path.exists():
+        return []
+    issues: list[LaunchIssue] = []
+    t = path.read_text(encoding="utf-8-sig", errors="replace")
+    headers = list(re.finditer(
+        r"(?m)^\s*\{\s*BlockGroup Name:\s*([^,\n}#]+)\s*$", t))
+    seen: dict[str, str] = {}
+    for k, hm in enumerate(headers):
+        gname = hm.group(1).strip()
+        seg = t[hm.end(): headers[k + 1].start() if k + 1 < len(headers)
+                else len(t)]
+        bm = re.search(r"(?m)^\s*Blocks:\s*\"([^\"]+)\"", seg)
+        if not bm:
+            continue
+        for item in bm.group(1).split(","):
+            b = item.strip()
+            if not b:
+                continue
+            if b.casefold() not in block_names:
+                issues.append(LaunchIssue(
+                    check="blockgroups", path=str(path), line=0,
+                    severity="warning",
+                    message=f"BlockGroups: '{b}' du groupe '{gname}' "
+                            f"introuvable dans BlocksConfig.ecf — ignore "
+                            f"(« Block name '{b}' not found in BlockGroups "
+                            f"ecf file »)"))
+            elif b in seen:
+                issues.append(LaunchIssue(
+                    check="blockgroups", path=str(path), line=0,
+                    severity="warning",
+                    message=f"BlockGroups: '{b}' deja dans le groupe "
+                            f"'{seen[b]}' — ignore ici ('{gname}') : la "
+                            f"limite MaxCount de '{gname}' ne s'applique "
+                            f"pas a ce bloc (« is duplicate ») ; retirer "
+                            f"l'occurrence en trop"))
+            else:
+                seen[b] = gname
+    return issues
+
+
+def _check_compound_subdesc(playfields_root: Path,
+                            rel_prefix: str) -> list[LaunchIssue]:
+    """Playfields spatiaux : chaque nom d'une liste `Compound:` doit exister
+    comme entree `IsCompoundSubDesc: True` du MEME fichier, sinon le compose
+    n'est pas cree (« Compound POI 'X' not found! », vecu 27/10 :
+    TestOrbitSnow/Temperate referenceaient les compounds Polaris sans les
+    declarer — 9 erreurs par chargement)."""
+    issues: list[LaunchIssue] = []
+    entry = re.compile(r"^(\s*)- ")
+    name_re = re.compile(r"^\s*Name:\s*\[([^\]]*)\]")
+    compound = re.compile(r"^\s*Compound:\s*$")
+    for f in sorted(playfields_root.glob("*/space_dynamic*.yaml")):
+        if f.name.startswith('+'):
+            continue
+        lines = f.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+        starts = [i for i, l in enumerate(lines) if entry.match(l)]
+        subdescs: set[str] = set()
+        for k, s in enumerate(starts):
+            e = starts[k + 1] if k + 1 < len(starts) else len(lines)
+            block = lines[s:e]
+            if any("IsCompoundSubDesc" in l for l in block):
+                for l in block:
+                    nm = name_re.match(l)
+                    if nm:
+                        subdescs.update(x.strip() for x in nm.group(1).split(",")
+                                        if x.strip())
+        for i, l in enumerate(lines):
+            if not compound.match(l):
+                continue
+            for j in range(i + 1, min(i + 6, len(lines))):
+                nm = name_re.match(lines[j])
+                if nm:
+                    for n in (x.strip() for x in nm.group(1).split(",")
+                              if x.strip()):
+                        if n not in subdescs:
+                            issues.append(LaunchIssue(
+                                check="playfields",
+                                path=f"{rel_prefix}/{f.parent.name}/{f.name}",
+                                line=i + 1, severity="warning",
+                                message=f"Compound: la liste reference "
+                                        f"'{n}' sans sous-descripteur "
+                                        f"IsCompoundSubDesc dans ce fichier "
+                                        f"— le jeu : « Compound POI '{n}' "
+                                        f"not found! », le compose n'est "
+                                        f"pas cree (copier la declaration "
+                                        f"depuis un playfield sain)"))
+                    break
     return issues
 
 
@@ -660,10 +916,39 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
                                  | _index_setups(playfields_root),
                                  playfields_root.name))
 
+    # --- mapping de blocs embarque des .epb vs config du scenario («
+    # IdMapping: no name » du client, vecu 27/10 : 207 lignes) + bibliotheque
+    # locale/Workshop (le client la parse au demarrage, vecu 27/10 :
+    # « Block 'ThrusterJetMSRound3x13x3' not found » sur un blueprint) ---
+    conf = root / "Content" / "Configuration"
+    config_names = _declared_names(conf)
+    vanilla_names: Optional[set[str]] = None
+    library_files: tuple[Path, ...] = ()
+    if vanilla_content:
+        vanilla_names = _declared_names(
+            Path(vanilla_content) / "Configuration")
+        vpath = Path(vanilla_content)
+        files = list((vpath.parent / "Saves" / "Blueprints").rglob("*.epb"))
+        if len(vpath.parents) > 2:
+            ws = vpath.parents[2] / "workshop" / "content" / "383120"
+            if ws.is_dir():
+                # blueprints = .epb a la RACINE des items ; les packs de
+                # prefabs (item/Prefabs/) ne sont pas parses au demarrage
+                files += list(ws.glob("*/*.epb"))
+        library_files = tuple(files)
+    issues.extend(_check_epb_idmapping(
+        root, config_names,
+        Path(vanilla_content) / "Prefabs" if vanilla_content else None,
+        playfields_root.name, library_files, vanilla_names))
+
+    # --- compounds des playfields spatiaux : toute liste `Compound:` doit
+    # avoir ses sous-descripteurs IsCompoundSubDesc dans le meme fichier ---
+    issues.extend(_check_compound_subdesc(playfields_root,
+                                          playfields_root.name))
+
     # --- groupes d'entites (Entities:/Names:) vs EGroupsConfig.ecf +
     # EClassConfig.ecf (scenario OU vanille — EGroup et Entity se fusionnent
     # par nom) ---
-    conf = root / "Content" / "Configuration"
     spawn_files = [conf / "EGroupsConfig.ecf", conf / "EClassConfig.ecf"]
     if vanilla_content:
         vanilla_conf = Path(vanilla_content) / "Configuration"
@@ -672,6 +957,12 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
     issues.extend(_check_egroups(playfields_root,
                                  _index_spawn_names(*spawn_files),
                                  playfields_root.name))
+
+    # --- BlockGroupsConfig : bloc inconnu ou deja reclame par un autre
+    # groupe (la limite MaxCount du groupe ecarte ne s'applique plus) ---
+    block_names = {n.rstrip() for n in
+                   _declared_block_names(conf / "BlocksConfig.ecf")}
+    issues.extend(_check_block_groups(conf, block_names))
 
     # --- GalaxyConfig : sequences Child StarRegion/Territory contigues ---
     issues.extend(_check_galaxy(root))
@@ -696,4 +987,62 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
     # coup — le boot reel n'en montre qu'une par iteration ---
     from .engine_loaders import run_engine_loader_checks
     issues.extend(run_engine_loader_checks(root, vanilla_content))
+
+    # --- ondes de spawn : patrouilles de drones actives sans base, zones de
+    # taux ne designant aucun POI (core/spawn_waves.py, calibre sur vrais
+    # playfields — geantes gazeuses [0,0] et listes mixtes jamais alertees) ---
+    from .spawn_waves import scan as scan_spawn_waves
+    for issue in scan_spawn_waves(root).issues:
+        spawn_path = issue.file_path
+        issues.append(LaunchIssue(
+            check="spawn",
+            path=spawn_path.relative_to(root).as_posix()
+            if spawn_path else "",
+            line=0, severity=issue.level,
+            message=f"[{issue.code}] {issue.message}"))
+
+    # --- defenses de faction : faction absente de Factions.ecf, groupe ou
+    # categorie jamais fournie, prix min > max (core/faction_warfare.py) ---
+    from .faction_warfare import scan as scan_warfare
+    for issue in scan_warfare(root).issues:
+        war_path = issue.file_path
+        issues.append(LaunchIssue(
+            check="warfare",
+            path=war_path.relative_to(root).as_posix() if war_path else "",
+            line=0, severity=issue.level,
+            message=f"[{issue.code}] {issue.message}"))
+
+    # --- PDA : declencheurs 'Check:' hors du vocabulaire connu (enum moteur
+    # GameEventType + extras PDA + schema) — sans bloquer l'edition ---
+    # --- jetons de quete : structure de TokenConfig + references
+    # 'Token:<id>' introuvables (core/token_config.py) ---
+    from .token_config import check_tokens
+    for issue in check_tokens(root):
+        token_path = issue.file_path
+        issues.append(LaunchIssue(
+            check="tokens",
+            path=token_path.relative_to(root).as_posix() if token_path else "",
+            line=0, severity=issue.level,
+            message=f"[{issue.code}] {issue.message}"))
+
+    # --- scripts C# du scenario : compilation reelle (csc + assemblies du
+    # jeu) — le boot du jeu n'affiche qu'une erreur a la fois ---
+    from .pda.script_gen import check_scripts
+    for issue in check_scripts(root):
+        script_path = issue.file_path
+        issues.append(LaunchIssue(
+            check="scripts",
+            path=script_path.relative_to(root).as_posix() if script_path else "",
+            line=0, severity=issue.level,
+            message=f"[{issue.code}] {issue.message}"))
+
+    from .pda.event_types import unknown_pda_checks
+    for pda_path, value, count in unknown_pda_checks(root):
+        issues.append(LaunchIssue(
+            check="pda",
+            path=pda_path.relative_to(root).as_posix(),
+            line=0, severity="warning",
+            message=f"[W350] declencheur PDA inconnu : 'Check: {value}' "
+                    f"({count} occurrence(s)) — ni l'enumeration du moteur ni "
+                    f"un declencheur observe"))
     return issues

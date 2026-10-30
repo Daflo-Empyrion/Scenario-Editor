@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from gui.window_geometry import track
 
 
@@ -57,6 +58,7 @@ class NameMergeDialog(QDialog):
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
+        add_info_button(lay, "namemerge.info_html")
         lay.addWidget(QLabel(t("namemerge.intro")))
         lay.addWidget(QLabel(t("namemerge.working") + " "
                              + str(self.working_path or "-")))

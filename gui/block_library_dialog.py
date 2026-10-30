@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 
 from core import block_library
 from core.i18n import t
+from gui.module_info import add_info_button
 
 
 class BlockLibraryDialog(QDialog):
@@ -45,6 +46,7 @@ class BlockLibraryDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
+        add_info_button(layout, "blocklib.info_html")
 
         self.list_widget = QListWidget()
         self.list_widget.currentItemChanged.connect(self._on_selected)

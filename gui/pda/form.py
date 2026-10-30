@@ -97,7 +97,12 @@ class SpecForm(QWidget):
         return None
 
     def _make_token(self, spec, value):
-        edit = TokenTextField(self._model)
+        # StartMessage (chapitre) : le moteur exige 'type;param|texte' et
+        # affiche MALFORMED_START_MESSAGE sur un jeton nu (ReduceDomain) --
+        # prefixe par defaut pour que l'application n'ecrive jamais un jeton
+        # nu (vecu 26/10 ; les StartMessage de TACHE, eux, tolèrent le nu).
+        default_prefix = "norm;20" if spec.key == "StartMessage" else ""
+        edit = TokenTextField(self._model, default_prefix=default_prefix)
         edit.set_token(value if isinstance(value, str) else "")
 
         def on_change():

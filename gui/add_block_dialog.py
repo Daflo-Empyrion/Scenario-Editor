@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.ecf.block_creation import scan_kind_frequency, scan_properties_for_kind, find_file_by_name
 from core.ecf.validation import MAX_BLOCK_ID
 
@@ -55,6 +56,7 @@ class IdentityModeDialog(QDialog):
         self.chosen_mode: Optional[str] = None
 
         layout = QVBoxLayout(self)
+        add_info_button(layout, "addblock.info_html")
         layout.addWidget(QLabel(t("addblock.identity_intro")))
 
         self.group = QButtonGroup(self)

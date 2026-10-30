@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QVBoxLayout)
 
 from core.i18n import t
+from gui.module_info import add_info_button
 from core.recipe_balance import VANILLA, Proposal, analyze, apply_proposals
 from core.settings import get_vanilla_content_path
 from gui.ewa_async import async_call
@@ -83,6 +84,7 @@ class RecipeBalanceDialog(QDialog):
         lay.addLayout(row)
 
         params = QHBoxLayout()
+        add_info_button(params, "recbal.info_html")
         params.addStretch(1)
         self.btn_run = QPushButton(t("recipe.analyze"))
         # clicked(bool) : ne jamais laisser Qt passer False comme 'fresh'
