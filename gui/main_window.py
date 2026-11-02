@@ -2214,6 +2214,12 @@ class MainWindow(QMainWindow):
     def _open_block_library(self):
         """Bibliotheque de blocs reutilisables (demande du 10/09/2026) --
         dialogue NON MODAL, consultable pendant l'edition."""
+        from gui import blocklib_web
+        if blocklib_web.is_available():     # chantier webapp, 02/11
+            from gui.blocklib_web import BlocklibWebDialog
+            self._block_library_dialog = BlocklibWebDialog(self, parent=self)
+            self._block_library_dialog.show()
+            return
         from gui.block_library_dialog import BlockLibraryDialog
         self._block_library_dialog = BlockLibraryDialog(self)
         self._block_library_dialog.show()

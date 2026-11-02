@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bibliothèque de blocs</title>
+<style>
+:root{
+  --bg:#05070D; --line:rgba(130,205,255,.10); --line-strong:rgba(130,205,255,.28);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --amber:#FFC24D;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--bg);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.top{border-bottom:1px solid var(--line);background:rgba(10,15,26,.7);
+  padding:6px 12px;display:flex;align-items:center;gap:8px}
+.top .hint{flex:1;font:11px var(--font);color:var(--muted)}
+.tbtn{height:26px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);padding:0 10px;white-space:nowrap;cursor:pointer;
+  background:linear-gradient(180deg, rgba(40,52,80,.55), rgba(16,22,38,.55));
+  color:var(--muted);font:11.5px var(--font)}
+.tbtn:hover{color:var(--txt);border-color:rgba(0,229,255,.45);
+  background:rgba(0,229,255,.10)}
+.tbtn:disabled{opacity:.35;cursor:default;pointer-events:none}
+.tbtn.primary{border-color:rgba(0,229,255,.5);
+  background:linear-gradient(180deg, rgba(0,229,255,.22), rgba(0,140,190,.18));
+  color:#DFFAFF;font-weight:600}
+.searchrow{padding:6px 12px;border-bottom:1px solid var(--line)}
+.searchrow input{width:100%;height:26px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:12px var(--font);
+  padding:0 9px;outline:none}
+.searchrow input:focus{border-color:rgba(0,229,255,.45)}
+.split{flex:1;display:flex;min-height:0}
+.list{width:280px;border-right:1px solid var(--line);overflow:auto}
+.list::-webkit-scrollbar,.preview::-webkit-scrollbar{width:10px}
+.list::-webkit-scrollbar-thumb,.preview::-webkit-scrollbar-thumb{
+  background:rgba(130,205,255,.20);border-radius:6px}
+.item{padding:6px 10px;font:12px var(--mono);cursor:pointer;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.item:hover{background:rgba(0,229,255,.07)}
+.item.cur{background:rgba(0,229,255,.20);outline:1px solid var(--cyan)}
+.preview{flex:1;overflow:auto;padding:10px 12px;font:12px var(--mono);
+  color:var(--muted);white-space:pre-wrap;word-break:break-word;user-select:text}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="hint" id="hint"></span>
+  <button class="tbtn" id="btn_insert" disabled></button>
+  <button class="tbtn" id="btn_delete" disabled></button>
+  <button class="tbtn" id="btn_export"></button>
+  <button class="tbtn" id="btn_refresh"></button>
+  <button class="tbtn" id="btn_info"></button>
+</div>
+<div class="searchrow"><input id="q" spellcheck="false"></div>
+<div class="split">
+  <div class="list" id="list"></div>
+  <div class="preview" id="preview"></div>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, ALL=[], SEL=-1, LBL={};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function boot(){
+  if (typeof qt==="undefined"||!qt.webChannelTransport){ setTimeout(boot,300); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.bridge;
+    BRIDGE.data_changed.connect(p => shape(JSON.parse(p)));
+    BRIDGE.get_init(m => shape(JSON.parse(m)));
+  });
+}
+
+function shape(m){
+  if (m.snippets) ALL=m.snippets;
+  if (m.labels) LBL=m.labels;
+  if (m.selected!==undefined) SEL=m.selected;
+  $("hint").textContent=LBL.hint||"";
+  $("q").placeholder=LBL.search||"";
+  $("btn_insert").textContent=LBL.insert||"";
+  $("btn_delete").textContent=LBL.delete||"";
+  $("btn_export").textContent=LBL.export||"";
+  $("btn_refresh").textContent=LBL.refresh||"";
+  $("btn_info").textContent=LBL.info||"";
+  const has=SEL>=0&&SEL<ALL.length;
+  $("btn_insert").disabled=!has;
+  $("btn_delete").disabled=!has;
+  if (m.preview!==undefined) $("preview").textContent=m.preview;
+  renderList();
+}
+
+function renderList(){
+  const q=$("q").value.trim().toLowerCase();
+  $("list").innerHTML=ALL.map((s,i)=>{
+    if (q && !s.name.toLowerCase().includes(q)) return "";
+    return `<div class="item${i===SEL?" cur":""}" data-i="${i}" title="${esc(s.name)}">${esc(s.name)}</div>`;
+  }).join("");
+}
+
+$("list").addEventListener("click",e=>{
+  const it=e.target.closest(".item");
+  if (it) BRIDGE.select(+it.dataset.i);
+});
+$("list").addEventListener("dblclick",e=>{
+  const it=e.target.closest(".item");
+  if (it){ BRIDGE.select(+it.dataset.i); BRIDGE.run_action("insert"); }
+});
+$("q").addEventListener("input",renderList);
+$("btn_insert").onclick=()=>BRIDGE.run_action("insert");
+$("btn_delete").onclick=()=>BRIDGE.run_action("delete");
+$("btn_export").onclick=()=>BRIDGE.run_action("export");
+$("btn_refresh").onclick=()=>BRIDGE.run_action("refresh");
+$("btn_info").onclick=()=>BRIDGE.run_action("info");
+boot();
+</script>
+</body>
+</html>
