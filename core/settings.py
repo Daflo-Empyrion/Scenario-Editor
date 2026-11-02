@@ -148,7 +148,7 @@ def set_merge_enabled(enabled: bool) -> None:
 
 def get_online_translation_enabled() -> bool:
     """True (par defaut) tant que l'utilisateur n'a pas explicitement desactive
-    la traduction en ligne (Google Translate, via deep-translator) --
+    la traduction EN LIGNE (fournisseur IA configure) --
     fonctionnalite qui envoie le texte a traduire aux serveurs Google. Voir
     core/translation.py:translate_text() qui refuse de fonctionner si False,
     et PRIVACY.md pour la politique de confidentialite complete. Ajoutee pour
@@ -242,6 +242,44 @@ def set_fluent_pilot_enabled(enabled: bool) -> None:
     _set('fluent_pilot_enabled', enabled)
 
 
+def get_titlebar_custom_enabled() -> bool:
+    """Barre de titre custom style webapp (31/10) : fenetre sans cadre,
+    barre maison au-dessus des menus. FALSE par defaut depuis le 02/11 :
+    la sequence frameless + DWM + TitleBar provoque un abort natif
+    silencieux au demarrage sur la machine de dev (0xC000040D, aucune
+    trace) — a retenter plus tard avec la base FramelessWindow du vendor.
+    Le reste du look webapp (theme, rail, vues web) n'en depend pas."""
+    return _get('titlebar_custom_enabled', False)
+
+
+def set_titlebar_custom_enabled(enabled: bool) -> None:
+    _set('titlebar_custom_enabled', enabled)
+
+
+def get_csv_web_default_enabled() -> bool:
+    """Vue web PAR DEFAUT de l'editeur CSV (chantier webapp, 02/11) : un
+    CSV ouvert s'affiche directement dans la grille web (la table Qt reste
+    le modele invisible). True par defaut quand WebEngine est disponible ;
+    le bouton « Vue web » de l'editeur permet de revenir a la table."""
+    return _get('csv_web_default_enabled', True)
+
+
+def set_csv_web_default_enabled(enabled: bool) -> None:
+    _set('csv_web_default_enabled', enabled)
+
+
+def get_tech_tree_web_enabled() -> bool:
+    """Vue HTML de l'arbre technologique (pilote 2026, decision du 31/10) :
+    False par defaut -- rien ne change tant que l'utilisateur n'a pas coche
+    l'option (menu Options, pris en compte au prochain lancement). Degrade
+    gracieux si PyQt6-WebEngine manque (voir gui/tech_tree_web.py)."""
+    return _get('tech_tree_web_enabled', False)
+
+
+def set_tech_tree_web_enabled(enabled: bool) -> None:
+    _set('tech_tree_web_enabled', enabled)
+
+
 def get_production_scenario_path(working_root: str = "") -> str:
     """Repertoire du scenario EN PRODUCTION (celui que le jeu charge, ex :
     <vanille>/Content/Scenarios/RE2 ATL) — destination de la synchronisation
@@ -287,77 +325,42 @@ def set_press_anim_enabled(enabled: bool) -> None:
     _set('press_anim_enabled', enabled)
 
 
-def get_nllb_variant() -> str:
-    """Variante du modele NLLB installee/utilisee ('600M' par defaut,
-    '1.3B' pour la qualite maximale)."""
-    return _get('nllb_variant', '600M')
-
-
-def set_nllb_variant(variant: str) -> None:
-    _set('nllb_variant', variant)
-
-
-def get_nllb_beam_size() -> int:
-    """Taille du faisceau (beam search) du decodeur NLLB : 2 = rapide,
-    4 = equilibre (defaut), 8 = qualite maximale au prix de la vitesse.
-    Determ : meme entree -> meme traduction (pas de sampling)."""
-    try:
-        return int(_get('nllb_beam_size', 4))
-    except (TypeError, ValueError):
-        return 4
-
-
-def set_nllb_beam_size(size: int) -> None:
-    if isinstance(size, int) and 1 <= size <= 10:
-        _set('nllb_beam_size', size)
-
+# --- Moteurs de traduction retires (31/10 : Google/DeepL/Argos/NLLB et le
+# moteur Groq direct supprimes, tout passe par les fournisseurs IA). Les
+# getters groq_api_key/groq_model restent uniquement pour la MIGRATION de la
+# configuration existante vers un fournisseur IA (migrate_groq_engine_to_
+# provider) ; a retirer dans une version future.
 
 def get_groq_api_key() -> str:
-    """Cle API Groq (console.groq.com) pour le moteur 'groq' -- LLM en
-    ligne compatible OpenAI. STOCKEE EN LOCAL dans settings.json uniquement
-    (jamais dans le depot)."""
+    """[MIGRATION] Cle API Groq enregistree pour l'ancien moteur 'groq'
+    direct -- reprise telle quelle comme cle d'un fournisseur IA Groq."""
     return _get('groq_api_key', '')
 
 
-def set_groq_api_key(key: str) -> None:
-    _set('groq_api_key', (key or '').strip())
-
-
 def get_groq_model() -> str:
-    """Modele Groq utilise pour la traduction (defaut : qwen3.8-27b, sans
-    raisonnement -- le meilleur rapport qualite/vitesse/tokens teste)."""
+    """[MIGRATION] Modele Groq de l'ancien moteur direct (ex:
+    qwen/qwen3.8-27b)."""
     return _get('groq_model', 'qwen/qwen3.8-27b')
 
 
-def set_groq_model(model: str) -> None:
-    _set('groq_model', (model or '').strip())
-
-
-def get_deepl_api_key() -> str:
-    """Cle API DeepL (plan DeepL API FREE : 500 000 caracteres/mois,
-    sans carte bancaire -- la cle free se termine par ':fx'). Stockee en
-    LOCAL dans settings.json uniquement (jamais dans le depot). Le texte
-    a traduire part chez DeepL SE : soumis a la case 'Traduction en
-    ligne' comme les autres moteurs en ligne."""
-    return _get('deepl_api_key', '')
-
-
-def set_deepl_api_key(key: str) -> None:
-    _set('deepl_api_key', (key or '').strip())
-
-
-def get_engine_fallback_enabled() -> bool:
-    """Bascule automatique entre moteurs (v1.10.0, inspiree du failover
-    de freellmapi) : quand le moteur principal (radio du sous-menu
-    Moteur) atteint son quota ou tombe en panne, la chaine de secours
-    enchaine les autres moteurs disponibles -- Groq -> DeepL -> Google
-    -> NLLB -> Argos, l'ordre reel partant du moteur principal. True par
-    defaut, desactivable dans Options > Traduction."""
-    return _get('engine_fallback_enabled', True)
-
-
-def set_engine_fallback_enabled(enabled: bool) -> None:
-    _set('engine_fallback_enabled', enabled)
+def migrate_groq_engine_to_provider() -> bool:
+    """Reprend la configuration de l'ancien moteur Groq direct (cle + modele)
+    comme fournisseur IA du socle multi-fournisseurs -- UNE FOIS : seulement
+    si une cle Groq existe ET qu'aucun fournisseur IA n'est encore configure.
+    Retourne True si une migration a ete faite (message d'accueil possible).
+    Appele au demarrage (gui/main_window.main())."""
+    key = get_groq_api_key().strip()
+    if not key or get_ai_providers():
+        return False
+    from .ai.providers import new_provider
+    provider = new_provider("groq", key)
+    set_ai_providers([provider])
+    set_ai_links([{
+        "provider": provider["id"],
+        "model": get_groq_model().strip() or "qwen/qwen3.8-27b",
+        "enabled": True,
+    }])
+    return True
 
 
 def get_window_geometry(key: str) -> list:
@@ -372,19 +375,6 @@ def set_window_geometry(key: str, geo: list) -> None:
     if (isinstance(geo, list) and len(geo) in (4, 5)
             and all(isinstance(v, (int, float)) for v in geo)):
         _set(f'win_geo_{key}', geo)
-
-
-def get_groq_batch_enabled() -> bool:
-    """Mode LOTS du moteur Groq (v1.8.0) : plusieurs cellules traduites par
-    requete au lieu d'une par appel (tier gratuit plafonne en debit :
-    ~30 req/min) -- True par defaut, desactivable dans Options >
-    Traduction. Le squelette de jetons de CHAQUE cellule reste verifie :
-    une cellule deviante repasse en mode cellule entiere."""
-    return _get('groq_batch_enabled', True)
-
-
-def set_groq_batch_enabled(enabled: bool) -> None:
-    _set('groq_batch_enabled', enabled)
 
 
 def get_groq_style() -> str:
@@ -501,18 +491,6 @@ def get_extra_icons_dir() -> str:
 
 def set_extra_icons_dir(path: str) -> None:
     _set('extra_icons_dir', path)
-
-
-def get_translation_engine() -> str:
-    """Moteur de traduction prefere : 'google' (en ligne, defaut) ou 'argos'
-    (hors ligne, voir core/argos_provider.py -- requiert le moteur + une
-    paire de langues installes)."""
-    return _get('translation_engine', 'google')
-
-
-def set_translation_engine(engine: str) -> None:
-    if engine in ('google', 'argos', 'nllb', 'groq', 'deepl', 'ai'):
-        _set('translation_engine', engine)
 
 
 def get_vanilla_content_path() -> str:

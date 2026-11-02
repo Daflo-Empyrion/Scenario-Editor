@@ -40,6 +40,56 @@ def _hash(path: Path) -> bytes:
     return h.digest()
 
 
+# ---------------------------------------------------------------------------
+# Cache de hachages persiste (demande du 31/10) : eviter de recalculer le MD5
+# de milliers de fichiers au demarrage quand rien n'a change. Un fichier
+# cache par racine (<racine>/.cache_hashes, JSON) : {rel: [taille, mtime_ns,
+# md5hex]} -- une entree est reutilisee si taille ET mtime_ns correspondent
+# EXACTEMENT (semantique identique au raccourci mtime ci-dessus : re-ecrit a
+# l'octet pres + mtime conserve = non signale, chose deja supposee par le
+# scan actuel). Cache corrompu = ignore silencieusement.
+# ---------------------------------------------------------------------------
+_CACHE_NAME = ".cache_hashes"
+
+
+def _load_hash_cache(root: Path) -> dict:
+    import json
+    try:
+        raw = (Path(root) / _CACHE_NAME).read_text(encoding="utf-8")
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_hash_cache(root: Path, cache: dict) -> None:
+    import json
+    from core.fsutil import atomic_write_text
+    try:
+        atomic_write_text(Path(root) / _CACHE_NAME,
+                          json.dumps(cache, ensure_ascii=False))
+    except OSError:
+        pass  # le cache est une optimisation, jamais une obligation
+
+
+def _cached_hash(path: Path, root: Path, cache: dict, dirty: list) -> bytes:
+    """Hash du fichier, servi par le cache si (taille, mtime_ns) correspond
+    exactement a l'entree memorisee ; sinon calcule et met a jour le cache."""
+    rel = path.relative_to(root).as_posix()
+    st = path.stat()
+    entry = cache.get(rel)
+    if (isinstance(entry, list) and len(entry) == 3
+            and entry[0] == st.st_size and entry[1] == st.st_mtime_ns):
+        try:
+            return bytes.fromhex(entry[2])
+        except ValueError:
+            pass
+    h = _hash(path)
+    cache[rel] = [st.st_size, st.st_mtime_ns, h.hex()]
+    dirty.append(True)
+    return h
+
+
 def list_changed_files(working_root: Path, source_root: Path):
     """Retourne [(chemin_copie, 'added'|'modified')] tries par chemin. Les
     fichiers presents seulement dans A sont ignores (suppressions
@@ -52,13 +102,20 @@ def list_changed_files(working_root: Path, source_root: Path):
     Comparaison TAILLE puis MTIME (copy2 de la sync le conserve : apres un
     sync reussi, zero hash — vecu 17/10 : 64 s de scan pour zero changement
     parce que tout etait hashé des deux cotes) puis HASH SEULEMENT si les
-    horloges divergent : la semantique « re-ecrit a l'octet pres = non
+    horloges divergent — hash SERVI PAR LE CACHE persiste .cache_hashes quand
+    rien n'a change (demande du 31/10 : eviter de recalculer des milliers de
+    SHA/MD5 au demarrage). La semantique « re-ecrit a l'octet pres = non
     signale » reste garantie par le hash, et le cas mtime egal/contenu
     different est theoriquement impossible (resolutions ns)."""
     changes = []
+    cache_w = _load_hash_cache(working_root)
+    cache_s = _load_hash_cache(source_root)
+    dirty: list = []
     for path in sorted(Path(working_root).rglob('*')):
         if not path.is_file():
             continue
+        if path.name == _CACHE_NAME:
+            continue          # le cache lui-meme : jamais synchronise
         if path.suffix.lower() == '.bak':
             continue          # sauvegarde interne : jamais a synchroniser
         if path.name.lower().endswith('.yaml.bin'):
@@ -75,8 +132,12 @@ def list_changed_files(working_root: Path, source_root: Path):
             continue
         if st.st_mtime_ns == ct.st_mtime_ns:
             continue
-        if _hash(path) != _hash(counterpart):
+        if _cached_hash(path, working_root, cache_w, dirty) != \
+                _cached_hash(counterpart, source_root, cache_s, dirty):
             changes.append((path, 'modified'))
+    if dirty:
+        _save_hash_cache(working_root, cache_w)
+        _save_hash_cache(source_root, cache_s)
     return changes
 
 

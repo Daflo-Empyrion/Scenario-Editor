@@ -722,9 +722,72 @@ QStatusBar {{
            ACCENT_BG_TINT="#d9ecf8", ACCENT_DARK="#1a6a97", GRID_LINE="#c6cad4", TEXT_PRIMARY="#23252e", TEXT_MUTED="#5c6170",
            TEXT_ON_PRIMARY="#ffffff", BORDER="#b3b7c3"),
     },
+
+    "m": {
+        # Theme "Cristal 2026" (31/10, socle design du chantier web) : fond
+        # nuit bleute tres sombre du MAQUETTE validee (_maquettes/arbre_tech
+        # .html, ecran arbre technologique en HTML), accent cyan electrique
+        # + violet en secondaire (logo, racines de chaines), cartes a peine
+        # plus claires, texte blanc casse. PAS d'acrylique volontairement
+        # (meme retour utilisateur du 09/09 que le theme I : la
+        # translucidite DWM assombrissait les zones peu peintes) — opaque.
+        "label": "M — Cristal 2026",
+        "bg": "#05070D", "surface": "#161D2F", "surface_alt": "#1B2337",
+        "border": "#223048", "border_strong": "#2E415E",
+        "text_primary": "#E9F2FA", "text_muted": "#8FA3B8", "text_on_primary": "#05070D",
+        "accent": "#00E5FF", "accent_hover": "#4FEFFF", "accent_pressed": "#00B8D9",
+        "accent_bg_tint": "#0B3A47",
+        "nav_gradient": "qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                         "stop:0 #060910, stop:0.55 #0A1120, stop:1 #0B1D2E)",
+        "nav_text": "#E9F2FA",
+        "success": "#00FFA3", "warning": "#FFC24D", "danger": "#FF5C7A", "danger_dark": "#D93A5C",
+        "font_family": "Segoe UI",
+        # QSS additionnel (meme mecanique que Nuit Fluent) : grilles de
+        # tableaux tres estompees, en-tetes sobres, tooltips et menus en
+        # carte sombre, selection cyan translucente.
+        "extra_qss": """
+/* --- Theme Cristal 2026 : grilles estompees, cartes sobres --- */
+QTableWidget {{
+    gridline-color: {GRID_LINE};
+    alternate-background-color: {SURFACE};
+}}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {{
+    border: none;
+}}
+QTableWidget::item:selected, QTreeWidget::item:selected, QListWidget::item:selected {{
+    background: rgba(0, 229, 255, 0.16);
+    color: {TEXT_PRIMARY};
+}}
+QHeaderView::section {{
+    background-color: {SURFACE_ALT};
+    color: {TEXT_MUTED};
+    border: none;
+    border-bottom: 1px solid {GRID_LINE};
+}}
+QToolTip {{
+    background: {SURFACE};
+    color: {TEXT_PRIMARY};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 4px;
+}}
+QMenu {{
+    background-color: {SURFACE};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 6px;
+}}
+QMenu::item:selected {{
+    background: rgba(0, 229, 255, 0.14);
+}}
+QLineEdit, QPlainTextEdit, QTextEdit, QComboBox {{
+    selection-background-color: {ACCENT_BG_TINT};
+}}
+""".format(GRID_LINE="#1E2942", SURFACE="#161D2F", SURFACE_ALT="#1B2337",
+           TEXT_MUTED="#8FA3B8", TEXT_PRIMARY="#E9F2FA",
+           BORDER_STRONG="#2E415E", ACCENT_BG_TINT="#0B3A47"),
+    },
 }
 
-THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
+THEME_ORDER = ["classic", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"]
 DEFAULT_THEME_ID = "classic"
 
 

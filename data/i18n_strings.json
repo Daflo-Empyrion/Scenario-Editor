@@ -2604,8 +2604,8 @@
     "en": "Interface"
   },
   "menu.options.online_translation": {
-    "fr": "Traduction en ligne (Google Translate) -- envoie le texte a traduire a Google, voir PRIVACY.md",
-    "en": "Online translation (Google Translate) -- sends the text to be translated to Google, see PRIVACY.md"
+    "fr": "Traduction en ligne -- envoie le texte à traduire au fournisseur IA configuré, voir PRIVACY.md",
+    "en": "Online translation -- sends the text to the configured AI provider, see PRIVACY.md"
   },
   "menu.options.auto_translate_info": {
     "fr": "Traduction automatique des fiches (description du jeu) -- DESACTIVEE par defaut : appelle le moteur de traduction configure a chaque ouverture de fiche ; hors option, la description non traduite reste visible et montre ce qui reste a traduire en jeu",
@@ -13126,5 +13126,461 @@
   "market.fab.tip": {
     "fr": "Pourcentage du prix des matières premières ajouté par la fabrication (prix = coût × marge × (1 + %)). 0 = neutre, comme dans la vraie vie : le fabricant ajoute sa marge sur les matières.",
     "en": "Percentage of the raw-material price added by fabrication (price = cost × margin × (1 + %)). 0 = neutral, like real life: the manufacturer adds their margin on top of materials."
+  },
+  "menu.options.techtree_web": {
+    "fr": "Arbre technologique — vue web (2026)",
+    "en": "Tech tree — web view (2026)"
+  },
+  "menu.options.techtree_web.restart": {
+    "fr": "Pris en compte au prochain lancement.",
+    "en": "Applied at next launch."
+  },
+  "webtree.search_placeholder": {
+    "fr": "Filtrer un nœud…",
+    "en": "Filter a node…"
+  },
+  "webtree.legend_dep": {
+    "fr": "dépendance",
+    "en": "dependency"
+  },
+  "webtree.legend_root": {
+    "fr": "racine de chaîne",
+    "en": "chain root"
+  },
+  "webtree.fit": {
+    "fr": "Ajuster",
+    "en": "Fit"
+  },
+  "webtree.inspector": {
+    "fr": "Propriétés du nœud",
+    "en": "Node properties"
+  },
+  "webtree.name": {
+    "fr": "Nom",
+    "en": "Name"
+  },
+  "webtree.level": {
+    "fr": "Niveau",
+    "en": "Level"
+  },
+  "webtree.cost": {
+    "fr": "Coût",
+    "en": "Cost"
+  },
+  "webtree.category": {
+    "fr": "Catégorie",
+    "en": "Category"
+  },
+  "webtree.parent": {
+    "fr": "Parent",
+    "en": "Parent"
+  },
+  "webtree.no_parent": {
+    "fr": "— aucun —",
+    "en": "— none —"
+  },
+  "webtree.unlocks": {
+    "fr": "Débloque",
+    "en": "Unlocks"
+  },
+  "webtree.leaf": {
+    "fr": "feuille · aucune dépendance",
+    "en": "leaf · no dependency"
+  },
+  "webtree.open_card": {
+    "fr": "Ouvrir la fiche",
+    "en": "Open info card"
+  },
+  "webtree.definition": {
+    "fr": "Définition",
+    "en": "Definition"
+  },
+  "webtree.icon": {
+    "fr": "Icône",
+    "en": "Icon"
+  },
+  "webtree.def_item": {
+    "fr": "Item (ItemsConfig)",
+    "en": "Item (ItemsConfig)"
+  },
+  "webtree.def_block": {
+    "fr": "Bloc (BlocksConfig)",
+    "en": "Block (BlocksConfig)"
+  },
+  "webtree.source_note": {
+    "fr": "extrait du fichier du scénario",
+    "en": "excerpt from scenario file"
+  },
+  "webtree.paliers": {
+    "fr": "paliers",
+    "en": "tiers"
+  },
+  "webtree.nodes": {
+    "fr": "nœuds",
+    "en": "nodes"
+  },
+  "webtree.empty": {
+    "fr": "aucun nœud",
+    "en": "no nodes"
+  },
+  "btn.bbcode_check": {
+    "fr": "Balises BBCode",
+    "en": "BBCode tags"
+  },
+  "btn.bbcode_check_tooltip": {
+    "fr": "Contrôler les balises BBCode du CSV (fermetures, imbrication, couleurs, jetons)",
+    "en": "Check the CSV's BBCode tags (closings, nesting, colours, tokens)"
+  },
+  "bbcheck.title": {
+    "fr": "Balises BBCode",
+    "en": "BBCode tags"
+  },
+  "bbcheck.scope_label": {
+    "fr": "Colonne contrôlée :",
+    "en": "Checked column:"
+  },
+  "bbcheck.scope_all": {
+    "fr": "Toutes les langues",
+    "en": "All languages"
+  },
+  "bbcheck.columns_tooltip": {
+    "fr": "Largeurs réglables : double-clic sur une séparation pour ajuster au contenu.",
+    "en": "Adjustable widths: double-click a separator to fit content."
+  },
+  "bbcheck.col_line": {
+    "fr": "Ligne",
+    "en": "Line"
+  },
+  "bbcheck.col_column": {
+    "fr": "Colonne",
+    "en": "Column"
+  },
+  "bbcheck.col_problem": {
+    "fr": "Anomalie",
+    "en": "Problem"
+  },
+  "bbcheck.col_source": {
+    "fr": "Source (anglais)",
+    "en": "Source (English)"
+  },
+  "bbcheck.col_before": {
+    "fr": "Avant",
+    "en": "Before"
+  },
+  "bbcheck.col_after": {
+    "fr": "Après (éditable)",
+    "en": "After (editable)"
+  },
+  "bbcheck.select_all": {
+    "fr": "Tout cocher",
+    "en": "Select all"
+  },
+  "bbcheck.apply": {
+    "fr": "Appliquer les corrections",
+    "en": "Apply fixes"
+  },
+  "bbcheck.close": {
+    "fr": "Fermer",
+    "en": "Close"
+  },
+  "bbcheck.found": {
+    "fr": "{n} anomalie(s) — {fixable} réparable(s) (cases cochées). « Après » est éditable au double-clic.",
+    "en": "{n} issue(s) — {fixable} repairable (checked rows). \"After\" is editable via double-click."
+  },
+  "bbcheck.not_repairable": {
+    "fr": "Non réparable automatiquement (déjà présent dans la source) — correction manuelle possible au double-clic sur « Après ».",
+    "en": "Not auto-repairable (already in the source) — a manual fix can be typed in \"After\" via double-click."
+  },
+  "bbcheck.source_tooltip": {
+    "fr": "(colonne source vide)",
+    "en": "(empty source column)"
+  },
+  "bbcheck.after_tooltip": {
+    "fr": "(aucune proposition — saisir une correction au double-clic)",
+    "en": "(no proposal — type a fix via double-click)"
+  },
+  "bbcheck.nothing_selected": {
+    "fr": "Aucune correction cochée à appliquer.",
+    "en": "No checked fix to apply."
+  },
+  "bbcheck.applied": {
+    "fr": "{n} correction(s) appliquée(s). Sauvegarde : {backup}",
+    "en": "{n} fix(es) applied. Backup: {backup}"
+  },
+  "bbcheck.error": {
+    "fr": "Erreur pendant l'écriture : {error}",
+    "en": "Error while writing: {error}"
+  },
+  "bbcheck.issue.unclosed": {
+    "fr": "fermeture manquante",
+    "en": "missing closing"
+  },
+  "bbcheck.issue.orphan": {
+    "fr": "fermeture orpheline",
+    "en": "orphan closing"
+  },
+  "bbcheck.issue.nesting": {
+    "fr": "imbrication cassée",
+    "en": "broken nesting"
+  },
+  "bbcheck.issue.invalid": {
+    "fr": "balise invalide",
+    "en": "invalid tag"
+  },
+  "bbcheck.issue.extra": {
+    "fr": "balise en trop",
+    "en": "extra tag"
+  },
+  "bbcheck.issue.missing": {
+    "fr": "balise manquante",
+    "en": "missing tag"
+  },
+  "bbcheck.issue.token": {
+    "fr": "jeton différent de la source",
+    "en": "token differs from source"
+  },
+  "bbcheck.token.newline": {
+    "fr": "\n littéral",
+    "en": "literal \n"
+  },
+  "bbcheck.token.placeholder": {
+    "fr": "placeholder {0}",
+    "en": "placeholder {0}"
+  },
+  "bbcheck.token.percent": {
+    "fr": "%s / %d",
+    "en": "%s / %d"
+  },
+  "bbcheck.token.macro": {
+    "fr": "macro <…>",
+    "en": "macro <…>"
+  },
+  "webtree.source_caption": {
+    "fr": "Source ECF — extrait",
+    "en": "ECF source — excerpt"
+  },
+  "webtree.card_unavailable": {
+    "fr": "Fiche indisponible pour ce nœud.",
+    "en": "No card available for this node."
+  },
+  "webtree.card_untranslated": {
+    "fr": "Traduction manquante — texte affiché en anglais.",
+    "en": "Missing translation — text shown in English."
+  },
+  "webtree.card_unlock": {
+    "fr": "Déblocage",
+    "en": "Unlock"
+  },
+  "webtree.card_stats": {
+    "fr": "Caractéristiques",
+    "en": "Stats"
+  },
+  "webtree.desc_no_info": {
+    "fr": "Ce bloc n'a pas de propriété Info : pas de description modifiable.",
+    "en": "This block has no Info property: no editable description."
+  },
+  "webtree.desc_no_csv": {
+    "fr": "Extras/Localization.csv est introuvable ou illisible.",
+    "en": "Extras/Localization.csv is missing or unreadable."
+  },
+  "webtree.desc_no_column": {
+    "fr": "Aucune colonne de langue correspondante dans Localization.csv.",
+    "en": "No matching language column in Localization.csv."
+  },
+  "webtree.desc_no_row": {
+    "fr": "Clé Info introuvable dans Localization.csv.",
+    "en": "Info key not found in Localization.csv."
+  },
+  "webtree.translate_done": {
+    "fr": "Traduction terminée : {ok} langue(s) mise(s) à jour, {ko} échec(s).",
+    "en": "Translation done: {ok} language(s) updated, {ko} failure(s)."
+  },
+  "wsundo.webtree_desc": {
+    "fr": "Description modifiée (vue web) : {name}",
+    "en": "Description edited (web view): {name}"
+  },
+  "webtree.ing_add": {
+    "fr": "Ajouter un ingrédient",
+    "en": "Add an ingredient"
+  },
+  "webtree.ing_remove": {
+    "fr": "Retirer cet ingrédient",
+    "en": "Remove this ingredient"
+  },
+  "webtree.ing_name_ph": {
+    "fr": "Nom de l'item ou bloc…",
+    "en": "Item or block name…"
+  },
+  "webtree.ing_qty_ph": {
+    "fr": "Qté",
+    "en": "Qty"
+  },
+  "webtree.ok_btn": {
+    "fr": "Ajouter",
+    "en": "Add"
+  },
+  "webtree.translate_pick_title": {
+    "fr": "Traduire la description",
+    "en": "Translate description"
+  },
+  "webtree.translate_pick_intro": {
+    "fr": "Cocher les langues cibles :",
+    "en": "Check the target languages:"
+  },
+  "webtree.translate_go": {
+    "fr": "Traduire",
+    "en": "Translate"
+  },
+  "menu.tools.sub.pda": {
+    "fr": "PDA",
+    "en": "PDA"
+  },
+  "menu.tools.sub.balance": {
+    "fr": "Équilibrage",
+    "en": "Balancing"
+  },
+  "menu.tools.sub.edit": {
+    "fr": "Édition",
+    "en": "Editing"
+  },
+  "menu.tools.sub.reports": {
+    "fr": "Bilans et tableaux de bord",
+    "en": "Reports and dashboards"
+  },
+  "menu.tools.sub.files": {
+    "fr": "Fichiers et production",
+    "en": "Files and production"
+  },
+  "trans.configure_hint": {
+    "fr": "Aucun fournisseur IA configuré (Options > Traduction > Fournisseurs IA…).",
+    "en": "No AI provider configured (Options > Translation > AI providers…)."
+  },
+  "menu.options.ai_batch": {
+    "fr": "Traduction par lots (requêtes groupées)",
+    "en": "Batch translation (grouped requests)"
+  },
+  "menu.options.groq_migrated": {
+    "fr": "Ancien moteur Groq migré vers les fournisseurs IA (clé et modèle conservés).",
+    "en": "Legacy Groq engine migrated to AI providers (key and model kept)."
+  },
+  "menu.options.titlebar_custom": {
+    "fr": "Barre de titre style webapp",
+    "en": "Web-style title bar"
+  },
+  "menu.options.titlebar_custom.restart": {
+    "fr": "Pris en compte au prochain lancement.",
+    "en": "Applied at next launch."
+  },
+  "csv.web_toggle": {
+    "fr": "Vue web",
+    "en": "Web view"
+  },
+  "csv.web_toggle_tooltip": {
+    "fr": "Basculer la table vers la vue web (2026) — fluide sur les gros fichiers ; la table Qt reste la source de vérité.",
+    "en": "Switch the table to the web view (2026) — smooth on large files; the Qt table stays the source of truth."
+  },
+  "csvmenu.edit": {
+    "fr": "Modifier la cellule",
+    "en": "Edit cell"
+  },
+  "csvmenu.bold": {
+    "fr": "Gras",
+    "en": "Bold"
+  },
+  "csvmenu.italic": {
+    "fr": "Italique",
+    "en": "Italic"
+  },
+  "csvmenu.underline": {
+    "fr": "Souligné",
+    "en": "Underline"
+  },
+  "csvmenu.sup": {
+    "fr": "Exposant",
+    "en": "Superscript"
+  },
+  "csvmenu.color": {
+    "fr": "Couleur",
+    "en": "Color"
+  },
+  "csv.sent.button": {
+    "fr": "Contrôle des phrases",
+    "en": "Sentence check"
+  },
+  "csv.sent.title": {
+    "fr": "Traductions tronquées (moins de phrases que la source)",
+    "en": "Truncated translations (fewer sentences than source)"
+  },
+  "csv.sent.summary": {
+    "fr": "{n} cellule(s) tronquée(s) — clic droit : traduire la source anglaise vers la langue de la cellule.",
+    "en": "{n} truncated cell(s) — right-click: translate the English source into the cell's language."
+  },
+  "csv.sent.empty": {
+    "fr": "Aucune cellule tronquée détectée.",
+    "en": "No truncated cell detected."
+  },
+  "csv.sent.col_line": {
+    "fr": "Ligne",
+    "en": "Line"
+  },
+  "csv.sent.col_key": {
+    "fr": "Clé",
+    "en": "Key"
+  },
+  "csv.sent.col_lang": {
+    "fr": "Langue",
+    "en": "Language"
+  },
+  "csv.sent.col_src": {
+    "fr": "Phrases (source)",
+    "en": "Sentences (source)"
+  },
+  "csv.sent.col_tgt": {
+    "fr": "Phrases (trad.)",
+    "en": "Sentences (transl.)"
+  },
+  "csv.sent.col_prev": {
+    "fr": "Aperçu traduit",
+    "en": "Translated preview"
+  },
+  "csv.sent.translate_action": {
+    "fr": "Traduire la source anglaise vers {lang}",
+    "en": "Translate English source into {lang}"
+  },
+  "csv.sent.select_in_table": {
+    "fr": "Sélectionner dans la table",
+    "en": "Select in table"
+  },
+  "tab.home": {
+    "fr": "Accueil",
+    "en": "Home"
+  },
+  "home.title": {
+    "fr": "Empyrion Scenario Editor",
+    "en": "Empyrion Scenario Editor"
+  },
+  "home.subtitle": {
+    "fr": "Votre atelier de scénario — choisissez un projet récent ou créez-en un nouveau.",
+    "en": "Your scenario workshop — pick a recent project or create a new one."
+  },
+  "home.recent": {
+    "fr": "Projets récents",
+    "en": "Recent projects"
+  },
+  "home.open": {
+    "fr": "Ouvrir",
+    "en": "Open"
+  },
+  "home.no_recents": {
+    "fr": "Aucun projet récent — créez un nouveau projet pour commencer.",
+    "en": "No recent project — create a new project to get started."
+  },
+  "home.footer": {
+    "fr": "Empyrion Scenario Editor — GNU GPL v3",
+    "en": "Empyrion Scenario Editor — GNU GPL v3"
+  },
+  "menu.options.csv_web_default": {
+    "fr": "Vue web par défaut des CSV",
+    "en": "Web view as CSV default"
   }
 }

@@ -43,16 +43,11 @@ from core import translation
 
 
 def batch_engine_enabled() -> bool:
-    """Le worker groupe-t-il plusieurs cellules par requete ? Groq (mode
-    lots historique) et le moteur IA (meme plafond de debit) : une requete
-    pour N cellules, bornes calculees par translation.batch_chunks."""
+    """Le worker groupe-t-il plusieurs cellules par requete ? Moteur IA
+    unique (31/10) : une requete pour N cellules, bornes calculees par
+    translation.batch_chunks."""
     from core import settings as _settings
-    engine = _settings.get_translation_engine()
-    if engine == "groq":
-        return _settings.get_groq_batch_enabled()
-    if engine == "ai":
-        return _settings.get_ai_batch_enabled()
-    return False
+    return _settings.get_ai_batch_enabled()
 
 
 class BatchTranslationWorker(QThread):

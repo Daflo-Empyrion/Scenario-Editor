@@ -44,7 +44,9 @@ def test_other_themes_have_no_optional_glass_keys():
     # ("h" Verriere acrylique, "i" Nuit Fluent grilles estompees, "j" Nuit
     # Mica, "k" Relief nuit biseaux, "l" Relief clair phase 2) -- aucune
     # fuite vers les autres themes.
-    themes_with_optional = {"h", "i", "j", "k", "l"}
+    # "m" = Cristal 2026 (31/10 : socle design du chantier web, grilles
+    # estompees + cartes sombres, sans acrylique comme "i")
+    themes_with_optional = {"h", "i", "j", "k", "l", "m"}
     for theme_id, palette in THEMES.items():
         if theme_id not in themes_with_optional:
             assert "extra_qss" not in palette
@@ -281,7 +283,15 @@ def test_p1_tools_menu_exists_and_file_menu_slimmed(qapp, monkeypatch):
     assert win.menu_tools is not None
     assert isinstance(win.menu_tools.title(), str) and win.menu_tools.title()
     file_actions = win.menu_file.actions()
-    tools_actions = win.menu_tools.actions()
+    # reorganisation 31/10 : sous-menus -> collecte recursive des actions
+    def _all_actions(menu):
+        out = []
+        for a in menu.actions():
+            out.append(a)
+            if a.menu() is not None:
+                out.extend(_all_actions(a.menu()))
+        return out
+    tools_actions = _all_actions(win.menu_tools)
     assert win.action_tech_tree in tools_actions
     assert win.action_galaxy_viewer in tools_actions
     assert win.action_pda_mission in tools_actions
@@ -415,7 +425,7 @@ def test_relief_theme_k_declared_and_ordered():
     avant-dernier de THEME_ORDER, extra_qss avec biseaux (degrades + bords
     par cote, uniques aux boutons extrudes / champs en creux)."""
     from core.themes import THEMES, THEME_ORDER, get_palette
-    assert THEME_ORDER[-2] == "k" and "k" in THEMES
+    assert THEME_ORDER[-3] == "k" and "k" in THEMES
     palette = get_palette("k")
     qss = palette["extra_qss"]
     assert "qlineargradient" in qss
@@ -428,10 +438,11 @@ def test_relief_theme_k_declared_and_ordered():
 
 def test_relief_theme_l_declared_and_ordered():
     """Theme 'l' Relief clair (phase 2 du look 3D du 12/09/2026) : declare en
-    DERNIER de THEME_ORDER, meme mecanique de biseaux que 'k', palette
-    lumineuse, bevel_card pose (le cadre fiche derive de la palette)."""
+    AVANT-DERNIER de THEME_ORDER (31/10 : "m" Cristal 2026 cloture la
+    liste), meme mecanique de biseaux que 'k', palette lumineuse,
+    bevel_card pose (le cadre fiche derive de la palette)."""
     from core.themes import THEMES, THEME_ORDER, get_palette
-    assert THEME_ORDER[-1] == "l" and "l" in THEMES
+    assert THEME_ORDER[-2] == "l" and "l" in THEMES
     palette = get_palette("l")
     qss = palette["extra_qss"]
     assert "qlineargradient" in qss

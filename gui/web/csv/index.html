@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>CSV — vue web</title>
+<style>
+:root{
+  --bg:#05070D; --surface:#161D2F; --surface-alt:#1B2337;
+  --line:rgba(130,205,255,.10); --line-strong:rgba(130,205,255,.28);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --amber:#FFC24D;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+  --rh:26px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--bg);
+  -webkit-font-smoothing:antialiased}
+.top{border-bottom:1px solid var(--line);background:rgba(10,15,26,.7)}
+.bar{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px}
+.bar .name{font:600 12.5px var(--mono);color:#8FE7F5}
+.bar .meta{font:11px var(--mono);color:var(--dim)}
+.tbtn{height:28px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);padding:0 11px;white-space:nowrap;cursor:pointer;
+  background:linear-gradient(180deg, rgba(40,52,80,.55), rgba(16,22,38,.55));
+  color:var(--muted);font:11.5px var(--font);
+  transition:border-color .12s, color .12s, background .12s}
+.tbtn svg{width:13px;height:13px;stroke:currentColor;fill:none;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.tbtn:hover{color:var(--txt);border-color:rgba(0,229,255,.45);
+  background:rgba(0,229,255,.10);box-shadow:0 0 14px -6px rgba(0,229,255,.6)}
+.tbtn.primary{border-color:rgba(0,229,255,.5);
+  background:linear-gradient(180deg, rgba(0,229,255,.22), rgba(0,140,190,.18));
+  color:#DFFAFF;font-weight:600;
+  box-shadow:0 0 16px -8px rgba(0,229,255,.8), inset 0 1px 0 rgba(255,255,255,.15)}
+.tbtn.primary:hover{background:rgba(0,229,255,.28)}
+.search{display:flex;align-items:center;gap:6px;margin-left:auto}
+.colsel{height:26px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:11.5px var(--font);
+  padding:0 6px;outline:none;max-width:170px}
+.colsel:focus{border-color:rgba(0,229,255,.45)}
+.colsel option{background:#0B1220;color:var(--txt)}
+.search input{height:26px;width:200px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:12px var(--font);padding:0 9px;outline:none}
+.search input:focus{border-color:rgba(0,229,255,.45)}
+.search .st{font:10.5px var(--mono);color:var(--dim);min-width:90px}
+.search button{height:26px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(0,229,255,.10);color:#DFFAFF;font:11.5px var(--font);cursor:pointer;padding:0 9px}
+.search button:hover{background:rgba(0,229,255,.2)}
+.grid{position:relative;overflow:auto;height:calc(100% - 84px);cursor:default;
+  background:var(--bg)}
+.grid::-webkit-scrollbar{width:11px;height:11px}
+.grid::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.grid::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+.grid::-webkit-scrollbar-thumb:hover{background:rgba(130,205,255,.38);
+  border:3px solid transparent;background-clip:content-box}
+.sizer{position:relative;width:max-content}
+.hrow{position:sticky;top:0;z-index:3;display:flex;height:28px;
+  background:#0E1422;border-bottom:1px solid var(--line-strong)}
+.hcell{flex:0 0 auto;padding:5px 9px;font:600 11px var(--mono);color:#8FE7F5;
+  border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;background:inherit;position:relative}
+.hcell .drag{position:absolute;right:-3px;top:0;bottom:0;width:7px;
+  cursor:col-resize;z-index:4}
+.hcell .drag:hover{background:rgba(0,229,255,.3)}
+.row{position:absolute;display:flex;height:var(--rh);left:0}
+.row:nth-child(even) .cell{background:rgba(27,35,55,.45)}
+.row:hover .cell{background:rgba(0,229,255,.07)}
+.row.cur .rn{color:var(--cyan);font-weight:700}
+.rn{flex:0 0 58px;padding:4px 7px;font:10.5px var(--mono);color:var(--dim);
+  border-right:1px solid var(--line);text-align:right;background:rgba(10,15,26,.6);
+  position:sticky;left:0;z-index:2;cursor:pointer}
+.cell{flex:0 0 auto;padding:4px 9px;font:12px var(--mono);color:var(--txt);
+  border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;user-select:none}
+.cell.mod{color:var(--amber)}
+.cell.hit{background:rgba(255,194,77,.16)}
+.cell.hit-cur{background:rgba(0,229,255,.20);outline:1px solid var(--cyan)}
+.cell mark{background:rgba(255,194,77,.55);color:inherit;border-radius:2px}
+input.cedit{font:12px var(--mono);color:var(--txt);
+  background:rgba(6,11,20,.95);border:1px solid rgba(0,229,255,.55);outline:none;
+  border-radius:4px;padding:2px 6px}
+/* ---------- menu contextuel maison (FR/EN via le pont) ---------- */
+.ctxmenu{position:fixed;z-index:50;min-width:210px;max-width:280px;
+  max-height:70vh;overflow-y:auto;padding:5px;border-radius:10px;
+  background:rgba(14,20,34,.97);border:1px solid var(--line-strong);
+  box-shadow:0 18px 50px -12px #000;backdrop-filter:blur(18px);display:none}
+.ctxmenu::-webkit-scrollbar{width:9px}
+.ctxmenu::-webkit-scrollbar-thumb{background:rgba(130,205,255,.25);border-radius:5px}
+.mi{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:7px;
+  font:12px var(--font);color:var(--txt);cursor:pointer;white-space:nowrap}
+.mi:hover{background:rgba(0,229,255,.12)}
+.mi.dis{color:var(--dim);cursor:default}
+.mi.dis:hover{background:transparent}
+.mi .sub{margin-left:auto;color:var(--dim);font-size:10px}
+.mi .caret{margin-left:auto;font-size:9px;color:var(--dim)}
+.mrow{display:flex;align-items:center;gap:2px}
+.mi svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.msep{height:1px;background:var(--line);margin:4px 6px}
+.mtitle{padding:6px 10px 2px;font:10px var(--mono);letter-spacing:1px;
+  text-transform:uppercase;color:var(--dim)}
+.sw{display:inline-block;width:18px;height:18px;border-radius:5px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.25);margin:2px}
+.sw:hover{transform:scale(1.12)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="bar">
+    <span class="name" id="name">—</span>
+    <span class="meta" id="meta"></span>
+    <span style="flex:1"></span>
+    <div id="tools" style="display:flex;gap:6px;align-items:center"></div>
+  </div>
+  <div class="bar" style="height:42px">
+    <div class="search" style="margin-left:0">
+      <select id="qcol" class="colsel"></select>
+      <input id="q" placeholder="Rechercher…">
+      <span class="st" id="qstat"></span>
+      <button id="qprev" title="Précédent">▲</button>
+      <button id="qnext" title="Suivant">▼</button>
+    </div>
+  </div>
+</div>
+<div id="ctxmenu" class="ctxmenu"></div>
+<div class="grid" id="grid">
+  <div class="sizer" id="sizer">
+    <div class="hrow" id="hrow"></div>
+    <div id="viewport" style="position:absolute;left:0;right:0"></div>
+  </div>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, META=null, MODIFIED=new Set(), HITS=[], HIT_IDX=-1, QUERY="";
+let COLW=[], CURRENT_R=-1, CTX_R=-1, CTX_C=-1;
+const CTX = () => (META && META.ctx) || {};
+const LANGS = () => (META && META.languages) || [];
+/* palette BBCode (syntaxe jeu : [c][RRGGBB]texte[-][/c]) */
+const COLORS = [
+  ["#FFFFFF", "#FF5C5C", "#FF9F43", "#FFD166"],
+  ["#00FFA3", "#00E5FF", "#4A7DFC", "#B388FF"],
+];
+const WRAP = {
+  bold: ["[b]", "[/b]"], italic: ["[i]", "[/i]"],
+  underline: ["[u]", "[/u]"], sup: ["[sup]", "[/sup]"],
+};
+const ICONS = {
+  edit: '<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  cut: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
+  paste: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  clear: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  translate: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18"/>',
+  bbcode: '<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>',
+  explain: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 3.6 2.4c-.7.3-1.1.9-1.1 1.6v.5"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
+  undo: '<path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.6-6.4L3 9"/>',
+  bold: '<path d="M7 4h7a4 4 0 0 1 0 8H7zM7 12h8a4 4 0 0 1 0 8H7z"/>',
+  italic: '<path d="M19 4h-9M14 20H5M15 4L9 20"/>',
+  underline: '<path d="M6 3v7a6 6 0 0 0 12 0V3M4 21h16"/>',
+  sup: '<path d="M4 19L14 7M17 5v6M14 8h6"/>',
+  color: '<path d="M12 21a9 9 0 0 1 0-18c4 0 7 2.5 7 5.5 0 2.5-2 3.5-4 3.5h-1.5a2 2 0 0 0-1 3.7c.6.4 1 1 1 1.8a2 2 0 0 1-1.5 1.5"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="11" cy="7.5" r="1" fill="currentColor"/><circle cx="15.5" cy="9" r="1" fill="currentColor"/>',
+};
+const svg = name => `<svg viewBox="0 0 24 24">${ICONS[name] || ""}</svg>`;
+const RH=26, OVERSCAN=8;
+const grid=document.getElementById("grid");
+const sizer=document.getElementById("sizer");
+const vp=document.getElementById("viewport");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function boot(){
+  if (typeof qt === "undefined" || !qt.webChannelTransport){ setTimeout(boot, 300); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.csvbridge;
+    BRIDGE.data_changed.connect(p => {
+      const m = JSON.parse(p);
+      /* elaguer les marques hors bornes (lignes ajoutees/supprimees),
+         CONSERVER les cellules modifiees encore valides — sinon le halo
+         ambre des editions s'evanouissait a chaque action du menu */
+      MODIFIED = new Set([...MODIFIED].filter(k => {
+        const i = k.split("_"); return +i[0] < m.rows && +i[1] < m.cols;
+      }));
+      shape(m); });
+    BRIDGE.get_meta(m => { shape(JSON.parse(m)); });
+  });
+}
+/* reset appele par Python quand la table a change sous nos pieds */
+window.appReset = function(meta){ MODIFIED.clear(); shape(meta); };
+
+function shape(m){
+  META = m;
+  COLW = m.header.map((h,i)=> i===0 ? 220 : 300);
+  document.getElementById("name").textContent = m.name;
+  document.getElementById("meta").textContent =
+    `${m.rows} lignes × ${m.cols} colonnes`;
+  buildTools(m);
+  const sel = document.getElementById("qcol");
+  const prev = sel.value;
+  sel.innerHTML = `<option value="-1">${esc("Toutes les colonnes")}</option>` +
+    m.header.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join("");
+  if ([...sel.options].some(o=>o.value===prev)) sel.value = prev;
+  applySizes(); buildHeader(); render();
+  CURRENT_R = -1;
+}
+
+/* ---------- barre d'actions (memes handlers que les boutons Qt) ---------- */
+function buildTools(m){
+  const box = document.getElementById("tools");
+  box.innerHTML = "";
+  if (!m.editable) return;
+  const L = m.labels || {};
+  const SVG = {
+    add_row: '<path d="M12 5v14M5 12h14"/>',
+    delete_row: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/>',
+    undo: '<path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 2.6-6.4L3 9"/>',
+    find_replace: '<path d="M4 7h12M12 3l4 4-4 4"/><path d="M20 17H8M12 21l-4-4 4-4"/>',
+    spellcheck: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+    bbcode: '<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>',
+    fill_missing: '<path d="M4 5h9M8.5 3v2c0 4-3 8-5.5 9"/><path d="M6 8c1.5 3.5 4.5 6 9 7"/>' +
+                  '<path d="M13 21l4-9 4 9M14.5 17.5h5"/>',
+  };
+  const defs = [
+    ["add_row", L.add], ["delete_row", L.del], ["undo", L.undo],
+    ["find_replace", L.replace], ["spellcheck", L.spell],
+    ["bbcode", L.bbcode], ["fill_missing", L.fill],
+  ];
+  defs.forEach(([act, label])=>{
+    const b = document.createElement("button");
+    b.className = "tbtn";
+    b.innerHTML = `<svg viewBox="0 0 24 24">${SVG[act] || ""}</svg>` +
+                  `<span>${esc(label)}</span>`;
+    b.title = label;
+    b.onclick = ()=>{
+      if (act === "delete_row"){
+        if (CURRENT_R < 0){
+          document.getElementById("qstat").textContent =
+            "Cliquez d'abord une ligne";
+          return;
+        }
+        BRIDGE.set_current_row(CURRENT_R);
+      }
+      BRIDGE.run_action(act);
+    };
+    box.appendChild(b);
+  });
+  const save = document.createElement("button");
+  save.className = "tbtn primary";
+  save.innerHTML = `<svg viewBox="0 0 24 24">` +
+    `<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>` +
+    `<path d="M17 21v-8H7v8M7 3v5h8"/></svg><span>${esc(L.save)}</span>`;
+  save.title = L.save;
+  save.onclick = ()=>BRIDGE.run_action("save");
+  box.appendChild(save);
+}
+
+/* ---------- largeurs de colonnes draggables ---------- */
+function applySizes(){
+  if (!META) return;
+  sizer.style.width = (58 + COLW.reduce((a,b)=>a+b,0) + 40) + "px";
+  sizer.style.height = (META.rows*RH + 28) + "px";
+}
+const colW = i => COLW[i] || 300;
+
+/* ---------- rendu virtualise ---------- */
+function buildHeader(){
+  const hrow = document.getElementById("hrow");
+  hrow.innerHTML = `<div class="hcell" style="width:58px">#</div>` +
+    META.header.map((h,i)=>
+      `<div class="hcell" style="width:${colW(i)}px" title="${esc(h)}">${esc(h)}` +
+      `<span class="drag" data-i="${i}"></span></div>`).join("");
+  hrow.querySelectorAll(".drag").forEach(dg => {
+    dg.addEventListener("pointerdown", ev=>{
+      ev.preventDefault(); ev.stopPropagation();
+      const i = +dg.dataset.i;
+      const startX = ev.clientX, startW = COLW[i];
+      dg.setPointerCapture(ev.pointerId);
+      const move = e2 => {
+        COLW[i] = Math.max(90, startW + (e2.clientX - startX));
+        dg.parentElement.style.width = COLW[i] + "px";
+        applySizes(); render();
+      };
+      const up = ()=>{ dg.removeEventListener("pointermove", move);
+                       dg.removeEventListener("pointerup", up); };
+      dg.addEventListener("pointermove", move);
+      dg.addEventListener("pointerup", up);
+    });
+  });
+}
+function render(){
+  if (!META) return;
+  const top = grid.scrollTop;
+  const h = grid.clientHeight;
+  let first = Math.max(0, Math.floor((top-28)/RH) - OVERSCAN);
+  let last  = Math.min(META.rows-1, Math.ceil((top+h)/RH) + OVERSCAN);
+  BRIDGE.get_rows(first, last-first+1, payload => {
+    const {start, rows} = JSON.parse(payload);
+    if (grid.scrollTop !== top) return;         // scroll a bouge : jete
+    vp.innerHTML = "";
+    rows.forEach((vals, k) => {
+      const r = start + k;
+      const row = document.createElement("div");
+      row.className = "row" + (r === CURRENT_R ? " cur" : "");
+      row.style.top = (r*RH + 28) + "px";
+      let html = `<div class="rn" data-r="${r}">${r+2}</div>`;   // +1 entete, +1 base 1
+      vals.forEach((v,c) => {
+        const mod = MODIFIED.has(r+"_"+c);
+        const isHit = HITS.some(h => h[0]===r && h[1]===c);
+        const isCur = HITS[HIT_IDX] && HITS[HIT_IDX][0]===r && HITS[HIT_IDX][1]===c;
+        const content = isHit ? highlight(v) : esc(v);
+        html += `<div class="cell${mod?" mod":""}${isHit?" hit":""}${isCur?" hit-cur":""}"` +
+                ` data-r="${r}" data-c="${c}"` +
+                ` style="width:${colW(c)}px" title="${esc(v)}">${content}</div>`;
+      });
+      row.innerHTML = html;
+      vp.appendChild(row);
+    });
+    bindEdit(vp);
+  });
+}
+grid.addEventListener("scroll", () => requestAnimationFrame(render));
+
+/* ---------- selection de ligne (pour supprimer) ---------- */
+function bindRowPick(scope){
+  scope.querySelectorAll(".rn, .cell").forEach(el => {
+    el.addEventListener("click", e=>{
+      const r = +el.dataset.r;
+      if (r === CURRENT_R) return;
+      CURRENT_R = r;
+      vp.querySelectorAll(".row").forEach(row=>{
+        const rnEl = row.querySelector(".rn");
+        if (rnEl) row.classList.toggle("cur", +rnEl.dataset.r === CURRENT_R);
+      });
+    });
+  });
+}
+
+/* ---------- edition ---------- */
+function bindEdit(scope){
+  bindRowPick(scope);
+  scope.querySelectorAll(".cell").forEach(cell => {
+    cell.addEventListener("contextmenu", e=>{
+      e.preventDefault(); e.stopPropagation();
+      CTX_R = +cell.dataset.r; CTX_C = +cell.dataset.c;
+      openCtxMenu(e.clientX, e.clientY);
+    });
+    if (META.editable) cell.ondblclick = () => startEdit(cell);
+  });
+}
+/* le menu natif du navigateur (en anglais) n'apparait JAMAIS */
+document.addEventListener("contextmenu", e => e.preventDefault());
+function startEdit(cell){
+  if (cell.querySelector("input")) return;
+  const r = +cell.dataset.r, c = +cell.dataset.c;
+  const w = Math.max(120, cell.clientWidth);
+  cell.innerHTML = `<input class="cedit" style="width:${w}px" value="${esc(cell.title)}">`;
+  const inp = cell.querySelector("input");
+  inp.focus(); inp.select();
+  const commit = ()=>{
+    const nv = inp.value;
+    if (nv !== cell.title){
+      MODIFIED.add(r+"_"+c);
+      cell.innerHTML = esc(nv); cell.title = nv;
+      BRIDGE.set_cell(r, c, nv);
+    } else cell.innerHTML = esc(cell.title);
+  };
+  inp.addEventListener("keydown", ev=>{
+    if (ev.key==="Enter") inp.blur();
+    if (ev.key==="Escape"){ inp.value = cell.title; inp.blur(); }
+  });
+  inp.addEventListener("blur", commit, {once:true});
+}
+
+/* ---------- recherche (cote Python, cellules [ligne, colonne]) ---------- */
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function highlight(text){
+  /* texte echappe, occurrence de la requete en <mark> -- l'echappement
+     est fait AVANT, la recherche s'applique au HTML inoffensif */
+  if (!QUERY) return esc(text);
+  return esc(text).replace(new RegExp(escRe(esc(QUERY)), "gi"),
+                           m => `<mark>${m}</mark>`);
+}
+document.getElementById("q").addEventListener("keydown", e=>{
+  if (e.key === "Enter") runSearch();
+});
+document.getElementById("qnext").onclick = ()=>jump(1);
+document.getElementById("qprev").onclick = ()=>jump(-1);
+document.getElementById("qcol").addEventListener("change", runSearch);
+function runSearch(){
+  const col = parseInt(document.getElementById("qcol").value, 10);
+  QUERY = document.getElementById("q").value;
+  if (!QUERY.trim()){ HITS = []; HIT_IDX = -1; render();
+    document.getElementById("qstat").textContent = ""; return; }
+  BRIDGE.search(QUERY, col, p => {
+    HITS = JSON.parse(p); HIT_IDX = HITS.length ? 0 : -1;
+    document.getElementById("qstat").textContent =
+      HITS.length ? `${HIT_IDX+1}/${HITS.length}` : "0";
+    render();
+    if (HITS.length) gotoRow(HITS[HIT_IDX][0]);
+  });
+}
+function jump(dir){
+  if (!HITS.length) return;
+  HIT_IDX = (HIT_IDX + dir + HITS.length) % HITS.length;
+  document.getElementById("qstat").textContent = `${HIT_IDX+1}/${HITS.length}`;
+  render();
+  gotoRow(HITS[HIT_IDX][0]);
+}
+function gotoRow(r){
+  grid.scrollTop = Math.max(0, r*RH - grid.clientHeight/2 + 28);
+}
+
+/* ---------- menu contextuel maison (FR/EN via META.ctx) ---------- */
+const menuEl = document.getElementById("ctxmenu");
+let ctxStack = [];      // pile des panneaux ouverts ([el, level], principal = 0)
+function closeCtxAll(){ ctxStack.forEach(e => e.el.style.display = "none");
+                        ctxStack = []; }
+document.addEventListener("click", e=>{
+  if (!ctxStack.some(s => s.el.contains(e.target))) closeCtxAll();
+});
+document.addEventListener("keydown", e=>{
+  if (e.key === "Escape") closeCtxAll();
+});
+function itemRow(label, icon, disabled){
+  const d = document.createElement("div");
+  d.className = "mi" + (disabled ? " dis" : "");
+  d.innerHTML = (icon ? svg(icon) : "") + `<span>${esc(label)}</span>`;
+  return d;
+}
+function appendSep(menu){ menu.appendChild((()=>{ const d = document.createElement("div");
+  d.className = "msep"; return d; })()); }
+function appendTitle(menu, s){ const d = document.createElement("div");
+  d.className = "mtitle"; d.textContent = s; menu.appendChild(d); }
+/* sous-menu : ouvert au survol du parent, ferme avec le menu ou l'Escape ;
+   la pile ferme d'abord les sous-menus plus profonds */
+function appendSub(menu, label, icon, level, build){
+  const parent = itemRow(label, icon, false);
+  parent.innerHTML += `<span class="caret">&#9656;</span>`;
+  parent.dataset.level = level;
+  parent.classList.add("mrow");
+  let sub = null;
+  const open = ()=>{
+    closeFrom(level + 1);
+    sub = document.createElement("div");
+    sub.className = "ctxmenu";
+    sub.style.display = "block";
+    document.body.appendChild(sub);
+    build(sub);
+    sub.style.display = "none";
+    const r = parent.getBoundingClientRect();
+    sub.style.left = Math.min(r.right - 4,
+      window.innerWidth - sub.offsetWidth - 8) + "px";
+    sub.style.top = Math.min(r.top - 5,
+      window.innerHeight - sub.offsetHeight - 8) + "px";
+    sub.style.display = "block";
+    ctxStack.push({el: sub, level: level + 1});
+  };
+  parent.addEventListener("mouseenter", open);
+  parent.addEventListener("click", open);   // tap aussi (robuste)
+  menu.appendChild(parent);
+}
+function closeFrom(level){
+  while (ctxStack.length && ctxStack[ctxStack.length - 1].level >= level){
+    const top = ctxStack.pop();
+    top.el.style.display = "none";
+  }
+}
+function showMenu(x, y, build){
+  closeCtxAll();
+  menuEl.innerHTML = "";
+  build(menuEl, 0);
+  menuEl.style.display = "block";
+  const r = menuEl.getBoundingClientRect();
+  menuEl.style.left = Math.min(x, window.innerWidth - r.width - 8) + "px";
+  menuEl.style.top = Math.min(y, window.innerHeight - r.height - 8) + "px";
+  ctxStack.push({el: menuEl, level: 0});
+}
+function openCtxMenu(x, y){
+  const C = CTX(); const ed = META.editable;
+  const noCell = CTX_R < 0;
+  const touchAndRender = () => {
+    MODIFIED.add(CTX_R + "_" + CTX_C);
+    setTimeout(render, 60);   // la table vient de changer : re-lire le viewport
+  };
+  const wrap = pre => {
+    const [o, cl] = pre.startsWith("#")
+      ? [`[c][${pre.slice(1)}]`, "[-][/c]"] : WRAP[pre];
+    BRIDGE.wrap_bbcode(CTX_R, CTX_C, o, cl);
+    touchAndRender();
+  };
+  showMenu(x, y, (menu, level) => {
+    if (ed) menu.appendChild(itemRow(C.edit, "edit", noCell)).onclick =
+      ()=>{ closeCtxAll();
+            const cell = vp.querySelector(`.cell[data-r="${CTX_R}"][data-c="${CTX_C}"]`);
+            if (cell){ BRIDGE.select_cell(CTX_R, CTX_C); startEdit(cell); } };
+    if (ed) appendSep(menu);
+    menu.appendChild(itemRow(C.copy, "copy", noCell))
+      .onclick = ()=>{ closeCtxAll(); BRIDGE.copy_cell(CTX_R, CTX_C); };
+    menu.appendChild(itemRow(C.cut, "cut", noCell || !ed))
+      .onclick = ()=>{ closeCtxAll(); BRIDGE.cut_cell(CTX_R, CTX_C); touchAndRender(); };
+    menu.appendChild(itemRow(C.paste, "paste", noCell || !ed))
+      .onclick = ()=>{ closeCtxAll(); BRIDGE.paste_cell(CTX_R, CTX_C); touchAndRender(); };
+    menu.appendChild(itemRow(C.clear, "clear", noCell || !ed))
+      .onclick = ()=>{ closeCtxAll(); BRIDGE.clear_cell(CTX_R, CTX_C); touchAndRender(); };
+    menu.appendChild(itemRow(C.del_rows, "clear", noCell || !ed))
+      .onclick = ()=>{ closeCtxAll();
+        if (CURRENT_R >= 0) BRIDGE.set_current_row(CURRENT_R);
+        BRIDGE.run_action("delete_rows"); };
+    appendSep(menu);
+    menu.appendChild(itemRow(C.explain, "explain", noCell))
+      .onclick = ()=>{ closeCtxAll(); BRIDGE.explain_cell(CTX_R, CTX_C); };
+    if (ed){
+      menu.appendChild(itemRow(C.spell_cell, "spellcheck", noCell))
+        .onclick = ()=>{ closeCtxAll();
+          BRIDGE.select_cell(CTX_R, CTX_C); BRIDGE.run_action("spell_cell"); };
+      appendSep(menu);
+      // Traduire vers ▸ (meme structure que le menu Qt)
+      appendSub(menu, C.translate_to, "translate", level, sub => {
+        LANGS().forEach(([label, code]) => {
+          sub.appendChild(itemRow(label, "translate", noCell)).onclick =
+            ()=>{ closeCtxAll(); BRIDGE.translate_cell(CTX_R, CTX_C, code, label); };
+        });
+      });
+      // BBCode ▸ (habillage + assistant existant)
+      appendSub(menu, "BBCode", "bbcode", level, sub => {
+        sub.appendChild(itemRow(C.bold, "bold", noCell)).onclick =
+          ()=>{ closeCtxAll(); wrap("bold"); };
+        sub.appendChild(itemRow(C.italic, "italic", noCell)).onclick =
+          ()=>{ closeCtxAll(); wrap("italic"); };
+        sub.appendChild(itemRow(C.underline, "underline", noCell)).onclick =
+          ()=>{ closeCtxAll(); wrap("underline"); };
+        sub.appendChild(itemRow(C.sup, "sup", noCell)).onclick =
+          ()=>{ closeCtxAll(); wrap("sup"); };
+        sub.appendChild(itemRow(C.color, "color", noCell));
+        COLORS.forEach(rowColors => {
+          const sw = document.createElement("div");
+          sw.className = "mrow";
+          rowColors.forEach(hex => {
+            const s = document.createElement("span");
+            s.className = "sw"; s.style.background = hex; s.title = hex;
+            s.onclick = ()=>{ closeCtxAll(); wrap(hex); };
+            sw.appendChild(s);
+          });
+          sub.appendChild(sw);
+        });
+        appendSep(sub);
+        sub.appendChild(itemRow(C.bbcode_tool, "bbcode", noCell)).onclick =
+          ()=>{ closeCtxAll(); BRIDGE.bbcode_tool(CTX_R, CTX_C); };
+      });
+      appendSep(menu);
+      menu.appendChild(itemRow(C.undo, "undo", false)).onclick =
+        ()=>{ closeCtxAll(); BRIDGE.run_action("undo"); };
+    }
+  });
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -60,7 +60,14 @@ def test_dialog_builds(qapp):
 def test_menu_path_connected(qapp, monkeypatch):
     from test_theme_verriere_and_reorg import _make_window
     win = _make_window(qapp, monkeypatch, None)
-    assert win.action_cartoon in win.menu_tools.actions()
+    def _all_actions(menu):
+        out = []
+        for a in menu.actions():
+            out.append(a)
+            if a.menu() is not None:
+                out.extend(_all_actions(a.menu()))
+        return out
+    assert win.action_cartoon in _all_actions(win.menu_tools)
     calls = {}
 
     class _Stub:

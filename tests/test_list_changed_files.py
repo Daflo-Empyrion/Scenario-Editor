@@ -106,3 +106,53 @@ def test_sync_then_rescan_is_empty(tmp_path):
         import shutil
         shutil.copy2(src, dst)
     assert list_changed_files(work, prod) == []
+
+
+# ---------------------------------------------------------------------------
+# Cache de hachages persiste (.cache_hashes, demande du 31/10)
+# ---------------------------------------------------------------------------
+
+def test_scan_writes_persisted_hash_cache(tmp_path):
+    work, prod, now = _scenario(tmp_path)
+    # mtimes DIFERENTS + contenu identique : le chemin hash est pris, le
+    # cache doit etre ecrit des deux cotes
+    os.utime(work / "Playfields/A/playfield.yaml", (now + 100, now + 100))
+    assert list_changed_files(work, prod) == []
+    assert (work / ".cache_hashes").is_file()
+    assert (prod / ".cache_hashes").is_file()
+
+
+def test_second_scan_served_from_cache(tmp_path, monkeypatch):
+    work, prod, now = _scenario(tmp_path)
+    os.utime(work / "Playfields/A/playfield.yaml", (now + 100, now + 100))
+    assert list_changed_files(work, prod) == []        # remplit le cache
+    # RE-SCAN SANS RIEN CHANGER (le cas demarrage) : mtimes toujours
+    # differents entre les deux racines -> sans cache, rehash a chaque scan
+    import gui.modified_files_dialog as mfd
+    def _boom(path):
+        raise AssertionError("hash recalcule alors que le cache suffit")
+    monkeypatch.setattr(mfd, "_hash", _boom)
+    assert list_changed_files(work, prod) == []        # servi par le cache
+
+
+def test_cache_detects_real_modification(tmp_path):
+    work, prod, now = _scenario(tmp_path)
+    os.utime(work / "Playfields/A/playfield.yaml", (now + 100, now + 100))
+    assert list_changed_files(work, prod) == []
+    # vraie modification (contenu different, mtime different)
+    _mk(work, "Playfields/A/playfield.yaml", b"Playfield: V2", now + 300)
+    changes = list_changed_files(work, prod)
+    assert len(changes) == 1 and changes[0][1] == "modified"
+
+
+def test_cache_file_itself_never_listed(tmp_path):
+    work, prod, now = _scenario(tmp_path)
+    (work / ".cache_hashes").write_text("{}", encoding="utf-8")
+    assert list_changed_files(work, prod) == []        # ni 'added', ni erreur
+
+
+def test_corrupt_cache_ignored(tmp_path):
+    work, prod, now = _scenario(tmp_path)
+    (work / ".cache_hashes").write_text("{{pas du json", encoding="utf-8")
+    os.utime(work / "Playfields/A/playfield.yaml", (now + 100, now + 100))
+    assert list_changed_files(work, prod) == []

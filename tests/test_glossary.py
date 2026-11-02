@@ -301,17 +301,10 @@ def test_translate_text_store_in_memory_false(monkeypatch):
     import core.translation_memory as tm
     stores = []
     monkeypatch.setattr(tm, "store", lambda *a: stores.append(a))
-    monkeypatch.setattr(translation, "_AVAILABLE", True)
-    monkeypatch.setattr(core_settings, "get_translation_engine", lambda: "google")
     monkeypatch.setattr(core_settings, "get_online_translation_enabled", lambda: True)
-
-    class FakeTranslator:
-        def __init__(self, source, target):
-            pass
-
-        def translate(self, text):
-            return "Bonjour"
-    monkeypatch.setattr(translation, "GoogleTranslator", FakeTranslator)
+    # moteur IA unique (31/10) : on double translate_whole du routeur
+    monkeypatch.setattr("core.ai.router.translate_whole",
+                        lambda protected, target: "Bonjour")
 
     out = translation.translate_text("Hello", target="fr", store_in_memory=False)
     assert out == "Bonjour"
@@ -325,13 +318,11 @@ def test_translate_text_consults_memory_first(monkeypatch):
     import core.translation_memory as tm
     calls = []
     monkeypatch.setattr(tm, "get_cached", lambda text, source, target: "TRAD MÉMORISÉE")
-    monkeypatch.setattr(translation, "_AVAILABLE", True)
 
     def boom(*a, **k):
         calls.append(1)
         raise AssertionError("le moteur ne doit pas etre appele sur cache hit")
-    monkeypatch.setattr(translation, "GoogleTranslator", boom)
-    monkeypatch.setattr(core_settings, "get_translation_engine", lambda: "google")
+    monkeypatch.setattr("core.ai.router.translate_whole", boom)
     monkeypatch.setattr(core_settings, "get_online_translation_enabled", lambda: True)
 
     assert translation.translate_text("Hello", target="fr",

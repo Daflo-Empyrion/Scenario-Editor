@@ -204,9 +204,6 @@ class AiProvidersDialog(QDialog):
         self.batch_check = QCheckBox(t("ai.batch"))
         self.batch_check.toggled.connect(settings.set_ai_batch_enabled)
         layout.addWidget(self.batch_check)
-        self.use_check = QCheckBox(t("ai.use_as_engine"))
-        self.use_check.toggled.connect(self._toggle_engine)
-        layout.addWidget(self.use_check)
 
         self.test_result = QLabel("")
         self.test_result.setWordWrap(True)
@@ -475,7 +472,8 @@ class AiProvidersDialog(QDialog):
         self.cap_spin.setValue(settings.get_ai_monthly_cap_usd())
         self.style_edit.setPlainText(settings.get_ai_style())
         self.batch_check.setChecked(settings.get_ai_batch_enabled())
-        self.use_check.setChecked(settings.get_translation_engine() == "ai")
+        # moteur IA unique (31/10) : l'ancienne case « utiliser comme moteur »
+        # est supprimee -- ce dialogue EST la configuration de traduction.
         self._loading = False
         self._refresh_spend()
 
@@ -502,12 +500,6 @@ class AiProvidersDialog(QDialog):
     def _style_changed(self) -> None:
         if not self._loading:
             settings.set_ai_style(self.style_edit.toPlainText())
-
-    def _toggle_engine(self, checked: bool) -> None:
-        if self._loading:
-            return
-        settings.set_translation_engine("ai" if checked else "google")
-        self._notify_main()
 
     def _notify_main(self) -> None:
         mw = self.parent()

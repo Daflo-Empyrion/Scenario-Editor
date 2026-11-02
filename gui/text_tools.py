@@ -164,7 +164,11 @@ BBCODE_COLORS = [
 class BBCodeToolDialog(QDialog):
     """Petite fenetre d'edition avec palette de couleurs et boutons de style (gras,
     italique, souligne) : selectionne du texte a la souris dans la zone d'edition,
-    clique une couleur ou un style pour l'entourer des balises BBCode correspondantes."""
+    clique une couleur ou un style pour l'entourer des balises BBCode correspondantes.
+    Plusieurs exemplaires autorises : on peut formater une deuxieme cellule
+    pendant que la premiere est ouverte (voir gui/dialog_policy.py)."""
+
+    allow_multiple = True
 
     def __init__(self, text: str, parent=None):
         super().__init__(parent)

@@ -158,15 +158,13 @@ def test_translate_text_ignores_garbage_memory_hit(tmp_path, monkeypatch):
     monkeypatch.setattr(translation_memory, '_cache', None)
     monkeypatch.setattr(vanilla_memory, 'get_vanilla_cached',
                         lambda *a, **k: None)
-    monkeypatch.setattr(settings, 'get_translation_engine', lambda: 'google')
     monkeypatch.setattr(settings, 'get_online_translation_enabled', lambda: True)
-    monkeypatch.setattr('core.settings.get_engine_fallback_enabled',
-                        lambda: False)
     garbage = "Error 500 (Server Error)!!1 500. That's an error."
     monkeypatch.setattr(translation_memory, 'get_cached',
                         lambda text, src, tgt: garbage)
-    monkeypatch.setattr(translation, '_translate_google',
-                        lambda text, target, source, timeout: "TRAD:" + text)
+    # moteur IA unique (31/10) : on double translate_whole du routeur
+    monkeypatch.setattr('core.ai.router.translate_whole',
+                        lambda protected, target: "TRAD:" + protected)
     out = translation.translate_text("Hello", target="fr",
                                      store_in_memory=False)
     assert out == "TRAD:Hello"  # PAS le hit memoire pollue

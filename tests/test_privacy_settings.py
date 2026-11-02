@@ -31,10 +31,14 @@ def test_translate_text_refuses_when_disabled(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(settings, "SETTINGS_FILE", tmp_path / "settings.json")
     settings.set_online_translation_enabled(False)
-    # Bascule automatique OFF : on teste le refus du chemin historique
-    # (avec la chaine, un moteur hors ligne de la machine pourrait servir).
-    monkeypatch.setattr(settings, "get_engine_fallback_enabled",
-                        lambda: False)
+    # Moteur IA unique (31/10) : un fournisseur DISTANT est configure (sinon
+    # le refus « aucun fournisseur » masquerait celui de confidentialite) ;
+    # le garde doit refuser avant tout appel reseau.
+    settings.set_ai_providers([{
+        "id": "p1", "label": "P1", "key": "k", "kind": "free",
+        "base_url": "https://p1.test/v1"}])
+    settings.set_ai_links([{"provider": "p1", "model": "m1",
+                            "tier": "free", "enabled": True}])
     # Memoires isolees : une entree reelle ("Hello"->"Hello", vecu 19/09)
     # court-circuiterait le refus AVANT la garde confidentialite.
     monkeypatch.setattr(translation_memory, "MEMORY_FILE",

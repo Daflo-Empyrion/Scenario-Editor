@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Arbre technologique</title>
+<style>
+:root{
+  --glass: linear-gradient(180deg, rgba(24,31,50,.72), rgba(11,15,26,.66));
+  --line: rgba(130,205,255,.10);
+  --line-strong: rgba(130,205,255,.22);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --violet:#7E68FF; --amber:#FFC24D; --green:#00FFA3;
+  --radius:14px;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(900px 620px at 15% -8%, rgba(0,229,255,.14), transparent 62%),
+             radial-gradient(1000px 700px at 90% 12%, rgba(126,104,255,.13), transparent 60%),
+             linear-gradient(180deg,#060910,#05070D);}
+.app{height:100%;display:flex;flex-direction:column}
+.canvas-head{height:50px;flex:0 0 50px;display:flex;align-items:center;gap:12px;padding:0 14px;
+  border-bottom:1px solid var(--line);background:rgba(8,12,21,.45)}
+.canvas-head h1{margin:0;font-size:15px;font-weight:650}
+.chip{font:10.5px var(--mono);color:#9FE9F7;padding:3px 8px;border-radius:999px;
+  background:rgba(0,229,255,.10);border:1px solid rgba(0,229,255,.22)}
+select.ctl,input.ctl{height:30px;border-radius:9px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:12.5px var(--font);padding:0 8px;outline:none}
+select.ctl:focus,input.ctl:focus{border-color:rgba(0,229,255,.45)}
+select.ctl option{background:#0B1220;color:var(--txt)}
+.search{margin-left:auto;display:flex;align-items:center;gap:8px;height:30px;width:230px;padding:0 10px;
+  border-radius:9px;background:rgba(6,11,20,.72);border:1px solid var(--line);color:var(--dim);font-size:12.5px}
+.search:focus-within{border-color:rgba(0,229,255,.45)}
+.search input{all:unset;flex:1;color:var(--txt);font:inherit}
+.search input::placeholder{color:var(--dim)}
+.body{flex:1;display:flex;min-height:0;gap:12px;padding:12px}
+.canvas-wrap{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:var(--radius);
+  background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(22px) saturate(150%);
+  box-shadow:0 26px 60px -30px #000, inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden}
+#canvas{position:relative;flex:1;overflow:hidden;
+  background:
+    radial-gradient(700px 420px at 50% 0%, rgba(0,229,255,.045), transparent 70%),
+    radial-gradient(600px 500px at 100% 100%, rgba(126,104,255,.05), transparent 70%),
+    linear-gradient(180deg, #060910, #05070D);
+}
+/* fond sci-fi : nebuleuse generee (bg.jpg, embarquee en data-URI par le
+   pont — une data-URI CSS ne s'affiche pas de facon fiable) ; dernier plan */
+.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
+/* defilement facon page web (demande du 31/10) : molette = vertical,
+   Shift+molette = horizontal, barres visibles ; le zoom reste aux boutons. */
+.viewport{position:absolute;inset:0;overflow:auto;z-index:1;
+  mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%)}
+.viewport::-webkit-scrollbar{width:11px;height:11px}
+.viewport::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.viewport::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+.viewport::-webkit-scrollbar-thumb:hover{background:rgba(130,205,255,.38);
+  border:3px solid transparent;background-clip:content-box}
+.viewport::-webkit-scrollbar-corner{background:transparent}
+.sizer{position:relative}
+.stage{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.tier{position:absolute;top:36px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+.tier .t-num{font:600 10.5px var(--mono);letter-spacing:1.6px;color:rgba(0,229,255,.65)}
+.tier .t-cnt{font:10px var(--mono);color:var(--dim)}
+.guide{position:absolute;top:80px;bottom:0;width:1px;pointer-events:none;
+  background:linear-gradient(180deg, rgba(0,229,255,.16), rgba(0,229,255,0))}
+#wires{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}
+#wires path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.wire-glow{stroke:rgba(0,229,255,.16);stroke-width:7;opacity:.55}
+.wire{stroke:url(#wireGrad);stroke-width:1.7;opacity:.85}
+#wires path.hot{stroke:#8BF3FF;stroke-width:2.2;opacity:1}
+#wires path.hot-glow{stroke:rgba(0,229,255,.35);stroke-width:10}
+.node{position:absolute;width:206px;height:68px;display:flex;align-items:center;gap:11px;
+  padding:0 12px;border-radius:13px;cursor:pointer;
+  background:linear-gradient(180deg, rgba(27,35,55,.95), rgba(12,17,28,.92));
+  border:1px solid rgba(135,205,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.055), 0 14px 26px -18px #000;
+  transition:transform .15s ease, border-color .15s, box-shadow .15s, opacity .2s}
+.node::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;border-radius:2px;
+  background:linear-gradient(180deg, rgba(0,229,255,.85), rgba(0,229,255,.05))}
+.node.root::before{background:linear-gradient(180deg, rgba(126,104,255,.9), rgba(126,104,255,.06))}
+.node:hover{transform:translateY(-2px);border-color:rgba(0,229,255,.42);
+  box-shadow:0 0 0 1px rgba(0,229,255,.16), 0 20px 38px -18px rgba(0,229,255,.45)}
+.node.sel{border-color:rgba(0,229,255,.8);
+  box-shadow:0 0 0 1px rgba(0,229,255,.32), 0 0 46px -10px rgba(0,229,255,.65)}
+.node.dim{opacity:.16;filter:saturate(.3)}
+.ico{width:33px;height:33px;flex:0 0 33px;border-radius:9px;display:grid;place-items:center;
+  background:rgba(0,229,255,.09);border:1px solid rgba(0,229,255,.18);color:#8FF2FF}
+.node.root .ico{background:rgba(126,104,255,.12);border-color:rgba(126,104,255,.26);color:#B7ACFF}
+.ico svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.5}
+.nb{min-width:0;flex:1}
+.nname{font-size:12.6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#EDF6FF}
+.nmeta{display:flex;align-items:center;gap:7px;margin-top:4px}
+.lv{font:600 9.5px var(--mono);letter-spacing:.6px;color:#8FE7F5;padding:1.5px 5px;border-radius:5px;
+  background:rgba(0,229,255,.10);border:1px solid rgba(0,229,255,.18)}
+.cost{font:10.5px var(--mono);color:var(--dim)}
+.cost b{color:var(--amber);font-weight:600}
+.port{position:absolute;width:7px;height:7px;border-radius:50%;background:#0A1220;
+  border:1.4px solid rgba(0,229,255,.55);box-shadow:0 0 8px rgba(0,229,255,.35)}
+.port.in{left:-4px;top:50%;transform:translateY(-50%)}
+.port.out{right:-4px;top:50%;transform:translateY(-50%)}
+.legend{position:absolute;left:12px;bottom:12px;display:flex;gap:14px;padding:7px 12px;border-radius:10px;
+  background:rgba(8,12,21,.78);border:1px solid var(--line);backdrop-filter:blur(12px);
+  font:10.5px var(--mono);color:var(--dim);z-index:2}
+.legend i{display:inline-block;width:16px;height:2px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;gap:5px;padding:5px;border-radius:11px;
+  background:rgba(8,12,21,.82);border:1px solid var(--line);backdrop-filter:blur(12px);z-index:2}
+.zoom button{min-width:28px;height:28px;border-radius:8px;border:none;background:transparent;
+  color:var(--muted);font:12px var(--mono);cursor:pointer}
+.zoom button:hover{background:rgba(255,255,255,.06);color:var(--txt)}
+.zoom .pct{padding:0 7px;font:11px var(--mono);color:var(--dim);display:grid;place-items:center}
+/* ---------- inspecteur ---------- */
+.split-v{width:6px;flex:0 0 6px;cursor:col-resize;border-radius:3px;margin-left:-3px;z-index:2}
+.split-v:hover{background:rgba(0,229,255,.18)}
+.inspector{width:316px;flex:0 0 316px;display:flex;flex-direction:column;border-radius:var(--radius);
+  background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(22px) saturate(150%);
+  box-shadow:0 26px 60px -30px #000, inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden}
+.insp-head{height:42px;flex:0 0 42px;display:flex;align-items:center;gap:8px;padding:0 14px;
+  font-size:11.5px;font-weight:650;letter-spacing:.6px;text-transform:uppercase;color:#CFE9F5;
+  border-bottom:1px solid var(--line);background:rgba(8,12,21,.4)}
+.insp-head .sub{font:10px var(--mono);text-transform:none;letter-spacing:0;color:var(--dim);margin-left:auto}
+.insp-body{padding:13px 14px;display:flex;flex-direction:column;gap:12px}
+.insp-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+.insp-scroll::-webkit-scrollbar{width:11px}
+.insp-scroll::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.insp-scroll::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+.src-cap{font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--dim);padding:2px 14px 8px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field .k{font-size:10px;letter-spacing:.9px;text-transform:uppercase;color:var(--dim)}
+.field .v{font-size:13px;font-weight:550;word-break:break-word}
+.field .v.mono{font-family:var(--mono);font-size:12px;font-weight:400;color:#BFEAF7}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.edit{height:30px;border-radius:8px;border:1px solid var(--line);background:rgba(6,11,20,.72);
+  color:var(--txt);font:12.5px var(--font);padding:0 9px;outline:none;width:100%}
+.edit:focus{border-color:rgba(0,229,255,.45)}
+select.edit option{background:#0B1220}
+.pill{display:inline-flex;align-items:center;gap:6px;font:10.5px var(--mono);color:#B9C8D8;
+  padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--line);
+  margin:0 6px 6px 0}
+.pill.v{color:#C6BDFF;background:rgba(126,104,255,.12);border-color:rgba(126,104,255,.24)}
+.pill.c{color:#9FE9F7;background:rgba(0,229,255,.10);border-color:rgba(0,229,255,.22)}
+.btn{height:30px;border-radius:8px;border:1px solid rgba(0,229,255,.35);cursor:pointer;
+  background:rgba(0,229,255,.12);color:#DFFAFF;font:600 12px var(--font);padding:0 12px}
+.btn:hover{background:rgba(0,229,255,.2)}
+.hr{height:1px;background:var(--line);margin:1px 0}
+pre.src{margin:0;padding:12px 13px;font:11.5px/1.75 var(--mono);color:#A8C7D8;white-space:pre;
+  overflow-x:auto;background:rgba(4,7,13,.7);border-top:1px solid var(--line);min-height:120px}
+/* ---- fiche du bloc (lecture seule, integree au style de l'inspecteur) ---- */
+.card-wrap{border-top:1px solid var(--line);padding:12px 14px 14px;background:rgba(10,16,28,.45)}
+.card-title{font-size:14px;font-weight:650;color:#EDF6FF}
+.card-desc{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.55}
+.card-note{font-size:10.5px;color:var(--amber);margin-top:6px}
+.card-h{font-size:10px;letter-spacing:.9px;text-transform:uppercase;color:#8FE7F5;margin:11px 0 2px}
+.card-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;
+  border-bottom:1px dashed rgba(130,205,255,.09);font-size:12px;align-items:center}
+.card-row .ck{color:var(--dim);flex:0 0 auto}
+.card-row .cv{color:var(--txt);text-align:right;word-break:break-word}
+.card-row .cv.editable{cursor:pointer;border-bottom:1px dotted rgba(0,229,255,.4)}
+.card-row .cv.editable:hover{color:#8FF2FF}
+input.cvedit{height:24px;border-radius:6px;border:1px solid rgba(0,229,255,.4);
+  background:rgba(6,11,20,.9);color:var(--txt);font:12px var(--font);
+  padding:0 6px;outline:none;text-align:right}
+.card-ing{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font:11px var(--mono);color:#B9C8D8;padding:3px 0}
+.card-ing .cv{flex:1;min-width:0}
+.ingx{border:none;background:rgba(255,90,110,.12);color:#FF8A9B;border-radius:6px;
+  width:20px;height:20px;cursor:pointer;font:12px var(--mono);flex:0 0 auto}
+.ingx:hover{background:rgba(255,90,110,.28);color:#FFD3DA}
+.ing-add{margin-top:7px}
+.ing-add .btn{height:26px;padding:0 10px;font-size:11px}
+.cvedit::placeholder{color:var(--dim)}
+.card-empty{font-size:12px;color:var(--dim)}
+pre.src .k{color:#9C8BFF}
+pre.src .s{color:#7EE7F2}
+pre.src .n{color:#FFC24D}
+pre.src .c{color:#4E6274;font-style:italic}
+pre.src .b{color:#6E8CA3}
+@media (max-width:1100px){ .inspector{display:none} }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="canvas-head">
+    <h1 id="catTitle">—</h1>
+    <select class="ctl" id="catSel"></select>
+    <span class="chip" id="chip">…</span>
+    <label class="search">
+      <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" spellcheck="false">
+    </label>
+  </div>
+  <div class="body">
+    <main class="canvas-wrap">
+      <div id="canvas">
+        <img class="bg" src="__BG_DATA_URI__" alt="">
+        <div class="viewport">
+          <div class="sizer" id="sizer">
+            <div class="stage" id="stage">
+              <svg id="wires" width="1" height="1"></svg>
+              <div id="tiers"></div>
+              <div id="nodes"></div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i style="background:linear-gradient(90deg,#00E5FF,#7E68FF)"></i><span data-l="legend_dep">dépendance</span></span>
+          <span><i style="background:#7E68FF"></i><span data-l="legend_root">racine de chaîne</span></span>
+        </div>
+        <div class="zoom">
+          <button id="zo" title="-">−</button>
+          <div class="pct" id="pct">100%</div>
+          <button id="zi" title="+">+</button>
+          <button id="zf" data-l="fit">Ajuster</button>
+        </div>
+      </div>
+    </main>
+    <div class="split-v" id="inspSplit" title=""></div>
+    <aside class="inspector">
+      <div class="insp-head"><span data-l="inspector">Propriétés du nœud</span><span class="sub" id="iSrc"></span></div>
+      <div class="insp-scroll">
+      <div class="insp-body">
+        <div class="field"><span class="k" data-l="name">Nom</span><span class="v mono" id="iName">—</span></div>
+        <div class="row2">
+          <div class="field"><span class="k" data-l="level">Niveau</span><input class="edit" type="number" id="iLv" min="0" max="25"></div>
+          <div class="field"><span class="k" data-l="cost">Coût</span><input class="edit" type="number" id="iCost" min="0"></div>
+        </div>
+        <div class="field"><span class="k" data-l="category">Catégorie</span><select class="edit" id="iCat"></select></div>
+        <div class="field"><span class="k" data-l="parent">Parent</span><select class="edit" id="iParent"></select></div>
+        <div class="field"><span class="k" data-l="unlocks">Débloque</span><span id="iKids"></span></div>
+        <div class="hr"></div>
+        <button class="btn" id="btnCard" data-l="open_card">Ouvrir la fiche</button>
+        <div class="row2">
+          <div class="field"><span class="k" data-l="definition">Définition</span><span class="v" id="iType">—</span></div>
+          <div class="field"><span class="k" data-l="icon">Icône</span><span class="v mono" id="iIcon">—</span></div>
+        </div>
+      </div>
+      <span class="src-cap" data-l="source_caption">Source ECF — extrait</span>
+      <pre class="src" id="iSrcCode"></pre>
+      <div class="card-wrap" id="cardWrap" hidden></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, LABELS={}, CATS=[], DATA=null, SEL=null, wireMap={};
+let NAMES=[], VALUES={};   // pool d'items + valeurs observees (autocomplete)
+const byName = () => Object.fromEntries(DATA.nodes.map(n=>[n.name,n]));
+const CARD_W=206, CARD_H=68, COL=258, ROW=86, PAD_X=54, PAD_Y=110;
+const L = k => LABELS[k] || k;
+
+const ICONS = {
+  armor:'<path d="M12 3 5 6v5c0 4.2 2.9 7.4 7 8.5 4.1-1.1 7-4.3 7-8.5V6z"/>',
+  knife:'<path d="M4 20l7-7"/><path d="M11 13 19 5l1 1-8 8z"/>',
+  boom:'<circle cx="12" cy="13" r="5"/><path d="M12 3v3M5 6l2 2M19 6l-2 2"/>',
+  gun:'<path d="M3 9h14l3 3v3h-4l-1 3H9l-1-3H3z"/><path d="M7 9V6h4v3"/>',
+  tool:'<path d="M2 10h12l4 3-2 4h-3l-1 2H6l1-2H2z"/>',
+};
+const iconFor = n => /Armor|Shield/i.test(n) ? ICONS.armor
+  : /Knife|Sword/i.test(n) ? ICONS.knife
+  : /Explos|Mine|Grenade|Cartridge/i.test(n) ? ICONS.boom
+  : /Rifle|SMG|Sniper|Pistol|Minigun|Cannon|Launcher|Flame|Rocket/i.test(n) ? ICONS.gun
+  : ICONS.tool;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- boot ---------- */
+function boot(){
+  if (typeof qt === "undefined" || !qt.webChannelTransport){ setTimeout(boot, 80); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.techtree;
+    /* mise a jour poussee par Python apres chaque ecriture (signal Qt ->
+       callback JS ; runJavaScript ne partage pas le monde des scripts) */
+    BRIDGE.data_changed.connect(payload => {
+      const cardWasOpen = SEL && !document.getElementById("cardWrap").hidden;
+      DATA = JSON.parse(payload);
+      if (SEL && !DATA.nodes.some(n=>n.name===SEL)) SEL = null;
+      render();
+      /* la fiche ouverte suit son noeud apres une ecriture (ecrite par le
+         pont ou refusee : le payload renvoye remet les valeurs en coherence) */
+      if (cardWasOpen && SEL) BRIDGE.get_card(SEL, p => { try { renderCard(JSON.parse(p)); } catch (e) {} });
+    });
+    BRIDGE.get_labels(l => { LABELS = JSON.parse(l); applyLabels(); });
+    BRIDGE.get_names(l => { NAMES = JSON.parse(l) || []; });
+    BRIDGE.get_categories(c => {
+      CATS = JSON.parse(c);
+      const sel = document.getElementById("catSel");
+      sel.innerHTML = CATS.map(x=>`<option>${esc(x)}</option>`).join("");
+      sel.onchange = () => loadCategory(sel.value);
+      document.getElementById("iCat").innerHTML =
+        CATS.map(x=>`<option>${esc(x)}</option>`).join("");
+      document.getElementById("iCat").onchange = e => {
+        if (SEL) BRIDGE.set_category(SEL, e.target.value);
+      };
+      loadCategory(CATS[0] || "");
+    });
+  });
+}
+function applyLabels(){
+  document.querySelectorAll("[data-l]").forEach(el => el.textContent = L(el.dataset.l));
+  document.getElementById("q").placeholder = L("search_placeholder");
+}
+function loadCategory(cat){
+  if (!cat) return;
+  document.getElementById("catSel").value = cat;
+  BRIDGE.notify_category(cat);
+  BRIDGE.get_category(cat, p => { DATA = JSON.parse(p); SEL = null; render(); });
+}
+
+/* ---------- rendu ---------- */
+function pos(n){ return {x: PAD_X + n.col*COL, y: PAD_Y + n.row*ROW}; }
+function render(){
+  const stage = document.getElementById("stage");
+  const svg = document.getElementById("wires");
+  const nodesEl = document.getElementById("nodes");
+  const tiersEl = document.getElementById("tiers");
+  if (!DATA || !DATA.nodes.length){
+    document.getElementById("catTitle").textContent = DATA ? DATA.cat : "—";
+    document.getElementById("chip").textContent = L("empty");
+    nodesEl.innerHTML = ""; tiersEl.innerHTML = ""; svg.innerHTML = "";
+    Wd = 0; Hd = 0; apply();
+    return;
+  }
+  const BN = byName();
+  const maxCol = Math.max(...DATA.nodes.map(n=>n.col));
+  const rows = Math.max(...DATA.nodes.map(n=>n.row)) + 1;
+  const W = PAD_X*2 + maxCol*COL + CARD_W, H = PAD_Y + rows*ROW + 24;
+  document.getElementById("catTitle").textContent = DATA.cat;
+  document.getElementById("chip").textContent =
+    `${DATA.levels.length} ${L("paliers")} · ${DATA.nodes.length} ${L("nodes")}`;
+  Wd = W; Hd = H; apply();
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  svg.innerHTML = `<defs><linearGradient id="wireGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7E68FF" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#00E5FF" stop-opacity=".95"/></linearGradient></defs>`;
+
+  const lvCount = {};
+  DATA.nodes.forEach(n=>lvCount[n.lv]=(lvCount[n.lv]||0)+1);
+  tiersEl.innerHTML = "";
+  DATA.levels.forEach((lv,i)=>{
+    const x = PAD_X + i*COL;
+    tiersEl.insertAdjacentHTML("beforeend",
+      `<div class="tier" style="left:${x}px"><span class="t-num">NIV. ${lv}</span>
+       <span class="t-cnt">${lvCount[lv]||0}</span></div>
+       <div class="guide" style="left:${x-13}px"></div>`);
+  });
+
+  const wireMapLocal = {};
+  const elbow = (x1,y1,x2,y2) => {
+    const r=12, s=Math.sign(y2-y1);
+    if (!s) return `M${x1} ${y1} H${x2}`;
+    const X = Math.min(x1 + Math.max(18,(x2-x1)*0.4), x2 - r - 4);
+    return `M${x1} ${y1} H${X-r} Q${X} ${y1} ${X} ${y1+s*r} V${y2-s*r} Q${X} ${y2} ${X+r} ${y2} H${x2}`;
+  };
+  const leftLoop = (xl1,y1,xl2,y2) => {
+    const r=10, s=Math.sign(y2-y1)||1, Lo=Math.min(xl1,xl2)-20;
+    if (!Math.sign(y2-y1)) return `M${xl1} ${y1} H${Lo} V${y2} H${xl2}`;
+    return `M${xl1} ${y1} H${Lo+r} Q${Lo} ${y1} ${Lo} ${y1+s*r} V${y2-s*r} Q${Lo} ${y2} ${Lo+r} ${y2} H${xl2}`;
+  };
+  DATA.nodes.forEach(n=>{
+    if (!n.parent || !BN[n.parent]) return;
+    const p = pos(BN[n.parent]), c = pos(n);
+    const y1 = p.y+CARD_H/2, y2 = c.y+CARD_H/2, x1 = p.x+CARD_W, x2 = c.x;
+    const d = x2 > x1 ? elbow(x1,y1,x2,y2) : leftLoop(p.x,y1,x2,y2);
+    const mk = cls => { const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+      path.setAttribute("d", d); path.setAttribute("class", cls); svg.appendChild(path); return path; };
+    const glow = mk("wire-glow"); glow.dataset.for = n.name;
+    const wire = mk("wire");      wire.dataset.for = n.name;
+    wireMapLocal[n.name] = [glow, wire];
+  });
+  wireMap = wireMapLocal;
+
+  nodesEl.innerHTML = "";
+  DATA.nodes.forEach(n=>{
+    const el = document.createElement("div");
+    el.className = "node" + (n.parent ? "" : " root") + (n.name===SEL ? " sel" : "");
+    el.dataset.name = n.name;
+    const p = pos(n);
+    el.style.left = p.x+"px"; el.style.top = p.y+"px";
+    el.innerHTML = `<div class="ico"><svg viewBox="0 0 24 24">${iconFor(n.name)}</svg></div>
+      <div class="nb"><div class="nname" title="${esc(n.name)}">${esc(n.name)}</div>
+      <div class="nmeta"><span class="lv">NIV ${n.lv}</span><span class="cost"><b>${n.cost}</b> pts</span></div></div>
+      <div class="port in"></div><div class="port out"></div>`;
+    el.addEventListener("mouseenter", ()=>highlight(n.name,true));
+    el.addEventListener("mouseleave", ()=>highlight(n.name,false));
+    el.addEventListener("click", ()=>select(n.name));
+    nodesEl.appendChild(el);
+  });
+
+  const selNode = SEL ? BN[SEL] : null;
+  centerOnNode(selNode || DATA.nodes[0], 0.9);
+  if (SEL) select(SEL); else if (DATA.nodes.length) select(DATA.nodes[0].name, true);
+}
+function highlight(name,on){
+  if (!DATA) return;
+  const BN = byName();
+  let cur = name, guard = 0;
+  while (cur && guard++ < 40){
+    (wireMap[cur]||[]).forEach(w=>{ w.classList.toggle("hot",on); w.classList.toggle("hot-glow",on); });
+    cur = BN[cur] ? BN[cur].parent : "";
+  }
+}
+
+/* ---------- selection + inspecteur ---------- */
+function select(name, quiet){
+  SEL = name;
+  document.getElementById("cardWrap").hidden = true;
+  document.querySelectorAll(".node").forEach(el=>el.classList.toggle("sel", el.dataset.name===name));
+  const BN = byName();
+  const n = BN[name]; if (!n) return;
+  if (!quiet) BRIDGE.select_node(name);
+  document.getElementById("iName").textContent = n.name;
+  document.getElementById("iSrc").textContent = n.src;
+  document.getElementById("iLv").value = n.lv;
+  document.getElementById("iCost").value = n.cost;
+  document.getElementById("iCat").value =
+    document.getElementById("iCat").options.length ? document.getElementById("catSel").value : "";
+  const kids = DATA.nodes.filter(k=>k.parent===name).map(k=>k.name);
+  document.getElementById("iParent").innerHTML =
+    `<option value="">${esc(L("no_parent"))}</option>` +
+    DATA.nodes.map(x=>`<option value="${esc(x.name)}"${x.name===name?" disabled":""}>${esc(x.name)}</option>`).join("");
+  document.getElementById("iParent").value = n.parent || "";
+  document.getElementById("iKids").innerHTML = kids.length
+    ? kids.map(k=>`<span class="pill c">${esc(k)}</span>`).join("")
+    : `<span class="pill">${esc(L("leaf"))}</span>`;
+  document.getElementById("iType").textContent = n.src==="item" ? L("def_item") : L("def_block");
+  document.getElementById("iIcon").textContent = n.icon || n.name+"T1";
+  document.getElementById("iSrcCode").innerHTML = ecfFor(n, DATA.cat);
+}
+document.getElementById("iLv").addEventListener("change", e=>{
+  if (SEL && e.target.value !== "") BRIDGE.set_unlock_level(SEL, parseInt(e.target.value,10));
+});
+document.getElementById("iCost").addEventListener("change", e=>{
+  if (SEL && e.target.value !== "") BRIDGE.set_unlock_cost(SEL, parseInt(e.target.value,10));
+});
+document.getElementById("iParent").addEventListener("change", e=>{
+  if (SEL) BRIDGE.set_parent(SEL, e.target.value);
+});
+document.getElementById("btnCard").addEventListener("click", ()=>{
+  if (!SEL) return;
+  BRIDGE.get_card(SEL, p => {
+    try { renderCard(JSON.parse(p)); }
+    catch (e) { renderCard(null); }
+  });
+});
+/* fiche du bloc : lecture seule, meme style que l'inspecteur (demande du
+   31/10) ; l'edition reste dans la fiche Qt de la vue historique */
+function renderCard(c){
+  if (SEL) BRIDGE.get_values(SEL, v => { VALUES = JSON.parse(v) || {}; });
+  const wrap = document.getElementById("cardWrap");
+  if (!c){
+    wrap.hidden = false;
+    wrap.innerHTML = `<span class="card-empty">${esc(L("card_unavailable"))}</span>`;
+    return;
+  }
+  const rows = [];
+  // champ editable si la propriete source ECF existe (sinon champ calcule)
+  const row = f => {
+    const ed = f.source_key ? " editable" : "";
+    const data = f.source_key
+      ? ` data-key="${esc(f.source_key)}" data-raw="${esc(f.source_raw_value ?? f.value)}"` : "";
+    return `<div class="card-row"><span class="ck">${esc(f.label)}</span>` +
+           `<span class="cv${ed}"${data}>${richHTML(f.value)}</span></div>`;
+  };
+  // description : texte BBCode brut -> editable (ecrit dans Localization.csv)
+  if (c.description_text)
+    rows.push(`<div class="card-desc"><span class="cv editable" data-ing="desc"` +
+      ` data-raw="${esc(c.description_text)}">${bb2html(c.description_text)}</span>` +
+      (c.untranslated ? `<div class="card-note">${esc(L("card_untranslated"))}</div>` : "") +
+      `</div>`);
+  else if (c.untranslated) rows.push(`<div class="card-note">${esc(L("card_untranslated"))}</div>`);
+  if (c.unlock && c.unlock.length){
+    rows.push(`<div class="card-h">${esc(L("card_unlock"))}</div>`);
+    c.unlock.forEach(f=>rows.push(row(f)));
+  }
+  if (c.stats && c.stats.length){
+    rows.push(`<div class="card-h">${esc(L("card_stats"))}</div>`);
+    c.stats.forEach(f=>rows.push(row(f)));
+  }
+  if (c.crafting_header) rows.push(`<div class="card-h">${esc(c.crafting_header)}</div>`);
+  if (c.ingredients && c.ingredients.length){
+    if (!c.crafting_header && c.ingredients_label)
+      rows.push(`<div class="card-h">${esc(c.ingredients_label)}</div>`);
+    rows.push(`<div id="ingList">`);
+    c.ingredients.forEach(i=>rows.push(ingRow(i)));
+    rows.push(`</div>`);
+  }
+  if (c.ingredients){
+    rows.push(`<div class="ing-add"><button class="btn" id="btnAddIng">+ ${esc(L("ing_add"))}</button></div>`);
+  }
+  if (c.output) rows.push(row(c.output));
+  if (c.price) rows.push(row(c.price));
+  wrap.hidden = false;
+  wrap.innerHTML = `<div class="card-title">${esc(c.title_text || "")}</div>` + rows.join("");
+}
+/* ligne d'ingredient : nom + quantite editables, bouton de retrait */
+function ingRow(i){
+  return `<div class="card-ing">` +
+    `<span class="cv editable" data-ing="name" data-key="${esc(i.key)}" data-raw="${esc(i.key)}" data-qty-raw="${esc(i.qty_raw)}">${esc(i.name)}</span>` +
+    `<span class="cv editable" data-ing="qty" data-key="${esc(i.key)}" data-raw="${esc(i.qty_raw)}">${bb2html(i.qty_raw)}</span>` +
+    `<button class="ingx" data-key="${esc(i.key)}" title="${esc(L("ing_remove"))}">×</button>` +
+    `</div>`;
+}
+/* rendu riche pour les VALEURS : elles arrivent DEJA en HTML depuis Python
+   (le module de fiche convertit le BBCode en HTML). Sanitisation stricte :
+   seuls span[color]/b/i/u/sup/br survivent, tout le reste est retiré --
+   le texte vient du scenario, jamais injecté tel quel (vecu 31/10 : le
+   bb2html echappe affichait les <span> LITTERALEMENT). */
+function richHTML(htmlText){
+  if (!/[<&]/.test(htmlText)) return esc(htmlText);
+  const tpl = document.createElement("template");
+  tpl.innerHTML = htmlText;
+  const OK = new Set(["B", "I", "U", "SUP", "BR", "SPAN"]);
+  const walk = node => {
+    [...node.children].forEach(ch => {
+      if (!OK.has(ch.tagName)){ ch.replaceWith(...ch.childNodes); return; }
+      [...ch.attributes].forEach(a => {
+        if (!(ch.tagName === "SPAN" && a.name === "style"
+              && /^color:\s*#[0-9A-Fa-f]{6}$/.test(a.value.trim())))
+          ch.removeAttribute(a.name);
+      });
+      walk(ch);
+    });
+  };
+  walk(tpl.content);
+  return tpl.innerHTML;
+}
+/* edition : valeur de champ, ingredient (nom/qte) ou description — clic =
+   champ, Entree (ou Ctrl+Entree pour la description) = ecriture reelle,
+   Echap annule. Listes deroulantes : valeurs observees pour les champs
+   (meme source que la fiche Qt), pool d'items craftables pour les
+   ingredients (datalist natif : filtre en tapant le debut du nom). */
+document.getElementById("cardWrap").addEventListener("click", e=>{
+  // retrait d'ingredient
+  const rm = e.target.closest(".ingx");
+  if (rm && SEL){ BRIDGE.set_card_ingredient(SEL, rm.dataset.key, "remove", "", "", ""); return; }
+  const cv = e.target.closest(".cv.editable");
+  if (!cv || !SEL || cv.querySelector("input,textarea")) return;
+  const raw = cv.dataset.raw ?? cv.textContent;
+  const ing = cv.dataset.ing || "";
+  const isDesc = ing === "desc";
+  cv.innerHTML = isDesc
+    ? `<textarea class="cvedit" style="width:100%;height:110px">${esc(raw)}</textarea>`
+    : `<input class="cvedit" style="width:${Math.max(110, cv.clientWidth)}px" value="${esc(raw)}">`;
+  const inp = cv.querySelector("input,textarea");
+  // autocomplete
+  if (!isDesc){
+    const dl = document.createElement("datalist");
+    if (ing === "name"){
+      dl.id = "dlnames";
+      dl.innerHTML = NAMES.slice(0, 8000).map(n=>`<option value="${esc(n)}">`).join("");
+    } else {
+      dl.id = "dlsug";
+      dl.innerHTML = (VALUES[cv.dataset.key] || []).slice(0, 60)
+        .map(v=>`<option value="${esc(v)}">`).join("");
+    }
+    if (dl.innerHTML) { document.body.appendChild(dl); inp.setAttribute("list", dl.id); }
+  }
+  inp.focus();
+  if (!isDesc) inp.select();
+  inp.addEventListener("keydown", ev=>{
+    if (ev.key === "Escape"){ inp.value = raw; inp.blur(); }
+    if (!isDesc && ev.key === "Enter") inp.blur();
+    if (isDesc && ev.key === "Enter" && ev.ctrlKey) inp.blur();
+  });
+  inp.addEventListener("blur", ()=>{ document.querySelectorAll("datalist").forEach(d=>d.remove()); });
+  /* commit au blur OU au change (vecu 31/10 : un blur() sans focus reel ne
+     declenche pas l'evenement blur) ; garde anti-double commit */
+  let done = false;
+  const commit = ()=>{
+    if (done) return;
+    done = true;
+    document.querySelectorAll("datalist").forEach(d=>d.remove());
+    // retour visuel immediat ; la fiche complete est re-poussee par Python
+    cv.innerHTML = bb2html(inp.value);
+    const nv = isDesc ? inp.value.replace(/\r?\n/g, "\\n") : inp.value;
+    if (nv === raw) return;
+    if (isDesc) BRIDGE.set_card_description(SEL, raw, nv);
+    else if (ing) BRIDGE.set_card_ingredient(SEL, cv.dataset.key, ing,
+                                             cv.dataset.qtyRaw ?? "", raw, nv);
+    else BRIDGE.set_card_value(SEL, cv.dataset.key, raw, nv);
+  };
+  inp.addEventListener("blur", commit, {once:true});
+  inp.addEventListener("change", commit, {once:true});
+});
+/* ajout d'un ingredient : ligne de saisie nom (autocomplete) + quantite */
+document.getElementById("cardWrap").addEventListener("click", e=>{
+  if (e.target.id !== "btnAddIng" || !SEL) return;
+  if (document.getElementById("newIngName")) return;
+  const list = document.getElementById("ingList");
+  const row = document.createElement("div");
+  row.className = "card-ing";
+  row.innerHTML =
+    `<span><input class="cvedit" id="newIngName" style="width:170px" list="dlnames" placeholder="${esc(L("ing_name_ph"))}">` +
+    `<input class="cvedit" id="newIngQty" style="width:64px;margin-left:6px" placeholder="${esc(L("ing_qty_ph"))}">` +
+    ` <button class="btn" id="newIngOk" style="height:26px;padding:0 9px">${esc(L("ok_btn"))}</button></span>`;
+  (list || e.target.parentElement).appendChild(row);
+  const dl = document.createElement("datalist");
+  dl.id = "dlnames";
+  dl.innerHTML = NAMES.slice(0, 8000).map(n=>`<option value="${esc(n)}">`).join("");
+  document.body.appendChild(dl);
+  const name = document.getElementById("newIngName");
+  const qty = document.getElementById("newIngQty");
+  const send = ()=>{
+    const n = name.value.trim(), q = qty.value.trim();
+    row.remove(); dl.remove();
+    if (n) BRIDGE.set_card_ingredient(SEL, "", "add", q, "", n);
+  };
+  document.getElementById("newIngOk").addEventListener("click", send);
+  [name, qty].forEach(el=>el.addEventListener("keydown", ev=>{
+    if (ev.key === "Enter") send();
+    if (ev.key === "Escape") { row.remove(); dl.remove(); }
+  }));
+  name.focus();
+});
+/* bbcode du jeu -> HTML, APRES echappement (le texte vient du scenario :
+   ne jamais injecter tel quel dans le DOM) */
+function bb2html(t){
+  return esc(t).replace(/\\n/g, "<br>")
+    .replace(/\[c\]\[([0-9A-Fa-f]{6,8})\]/g, (m,h)=>`<span style="color:#${h.slice(0,6)}">`)
+    .replace(/\[-\]\[\/c\]/g, "</span>").replace(/\[\/c\]/g, "</span>")
+    .replace(/\[u\]/g, "<u>").replace(/\[\/u\]/g, "</u>")
+    .replace(/\[b\]/g, "<b>").replace(/\[\/b\]/g, "</b>")
+    .replace(/\[i\]/g, "<i>").replace(/\[\/i\]/g, "</i>")
+    .replace(/\[sup\]/g, "<sup>").replace(/\[\/sup\]/g, "</sup>");
+}
+
+function ecfFor(n, cat){
+  const head = n.src==="item" ? `{ Item Id: …, Name: ${n.name}` : `{ Block Name: ${n.name}`;
+  const lines = [
+    ["c", `# ${cat} — ${L("source_note")}`],
+    ["b", head],
+    ["k", "  UnlockLevel", String(n.lv)],
+    ["k", "  UnlockCost", String(n.cost)],
+    ...(n.parent ? [["k","  TechTreeParent", n.parent]] : []),
+    ["b", "}"],
+  ];
+  return lines.map(([t,a,b]) =>
+    t==="c" ? `<span class="c">${esc(a)}</span>`
+    : t==="b" ? `<span class="b">${esc(a)}</span>`
+    : `<span class="k">${esc(a)}:</span> <span class="${/^\d+$/.test(b)?"n":"s"}">${esc(b)}</span>`
+  ).join("\n");
+}
+
+/* ---------- filtre / zoom / pan ---------- */
+document.getElementById("q").addEventListener("input", e=>{
+  const v = e.target.value.trim().toLowerCase();
+  document.querySelectorAll(".node").forEach(el=>{
+    el.classList.toggle("dim", !!v && !el.dataset.name.toLowerCase().includes(v));
+  });
+});
+const canvas = document.getElementById("canvas");
+const viewport = document.querySelector(".viewport");
+let scale=0.9, Wd=0, Hd=0;
+function apply(){
+  document.getElementById("stage").style.transform = `scale(${scale})`;
+  document.getElementById("sizer").style.width = (Wd*scale)+"px";
+  document.getElementById("sizer").style.height = (Hd*scale)+"px";
+  document.getElementById("pct").textContent = Math.round(scale*100)+"%";
+}
+/* molette = defilement natif (vertical ; Shift+molette = horizontal) :
+   plus AUCUN zoom a la molette ni glisser-panner (demande du 31/10). */
+function zoomAt(f){
+  const ns = Math.min(2.2, Math.max(.25, scale*f));
+  const rl = viewport.scrollLeft, rt = viewport.scrollTop;
+  const rw = viewport.clientWidth, rh = viewport.clientHeight;
+  const cx = (rl + rw/2) / scale, cy = (rt + rh/2) / scale;
+  scale = ns; apply();
+  viewport.scrollLeft = Math.max(0, cx*scale - rw/2);
+  viewport.scrollTop  = Math.max(0, cy*scale - rh/2);
+}
+function centerOnNode(n, s){
+  if (!n) return;
+  scale = s; apply();
+  requestAnimationFrame(()=>{
+    const el = document.querySelector(`.node[data-name="${CSS.escape(n.name)}"]`);
+    if (el) el.scrollIntoView({block:"center", inline:"center"});
+  });
+}
+document.getElementById("zi").onclick = ()=>zoomAt(1.15);
+document.getElementById("zo").onclick = ()=>zoomAt(1/1.15);
+document.getElementById("zf").onclick = ()=>centerOnNode(byName()[SEL] || (DATA && DATA.nodes[0]), scale);
+
+/* largeur de l'inspecteur reglable (demande du 31/10) : poignee entre la vue
+   et le panneau, bornes 280-560 px */
+const insp = document.querySelector(".inspector"), inspSplit = document.getElementById("inspSplit");
+let sdrag = null;
+inspSplit.addEventListener("pointerdown", e=>{
+  sdrag = {x: e.clientX, w: insp.getBoundingClientRect().width};
+  inspSplit.setPointerCapture(e.pointerId);
+});
+inspSplit.addEventListener("pointermove", e=>{
+  if (!sdrag) return;
+  const w = Math.min(560, Math.max(280, sdrag.w - (e.clientX - sdrag.x)));
+  insp.style.width = w+"px"; insp.style.flex = `0 0 ${w}px`;
+});
+inspSplit.addEventListener("pointerup", ()=>{ sdrag = null; });
+
+
+boot();
+</script>
+</body>
+</html>

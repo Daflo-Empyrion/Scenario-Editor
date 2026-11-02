@@ -15,20 +15,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Traduction de texte via Google Translate (bibliotheque deep-translator, gratuite, sans
-cle API). Point d'entree unique reutilise par TOUTES les fonctions de traduction de
-l'application -- traduction ponctuelle d'une cellule (clic droit -> Traduire), traduction
-en lot, et "Combler les langues manquantes..." : aucune ne passe par un systeme different
-ou hors ligne, toutes envoient le texte a traduire aux serveurs Google (voir PRIVACY.md et
-le reglage Options > Traduction en ligne pour desactiver completement cette fonctionnalite).
+Traduction de texte par IA (fournisseurs configures dans Options > Traduction
+> Fournisseurs IA -- Groq, OpenRouter, serveur local... via core/ai/router).
+Point d'entree unique reutilise par TOUTES les fonctions de traduction de
+l'application -- traduction ponctuelle d'une cellule (clic droit -> Traduire),
+traduction en lot, et "Combler les langues manquantes...". Les moteurs
+Google/DeepL/Argos/NLLB et le moteur Groq direct ont ete RETIRES (decision du
+31/10 : qualite de traduction superieure via les modeles IA, une seule
+architecture a maintenir) -- voir la fiche cerveau si besoin de les retrouver.
 
 IMPORTANT -- protection du BBCode et des placeholders : le texte Empyrion contient
 souvent des balises de mise en forme ([b]...[/b], [color=#FF0000]...[/color]) et des
 jetons de substitution ({PlayerName}, %s, {0}...) qui ne doivent JAMAIS etre traduits
-ni alteres. Avant d'envoyer le texte au traducteur, on les extrait et on les remplace
+ni alteres. Avant d'envoyer le texte au modele, on les extrait et on les remplace
 par des jetons neutres insensibles a la traduction, puis on les reinjecte a leur place
-dans le resultat -- meme principe que le "segment-splitting" deja utilise dans l'outil
-de traduction CSV.
+dans le resultat.
 """
 import re
 import threading
@@ -38,23 +39,6 @@ from typing import List, Optional, Tuple
 
 from .engine_errors import (AuthError, EngineUnavailableError,
                             QuotaExhaustedError)
-
-try:
-    from deep_translator import GoogleTranslator
-    _AVAILABLE = True
-    _IMPORT_ERROR = None
-except Exception as e:
-    # Capture toute erreur au chargement, pas seulement ImportError -- une
-    # dependance manquante sur Windows peut aussi remonter comme OSError
-    # (echec de chargement d'une DLL) ou une autre exception selon la cause
-    # exacte. Le message precis est garde dans _IMPORT_ERROR pour diagnostic
-    # (voir get_import_error() plus bas) -- l'ancien code avalait completement
-    # cette information et affichait toujours le meme message generique "pip
-    # install deep-translator", inutile pour quelqu'un utilisant la version
-    # installee (executable) sans Python sur sa machine.
-    _AVAILABLE = False
-    _IMPORT_ERROR = f"{type(e).__name__}: {e}"
-
 
 COMMON_LANGUAGES = [
     ("Francais", "fr"),
@@ -157,10 +141,10 @@ _GLOSS_TOKEN_RE = r'XXGLOS\d+XX'
 # partie du mot.
 _NUMBER_RE = r'(?<![\w])\d+(?:[.,]\d+)*(?![\w])'
 # [-] : balise de fermeture Empyrion (fin de couleur) -- le tiret n'est pas
-# couvert par _BBCODE_RE, et elle doit rester hors du texte envoye au moteur.
+# couvert par _BBCODE_RE, et elle doit rester hors du texte envoye au modele.
 _CLOSING_DASH_RE = r'\[-\]'
 # Retours a la ligne LITTERAUX des CSV Empyrion ('\n' ecrit backslash + n) :
-# sans protection, le moteur mangait le backslash et laissait un 'n' orphelin
+# sans protection, le modele mangeait le backslash et laissait un 'n' orphelin
 # dans la traduction (vecu reel, PDA.csv Atlantis, 12/09/2026).
 _LITERAL_NEWLINE_RE = r'(?:\\n)+'
 # Jetons de substitution courants : {PlayerName}, {0}, %s, %d, %1
@@ -175,7 +159,7 @@ _PROTECTED_RE = re.compile(
 # : SANS les nombres -- ils doivent rester du texte visible pour la
 # grammaire (aucune faute dans un nombre, mais la ponctuation AUTOUR nous
 # interesse : espace avant ':' d'une heure 'Time: 1900'). Les nombres ne
-# sont masques que pour l'ENVOI aux moteurs de traduction.
+# sont masques que pour l'ENVOI au modele de traduction.
 _PROTECTED_RE_GRAMMAR = re.compile(
     f'(?:{_BBCODE_RE})|(?:{_DIALOG_TAG_RE})|(?:{_CLOSING_DASH_RE})'
     f'|(?:{_LITERAL_NEWLINE_RE})|(?:{_PLACEHOLDER_RE})')
@@ -183,8 +167,8 @@ _PROTECTED_RE_GRAMMAR = re.compile(
 
 def protect_segments(text: str) -> Tuple[str, List[str]]:
     """Remplace les balises BBCode et les placeholders par des jetons neutres
-    (XXTAGnXX) que Google Translate laisse intacts. Retourne (texte_protege, liste_des_
-    segments_originaux_dans_l_ordre)."""
+    (XXTAGnXX) que le modele laisse intacts. Retourne (texte_protege,
+    liste_des_segments_originaux_dans_l_ordre)."""
     segments: List[str] = []
 
     def _replace(m):
@@ -207,7 +191,7 @@ def restore_segments(translated_text: str, segments: List[str]) -> str:
         if exact.search(result):
             result = exact.sub(lambda m, _orig=original: _orig, result, count=1)
             continue
-        # Sinon variante TOLERANTE (casse/espaces inseres par le moteur,
+        # Sinon variante TOLERANTE (casse/espaces inseres par le modele,
         # ex: 'xxtag0xx', 'XX TAG0 XX').
         pattern = re.compile(r'X{1,3}\s*TAG\s*' + str(i) + r'\s*X{1,3}', re.IGNORECASE)
         # Remplacement PAR FONCTION, jamais par chaine : un template chaine
@@ -219,24 +203,23 @@ def restore_segments(translated_text: str, segments: List[str]) -> str:
     return result
 
 
-# Entite HTML numerique eventuellement COUPEE par le tokenizer d'Argos :
-# 'Heure&#160;: ' sort en 'Heure & #160;:' (vecu reel, PDA.csv Atlantis).
-# On la resserre et on la decode en vrai caractere (160 = espace insecable
-# francaise legitime devant ':', on consomme donc l'espace qui la precede).
-_ARGOS_ENTITY_RE = re.compile(r' ?&\s*#\s*(\d+)\s*;')
+# Entite HTML numerique eventuellement COUPEE par un modele ('Heure&#160;: '
+# sorti en 'Heure & #160;:' -- vecu reel, PDA.csv Atlantis). On la resserre
+# et on la decode en vrai caractere (160 = espace insecable legitime devant
+# ':', on consomme donc l'espace qui la precede).
+_ENTITY_RE = re.compile(r' ?&\s*#\s*(\d+)\s*;')
 
 
-def _clean_argos_entities(s: str) -> str:
-    return _ARGOS_ENTITY_RE.sub(lambda m: chr(int(m.group(1))), s)
+def _clean_html_entities(s: str) -> str:
+    return _ENTITY_RE.sub(lambda m: chr(int(m.group(1))), s)
 
 
 _TOKEN_SCAN_RE = re.compile(r"X{1,3}\s*TAG\s*(\d+)\s*X{1,3}", re.IGNORECASE)
 
 
-# Page d'erreur Google renvoyee COMME traduction par deep-translator
-# (observe deux fois : 10/09 et 19/09 via des entrees de memoire
-# polluees a l'ere de l'auto-stockage). Sert de filet final sur TOUT
-# resultat moteur et sur les hits memoire.
+# Page d'erreur de service renvoyee COMME traduction par un modele (observe
+# a l'ere Google via des entrees de memoire polluees). Sert de filet final
+# sur TOUT resultat moteur et sur les hits memoire.
 _GARBAGE_MARKERS = ("that's an error", "<html", "google.com", "error 500")
 
 
@@ -253,16 +236,73 @@ def _looks_like_engine_garbage(text: str) -> bool:
 
 def _token_sequence(text: str) -> list:
     """Indices des jetons XXTAGnXX presents dans le texte (tolerant casse et
-    espaces que le moteur peut inserer autour)."""
+    espaces que le modele peut inserer autour)."""
     return [int(n) for n in _TOKEN_SCAN_RE.findall(text)]
+
+
+def _translate_fragments(text: str, target: str, translate_fn) -> str:
+    """Pipeline FRAGMENTS (approche "Google" : on n'envoie au modele que le
+    texte, jamais le BBCode) :
+
+    1. protect_segments(text) remplace balises/placeholders par des jetons ;
+    2. seuls les fragments de TEXTE LIBRE restants sont traduits, un par un ;
+    3. le texte final est reconstruit avec les balises d'origine a leur place
+       exacte -- la structure BBCode est garantie par construction, alors
+       qu'envoyer la chaine entiere peut faire RECOPIER le texte sans le
+       traduire des que la densite de balises est forte (vecu reel : ligne
+       'Prologue: Journey into the unknown' du PDA.csv Atlantis, entiere
+       renvoyee en anglais, 12/09/2026).
+
+    translate_fn(frag, source, target) : traduction d'un fragment. Leve une
+    exception si le modele sous-jacent echoue."""
+    protected, segments = protect_segments(text)
+    parts = re.split(r'(XXTAG\d+XX)', protected)
+    out: List[str] = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            out.append(segments[idx // 2] if idx // 2 < len(segments) else part)
+        elif part.strip() and re.search(r"[^\W_]", part, re.UNICODE):
+            # conserver les espaces de bord du fragment original autour de la
+            # traduction (le modele n'a pas a les decider). Les fragments SANS
+            # aucun caractere alphanumerique (un '!' isole entre deux balises,
+            # '===', ...) ne partent PAS au modele : hallucination garantie et
+            # il n'y a rien a traduire.
+            lead = part[:len(part) - len(part.lstrip())]
+            trail = part[len(part.rstrip()):]
+            core = translate_fn(part.strip(), "", target)
+            out.append(lead + _clean_html_entities(core) + trail)
+        else:
+            out.append(part)
+    return "".join(out)
+
+
+def is_available() -> bool:
+    """Traduction possible : au moins un fournisseur IA configure (Options >
+    Traduction > Fournisseurs IA). Un maillon LOCAL (Unsloth/Ollama) suffit."""
+    from .ai import router as ai_router
+    return ai_router.configured()
+
+
+def get_import_error() -> str:
+    """Explication affichable quand is_available() est False (les anciens
+    moteurs n'avaient plus de dependance a importer)."""
+    if is_available():
+        return ""
+    from .i18n import t
+    return t("trans.configure_hint")
+
+
+# Duree maximale d'attente d'une reponse -- les appels IA sont dejas bornes
+# par core/ai/client ; le parametre reste expose pour les appelants.
+DEFAULT_TRANSLATION_TIMEOUT_S = 15.0
 
 
 def _translate_llm_whole_cell(gtext: str, source: str, target: str,
                               translate_whole, translate_fn) -> str:
-    """Mode CELLULE ENTIERE pour les moteurs LLM (18/09/2026) : UNE requete
-    par cellule -- le texte entier, protege en jetons XXTAG (balises,
-    nombres, placeholders), part d'un bloc. Coherence linguistique (le
-    modele voit la phrase complete), requetes et consigne systeme uniques.
+    """Mode CELLULE ENTIERE (18/09/2026) : UNE requete par cellule -- le
+    texte entier, protege en jetons XXTAG (balises, nombres, placeholders),
+    part d'un bloc. Coherence linguistique (le modele voit la phrase
+    complete), requetes et consigne systeme uniques.
 
     Squelette verifie : la sequence de jetons de la reponse doit etre
     EXACTEMENT celle de l'entree (meme count, meme ordre) ; sinon REPLI
@@ -273,8 +313,7 @@ def _translate_llm_whole_cell(gtext: str, source: str, target: str,
     expected = list(range(len(segments)))
     translated = translate_whole(protected, target)
     if _token_sequence(translated) != expected:
-        return _translate_offline_fragments(gtext, source, target,
-                                            translate_fn=translate_fn)
+        return _translate_fragments(gtext, target, translate_fn)
     return restore_segments(translated, segments)
 
 
@@ -312,14 +351,14 @@ def batch_chunks(texts: List[str], max_cells: int = BATCH_MAX_CELLS,
 def _translate_llm_cells_batch(gtexts: List[str], source: str, target: str,
                                translate_batch, translate_whole,
                                translate_fn) -> List[str]:
-    """Mode LOTS pour les moteurs LLM (v1.8.0) : tous les textes d'un lot
-    partent en UNE requete (translate_batch). Le squelette de jetons de
-    CHAQUE cellule est verifie comme en mode cellule entiere : une cellule
-    manquante ou deviante dans la reponse repasse AUTOMATIQUEMENT en mode
-    cellule entiere (qui lui-meme retombe sur les fragments) -- jamais de
-    fichier corrompu, et une deviation du modele ne coute qu'un appel
-    supplementaire sur la cellule fautive. Les erreurs API remontent (le
-    worker les affiche pour chaque cellule du lot)."""
+    """Mode LOTS (v1.8.0) : tous les textes d'un lot partent en UNE requete
+    (translate_batch). Le squelette de jetons de CHAQUE cellule est verifie
+    comme en mode cellule entiere : une cellule manquante ou deviante dans la
+    reponse repasse AUTOMATIQUEMENT en mode cellule entiere (qui lui-meme
+    retombe sur les fragments) -- jamais de fichier corrompu, et une
+    deviation du modele ne coute qu'un appel supplementaire sur la cellule
+    fautive. Les erreurs API remontent (le worker les affiche pour chaque
+    cellule du lot)."""
     protected_list, seg_list = [], []
     for gtext in gtexts:
         protected, segments = protect_segments(gtext)
@@ -336,445 +375,51 @@ def _translate_llm_cells_batch(gtexts: List[str], source: str, target: str,
     return out
 
 
-def _translate_offline_fragments(text: str, source: str, target: str,
-                                 translate_fn=None) -> str:
-    """Pipeline en DEUX temps (approche "Google" : on n'envoie au moteur
-    que le texte, jamais le BBCode) :
-
-    1. protect_segments(text) remplace balises/placeholders par des jetons ;
-    2. seuls les fragments de TEXTE LIBRE restants sont traduits, un par un ;
-    3. le texte final est reconstruit avec les balises d'origine a leur place
-       exacte -- la structure BBCode est garantie par construction, alors
-       qu'envoyer la chaine entiere a un moteur le fait RECOPIER sans
-       traduire des que la densite de balises est forte (vecu reel : ligne
-       'Prologue: Journey into the unknown' du PDA.csv Atlantis, entiere
-       renvoyee en anglais, 12/09/2026).
-
-    translate_fn(frag, source, target) : fonction de traduction d'un
-    fragment (defaut : Argos). NLLB passe la sienne (core/nllb_provider).
-    Argos est local : les appels multiples par fragment ne coutent rien.
-    Leve une exception si le moteur sous-jacent echoue."""
-    from . import argos_provider
-    translate_fn = translate_fn or argos_provider.translate_offline
-    protected, segments = protect_segments(text)
-    parts = re.split(r'(XXTAG\d+XX)', protected)
-    out: List[str] = []
-    for idx, part in enumerate(parts):
-        if idx % 2 == 1:
-            out.append(segments[idx // 2] if idx // 2 < len(segments) else part)
-        elif part.strip() and re.search(r"[^\W_]", part, re.UNICODE):
-            # conserver les espaces de bord du fragment original autour de la
-            # traduction (le modele n'a pas a les decider). Les fragments SANS
-            # aucun caractere alphanumerique (un '!' isole entre deux balises,
-            # '===', ...) ne partent PAS au moteur : les moteurs hallucinent
-            # dessus ('!' -> '- Oui.', vecu 12/09/2026) et il n'y a rien a
-            # traduire.
-            lead = part[:len(part) - len(part.lstrip())]
-            trail = part[len(part.rstrip()):]
-            core = translate_fn(part.strip(), source, target)
-            out.append(lead + _clean_argos_entities(core) + trail)
-        else:
-            out.append(part)
-    return "".join(out)
-
-
-def is_available() -> bool:
-    return _AVAILABLE
-
-
-def get_import_error() -> str:
-    """Detail exact de l'erreur de chargement de deep-translator, pour diagnostic --
-    vide si tout va bien (voir is_available())."""
-    return _IMPORT_ERROR or ""
-
-
-# Duree maximale d'attente d'une reponse de Google Translate. deep-translator
-# 1.11 ne passe AUCUN timeout a requests : sans cette garde, une connexion
-# pendante (reseau tombe, pare-feu silencieux, VPN capricieux...) figerait
-# l'appelant indefiniment -- sur l'interface, tout l'editeur serait gele.
-DEFAULT_TRANSLATION_TIMEOUT_S = 15.0
-
-
-# ---------------------------------------------------------------------------
-# CHAINE DE SECOURS (v1.10.0, inspiree du failover de freellmapi) : quand le
-# moteur principal (radio du sous-menu Moteur) atteint son quota ou tombe en
-# panne, on enchaine les autres moteurs disponibles. Ordre canonique a partir
-# du principal : Groq -> DeepL -> Google -> NLLB -> Argos. Les moteurs en
-# ligne sont filtres par la permission "Traduction en ligne", les moteurs
-# non configures/installes sont sautes, et un maillon qui echoue est mis au
-# repos (cooldown) pour ne pas marteler un service mort sur chaque cellule.
-# ---------------------------------------------------------------------------
-_FALLBACK_ORDER = ("ai", "groq", "deepl", "google", "nllb", "argos")
-_ENGINE_LABELS = {"ai": "IA", "groq": "Groq", "deepl": "DeepL", "google": "Google",
-                  "nllb": "NLLB", "argos": "Argos"}
-# Durees de repos apres une erreur basculable : le quota DeepL est MENSUEL
-# (inutile de reessayer avant longtemps), les pannes reseau sont brèves.
-_LINK_DOWN_S = {"ai": 60, "groq": 60, "deepl": 1800, "google": 60,
-                "nllb": 120, "argos": 120}
-# Groq : cooldown restant annonce par l'API au-dela duquel le maillon est
-# SAUTE sans meme tenter l'appel (sinon le throttle dormait jusqu'au
-# reset -- journalier = heures -- d'ou les blocages de 10 minutes vecus
-# 19/09/2026). En dessous, le throttle dort au plus 30 s : acceptable.
-_GROQ_COOLDOWN_SKIP_S = 5.0
-_LINK_DOWN_UNTIL: dict = {}
-_LINK_LOCK = threading.Lock()
-_LAST_FALLBACK_NOTE = ""
-
-
-def _mark_link_down(engine: str, seconds: float) -> None:
-    with _LINK_LOCK:
-        _LINK_DOWN_UNTIL[engine] = time.monotonic() + seconds
-
-
-def _link_available(engine: str) -> bool:
-    with _LINK_LOCK:
-        return time.monotonic() >= _LINK_DOWN_UNTIL.get(engine, 0.0)
-
-
-def reset_link_states() -> None:
-    """Remet a zero les repos de maillons (tests, ou nouveau lot lance
-    par l'utilisateur : on redonne sa chance au moteur principal)."""
-    global _LAST_FALLBACK_NOTE
-    with _LINK_LOCK:
-        _LINK_DOWN_UNTIL.clear()
-        _LAST_FALLBACK_NOTE = ""
-
-
-def last_fallback_note() -> str:
-    """Note d'interface ("" si le moteur principal sert) : 'Secours :
-    traduction assuree par DeepL' -- affichee dans la barre de
-    progression du batch pour que la bascule soit VISIBLE."""
-    with _LINK_LOCK:
-        return _LAST_FALLBACK_NOTE
-
-
-def _set_fallback_note(note: str) -> None:
-    global _LAST_FALLBACK_NOTE
-    with _LINK_LOCK:
-        _LAST_FALLBACK_NOTE = note
-
-
-def _fallback_chain(primary: str, target: str) -> list:
-    """Moteurs disponibles, principal en tete : filtre permission en
-    ligne, cles configurees, modele installe, langue couverte par DeepL."""
-    from . import settings as _settings
-    online_ok = _settings.get_online_translation_enabled()
-    out = []
-    for eng in [primary] + [e for e in _FALLBACK_ORDER if e != primary]:
-        if eng in ("groq", "deepl", "google") and not online_ok:
-            continue
-        if eng == "ai":
-            from .ai import router as ai_router
-            if not ai_router.configured():
-                continue
-            # un maillon LOCAL (Unsloth/Ollama) reste utilisable sans la
-            # permission "Traduction en ligne" (aucune donnee ne sort).
-            if not online_ok and not ai_router.has_local_links():
-                continue
-        elif eng == "groq":
-            from . import groq_provider
-            if not groq_provider.is_configured():
-                continue
-        elif eng == "deepl":
-            from . import deepl_provider
-            if not deepl_provider.is_configured() \
-                    or not deepl_provider.target_supported(target):
-                continue
-        elif eng == "nllb":
-            from . import nllb_provider
-            if not nllb_provider.is_installed(_settings.get_nllb_variant()):
-                continue
-        out.append(eng)
-    return out
-
-
-def _translate_with_engine(eng: str, gtext: str, target: str, source: str,
-                           timeout_seconds: float) -> str:
-    """Un maillon de la chaine : traduction SANS glossaire (la restauration
-    du glossaire est faite UNE fois par l'appelant). Erreurs typees pour
-    les maillons en ligne ; TimeoutError possible sur Google."""
-    if eng == "ai":
-        from .ai import router as ai_router
-        return _translate_llm_whole_cell(
-            gtext, source, target,
-            translate_whole=ai_router.translate_whole,
-            translate_fn=ai_router.translate)
-    if eng == "groq":
-        from . import groq_provider
-        return _translate_llm_whole_cell(
-            gtext, source, target,
-            translate_whole=groq_provider.translate_whole,
-            translate_fn=groq_provider.translate)
-    if eng == "deepl":
-        from . import deepl_provider
-        protected, segments = protect_segments(gtext)
-        translated = deepl_provider.translate(protected, target)
-        if _token_sequence(translated) == list(range(len(segments))):
-            return restore_segments(translated, segments)
-        # DeepL a perdu/altere des jetons (vecu reel 19/09/2026 : des \n
-        # disparus, surtout quand plusieurs jetons sont colles) --
-        # repli FRAGMENTS DeepL : seuls les morceaux de texte libre partent
-        # au moteur, les jetons ne voyagent plus, structure garantie.
-        return _translate_offline_fragments(
-            gtext, source, target,
-            translate_fn=lambda frag, src, tgt: deepl_provider.translate(
-                frag, tgt))
-    if eng == "google":
-        return _translate_google(gtext, target, source, timeout_seconds)
-    if eng == "nllb":
-        return _translate_nllb(gtext, source, target)
-    if eng == "argos":
-        return _translate_offline_fragments(gtext, source, target)
-    raise EngineUnavailableError(f"Moteur inconnu : {eng}")
-
-
-def _translate_nllb(gtext: str, source: str, target: str) -> str:
-    from . import lang_detect, nllb_provider
-    from . import settings as _settings
-    variant = _settings.get_nllb_variant()
-    if not nllb_provider.is_installed(variant):
-        from .i18n import t
-        raise EngineUnavailableError(t("nllb.not_installed", variant=variant))
-
-    def _nllb_frag(frag: str, src: str, tgt: str) -> str:
-        # NLLB n'a pas de mode 'auto' : detection lexicale par fragment
-        # (core/lang_detect.py) quand la source n'est pas connue.
-        code = src
-        if code in (None, "auto"):
-            scores = lang_detect.language_scores(frag)
-            code = "en" if scores.get("en", 0) >= scores.get("fr", 0) else "fr"
-        return nllb_provider.translate(frag, code, tgt, variant)
-
-    return _translate_offline_fragments(gtext, source, target,
-                                        translate_fn=_nllb_frag)
-
-
-def _translate_google(gtext: str, target: str, source: str,
-                      timeout_seconds: float) -> str:
-    """Chemin Google (deep-translator) : renvoie le texte avec les jetons
-    restaures, SANS glossaire. Les pages d'erreur Google remontent en
-    EngineUnavailableError (meme texte qu'avant) -> basculables."""
-    protected, segments = protect_segments(gtext)
-    result_holder: dict = {}
-
-    def _call():
-        try:
-            result_holder['value'] = GoogleTranslator(
-                source=source, target=target).translate(protected)
-        except BaseException as e:
-            # Volontairement large : l'exception doit traverser le join pour etre
-            # relevee dans le thread appelant (jamais silencieuse).
-            result_holder['error'] = e
-
-    worker = threading.Thread(target=_call, daemon=True, name="empyrion-translate")
-    worker.start()
-    worker.join(timeout_seconds)
-    if worker.is_alive():
-        raise TimeoutError(
-            f"Google Translate n'a pas repondu en {timeout_seconds:.0f} s "
-            f"(reseau indisponible ou pare-feu ?). Reessaie plus tard, ou "
-            f"desactive la traduction en ligne dans les options (voir PRIVACY.md).")
-    if 'error' in result_holder:
-        raise result_holder['error']
-
-    translated = result_holder['value']
-    # deep-translator peut RENVOYER la page d'erreur HTML de Google comme si
-    # c'etait la traduction (observe en reel : "Error 500 (Server Error)!!1")
-    # -- jamais afficher ce garbage dans un fichier de jeu (retour du
-    # 10/09/2026).
-    lowered = (translated or "").lower()
-    if not translated or "that's an error" in lowered or "error 5" in lowered \
-            or "google.com" in lowered or "<html" in lowered:
-        raise EngineUnavailableError(
-            "Le service de traduction en ligne a renvoye une page d'erreur "
-            "(limitation Google). Reessaie plus tard, ou bascule sur le "
-            "moteur hors ligne Argos (Options > Traduction hors ligne "
-            "(Argos)...).")
-    # Squelette de jetons : Google peut perdre des XXTAG comme DeepL
-    # (v1.10.0) -- sans verification, les \n/balises disparaissaient
-    # silencieusement. Structure perdue = erreur basculable.
-    if _token_sequence(translated) != list(range(len(segments))):
-        raise EngineUnavailableError(
-            "Google a perdu ou altere des jetons de structure (\\n, "
-            "balises) : traduction jetee, le moteur suivant prend le "
-            "relais.")
-    if segments:
-        translated = restore_segments(translated, segments)
-    return translated
-
-
-def _raise_online_disabled(offline_error: str = None):
-    """Messages de la garde confidentialite (identiques au chemin sans
-    bascule -- la traduction EN LIGNE est une permission)."""
-    if offline_error:
-        raise RuntimeError(
-            f"Traduction hors ligne impossible ({offline_error}) -- "
-            f"ajoute la langue manquante dans Options > Traduction hors "
-            f"ligne (Argos) -- ET la traduction en ligne est desactivee "
-            f"(voir Options). Au moins un des deux moteurs est requis."
-        )
+def _raise_online_disabled():
+    """Message de la garde confidentialite : la traduction EN LIGNE est une
+    permission. Un maillon LOCAL (Unsloth/Ollama) n'est pas concerne."""
     raise RuntimeError(
-        "Traduction en ligne desactivee (Options > Traduction en ligne "
-        "(Google Translate)). Cette fonctionnalite envoie le texte a "
-        "traduire aux serveurs Google -- voir PRIVACY.md. Reactive-la "
-        "dans le menu Options si tu veux t'en servir."
-    )
+        "Traduction en ligne desactivee (Options > Traduction en ligne). "
+        "Cette fonctionnalite envoie le texte a traduire au fournisseur IA "
+        "configure -- voir PRIVACY.md. Reactive-la dans le menu Options si "
+        "tu veux t'en servir, ou configure un fournisseur LOCAL "
+        "(Unsloth/Ollama) qui ne fait sortir aucune donnee.")
 
 
-def _translate_via_chain(gtext: str, gloss_replacements: list, primary: str,
-                         target: str, source: str,
-                         timeout_seconds: float) -> str:
-    """Exécuteur de la chaine de secours : essaie les maillons dans
-    l'ordre, met au repos ceux qui echouent (quota/panne), s'arrete au
-    premier succes. Une AuthError (cle refusee) ne bascule JAMAIS : c'est
-    une erreur de configuration que l'utilisateur doit voir. Les maillons
-    en ligne ne sont dans la chaine que si la permission confidentialite
-    est donnee."""
+def _translate_via_ai(gtext: str, gloss_replacements: list, target: str,
+                      source: str) -> str:
+    """Chemin UNIQUE (31/10) : le routeur IA (core/ai/router) choisit le
+    maillon configure (fournisseur + modele), gere lui-meme les repos par
+    maillon (429, quota, plafond budgetaire) et la bascule vers les maillons
+    suivants. Une AuthError (cle refusee) remonte : erreur de configuration
+    que l'utilisateur doit voir."""
     from . import glossary
-    chain = _fallback_chain(primary, target)
-    if not chain:
+    from . import settings as _settings
+    from .ai import router as ai_router
+    # Garde confidentialite AVANT le test de configuration : un fournisseur
+    # distant + permission coupee doit dire « traduction en ligne desactee »
+    # (actionnable), pas « aucun fournisseur » (vecu en tests 31/10 —
+    # router.configured() filtre deja les distants quand la permission manque).
+    if (not _settings.get_online_translation_enabled()
+            and not ai_router.has_local_links()):
         _raise_online_disabled()
-    from .i18n import t
-    errors = []
-    for eng in chain:
-        if not _link_available(eng):
-            continue
-        if eng == "groq":
-            from . import groq_provider
-            wait = groq_provider.cooldown_remaining()
-            if wait > _GROQ_COOLDOWN_SKIP_S:
-                # cooldown 429 encore actif : sauter le maillon SANS appel
-                # (le throttle dormirait sinon, jusqu'au reset journalier
-                # eventuel -- blocage de 10 minutes vecu 19/09/2026)
-                from .groq_provider import _fmt_duration
-                errors.append((eng, t("groq.rate_limited",
-                                      delay=_fmt_duration(wait))))
-                continue
-        try:
-            translated = _translate_with_engine(eng, gtext, target, source,
-                                                timeout_seconds)
-        except AuthError:
-            raise
-        except (QuotaExhaustedError, EngineUnavailableError,
-                TimeoutError) as e:
-            if eng == "ai":
-                # Le routeur IA gere ses repos PAR MAILLON (modele absent,
-                # 429 par fournisseur, plafond). Un repos moteur de 60 s ici
-                # desactivait toute l'IA apres un seul lot transitoire : les
-                # cellules suivantes partaient sur Groq alors qu'un autre
-                # maillon free etait disponible. On le laisse retenter.
-                errors.append((eng, str(e)))
-                continue
-            seconds = _LINK_DOWN_S.get(eng, 60)
-            if eng == "groq":
-                from . import groq_provider
-                # aligner le repos sur le reset REELLEMENT annonce (24 s
-                # par minute, mais HEURES sur le plafond journalier)
-                seconds = max(seconds, groq_provider.cooldown_remaining())
-            _mark_link_down(eng, seconds)
-            errors.append((eng, str(e)))
-            continue
-        if _looks_like_engine_garbage(translated):
-            # Filet final : une page d'erreur servie "avec succes" par un
-            # moteur (LLM hallucinant, MT limite) n'est JAMAIS une
-            # traduction -- maillon ecarte, le suivant prend le relais.
-            if eng != "ai":
-                _mark_link_down(eng, _LINK_DOWN_S.get(eng, 60))
-            errors.append((eng, "page d'erreur moteur"))
-            continue
-        note = "" if eng == primary else t("trans.fallback_used",
-                                           engine=_ENGINE_LABELS[eng])
-        ai_error = next((msg for failed, msg in errors if failed == "ai"), "")
-        if note and ai_error:
-            # Rendre VISIBLE pourquoi l'IA a laisse passer (quota, 429,
-            # plafond...) au lieu du seul nom du moteur de secours.
-            note += " -- IA : " + ai_error[:140]
-        _set_fallback_note(note)
-        _debug_note(eng, gtext, translated,
-                    fallback=eng != primary)
-        return glossary.restore_glossary(translated, gloss_replacements)
-    # Tous les maillons disponibles ont echoue : composer une erreur qui
-    # dit TOUT (et repasse par les messages historiques si la permission
-    # en ligne est la cause racine).
-    from . import settings as _settings
-    if not _settings.get_online_translation_enabled():
-        offline_err = next((msg for eng, msg in errors
-                            if eng in ("nllb", "argos")), None)
-        _raise_online_disabled(offline_err)
-    detail = " | ".join(f"{_ENGINE_LABELS[eng]} : {msg}"
-                        for eng, msg in errors) or "aucun moteur disponible"
-    raise EngineUnavailableError(
-        "Tous les moteurs de traduction ont echoue -- " + detail)
-
-
-def _translate_legacy_single(gtext: str, gloss_replacements: list,
-                             engine: str, target: str, source: str,
-                             timeout_seconds: float) -> str:
-    """Chemin historique (bascule desactivee) : UN seul moteur, messages
-    et replis d'origine (Argos -> Google si permission, combined offline)."""
-    from . import glossary
-    from . import settings as _settings
-    _offline_error: Optional[str] = None
-    if engine == "nllb":
-        result = _translate_nllb(gtext, source, target)
-        return glossary.restore_glossary(result, gloss_replacements)
-
-    if engine == "argos":
-        try:
-            # Ne jamais envoyer le BBCode brut a Argos : le modele le recopie
-            # sans traduire (bug vecu PDA.csv Atlantis, 12/09/2026) -- seuls
-            # les fragments de texte libre partent au moteur, la structure est
-            # reconstruite apres coup (voir _translate_offline_fragments).
-            argos_result = _translate_offline_fragments(gtext, source, target)
-        except Exception as e:
-            _offline_error = str(e) or "moteur Argos ou paire de langues absente"
-        else:
-            # chemin Argos reussi : retour IMMEDIAT, ne jamais traverser le
-            # garde "traduction en ligne desactivee" (qui ne le concerne pas)
-            return glossary.restore_glossary(argos_result, gloss_replacements)
-
-    # Verifie le reglage de confidentialite AVANT tout appel reseau -- le cache
-    # ci-dessus reste utilisable meme desactive (aucune donnee n'est envoyee,
-    # juste une reutilisation locale d'un resultat deja obtenu precedemment).
-    # Voir core/settings.py:get_online_translation_enabled() et PRIVACY.md.
-    if engine == "ai":
-        # Maillons IA : le routeur filtre lui-meme les fournisseurs distants
-        # quand la permission est desactivee ; un maillon local reste permis.
-        from .ai import router as ai_router
-        if (not _settings.get_online_translation_enabled()
-                and not ai_router.has_local_links()):
-            _raise_online_disabled()
-        ai_result = _translate_llm_whole_cell(
-            gtext, source, target,
-            translate_whole=ai_router.translate_whole,
-            translate_fn=ai_router.translate)
-        return glossary.restore_glossary(ai_result, gloss_replacements)
-
-    if not _settings.get_online_translation_enabled():
-        _raise_online_disabled(_offline_error)
-
-    if engine == "groq":
-        # LLM EN LIGNE (Groq Inc. + fournisseur du modele) : place APRES la
-        # garde de confidentialite, comme Google -- la case "Traduction en
-        # ligne" autorise/bloque aussi ce moteur.
-        from . import groq_provider
-        groq_result = _translate_llm_whole_cell(
-            gtext, source, target,
-            translate_whole=groq_provider.translate_whole,
-            translate_fn=groq_provider.translate)
-        return glossary.restore_glossary(groq_result, gloss_replacements)
-
-    translated = _translate_google(gtext, target, source, timeout_seconds)
-    translated = glossary.restore_glossary(translated, gloss_replacements)
-    return translated
+    if not ai_router.configured():
+        raise EngineUnavailableError(
+            "Aucun fournisseur IA configure (Options > Traduction > "
+            "Fournisseurs IA...).")
+    translated = _translate_llm_whole_cell(
+        gtext, source, target,
+        translate_whole=ai_router.translate_whole,
+        translate_fn=ai_router.translate)
+    _debug_note("ai", gtext, translated)
+    return glossary.restore_glossary(translated, gloss_replacements)
 
 
 # JOURNAL DE DIAGNOSTIC (v1.10.0, apres les pertes de \n difficiles a
 # attribuer) : chaque traduction moteur est appendue en JSONL
-# (~/.empyrion_editor/translation_debug.jsonl) -- moteur reellement
-# utilise, entree et sortie (tronquees), repli ou non. Permet de dire
-# EXACTEMENT quel moteur a produit quelle cellule. Jamais bloquant :
-# toute erreur d'ecriture est ignoree.
+# (~/.empyrion_editor/translation_debug.jsonl) -- entree et sortie
+# (tronquees). Permet de dire EXACTEMENT ce qui a ete envoye au modele.
+# Jamais bloquant : toute erreur d'ecriture est ignoree.
 _DEBUG_LOG_PATH = Path.home() / ".empyrion_editor" / "translation_debug.jsonl"
 _DEBUG_MAX_LEN = 800
 _DEBUG_LOCK = threading.Lock()
@@ -782,8 +427,8 @@ _DEBUG_LOCK = threading.Lock()
 
 def _debug_note(engine: str, gtext: str, translated: str,
                 fallback: bool = False) -> None:
-    """Append une ligne JSONL de diagnostic (moteur, entree, sortie).
-    Rotation simple a 2 Mo (vieux lignes jetees : c'est un anneau de
+    """Append une ligne JSONL de diagnostic (entree, sortie).
+    Rotation simple a 2 Mo (vieilles lignes jetees : c'est un anneau de
     diagnostic). Aucune exception ne remonte : le journal est un confort."""
     try:
         import json as _json
@@ -806,54 +451,39 @@ def _debug_note(engine: str, gtext: str, translated: str,
         pass
 
 
-def _engine_dispatch(gtext: str, gloss_replacements: list, target: str,
-                     source: str, timeout_seconds: float) -> str:
-    """Choix bascule active ? -> chaine de secours ; sinon chemin unique
-    historique. Point d'entree commun de translate_text et du lot."""
-    from . import settings as _settings
-    engine = _settings.get_translation_engine()
-    if _settings.get_engine_fallback_enabled():
-        return _translate_via_chain(gtext, gloss_replacements, engine,
-                                    target, source, timeout_seconds)
-    result = _translate_legacy_single(gtext, gloss_replacements, engine,
-                                      target, source, timeout_seconds)
-    _debug_note(engine, gtext, result)
-    return result
+def reset_link_states() -> None:
+    """Compat : les repos par moteur disparaissent avec la chaine de secours
+    (le routeur IA gere ses propres cooldowns PAR FOURNISSEUR). No-op."""
+    return None
+
+
+def last_fallback_note() -> str:
+    """Note d'interface affichee pendant les lots : le fournisseur IA qui a
+    servi la derniere requete ('' si aucun)."""
+    from .ai import router as ai_router
+    label = ai_router.last_link_label()
+    return f"IA : {label}" if label else ""
 
 
 def translate_text(text: str, target: str = "fr", source: str = "auto",
                    timeout_seconds: float = DEFAULT_TRANSLATION_TIMEOUT_S,
                    store_in_memory: bool = True) -> str:
-    """Traduit `text` vers la langue `target` (code ISO, ex: 'fr', 'en'), en preservant
-    le BBCode et les placeholders. Leve une exception explicite si la bibliotheque
-    n'est pas installee ou si la requete echoue (ex: pas de connexion internet) -- a
-    capturer et afficher clairement cote GUI. Leve TimeoutError si Google ne repond
-    pas dans `timeout_seconds` (voir DEFAULT_TRANSLATION_TIMEOUT_S).
+    """Traduit `text` vers la langue `target` (code ISO, ex: 'fr', 'en'), en
+    preservant le BBCode et les placeholders. Leve une exception explicite si
+    aucun fournisseur IA n'est configure ou si la requete echoue (quota,
+    reseau, cle refusee) -- a capturer et afficher clairement cote GUI.
 
-    MEMOIRE DE TRADUCTION (core/translation_memory.py) consultee en PREMIER,
-    quel que soit le moteur choisi : meme texte -> meme traduction, partout,
-    sans rappeler l'API ; puis memoire VANILLE (core/vanilla_memory.py) : les
-    textes identiques a la localisation officielle du jeu ressortent avec la
-    traduction Eleon. L'ALIMENTATION de la memoire, elle, ne se fait plus
-    automatiquement ici : les revues passent store_in_memory=False et
-    l'interface enregistre la traduction au moment ou l'utilisateur LA VALIDE
-    (cases cochees de la revue) -- demande du 12/09/2026.
+    MEMOIRE DE TRADUCTION (core/translation_memory.py) consultee en PREMIER :
+    meme texte -> meme traduction, partout, sans rappeler l'API ; puis memoire
+    VANILLE (core/vanilla_memory.py) : les textes identiques a la localisation
+    officielle du jeu ressortent avec la traduction Eleon. L'ALIMENTATION de
+    la memoire, elle, ne se fait plus automatiquement ici : les revues passent
+    store_in_memory=False et l'interface enregistre la traduction au moment ou
+    l'utilisateur LA VALIDE (cases cochees de la revue) -- demande du 12/09/2026.
 
     GLOSSAIRE (core/glossary.py) : les termes actifs sont proteges par jetons
-    avant l'envoi au moteur et reinjectes dans la reponse, quel que soit le
-    moteur -- la terminologie imposee n'est jamais traduite a tort.
-
-    IMPLEMENTATION DU TIMEOUT : l'appel reseau tourne dans un thread daemon sur
-    lequel on joint avec un delai -- deep-translator n'exposant pas de timeout dans
-    sa version courante. En cas de depot, TimeoutError est levee cote appelant
-    pendant que la requete orpheline finit par echouer toute seule dans son thread
-    (daemon : ne bloque jamais la sortie de l'application)."""
-    if not _AVAILABLE:
-        raise RuntimeError(f"deep-translator indisponible ({_IMPORT_ERROR}). "
-                            f"Si tu utilises la version installee (executable), "
-                            f"ceci est un bug d'empaquetage a signaler avec ce "
-                            f"detail exact. Si tu lances depuis les sources : "
-                            f"pip install deep-translator")
+    avant l'envoi au modele et reinjectes dans la reponse -- la terminologie
+    imposee n'est jamais traduite a tort."""
     if not text or not text.strip():
         return text
 
@@ -873,8 +503,7 @@ def translate_text(text: str, target: str = "fr", source: str = "auto",
 
     gtext, gloss_replacements = glossary.apply_glossary(text, target)
 
-    translated = _engine_dispatch(gtext, gloss_replacements, target, source,
-                                  timeout_seconds)
+    translated = _translate_via_ai(gtext, gloss_replacements, target, source)
     if store_in_memory:
         translation_memory.store(text, source, target, translated)
     return translated
@@ -915,12 +544,12 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
                                 ) -> List[Tuple[str, str]]:
     """Version LOT de translate_text_with_source, utilisee par le worker de
     traduction en masse (v1.8.0) : memoire utilisateur puis memoire vanille
-    resolues par texte (sans rappeler le moteur), et le reste part au
-    moteur EN UNE SEULE requete quand le moteur est Groq avec le mode lots
-    active (Options > Traduction) -- le tier gratuit est plafonne en
-    debit, grouper les cellules divise d'autant le nombre de requetes.
-    Squelette de jetons verifie par cellule, repli cellule entiere puis
-    fragments (voir _translate_llm_cells_batch).
+    resolues par texte (sans rappeler le modele), et le reste part au modele
+    EN UNE SEULE requete quand le mode lots est active (Options > Traduction)
+    -- les tiers gratuits sont plafonnes en debit, grouper les cellules
+    divise d'autant le nombre de requetes. Squelette de jetons verifie par
+    cellule, repli cellule entiere puis fragments (voir
+    _translate_llm_cells_batch).
 
     Retourne une liste parallele de (traduction, source). Texte vide ->
     (texte, ""). Les erreurs moteur remontent : le worker les affiche pour
@@ -950,12 +579,9 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
         return results
 
     from . import settings as _settings
-    engine = _settings.get_translation_engine()
-    fallback_on = _settings.get_engine_fallback_enabled()
-    # Mode LOTS des maillons IA : une requete pour plusieurs cellules. Le
-    # routeur enchaine ses propres fournisseurs (free puis payant).
-    if (engine == "ai" and _settings.get_ai_batch_enabled()
-            and len(still) > 1):
+    # Mode LOTS IA : une requete pour plusieurs cellules. Le routeur
+    # enchaine ses propres fournisseurs (free puis payant).
+    if _settings.get_ai_batch_enabled() and len(still) > 1:
         from .ai import budget as _ai_budget
         from .ai import router as _ai_router
         if _ai_router.has_available_links():
@@ -974,12 +600,11 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
             except AuthError:
                 raise
             except (QuotaExhaustedError, EngineUnavailableError, TimeoutError):
-                if not fallback_on:
-                    raise
                 # Pas de repos moteur ici : le routeur a deja mis au repos
                 # les maillons fautifs ; les cellules suivantes doivent
                 # pouvoir retenter l'IA (un autre maillon free, un 429
-                # expire) au lieu de partir sur Groq pendant 60 s.
+                # expire).
+                pass
             else:
                 _ai_budget.flush()
                 for (i, _text), translated, replacements, gtext in zip(
@@ -988,56 +613,14 @@ def translate_batch_with_source(texts: List[str], target: str = "fr",
                     results[i] = (glossary.restore_glossary(
                         translated, replacements), "engine")
                 return results
-    # _link_available : apres un echec quota, Groq est au repos (aligne
-    # sur le reset annonce) -- ne pas repartir en requete lot, la chaine
-    # sert les cellules directement (vecu 19/09/2026 : pokes gaspilles).
-    if (engine == "groq" and _settings.get_groq_batch_enabled()
-            and len(still) > 1 and _link_available("groq")):
-        from . import glossary, groq_provider
-        gtexts, gloss_replacements = [], []
-        for _i, text in still:
-            gtext, replacements = glossary.apply_glossary(text, target)
-            gtexts.append(gtext)
-            gloss_replacements.append(replacements)
-        try:
-            translated_list = _translate_llm_cells_batch(
-                gtexts, source, target,
-                translate_batch=groq_provider.translate_batch,
-                translate_whole=groq_provider.translate_whole,
-                translate_fn=groq_provider.translate)
-        except AuthError:
-            raise  # cle refusee : jamais de bascule silencieuse
-        except (QuotaExhaustedError, EngineUnavailableError, TimeoutError):
-            if not fallback_on:
-                raise
-            # Bascule (v1.10.0) : le lot Groq echoue (quota/panne) -> le
-            # repo du maillon est pose (aligne sur le reset REELLEMENT
-            # annonce : minutes par quota, HEURES sur le plafond
-            # journalier) et TOUTES les cellules du lot continuent par la
-            # chaine, cellule par cellule -- le worker ne voit jamais
-            # d'echec si un autre moteur peut servir (la note d'interface
-            # est posee par la chaine elle-meme).
-            from . import groq_provider as _gp
-            _mark_link_down("groq", max(_LINK_DOWN_S.get("groq", 60),
-                                        _gp.cooldown_remaining()))
-        else:
-            for (i, _text), translated, replacements, gtext in zip(
-                    still, translated_list, gloss_replacements, gtexts):
-                _debug_note("groq", gtext, translated)
-                results[i] = (glossary.restore_glossary(translated, replacements),
-                              "engine")
-            return results
 
-    # Chemin classique, cellule par cellule (autres moteurs, mode lots
-    # desactive, ou lot restant a une seule cellule) -- passe par le
-    # dispatcher commun : chaine de secours incluse quand elle est active.
+    # Chemin classique, cellule par cellule (mode lots desactive, ou lot
+    # restant a une seule cellule, ou echec du lot).
     from . import glossary
     for i, text in still:
         gtext, replacements = glossary.apply_glossary(text, target)
-        translated = _engine_dispatch(gtext, replacements, target, source,
-                                      DEFAULT_TRANSLATION_TIMEOUT_S)
+        translated = _translate_via_ai(gtext, replacements, target, source)
         results[i] = (translated, "engine")
-    if engine == "ai":
-        from .ai import budget as _ai_budget
-        _ai_budget.flush()
+    from .ai import budget as _ai_budget
+    _ai_budget.flush()
     return results

@@ -65,8 +65,8 @@ def test_dialog_deepseek_direct_and_global_settings(qapp):
 
         dialog.batch_check.setChecked(False)
         assert settings.get_ai_batch_enabled() is False
-        dialog.use_check.setChecked(True)
-        assert settings.get_translation_engine() == "ai"
+        # moteur IA unique (31/10) : la case « utiliser comme moteur » est
+        # supprimee -- ce dialogue EST la configuration de traduction.
     finally:
         sip.delete(dialog)
 

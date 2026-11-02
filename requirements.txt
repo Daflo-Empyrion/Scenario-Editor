@@ -1,12 +1,17 @@
 # >=6.11 : QtPdf est embarque dans la roue principale PyQt6 depuis 6.11
 # (apercu PDF integre, voir gui/preview_widget.py)
 PyQt6>=6.11,<7.0
-deep-translator>=1.11,<2.0
 qtawesome>=1.2,<2.0
 # Pilote Fluent (09/09/2026) : widgets Fluent sur la fenetre principale
 # (branche PyQt6, GPL v3). Si absent, degrade gracieux en widgets vanilla
 # (voir gui/fluent_pilot.py).
 PyQt6-Fluent-Widgets>=1.11,<2.0
+
+# Vue web de l'arbre technologique (pilote 2026, 31/10) : ecran HTML dans un
+# QWebEngineView (voir gui/tech_tree_web.py). Optionnelle (~150 Mo dans
+# l'installeur quand elle est embarquee) : si absente, le menu reste gris et
+# l'arbre technologique utilise la vue Qt historique (repli gracieux).
+PyQt6-WebEngine>=6.11,<7.0
 
 # Lecture des bundles Unity (menu Outils > Comparer des bundles,
 # tools/compare_bundles.py) — embarquee dans l'installeur depuis v1.14.0.

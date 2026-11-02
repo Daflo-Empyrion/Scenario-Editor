@@ -284,10 +284,25 @@ def list_craftable_names(items_path: Optional[Path], blocks_path: Optional[Path]
     pool combine par la verification croisee 'Items/blocs references', voir
     core/ecf/cross_reference_check.py).
 
+    Passe par l'index en memoire (core/ecf/name_index.py, demande du 31/10 :
+    le scenario grossit, les combos ne doivent pas reparser 60 000 lignes a
+    chaque ouverture) : reponse instantanee si les fichiers n'ont pas change,
+    reconstruction en arriere-plan sinon -- liste eventuellement une seconde
+    derriere une ecriture ; forcer l'etat disque avec name_index.refresh().
+
     players_only : si True, exclut les blocs de BlocksConfig.ecf sans
     'AllowPlacingAt' (voir is_player_placeable_block) -- typiquement des blocs
     reserves aux POI, jamais posables par un joueur. Les items d'ItemsConfig.ecf
     restent TOUJOURS inclus (aucune propriete equivalente fiable pour eux)."""
+    from .name_index import get_names
+    return get_names(items_path, blocks_path, players_only)
+
+
+def list_craftable_names_uncached(items_path: Optional[Path],
+                                  blocks_path: Optional[Path],
+                                  players_only: bool = False) -> List[str]:
+    """Calcul REEL (parse des deux fichiers) -- utilise par l'index
+    name_index ; ne pas appeler directement dans l'interface."""
     from .parser import parse_ecf_file
 
     names: set = set()

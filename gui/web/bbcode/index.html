@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>BBCode — contrôle</title>
+<style>
+:root{
+  --bg:#05070D; --surface:#161D2F;
+  --line:rgba(130,205,255,.10); --line-strong:rgba(130,205,255,.28);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --amber:#FFC24D;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+  --rh:30px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--bg);
+  -webkit-font-smoothing:antialiased}
+.top{border-bottom:1px solid var(--line);background:rgba(10,15,26,.7)}
+.bar{height:44px;display:flex;align-items:center;gap:8px;padding:0 12px}
+.bar .name{font:600 12.5px var(--mono);color:#8FE7F5}
+.bar .meta{font:11px var(--mono);color:var(--dim);white-space:nowrap}
+.tbtn{height:28px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);padding:0 11px;white-space:nowrap;cursor:pointer;
+  background:linear-gradient(180deg, rgba(40,52,80,.55), rgba(16,22,38,.55));
+  color:var(--muted);font:11.5px var(--font);
+  transition:border-color .12s, color .12s, background .12s}
+.tbtn:hover{color:var(--txt);border-color:rgba(0,229,255,.45);
+  background:rgba(0,229,255,.10);box-shadow:0 0 14px -6px rgba(0,229,255,.6)}
+.tbtn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.tbtn.primary{border-color:rgba(0,229,255,.5);
+  background:linear-gradient(180deg, rgba(0,229,255,.22), rgba(0,140,190,.18));
+  color:#DFFAFF;font-weight:600;
+  box-shadow:0 0 16px -8px rgba(0,229,255,.8), inset 0 1px 0 rgba(255,255,255,.15)}
+.tbtn.primary:hover{background:rgba(0,229,255,.28)}
+.colsel{height:26px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:11.5px var(--font);
+  padding:0 6px;outline:none;max-width:180px}
+.colsel:focus{border-color:rgba(0,229,255,.45)}
+.colsel option{background:#0B1220;color:var(--txt)}
+.grid{position:relative;overflow:auto;height:calc(100% - 44px);cursor:default;
+  background:var(--bg)}
+.grid::-webkit-scrollbar{width:11px;height:11px}
+.grid::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.grid::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+.grid::-webkit-scrollbar-thumb:hover{background:rgba(130,205,255,.38);
+  border:3px solid transparent;background-clip:content-box}
+.sizer{position:relative;width:max-content}
+.hrow{position:sticky;top:0;z-index:3;display:flex;height:28px;
+  background:#0E1422;border-bottom:1px solid var(--line-strong)}
+.hcell{flex:0 0 auto;padding:5px 9px;font:600 11px var(--mono);color:#8FE7F5;
+  border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.row{position:absolute;display:flex;height:var(--rh);left:0}
+.row:nth-child(even) .cell{background:rgba(27,35,55,.45)}
+.row:hover .cell{background:rgba(0,229,255,.07)}
+.cell{position:relative;flex:0 0 auto;padding:5px 9px;font:12px var(--mono);
+  color:var(--txt);border-right:1px solid var(--line);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;user-select:none}
+.cell.rn{background:rgba(10,15,26,.6);color:var(--dim);font-size:11px;
+  display:flex;align-items:center;gap:6px}
+.cell.rn input{accent-color:var(--cyan);cursor:pointer}
+.cell.gray,.gray{color:var(--dim)}
+.cell.mod{color:var(--amber)}
+input.cedit{position:absolute;inset:2px;font:12px var(--mono);color:var(--txt);
+  background:rgba(6,11,20,.95);border:1px solid rgba(0,229,255,.55);outline:none;
+  border-radius:4px;padding:2px 6px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="bar">
+    <span class="meta" id="scope_label"></span>
+    <select id="scope" class="colsel"></select>
+    <span class="meta" id="summary"></span>
+    <span style="flex:1"></span>
+    <button class="tbtn" id="btn_select"></button>
+    <button class="tbtn primary" id="btn_apply"></button>
+    <button class="tbtn" id="btn_close"></button>
+  </div>
+</div>
+<div class="grid" id="grid">
+  <div class="sizer" id="sizer">
+    <div class="hrow" id="hrow"></div>
+    <div id="viewport" style="position:absolute;left:0;right:0"></div>
+  </div>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, M=null, ROWS=[], EDITED={}, APPL=false;
+const RH=30, OVERSCAN=8;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const grid=$("grid"), sizer=$("sizer"), vp=$("viewport");
+const L=()=>(M&&M.labels)||{};
+const afterText=r=>(EDITED[r.idx]!==undefined?EDITED[r.idx]:r.after);
+const COLW=[74,150,240,340,340,340];
+
+function boot(){
+  if (typeof qt==="undefined"||!qt.webChannelTransport){ setTimeout(boot,300); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.bridge;
+    BRIDGE.data_changed.connect(p => {
+      const m=JSON.parse(p);
+      if (m.rows) shape(m); else mergeState(m);
+    });
+    BRIDGE.get_reports(-2, m => shape(JSON.parse(m)));
+  });
+}
+
+function shape(m){
+  M=m; ROWS=m.rows; EDITED={}; APPL=!!m.apply_enabled;
+  buildScope(); buildHeader();
+  $("summary").textContent=L().found;
+  $("btn_apply").disabled=!APPL;
+  sizer.style.height=(ROWS.length*RH+28)+"px";
+  render();
+}
+
+function mergeState(s){
+  if (!M) return;
+  APPL=!!s.apply_enabled;
+  $("btn_apply").disabled=!APPL;
+  for (const k in s.checked){
+    const i=+k; if (!ROWS[i]) continue;
+    ROWS[i].checked=s.checked[k];
+    ROWS[i].applicable=s.applicable[k];
+  }
+  render();
+}
+
+function buildScope(){
+  const sel=$("scope");
+  if (sel.options.length) { sel.value=String(M.col); return; }
+  let html=`<option value="-1">${esc(L().scope_all)}</option>`;
+  for (const s of M.scope) html+=`<option value="${s.col}">${esc(s.name)}</option>`;
+  sel.innerHTML=html;
+  sel.value=String(M.col);
+  sel.onchange=()=>BRIDGE.get_reports(+sel.value, m=>shape(JSON.parse(m)));
+}
+
+function buildHeader(){
+  const names=[L().col_line,L().col_column,L().col_problem,L().col_source,
+               L().col_before,L().col_after];
+  $("hrow").innerHTML=names.map((n,i)=>
+    `<div class="hcell" style="width:${COLW[i]}px" title="${esc(L().columns_tooltip)}">${esc(n)}</div>`
+  ).join("");
+  $("btn_select").textContent=L().select_all;
+  $("btn_apply").textContent=L().apply;
+  $("btn_close").textContent=L().close;
+  $("scope_label").textContent=L().scope_label;
+}
+
+function render(){
+  if (!M) return;
+  const first=Math.max(0,Math.floor(grid.scrollTop/RH)-OVERSCAN);
+  const last=Math.min(ROWS.length,Math.ceil((grid.scrollTop+grid.clientHeight)/RH)+OVERSCAN);
+  let html="";
+  for (let i=first;i<last;i++){
+    const r=ROWS[i];
+    const aft=afterText(r);
+    const mod=aft!==r.after;
+    const lineCell=r.applicable
+      ? `<input type="checkbox" data-i="${r.idx}"${r.checked?" checked":""}><span>${r.line}</span>`
+      : `<span class="gray" title="${esc(L().not_repairable)}">${r.line}</span>`;
+    html+=`<div class="row" style="top:${i*RH}px">`
+      +`<div class="cell rn" style="width:${COLW[0]}px">${lineCell}</div>`
+      +`<div class="cell${r.applicable?"":" gray"}" style="width:${COLW[1]}px" title="${esc(r.col_name)}">${esc(r.col_name)}</div>`
+      +`<div class="cell" style="width:${COLW[2]}px" title="${esc(r.kinds)} : ${esc(r.details)}">${esc(r.kinds)}</div>`
+      +`<div class="cell" style="width:${COLW[3]}px" title="${esc(r.source||L().source_tooltip)}">${esc(r.source)}</div>`
+      +`<div class="cell" style="width:${COLW[4]}px" title="${esc(r.before)}">${esc(r.before)}</div>`
+      +`<div class="cell${mod?" mod":""}" data-idx="${r.idx}" style="width:${COLW[5]}px" title="${esc(aft||L().after_tooltip)}">${esc(aft)}</div>`
+      +`</div>`;
+  }
+  vp.innerHTML=html;
+}
+
+function openEditor(cell,r){
+  if (cell.querySelector("input")) return;
+  const input=document.createElement("input");
+  input.className="cedit";
+  input.value=afterText(r);
+  cell.textContent="";
+  cell.appendChild(input);
+  input.focus();
+  let done=false;
+  const commit=()=>{ if (done) return; done=true;
+    EDITED[r.idx]=input.value;
+    BRIDGE.set_after(r.idx,input.value); };
+  input.addEventListener("blur",commit);
+  input.addEventListener("change",commit);
+}
+
+vp.addEventListener("dblclick",e=>{
+  const cell=e.target.closest(".cell[data-idx]");
+  if (!cell) return;
+  const r=ROWS.find(x=>x.idx===+cell.dataset.idx);
+  if (r) openEditor(cell,r);
+});
+
+vp.addEventListener("change",e=>{
+  if (e.target.type!=="checkbox") return;
+  BRIDGE.set_checked(+e.target.dataset.i,e.target.checked);
+});
+
+$("btn_select").onclick=()=>BRIDGE.run_action("select_all");
+$("btn_apply").onclick=()=>BRIDGE.run_action("apply");
+$("btn_close").onclick=()=>BRIDGE.run_action("close");
+grid.addEventListener("scroll",render);
+window.addEventListener("resize",render);
+boot();
+</script>
+</body>
+</html>

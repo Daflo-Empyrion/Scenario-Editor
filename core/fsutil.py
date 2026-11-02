@@ -95,6 +95,27 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
         except OSError:
             pass  # le nettoyage du temporaire ne doit pas masquer l'erreur d'origine
         raise
+    # Accroches post-ecriture (index de noms, caches...) : jamais d'exception
+    # ni de latence perceptible -- une ecriture ne doit jamais echouer a cause
+    # d'un observateur (demande 31/10 : mise a jour de l'index de noms en
+    # arriere-plan a la sauvegarde).
+    for _hook in _WRITE_HOOKS:
+        try:
+            _hook(path)
+        except Exception:
+            pass
+
+
+# Observateurs de toutes les ecritures atomiques du projet (enregistrement
+# via register_write_hook ; appelé APRES que le fichier final est en place).
+_WRITE_HOOKS = []
+
+
+def register_write_hook(callback) -> None:
+    """Enregistre un observateur appele apres CHAQUE ecriture atomique reussie
+    (path final). Utilise par core/ecf/name_index.py -- ne pas y faire de
+    travail lourd : c'est sur le chemin de toutes les ecritures."""
+    _WRITE_HOOKS.append(callback)
 
 
 def atomic_write_text(path: Path, text: str, encoding: str = 'utf-8') -> None:

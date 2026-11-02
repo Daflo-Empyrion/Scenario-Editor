@@ -87,6 +87,7 @@ from core.workspace_undo import WorkspaceUndoStack, FileStateUndo, MultiFileStat
 
 
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
         from core.version import APP_VERSION
@@ -114,6 +115,13 @@ class MainWindow(QMainWindow):
         self.status_project_label = QLabel("")
         self.statusBar().addPermanentWidget(self.status_project_label)
         self._refresh_panel_and_status_labels()
+        # Chrome style webapp (31/10) : fenetre sans cadre + barre de titre
+        # maison (logo, fil d'Ariane du projet) AU-DESSUS des menus.
+        # Reversible (Options > Interface, prochain lancement) et degrade
+        # gracieux vers la barre native -- voir gui/chrome.py. Fait APRES
+        # menus/layout : setMenuWidget enveloppe la QMenuBar existante.
+        from gui import chrome as _chrome_mod_import
+        self._chrome_installed = _chrome_mod_import.install(self)
         # Flou acrylique Windows 11 (theme "h" Verriere) -- DEGRADE GRACIEUX :
         # sans support (Win10, macOS, Linux, RDP...), enable_acrylic() retourne
         # False et la fenetre reste 100% peinte par la feuille de style, sans
@@ -158,15 +166,17 @@ class MainWindow(QMainWindow):
     def _build_menu_server(self):
         """Menu Serveur (module admin EWA) : administrer le dedié a distance
         (client de l'API du mod EmpyrionWebAccess), configuration de la
-        connexion et guide d'installation du mod."""
+        connexion et guide d'installation du mod. L'administration d'abord
+        (usage quotidien), la configuration et l'installation regroupees
+        dessous (mise en place, plus rare)."""
         self.menu_server = self.menuBar().addMenu(t("menu.server"))
         self.action_ewa_admin = self.menu_server.addAction(
             t("menu.server.admin"))
         self.action_ewa_admin.triggered.connect(self._open_ewa_server_dialog)
+        self.menu_server.addSeparator()
         self.action_ewa_config = self.menu_server.addAction(
             t("menu.server.config"))
         self.action_ewa_config.triggered.connect(self._open_ewa_config_dialog)
-        self.menu_server.addSeparator()
         self.action_ewa_install = self.menu_server.addAction(
             t("menu.server.install"))
         self.action_ewa_install.triggered.connect(self._open_ewa_install_dialog)
@@ -223,12 +233,20 @@ class MainWindow(QMainWindow):
         self.action_quit.triggered.connect(self.close)
 
     def _build_menu_tools(self):
-        """Menu Outils (P1, audit du 30/08/2026) : les outils d'exploration du
-        scenario quittaient le menu Fichier, ou ils etait noyes parmi les
-        sauvegardes et la gestion de projet -- leurs cles i18n disaient deja
-        "menu.tools.*". Raccourcis affiches dans le menu (P3). Groupes
-        explicites (17/09/2026) : exploration, PDA, gestion du projet."""
+        """Menu Outils, reorganise en SOUS-MENUS (demande du 31/10 : 27
+        entrees a plat = illisible). Regles :
+          - les acces rapides restent au premier niveau (assistant, recherche,
+            arbre techno, galaxie) avec leurs raccourcis visibles ;
+          - PDA / Equilibrage / Edition / Bilans / Fichiers en sous-menus ;
+          - l'EQUILIBRAGE suit l'ordre d'utilisation recommande (docstring du
+            module, balance1.info_html) : la passe GLOBALE d'abord, puis les
+            leviers de danger/spawn, puis les modules a CIBLES CALCULEES
+            (couts, recettes, prix, correlations) et les audits/economie ;
+          - les attributs d'action restent les memes (raccourcis et tests).
+        """
         self.menu_tools = self.menuBar().addMenu(t("menu.tools"))
+
+        # -- acces rapides ---------------------------------------------------
         self.action_assistant = self.menu_tools.addAction(t("menu.tools.assistant"))
         self.action_assistant.setShortcut("Ctrl+Shift+A")
         self.action_assistant.triggered.connect(self._open_assistant)
@@ -248,87 +266,102 @@ class MainWindow(QMainWindow):
         self.action_galaxy_viewer.setShortcut("Ctrl+G")
         self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
         self.menu_tools.addSeparator()
-        self.action_pda_mission = self.menu_tools.addAction(t("menu.tools.pda_mission"))
+
+        # -- PDA ---------------------------------------------------------------
+        menu_pda = self.menu_tools.addMenu(t("menu.tools.sub.pda"))
+        self.action_pda_mission = menu_pda.addAction(t("menu.tools.pda_mission"))
         self.action_pda_mission.setShortcut("Ctrl+M")
         self.action_pda_mission.triggered.connect(self._open_pda_mission_dialog)
-        self.action_pda_editor = self.menu_tools.addAction(t("menu.tools.pda_editor"))
+        self.action_pda_editor = menu_pda.addAction(t("menu.tools.pda_editor"))
         self.action_pda_editor.setToolTip(t("menu.tools.pda_editor.tip"))
         self.action_pda_editor.triggered.connect(self._open_pda_editor)
-        self.menu_tools.addSeparator()
-        self.action_block_library = self.menu_tools.addAction(t("menu.tools.block_library"))
-        self.action_block_library.triggered.connect(self._open_block_library)
-        self.action_modified_files = self.menu_tools.addAction(t("menu.tools.modified_files"))
-        self.action_modified_files.triggered.connect(self._open_modified_files)
-        self.action_production_sync = self.menu_tools.addAction(t("menu.tools.production_sync"))
-        self.action_production_sync.triggered.connect(self._open_production_sync)
-        self.action_balance = self.menu_tools.addAction(t("menu.tools.balance"))
-        self.action_balance.triggered.connect(self._open_balance_dialog)
-        self.action_market_price = self.menu_tools.addAction(t("menu.tools.market_price"))
-        self.action_market_price.triggered.connect(self._open_market_price_dialog)
-        self.action_trader_audit = self.menu_tools.addAction(t("menu.tools.trader_audit"))
-        self.action_trader_audit.triggered.connect(self._open_trader_audit_dialog)
-        self.action_correlation = self.menu_tools.addAction(t("menu.tools.correlation"))
-        self.action_correlation.triggered.connect(self._open_correlation_dialog)
-        self.action_recipe_balance = self.menu_tools.addAction(
-            t("menu.tools.recipe_balance"))
-        self.action_recipe_balance.triggered.connect(
-            self._open_recipe_balance_dialog)
-        self.action_unlock_cost = self.menu_tools.addAction(
-            t("menu.tools.unlock_cost"))
-        self.action_unlock_cost.triggered.connect(
-            self._open_unlock_cost_dialog)
-        self.action_spawn_waves = self.menu_tools.addAction(
-            t("menu.tools.spawn_waves"))
-        self.action_spawn_waves.triggered.connect(
-            self._open_spawn_waves_dialog)
-        self.action_tokens = self.menu_tools.addAction(
-            t("menu.tools.tokens"))
+        menu_pda.addSeparator()
+        self.action_tokens = menu_pda.addAction(t("menu.tools.tokens"))
         self.action_tokens.triggered.connect(self._open_token_dialog)
-        self.action_faction_warfare = self.menu_tools.addAction(
-            t("menu.tools.faction_warfare"))
-        self.action_faction_warfare.triggered.connect(
-            self._open_faction_warfare_dialog)
-        self.action_rankings = self.menu_tools.addAction(
-            t("menu.tools.rankings"))
-        self.action_rankings.triggered.connect(self._open_rankings_dialog)
-        self.action_pda_scripts = self.menu_tools.addAction(
-            t("menu.tools.pda_scripts"))
+        self.action_pda_scripts = menu_pda.addAction(t("menu.tools.pda_scripts"))
         self.action_pda_scripts.triggered.connect(self._open_pda_scripts_dialog)
-        self.action_progression = self.menu_tools.addAction(
+        self.action_rankings = menu_pda.addAction(t("menu.tools.rankings"))
+        self.action_rankings.triggered.connect(self._open_rankings_dialog)
+
+        # -- Equilibrage (ordre recommande, voir balance1.info_html) ----------
+        menu_balance = self.menu_tools.addMenu(t("menu.tools.sub.balance"))
+        self.action_balance = menu_balance.addAction(t("menu.tools.balance"))
+        self.action_balance.triggered.connect(self._open_balance_dialog)
+        menu_balance.addSeparator()
+        self.action_progression = menu_balance.addAction(
             t("menu.tools.progression"))
         self.action_progression.triggered.connect(
             self._open_progression_dialog)
-        self.action_difficulty = self.menu_tools.addAction(
+        self.action_difficulty = menu_balance.addAction(
             t("menu.tools.difficulty"))
         self.action_difficulty.triggered.connect(
             self._open_difficulty_dialog)
-        self.action_bundles = self.menu_tools.addAction(t("menu.tools.bundles"))
-        self.action_bundles.triggered.connect(self._open_bundles_dialog)
-        self.action_dashboard = self.menu_tools.addAction(t("menu.tools.dashboard"))
-        self.action_dashboard.triggered.connect(self._open_dashboard)
-        self.action_economy_editor = self.menu_tools.addAction(t("menu.tools.economy"))
+        self.action_spawn_waves = menu_balance.addAction(
+            t("menu.tools.spawn_waves"))
+        self.action_spawn_waves.triggered.connect(
+            self._open_spawn_waves_dialog)
+        self.action_faction_warfare = menu_balance.addAction(
+            t("menu.tools.faction_warfare"))
+        self.action_faction_warfare.triggered.connect(
+            self._open_faction_warfare_dialog)
+        menu_balance.addSeparator()
+        self.action_unlock_cost = menu_balance.addAction(
+            t("menu.tools.unlock_cost"))
+        self.action_unlock_cost.triggered.connect(
+            self._open_unlock_cost_dialog)
+        self.action_recipe_balance = menu_balance.addAction(
+            t("menu.tools.recipe_balance"))
+        self.action_recipe_balance.triggered.connect(
+            self._open_recipe_balance_dialog)
+        self.action_market_price = menu_balance.addAction(t("menu.tools.market_price"))
+        self.action_market_price.triggered.connect(self._open_market_price_dialog)
+        self.action_correlation = menu_balance.addAction(t("menu.tools.correlation"))
+        self.action_correlation.triggered.connect(self._open_correlation_dialog)
+        menu_balance.addSeparator()
+        self.action_trader_audit = menu_balance.addAction(t("menu.tools.trader_audit"))
+        self.action_trader_audit.triggered.connect(self._open_trader_audit_dialog)
+        self.action_economy_editor = menu_balance.addAction(t("menu.tools.economy"))
         self.action_economy_editor.triggered.connect(self._open_economy_editor)
-        self.action_yaml_compare = self.menu_tools.addAction(t("menu.tools.yaml_compare"))
+
+        # -- Edition -----------------------------------------------------------
+        menu_edit = self.menu_tools.addMenu(t("menu.tools.sub.edit"))
+        self.action_block_library = menu_edit.addAction(t("menu.tools.block_library"))
+        self.action_block_library.triggered.connect(self._open_block_library)
+        self.action_yaml_compare = menu_edit.addAction(t("menu.tools.yaml_compare"))
         self.action_yaml_compare.triggered.connect(self._open_yaml_compare_tool)
-        self.action_yaml_check = self.menu_tools.addAction(t("menu.tools.yaml_check"))
-        self.action_yaml_check.setToolTip(t("menu.tools.yaml_check.tip"))
-        self.action_yaml_check.triggered.connect(self._open_yaml_check)
-        self.action_reintegrate = self.menu_tools.addAction(
+        self.action_bundles = menu_edit.addAction(t("menu.tools.bundles"))
+        self.action_bundles.triggered.connect(self._open_bundles_dialog)
+        self.action_cartoon = menu_edit.addAction(
+            t("menu.tools.cartoon"))
+        self.action_cartoon.triggered.connect(self._open_cartoon_dialog)
+        self.action_reintegrate = menu_edit.addAction(
             t("menu.tools.reintegrate"))
         self.action_reintegrate.setToolTip(t("menu.tools.reintegrate.tip"))
         self.action_reintegrate.triggered.connect(self._open_reintegrate)
-        self.action_digest = self.menu_tools.addAction(
+
+        # -- Bilans & tableaux de bord ----------------------------------------
+        menu_reports = self.menu_tools.addMenu(t("menu.tools.sub.reports"))
+        self.action_dashboard = menu_reports.addAction(t("menu.tools.dashboard"))
+        self.action_dashboard.triggered.connect(self._open_dashboard)
+        self.action_digest = menu_reports.addAction(
             t("menu.tools.digest"))
         self.action_digest.triggered.connect(self._open_scenario_digest)
-        self.action_cartoon = self.menu_tools.addAction(
-            t("menu.tools.cartoon"))
-        self.action_cartoon.triggered.connect(self._open_cartoon_dialog)
-        self.action_coherence = self.menu_tools.addAction(
+        self.action_coherence = menu_reports.addAction(
             t("menu.tools.coherence"))
         self.action_coherence.triggered.connect(self._open_coherence_dialog)
-        self.menu_tools.addSeparator()
-        self.action_extract_properties = self.menu_tools.addAction(t("menu.file.extract_properties"))
+        self.action_yaml_check = menu_reports.addAction(t("menu.tools.yaml_check"))
+        self.action_yaml_check.setToolTip(t("menu.tools.yaml_check.tip"))
+        self.action_yaml_check.triggered.connect(self._open_yaml_check)
+        menu_reports.addSeparator()
+        self.action_extract_properties = menu_reports.addAction(t("menu.file.extract_properties"))
         self.action_extract_properties.triggered.connect(self._extract_properties_dialog)
+
+        # -- Fichiers & production ----------------------------------------------
+        menu_files = self.menu_tools.addMenu(t("menu.tools.sub.files"))
+        self.action_modified_files = menu_files.addAction(t("menu.tools.modified_files"))
+        self.action_modified_files.triggered.connect(self._open_modified_files)
+        self.action_production_sync = menu_files.addAction(t("menu.tools.production_sync"))
+        self.action_production_sync.triggered.connect(self._open_production_sync)
 
     def _open_reintegrate(self):
         """Dossiers de Playfields non declares par Sectors : les reposer dans
@@ -501,8 +534,13 @@ class MainWindow(QMainWindow):
         self.action_toggle_annotations.toggled.connect(settings.set_annotations_enabled)
 
         # -- Traduction (sous-menu) ------------------------------------------
+        # Regroupe (31/10, meme logique que le menu Outils) : OPTIONS generales
+        # d'abord, MOTEUR actif et ses bascules, CONFIGURATION des moteurs,
+        # RESSOURCES (glossaire, vanilla). Attributs action_* inchanges.
         self.menu_translation = self.menu_options.addMenu(
             t("menu.options.translation_sub"))
+
+        # Options generales
         self.action_toggle_online_translation = self.menu_translation.addAction(
             t("menu.options.online_translation"))
         self.action_toggle_online_translation.setCheckable(True)
@@ -520,76 +558,32 @@ class MainWindow(QMainWindow):
             settings.get_auto_translate_info())
         self.action_auto_translate_info.toggled.connect(
             settings.set_auto_translate_info)
-        # Moteur de traduction ACTIF : choix radio exclusif (demande du
-        # 17/09/2026 -- la case binaire Argos ne disait pas quel moteur
-        # tournait, et NLLB n'y figurait pas). La case "Traduction en ligne
-        # (Google)" ci-dessus reste une PERMISSION de confidentialite, pas un
-        # choix de moteur. Argos grise sans modele installe (test disque),
-        # NLLB grise sans modele telecharge.
-        self.menu_engine = self.menu_translation.addMenu(
-            t("menu.options.engine_sub"))
-        from PyQt6.QtGui import QActionGroup
-        from core.settings import get_translation_engine
-        self._engine_group = QActionGroup(self)
-        self._engine_group.setExclusive(True)
-        current_engine = get_translation_engine()
-        self.action_engine_google = self.menu_engine.addAction(
-            t("menu.options.engine_google"))
-        self.action_engine_argos = self.menu_engine.addAction(
-            t("menu.options.engine_argos"))
-        self.action_engine_nllb = self.menu_engine.addAction(
-            t("menu.options.engine_nllb"))
-        self.action_engine_groq = self.menu_engine.addAction(
-            t("menu.options.engine_groq"))
-        self.action_engine_deepl = self.menu_engine.addAction(
-            t("menu.options.engine_deepl"))
-        self.action_engine_ai = self.menu_engine.addAction(
-            t("menu.options.engine_ai"))
-        for engine_id, action in (("google", self.action_engine_google),
-                                  ("argos", self.action_engine_argos),
-                                  ("nllb", self.action_engine_nllb),
-                                  ("groq", self.action_engine_groq),
-                                  ("deepl", self.action_engine_deepl),
-                                  ("ai", self.action_engine_ai)):
-            action.setCheckable(True)
-            action.setChecked(engine_id == current_engine)
-            action.triggered.connect(
-                lambda checked, eid=engine_id: self._switch_translation_engine(eid))
-            self._engine_group.addAction(action)
-        self._refresh_engine_menu()
-        # Mode LOTS des moteurs IA (v1.8.0) : plusieurs cellules par
-        # requete Groq (tier gratuit plafonne en debit). Le squelette de
-        # jetons de chaque cellule reste verifie, repli cellule entiere.
-        self.action_groq_batch = self.menu_translation.addAction(
-            t("menu.options.groq_batch"))
-        self.action_groq_batch.setCheckable(True)
-        self.action_groq_batch.setChecked(settings.get_groq_batch_enabled())
-        self.action_groq_batch.toggled.connect(settings.set_groq_batch_enabled)
-        # Bascule AUTOMATIQUE entre moteurs (v1.10.0, inspiree de
-        # freellmapi) : quota/panne du principal -> maillons suivants
-        # (Groq -> DeepL -> Google -> NLLB -> Argos a partir du principal).
-        self.action_engine_fallback = self.menu_translation.addAction(
-            t("menu.options.engine_fallback"))
-        self.action_engine_fallback.setCheckable(True)
-        self.action_engine_fallback.setChecked(
-            settings.get_engine_fallback_enabled())
-        self.action_engine_fallback.toggled.connect(
-            settings.set_engine_fallback_enabled)
         self.action_default_language = self.menu_translation.addAction(
             t("menu.options.default_language"))
         self.action_default_language.triggered.connect(self._pick_default_translation_language)
         self.menu_translation.addSeparator()
-        self.action_argos = self.menu_translation.addAction(t("menu.options.argos"))
-        self.action_argos.triggered.connect(self._open_argos_setup)
-        self.action_nllb = self.menu_translation.addAction(t("menu.options.nllb"))
-        self.action_nllb.triggered.connect(self._open_nllb_setup)
-        self.action_groq = self.menu_translation.addAction(t("menu.options.groq"))
-        self.action_groq.triggered.connect(self._open_groq_setup)
-        self.action_deepl = self.menu_translation.addAction(t("menu.options.deepl"))
-        self.action_deepl.triggered.connect(self._open_deepl_setup)
+
+        # Moteur UNIQUE depuis le 31/10 : les fournisseurs IA (le choix radio
+        # Google/Argos/NLLB/Groq/DeepL de l'ancien sous-menu Moteur et la
+        # bascule automatique sont supprimes -- le routeur IA gere deja le
+        # secours PAR FOURNISSEUR : cooldown, maillons suivants).
+        # Mode LOTS (v1.8.0) : plusieurs cellules par requete IA (les tiers
+        # gratuits sont plafonnes en debit). Le squelette de jetons de chaque
+        # cellule reste verifie, repli cellule entiere.
+        self.action_ai_batch = self.menu_translation.addAction(
+            t("menu.options.ai_batch"))
+        self.action_ai_batch.setCheckable(True)
+        self.action_ai_batch.setChecked(settings.get_ai_batch_enabled())
+        self.action_ai_batch.toggled.connect(settings.set_ai_batch_enabled)
+        self.menu_translation.addSeparator()
+
+        # Configuration des moteurs
         self.action_ai_providers = self.menu_translation.addAction(
             t("menu.options.ai_providers"))
         self.action_ai_providers.triggered.connect(self._open_ai_providers)
+        self.menu_translation.addSeparator()
+
+        # Ressources de traduction
         self.action_glossary = self.menu_translation.addAction(t("menu.options.glossary"))
         self.action_glossary.triggered.connect(self._open_glossary)
         self.action_repair_glossary = self.menu_translation.addAction(
@@ -624,6 +618,38 @@ class MainWindow(QMainWindow):
         self.action_fluent_pilot.setEnabled(fluent_pilot.is_available())
         self.action_fluent_pilot.toggled.connect(self._toggle_fluent_pilot)
 
+        # Vue web de l'arbre technologique (pilote 2026, 31/10) : ecran HTML
+        # dans le dialogue, meme chemin d'ecriture. Pris en compte au
+        # PROCHAIN lancement ; grisee si PyQt6-WebEngine manque.
+        from gui import chrome
+        from gui.tech_tree_web import is_available as _ttweb_available
+        self.action_techtree_web = self.menu_interface.addAction(t("menu.options.techtree_web"))
+        self.action_techtree_web.setCheckable(True)
+        self.action_techtree_web.setChecked(settings.get_tech_tree_web_enabled())
+        self.action_techtree_web.setEnabled(_ttweb_available())
+        self.action_techtree_web.toggled.connect(self._toggle_techtree_web)
+
+        # Vue web par defaut des CSV (chantier webapp, 02/11) : un CSV ouvert
+        # s'affiche directement dans la grille web. Toggle immediate pour les
+        # PROCHAINS fichiers ouverts (les onglets deja construits ne bougent
+        # pas) ; grisee si WebEngine manque.
+        self.action_csv_web_default = self.menu_interface.addAction(
+            t("menu.options.csv_web_default"))
+        self.action_csv_web_default.setCheckable(True)
+        self.action_csv_web_default.setChecked(settings.get_csv_web_default_enabled())
+        self.action_csv_web_default.setEnabled(_ttweb_available())
+        self.action_csv_web_default.toggled.connect(self._toggle_csv_web_default)
+
+        # Barre de titre custom style webapp (31/10) : fenetre sans cadre,
+        # barre maison au-dessus des menus. Pris en compte au PROCHAIN
+        # lancement ; grisee si qframelesswindow manque / hors Windows.
+        self.action_titlebar_custom = self.menu_interface.addAction(
+            t("menu.options.titlebar_custom"))
+        self.action_titlebar_custom.setCheckable(True)
+        self.action_titlebar_custom.setChecked(settings.get_titlebar_custom_enabled())
+        self.action_titlebar_custom.setEnabled(chrome.is_available())
+        self.action_titlebar_custom.toggled.connect(self._toggle_titlebar_custom)
+
         # Animations de pression des boutons (look Relief phase 2, 12/09/2026)
         # : actif seulement sur un theme Relief, toggle immediate (pas de
         # relance) via l'etat memoire du filtre global.
@@ -643,6 +669,25 @@ class MainWindow(QMainWindow):
         d'etat comme pour un message ephemere."""
         fluent_pilot.set_enabled(checked)
         self.statusBar().showMessage(t("menu.options.fluent_pilot.restart"), 8000)
+
+    def _toggle_csv_web_default(self, checked: bool):
+        """Persiste l'option de la vue web par defaut des CSV — appliquee
+        aux PROCHAINS fichiers ouverts."""
+        settings.set_csv_web_default_enabled(checked)
+
+    def _toggle_titlebar_custom(self, checked: bool):
+        """Persiste l'option de la barre de titre custom -- pris en compte au
+        prochain lancement (la fenetre est deja construite)."""
+        from core import settings as _settings
+        _settings.set_titlebar_custom_enabled(checked)
+        self.statusBar().showMessage(t("menu.options.titlebar_custom.restart"), 8000)
+
+    def _toggle_techtree_web(self, checked: bool):
+        """Persiste l'option de la vue web de l'arbre technologique -- pris
+        en compte au prochain lancement (le dialogue est deja construit)."""
+        from core import settings as _settings
+        _settings.set_tech_tree_web_enabled(checked)
+        self.statusBar().showMessage(t("menu.options.techtree_web.restart"), 8000)
 
     def _toggle_press_anim(self, checked: bool):
         """Persiste + applique IMMEDIATEMENT le toggle des animations de
@@ -906,19 +951,8 @@ class MainWindow(QMainWindow):
         self.action_toggle_autosave.setText(t("menu.options.autosave_enabled"))
         self.menu_translation.setTitle(t("menu.options.translation_sub"))
         self.action_toggle_online_translation.setText(t("menu.options.online_translation"))
-        self.menu_engine.setTitle(t("menu.options.engine_sub"))
-        self.action_engine_google.setText(t("menu.options.engine_google"))
-        self.action_engine_argos.setText(t("menu.options.engine_argos"))
-        self.action_engine_nllb.setText(t("menu.options.engine_nllb"))
-        self.action_engine_groq.setText(t("menu.options.engine_groq"))
-        self.action_engine_deepl.setText(t("menu.options.engine_deepl"))
-        self.action_groq_batch.setText(t("menu.options.groq_batch"))
-        self.action_engine_fallback.setText(t("menu.options.engine_fallback"))
+        self.action_ai_batch.setText(t("menu.options.ai_batch"))
         self.action_default_language.setText(t("menu.options.default_language"))
-        self.action_argos.setText(t("menu.options.argos"))
-        self.action_nllb.setText(t("menu.options.nllb"))
-        self.action_groq.setText(t("menu.options.groq"))
-        self.action_deepl.setText(t("menu.options.deepl"))
         self.action_glossary.setText(t("menu.options.glossary"))
         self.action_vanilla_content.setText(t("menu.options.vanilla_content"))
         self.menu_interface.setTitle(t("menu.options.interface_sub"))
@@ -1123,10 +1157,13 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         """Fenetre redimensionnee : re-choisit le mode de texte de la barre
-        d'outils (texte complet -> icone seule), voir _build_toolbar."""
+        d'outils (texte complet -> icone seule), voir _build_toolbar ; et
+        fait suivre la largeur a la barre de titre custom (gui/chrome.py)."""
         super().resizeEvent(event)
         if getattr(self, "_toolbar_adaptive", None):
             self._update_toolbar_adaptivity()
+        # chrome frameless desactive par defaut (02/11, abort natif) : plus
+        # d'appel on_chrome_resize tant que la voie n'est pas securisee
 
     def _push_workspace_undo(self, action):
         self.workspace_undo.push(action)
@@ -1801,93 +1838,6 @@ class MainWindow(QMainWindow):
         if ok and name.strip():
             settings.set_author(name.strip())
 
-    def _refresh_argos_menu_action(self):
-        """Compat : l'assistant Argos appelle cette methode apres ses
-        installations -- delegue au sous-menu moteur."""
-        self._refresh_engine_menu()
-
-    def _refresh_engine_menu(self):
-        """Synchronise les radios du sous-menu Moteur de traduction avec les
-        moteurs REELLEMENT disponibles et le moteur choisi. Appele a la
-        construction et par l'assistant Argos apres ses installations.
-        Tests disque sans importer les bibliotheques lourdes (Argos : compte
-        des paquets sur le disque ; NLLB : presence des fichiers modele)."""
-        from core import argos_provider
-        from core import nllb_provider
-        from core.settings import get_translation_engine
-        engine = get_translation_engine()
-        has_models = argos_provider.packages_on_disk() > 0
-        self.action_engine_argos.setEnabled(has_models)
-        self.action_engine_argos.setToolTip(
-            t("menu.options.argos_engine.tip") if has_models
-            else t("menu.options.argos_engine.tip_none"))
-        has_nllb = (nllb_provider.is_installed("600M")
-                    or nllb_provider.is_installed("1.3B"))
-        self.action_engine_nllb.setEnabled(has_nllb)
-        self.action_engine_nllb.setToolTip(
-            t("menu.options.engine_nllb.tip_variant",
-              variant=settings.get_nllb_variant()) if has_nllb
-            else t("menu.options.engine_nllb.tip_none"))
-        # Groq : disponible si une cle API est enregistree (test sans reseau)
-        from core import groq_provider
-        has_groq = groq_provider.is_configured()
-        self.action_engine_groq.setEnabled(has_groq)
-        self.action_engine_groq.setToolTip(
-            t("menu.options.engine_groq.tip_variant",
-              model=settings.get_groq_model()) if has_groq
-            else t("menu.options.engine_groq.tip_none"))
-        # DeepL : disponible si une cle API est enregistree (test sans reseau)
-        from core import deepl_provider
-        has_deepl = deepl_provider.is_configured()
-        self.action_engine_deepl.setEnabled(has_deepl)
-        self.action_engine_deepl.setToolTip(
-            t("menu.options.engine_deepl.tip_ok") if has_deepl
-            else t("menu.options.engine_deepl.tip_none"))
-        # IA multi-fournisseurs : disponible des qu'un maillon est configure
-        from core.ai import router as ai_router
-        has_ai = ai_router.configured()
-        self.action_engine_ai.setEnabled(has_ai)
-        self.action_engine_ai.setToolTip(
-            t("menu.options.engine_ai.tip_ok") if has_ai
-            else t("menu.options.engine_ai.tip_none"))
-        # triggered n'est emis que par un clic utilisateur : pas besoin de
-        # bloquer les signaux pour synchroniser l'affichage
-        self.action_engine_google.setChecked(engine == "google")
-        self.action_engine_argos.setChecked(has_models and engine == "argos")
-        self.action_engine_nllb.setChecked(has_nllb and engine == "nllb")
-        self.action_engine_groq.setChecked(has_groq and engine == "groq")
-        self.action_engine_deepl.setChecked(has_deepl and engine == "deepl")
-        self.action_engine_ai.setChecked(has_ai and engine == "ai")
-
-    def _switch_translation_engine(self, engine_id: str):
-        """Choix radio du sous-menu Moteur : persiste et signale en barre
-        d'etat quel moteur est desormais actif."""
-        from core.settings import set_translation_engine
-        set_translation_engine(engine_id)
-        name_key = {"google": "argos.engine_name_google",
-                    "argos": "argos.engine_name_argos",
-                    "nllb": "argos.engine_name_nllb",
-                    "groq": "argos.engine_name_groq",
-                    "deepl": "argos.engine_name_deepl",
-                    "ai": "argos.engine_name_ai"}[engine_id]
-        self.statusBar().showMessage(
-            t("argos.engine_switched", engine=t(name_key)), 8000)
-
-    def _open_deepl_setup(self):
-        """Assistant de traduction DeepL (plan API Free, cle locale) --
-        meme motif que l'assistant Groq ; ouvre aussi le choix du
-        moteur prefere."""
-        from gui.deepl_setup_dialog import DeepLSetupDialog
-        self._deepl_dialog = DeepLSetupDialog(self)
-        self._deepl_dialog.show()
-
-    def _open_argos_setup(self):
-        """Assistant de traduction hors ligne Argos (moteur + modeles) --
-        demande du 10/09/2026 ; ouvre aussi le choix du moteur prefere."""
-        from gui.argos_setup_dialog import ArgosSetupDialog
-        self._argos_dialog = ArgosSetupDialog(self)
-        self._argos_dialog.show()
-
     def _open_glossary(self):
         """Gestion du glossaire terminologique (moteur-agnostique, phase 2 de
         l'aide a la traduction) : alimente manuellement et par validation des
@@ -1902,21 +1852,6 @@ class MainWindow(QMainWindow):
         from gui.glossary_repair_dialog import GlossaryRepairDialog
         self._glossary_repair_dialog = GlossaryRepairDialog(self)
         self._glossary_repair_dialog.show()
-
-    def _open_nllb_setup(self):
-        """Assistant du moteur local NLLB (Meta, CTranslate2) -- qualite
-        superieure a Argos, 100 % local, installation en un clic."""
-        from gui.nllb_setup_dialog import NllbSetupDialog
-        self._nllb_dialog = NllbSetupDialog(self)
-        self._nllb_dialog.show()
-
-    def _open_groq_setup(self):
-        """Assistant du moteur GROQ (LLM en ligne compatible OpenAI, tier
-        gratuit permanent) : creation de compte/cle avec liens cliquables,
-        choix du modele et test -- demande du 18/09/2026."""
-        from gui.groq_setup_dialog import GroqSetupDialog
-        self._groq_dialog = GroqSetupDialog(self)
-        self._groq_dialog.show()
 
     def _open_ai_providers(self):
         """Fournisseurs IA (OpenRouter free/payant, DeepSeek direct, Groq,
@@ -2778,7 +2713,18 @@ class MainWindow(QMainWindow):
         # -- Haut : onglets des fichiers ouverts --
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
-        self.tabs.tabCloseRequested.connect(lambda i: self.tabs.removeTab(i))
+        self.tabs.tabCloseRequested.connect(self._close_tab)
+        # Page d'accueil / launchpad webapp (02/11) : premier onglet,
+        # non-fermable ; projets recents cliquables. Absent si WebEngine
+        # manque ou plateforme offscreen (voir gui/home_page.py).
+        from gui import home_page
+        self._home_bridge = None
+        if home_page.is_available():
+            try:
+                home_view, self._home_bridge = home_page.make_home_view(self)
+                self.tabs.addTab(home_view, t("tab.home"))
+            except Exception:
+                self._home_bridge = None
         self.main_splitter.addWidget(self.tabs)
 
         # -- Bas : bande de navigation A | copie de travail | B --
@@ -2947,6 +2893,11 @@ class MainWindow(QMainWindow):
         try:
             self.workspace = load_existing_workspace(source_a, working, source_b)
             self._refresh_panel_and_status_labels()
+            if self._home_bridge is not None:
+                try:
+                    self._home_bridge.push_reset()
+                except Exception:
+                    pass
         except Exception as e:
             QMessageBox.critical(self, t("err.title"),
                                   f"{t('recent.resume_error')} :\n{e}\n\n{t('recent.resume_error_hint')}")
@@ -4511,6 +4462,12 @@ class MainWindow(QMainWindow):
         self.label_a.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.label_b.setStyleSheet(f"font-weight: 700; color: {_theme.TEXT_DARK};")
         self.label_working.setStyleSheet(f"font-weight: 700; color: {_theme.PRIMARY};")
+        # Fil d'Ariane + restyle du chrome (barre + rail) au changement de
+        # theme ; sans effet si le chrome natif est conserve
+        from gui import chrome as _chrome
+        _chrome.set_project(self,
+                            self.workspace.working_root.name if self.workspace else "")
+        _chrome.restyle(self)
         count = len(self._modified_tab_widgets())
         if count:
             self.label_working.setText(
@@ -4597,13 +4554,26 @@ class MainWindow(QMainWindow):
         if dlg.has_files():
             dlg.exec()
 
+    def _close_tab(self, index: int) -> None:
+        """Fermeture d'onglet : l'onglet Accueil (index 0, launchpad webapp)
+        n'est jamais fermable."""
+        if index == 0 and self._home_bridge is not None:
+            return
+        self.tabs.removeTab(index)
 
+    # nativeEvent : l'override de delegation au chrome a ete SUPPRIME le
+    # 02/11 — re-entrer super().nativeEvent() depuis Python pour CHAQUE
+    # message natif provoquait un abort natif (0xC000040D) au demarrage,
+    # meme sans dispatch (le crash remontait via setWindowState dans
+    # window_geometry.track). Ne pas re-introduire sans deverrouiller ce
+    # point ; le chrome frameless reste derriere son reglage (defaut off).
 
 # Vues lecture seule ECF/YAML extraites en gui/view_widgets.py (v1.9.0) :
 # les noms restent exposes ici (CompareWidget, tests, navigateur).
 from gui.view_widgets import (  # noqa: E402
     EcfViewWidget,
 )
+
 
 def _show_first_launch_language_picker():
     """Affiche, au tout premier lancement seulement (jamais si une langue a deja ete
@@ -4690,6 +4660,7 @@ def _show_crash_message_box(error_text: str, exc_value: BaseException) -> bool:
     return box.clickedButton() is btn_report
 
 
+
 def _handle_uncaught_exception(exc_type, exc_value, exc_tb):
     """Excepthook global : journalise la pile sur stderr (trace exploitable meme
     en executable), puis propose le rapport de bug pre-rempli. Ne releve JAMAIS
@@ -4743,8 +4714,32 @@ def _open_crash_report_dialog(error_text: str, exc_value: BaseException):
     dialog.exec()
 
 
+
+
 def main():
+    # Vue web de l'arbre technologique (31/10) : QtWebEngineWidgets DOIT etre
+    # importe AVANT la creation du QApplication (sinon ImportError). Import
+    # INCONDITIONNEL (vecu 31/10 : conditionne au reglage = cercle vicieux,
+    # la case Options restait grisee car is_available(), appele APRES la
+    # creation de l'app, echouait). Echec silencieux si le paquet manque :
+    # le degrade gracieux de gui/tech_tree_web.py prend le relais.
+    try:
+        import PyQt6.QtWebEngineWidgets  # noqa: F401
+    except Exception:
+        pass
     app = QApplication(sys.argv)
+    # Migration one-shot (31/10) : l'ancien moteur Groq direct devient un
+    # fournisseur IA du socle multi-fournisseurs (cle + modele repris tels
+    # quels, seulement si aucun fournisseur n'existe encore).
+    from core import settings as _boot_settings
+    if _boot_settings.migrate_groq_engine_to_provider():
+        from core.i18n import t as _t
+        print(_t("menu.options.groq_migrated"), flush=True)
+    # Politique commune des fenetres (31/10/2026) : bouton Agrandir partout
+    # et exec() qui ne verrouille plus les autres fenetres. A installer AVANT
+    # la premiere boite de dialogue (_show_first_launch_language_picker).
+    from gui import dialog_policy
+    dialog_policy.install()
     from gui.theme import apply_theme
     apply_theme(app)
     # Pilote Fluent (09/09/2026) : aligne le moteur Fluent sur le theme

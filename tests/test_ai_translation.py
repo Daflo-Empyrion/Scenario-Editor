@@ -14,8 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Branchement du moteur 'ai' dans le pipeline de traduction : structure
-XXTAG preservee, bascule vers les moteurs historiques, mode lots."""
+"""Branchement du moteur IA UNIQUE (31/10, les moteurs Google/DeepL/Argos/
+NLLB et Groq direct sont supprimes) : structure XXTAG preservee, erreurs
+remontees (le routeur IA gere ses maillons lui-meme), mode lots."""
 import pytest
 
 from core import settings, translation
@@ -41,16 +42,12 @@ def _isolate(tmp_path, monkeypatch):
     settings.set_ai_links([{
         "provider": "p1", "model": "m1", "tier": "free",
         "price_in": 0.0, "price_out": 0.0, "enabled": True}])
-    settings.set_translation_engine("ai")
-    settings.set_engine_fallback_enabled(True)
     settings.set_online_translation_enabled(True)
     budget.reset()
     router.reset_link_states()
-    translation.reset_link_states()
     yield
     budget.reset()
     router.reset_link_states()
-    translation.reset_link_states()
 
 
 def test_ai_engine_preserves_structure(monkeypatch):
@@ -68,61 +65,43 @@ def test_ai_engine_preserves_structure(monkeypatch):
     assert out == "[b][FR]Hello world[/FR][/b]"
 
 
-def test_ai_failure_falls_to_google(monkeypatch):
-    calls = {"ai": 0}
-
+def test_ai_failure_propagates(monkeypatch):
+    """Plus de chaine de secours (31/10) : une erreur IA (quota/panne) remonte
+    -- c'est le ROUTEUR qui gere le secours entre fournisseurs ; la cellule
+    suivante retente normalement."""
     def boom(*args, **kwargs):
-        calls["ai"] += 1
         raise QuotaExhaustedError("quota IA", retry_after=1)
 
     monkeypatch.setattr(router, "translate_whole", boom)
-    monkeypatch.setattr(
-        translation, "_translate_google",
-        lambda gtext, target, source, timeout: "GG:" + gtext)
-    out = translation.translate_text("Hello", target="fr",
-                                     store_in_memory=False)
-    assert out == "GG:Hello"
-    assert "Google" in translation.last_fallback_note()
-    assert "quota IA" in translation.last_fallback_note()
-    # aucun repos MOTEUR de 60 s : la cellule suivante retente l'IA (le
-    # routeur, lui, gere ses propres maillons)
+    with pytest.raises(QuotaExhaustedError):
+        translation.translate_text("Hello", target="fr", store_in_memory=False)
+
     def ok(protected, target):
-        calls["ai"] += 1
         return protected
 
     monkeypatch.setattr(router, "translate_whole", ok)
-    out2 = translation.translate_text("Hello", target="fr",
-                                      store_in_memory=False)
-    assert out2 == "Hello"
-    assert calls["ai"] == 2
+    assert translation.translate_text("Hello", target="fr",
+                                      store_in_memory=False) == "Hello"
 
 
-def test_batch_failure_does_not_disable_ai(monkeypatch):
-    """Un lot IA en echec (429 transitoire) ne doit pas ecarter l'IA pour
-    toutes les cellules suivantes : le routeur retente ses maillons."""
+def test_batch_failure_falls_to_whole_cell(monkeypatch):
+    """Un lot IA en echec (429 transitoire) : les cellules continuent une a
+    une (mode cellule entiere), jamais de fichier corrompu."""
     def boom_batch(texts, target):
         raise QuotaExhaustedError("429 free", retry_after=1)
 
     monkeypatch.setattr(router, "translate_batch", boom_batch)
     monkeypatch.setattr(router, "translate_whole",
                         lambda protected, target: "[FR]" + protected + "[/FR]")
-    google_calls = []
-    monkeypatch.setattr(
-        translation, "_translate_google",
-        lambda *args: google_calls.append(1) or "GG")
     out = translation.translate_batch_with_source(["a", "b"], target="fr")
     assert [tr for tr, _src in out] == ["[FR]a[/FR]", "[FR]b[/FR]"]
-    assert google_calls == []
 
 
 def test_worker_batch_matches_ai_setting(monkeypatch):
     from gui import translation_worker
-    monkeypatch.setattr(settings, "get_translation_engine", lambda: "ai")
     monkeypatch.setattr(settings, "get_ai_batch_enabled", lambda: True)
     assert translation_worker.batch_engine_enabled() is True
     monkeypatch.setattr(settings, "get_ai_batch_enabled", lambda: False)
-    assert translation_worker.batch_engine_enabled() is False
-    monkeypatch.setattr(settings, "get_translation_engine", lambda: "google")
     assert translation_worker.batch_engine_enabled() is False
 
 
@@ -137,3 +116,13 @@ def test_ai_batch_uses_router(monkeypatch):
     out = translation.translate_batch_with_source(["a", "b"], target="fr")
     assert calls["texts"] == ["a", "b"]
     assert [tr for tr, _src in out] == ["FR:a", "FR:b"]
+
+
+def test_online_permission_gates_remote_only(monkeypatch):
+    """La permission 'Traduction en ligne' bloque le chemin IA sauf si un
+    maillon LOCAL est configure (aucune donnee ne sort)."""
+    settings.set_online_translation_enabled(False)
+    from core.engine_errors import EngineUnavailableError
+    with pytest.raises((EngineUnavailableError, RuntimeError)):
+        translation.translate_text("Hello", target="fr", store_in_memory=False)
+    settings.set_online_translation_enabled(True)

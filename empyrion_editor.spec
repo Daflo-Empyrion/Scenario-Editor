@@ -23,7 +23,6 @@ project_root = Path(SPECPATH)
 # 'certifi' (embarque un fichier de certificats .pem comme DONNEE, pas du code,
 # facilement oublie) et les imports dynamiques internes de bs4/soupsieve. Utilise
 # par la fonction "Traduire" (voir core/translation.py, deep-translator).
-_dt_datas, _dt_binaries, _dt_hiddenimports = collect_all('deep_translator')
 _bs4_datas, _bs4_binaries, _bs4_hiddenimports = collect_all('bs4')
 _requests_datas, _requests_binaries, _requests_hiddenimports = collect_all('requests')
 _certifi_datas, _certifi_binaries, _certifi_hiddenimports = collect_all('certifi')
@@ -137,7 +136,7 @@ _ARGOS_EXCLUDES = ['argostranslate', 'stanza', 'spacy', 'torch', 'ctranslate2',
 a = Analysis(
     ['run_gui.py'],
     pathex=[str(project_root)],
-    binaries=[*_dt_binaries, *_bs4_binaries, *_requests_binaries, *_certifi_binaries,
+    binaries=[ *_bs4_binaries, *_requests_binaries, *_certifi_binaries,
               *_qfw_binaries, *_qfwl_binaries, *_ug_binaries, *_pip_binaries],
     datas=[
         # Les wikis et autres fichiers markdown doivent etre embarques tels quels --
@@ -147,8 +146,11 @@ a = Analysis(
         # Badge GPLv3 affiche dans le dialogue "A propos" -- meme logique.
         (str(project_root / 'assets'), 'assets'),
         (str(project_root / 'data'), 'data'),
+        # Vue web de l'arbre technologique (gui/tech_tree_web.py, 31/10) :
+        # HTML lu a l'execution, jamais importe comme du code.
+        (str(project_root / 'gui' / 'web'), 'gui/web'),
         *_yc_datas,
-        *_dt_datas, *_bs4_datas, *_requests_datas, *_certifi_datas,
+         *_bs4_datas, *_requests_datas, *_certifi_datas,
         *_qfw_datas, *_qfwl_datas, *_ug_datas, *_pip_datas,
     ],
     hiddenimports=[
@@ -161,13 +163,17 @@ a = Analysis(
         # l'installeur (demande utilisateur -- QtPdf fait partie de la roue
         # PyQt6 depuis la 6.11).
         'PyQt6.QtPdf',
+        # Vue web de l'arbre technologique (gui/tech_tree_web.py) : imports
+        # fonction-level, declares explicitement (meme logique que QtPdf).
+        'PyQt6.QtWebEngineWidgets',
+        'PyQt6.QtWebChannel',
         'PyQt6.QtPdfWidgets',
         # Socle IA : imports fonction-level depuis translation.py et le menu
         # (PyInstaller les detecte mal) -- garantit l'embarquement.
         'core.ai', 'core.ai.client', 'core.ai.providers', 'core.ai.budget',
         'core.ai.router', 'gui.ai_providers_dialog',
         'core.glossary_repair', 'gui.glossary_repair_dialog',
-        *_dt_hiddenimports, *_bs4_hiddenimports, *_requests_hiddenimports,
+         *_bs4_hiddenimports, *_requests_hiddenimports,
         *_certifi_hiddenimports, *_qfw_hiddenimports, *_qfwl_hiddenimports,
         *_ug_hiddenimports, *_pip_hiddenimports,
     ],

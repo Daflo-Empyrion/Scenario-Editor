@@ -31,8 +31,10 @@ def test_theme_registry_has_all_expected_ids():
     # "k" = Relief nuit (11/09/2026 : prototype look 3D, biseaux QSS)
     # "l" = Relief clair (12/09/2026 : phase 2 du look 3D, memes biseaux
     #       en luminosite inversee)
+    # "m" = Cristal 2026 (31/10 : socle design du chantier web, palette de
+    #       la maquette HTML validee de l'arbre technologique)
     assert THEME_ORDER == ["classic", "a", "b", "c", "d", "e",
-                           "f", "g", "h", "i", "j", "k", "l"]
+                           "f", "g", "h", "i", "j", "k", "l", "m"]
 
 
 REQUIRED_PALETTE_KEYS = {

@@ -41,7 +41,7 @@ from typing import Callable, Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel, QMessageBox,
-    QWidget, QPushButton,
+    QWidget, QPushButton, QCheckBox,
 )
 
 from core.i18n import t
@@ -123,23 +123,238 @@ class TechTreeDialog(QDialog):
         self.parent_pick_banner.setVisible(False)
         layout.addWidget(self.parent_pick_banner)
 
-        self.tabs = QTabWidget()
-        layout.addWidget(self.tabs, 1)
-
-        categories = self.tech_tree.categories()
+        # Vue web (pilote 2026, decision du 31/10) : si le reglage est actif
+        # ET que PyQt6-WebEngine est disponible, UN ecran HTML remplace les
+        # onglets Qt. Toute ecriture passe par les MEMES handlers ci-dessous
+        # (garde, undo, rechargement) ; sinon vue Qt historique inchangee.
+        self._web_view = None
         self._views = {}
-        for category in categories:
-            view = TechTreeCategoryView(self.tech_tree, category, self.icon_index, categories)
-            view.node_selected.connect(self._on_node_selected)
-            view.node_activated.connect(self._on_node_activated)
-            view.level_changed.connect(self._on_level_changed)
-            view.cost_changed.connect(self._on_cost_changed)
-            view.category_changed.connect(self._on_category_changed)
-            view.parent_changed.connect(self._on_parent_changed)
-            view.parent_pick_started.connect(self._on_parent_pick_started)
-            view.parent_pick_finished.connect(self._on_parent_pick_finished)
-            self._views[category] = view
-            self.tabs.addTab(view, category)
+        self.tabs = None
+        from core import settings as _settings
+        if _settings.get_tech_tree_web_enabled():
+            from gui import tech_tree_web as _ttw
+            if _ttw.is_available():
+                web_view, bridge = _ttw.make_web_view(
+                    self.tech_tree, _ttw.build_labels(),
+                    card_provider=self._web_card_provider,
+                    values_provider=self._web_values_provider,
+                    names_provider=self._card_ingredients_provider, parent=self)
+                bridge.node_selected.connect(self._on_node_selected)
+                bridge.node_activated.connect(self._on_node_activated)
+                bridge.level_changed.connect(self._on_level_changed)
+                bridge.cost_changed.connect(self._on_cost_changed)
+                bridge.parent_changed.connect(self._on_parent_changed)
+                bridge.category_changed.connect(self._on_category_changed)
+                bridge.card_value_changed.connect(
+                    lambda name, key, old, new:
+                        self._on_card_value_edit(key, old, new, False, node_name=name))
+                bridge.card_ingredient_changed.connect(self._on_web_card_ingredient)
+                bridge.card_description_changed.connect(self._on_web_card_description)
+                layout.addWidget(web_view, 1)
+                self._web_view = web_view
+
+        if self._web_view is None:
+            self.tabs = QTabWidget()
+            layout.addWidget(self.tabs, 1)
+
+            categories = self.tech_tree.categories()
+            self._views = {}
+            for category in categories:
+                view = TechTreeCategoryView(self.tech_tree, category, self.icon_index, categories)
+                view.node_selected.connect(self._on_node_selected)
+                view.node_activated.connect(self._on_node_activated)
+                view.level_changed.connect(self._on_level_changed)
+                view.cost_changed.connect(self._on_cost_changed)
+                view.category_changed.connect(self._on_category_changed)
+                view.parent_changed.connect(self._on_parent_changed)
+                view.parent_pick_started.connect(self._on_parent_pick_started)
+                view.parent_pick_finished.connect(self._on_parent_pick_finished)
+                self._views[category] = view
+                self.tabs.addTab(view, category)
+
+    def _refresh_web(self) -> None:
+        """Resynchronise la vue web apres toute ecriture (reussie OU refusee
+        -- le payload recalcule remet les valeurs affichees en coherence)."""
+        if self._web_view is not None:
+            self._web_view.refresh()
+
+    def _web_card_provider(self, node_name: str):
+        """Fiche du bloc pour la vue web (affichage LECTURE SEULE integre a
+        l'inspecteur HTML, demande du 31/10) : meme construction que la
+        fiche Qt editable de _on_node_activated. None -> la page affiche
+        'fiche indisponible'."""
+        node = self.tech_tree.get(node_name)
+        path = self._path_for_node(node_name)
+        if node is None or path is None:
+            return None
+        block = find_block_by_name(path, node_name)
+        if block is None:
+            return None
+        from core.i18n import get_language
+        from core.block_info_card import build_block_info_card
+        card = build_block_info_card(
+            block, self._get_localization_index(), get_language(),
+            self._get_templates_doc(), show_all=True)
+        from gui.tech_tree_web import card_to_payload
+        return card_to_payload(card)
+
+    def _web_values_provider(self, node_name: str) -> dict:
+        """{cle: [valeurs observees]} pour les listes deroulantes des champs
+        de la fiche web -- MEME pool que la fiche Qt (frequences decroissantes
+        dans le fichier du noeud)."""
+        node = self.tech_tree.get(node_name)
+        if node is None:
+            return {}
+        return self._card_values_map(node)
+
+    def _on_web_card_ingredient(self, node_name: str, key: str, field: str,
+                                 qty: str, old_value: str, new_value: str) -> None:
+        """Ingredient de fabrication edite dans la fiche web -> Templates.ecf.
+        Edition du NOM = suppression + re-ajout (l'ingredient se deplace en
+        fin de liste : limite acceptee, meme comportement que la fiche Qt
+        pour retirer/ajouter)."""
+        from core.tech_tree import (
+            set_template_ingredient, remove_template_ingredient,
+            add_template_ingredient,
+        )
+        if self.templates_path is None or not self.templates_path.exists():
+            QMessageBox.warning(self, t("err.title"), t("block_info.template_unavailable"))
+            self._refresh_web()
+            return
+        prior = capture_file(self.templates_path)
+        if field == "remove":
+            ok = remove_template_ingredient(self.templates_path, node_name, key, None)
+        elif field == "add":
+            ok = bool(new_value.strip()) and add_template_ingredient(
+                self.templates_path, node_name, new_value.strip(), qty or "")
+        elif field == "name":
+            ok = remove_template_ingredient(self.templates_path, node_name, key, None)
+            if ok and new_value.strip():
+                ok = add_template_ingredient(
+                    self.templates_path, node_name, new_value.strip(), qty or "")
+        else:
+            ok = set_template_ingredient(self.templates_path, node_name, key,
+                                          new_value, old_value or None)
+        if not ok:
+            QMessageBox.critical(self, t("err.title"), t("techtree.write_error", name=node_name))
+            self._refresh_web()
+            return
+        if self._push_undo:
+            self._push_undo(FileStateUndo(
+                self.templates_path, prior,
+                t("wsundo.techtree_card_template", name=node_name)))
+        self._reload_path(self.templates_path)
+        self._refresh_web()
+
+    def _on_web_card_description(self, node_name: str, old_text: str, new_text: str) -> None:
+        """Description (propriete Info) editee dans la fiche web : ecrit la
+        cellule de la langue courante dans Localization.csv, puis PROPOSE de
+        traduire vers les autres langues (demande du 31/10)."""
+        from core.csv_handler import parse_csv_text, render_csv
+        from core.bbcode_check import language_columns, source_column
+        from core.translation import LANGUAGE_ALIASES, translate_text
+        from core.fsutil import atomic_write_text
+        from core.i18n import get_language
+        from gui.msgboxes import info
+
+        node = self.tech_tree.get(node_name)
+        path = self._path_for_node(node_name)
+        if node is None or path is None:
+            return
+        block = find_block_by_name(path, node_name)
+        if block is None:
+            return
+        info_key = block.get_property('Info')
+        if not info_key or not info_key.strip():
+            QMessageBox.information(self, t("err.title"), t("webtree.desc_no_info"))
+            self._refresh_web()
+            return
+        info_key = info_key.strip()
+        loc_path = self.workspace.working_root / "Extras" / "Localization.csv"
+        if not loc_path.exists():
+            QMessageBox.information(self, t("err.title"), t("webtree.desc_no_csv"))
+            self._refresh_web()
+            return
+        doc = parse_csv_text(loc_path.read_text(encoding='utf-8-sig'))
+        if not doc.header or not doc.rows:
+            QMessageBox.information(self, t("err.title"), t("webtree.desc_no_csv"))
+            self._refresh_web()
+            return
+        cols = language_columns(doc.header)
+        lang = get_language()
+        candidates = [c for c in cols
+                      if doc.header[c].strip().lower() in LANGUAGE_ALIASES.get(lang, (lang,))]
+        if not candidates:
+            QMessageBox.information(self, t("err.title"), t("webtree.desc_no_column"))
+            self._refresh_web()
+            return
+        col = candidates[0]
+        row = next((r for r in doc.rows if r and r[0].strip() == info_key), None)
+        if row is None:
+            QMessageBox.information(self, t("err.title"), t("webtree.desc_no_row"))
+            self._refresh_web()
+            return
+        prior = capture_file(loc_path)
+        while len(row) <= col:
+            row.append("")
+        row[col] = new_text
+        atomic_write_text(loc_path, render_csv(doc))
+        if self._push_undo:
+            self._push_undo(FileStateUndo(
+                loc_path, prior, t("wsundo.webtree_desc", name=node_name)))
+        self._reload_path(loc_path)
+        self._refresh_web()
+
+        # Offre de traduction : la page demande DEJA l'avis de l'utilisateur
+        # une premiere fois ; ici on laisse CHOISIR les langues cibles
+        # (cases a cocher, demande du 31/10 — on ne traduit plus tout
+        # automatiquement). L'anglais (colonne source) est proposé lui aussi :
+        # l'éditer après un changement de sens est souvent voulu.
+        targets = self._ask_translate_languages(doc.header,
+                                                [c for c in cols if c != col])
+        if not targets:
+            self._refresh_web()
+            return
+        src_code = next((code for code, aliases in LANGUAGE_ALIASES.items()
+                         if doc.header[col].strip().lower() in aliases), None)
+        done = failed = 0
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import Qt
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            for c in targets:
+                code = next((code for code, aliases in LANGUAGE_ALIASES.items()
+                             if doc.header[c].strip().lower() in aliases), None)
+                if code is None:
+                    continue
+                try:
+                    row[c] = translate_text(new_text, target=code,
+                                            source=src_code or "auto",
+                                            store_in_memory=False)
+                    done += 1
+                except Exception:
+                    failed += 1
+        finally:
+            QApplication.restoreOverrideCursor()
+        if done:
+            prior2 = capture_file(loc_path)
+            atomic_write_text(loc_path, render_csv(doc))
+            if self._push_undo:
+                self._push_undo(FileStateUndo(
+                    loc_path, prior2, t("wsundo.webtree_desc", name=node_name)))
+            self._reload_path(loc_path)
+        info(self, t("bbcheck.title"),
+             t("webtree.translate_done", ok=done, ko=failed))
+        self._refresh_web()
+
+    def _ask_translate_languages(self, header, columns):
+        """Boîte de choix des langues cibles (cases à cocher, toutes cochées
+        par défaut) — retourne les colonnes choisies, [] si annulé. Méthode
+        séparée pour rester testable sans UI."""
+        dlg = _WebTranslatePickDialog(header, columns, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return []
+        return dlg.selected_columns()
 
     # -- selection ----------------------------------------------------------
 
@@ -299,13 +514,17 @@ class TechTreeDialog(QDialog):
                                if c] or node.categories
         self._reload_path(path)
         self._rebuild_views_for(node.categories)
+        self._refresh_web()
         self._on_node_selected(node.name)
         if self._info_card is not None:
             self._info_card.refresh()
 
     def _on_card_value_edit(self, source_key: str, old_value: str, new_value: str,
-                             from_template: bool) -> None:
-        node_name = self._info_card._current_block_name if self._info_card else None
+                             from_template: bool, node_name: str = None) -> None:
+        # Vue web : le nom du noeud arrive par le pont ; fiche Qt : il vient
+        # de son etat interne (signal du widget, pas d'argument).
+        if node_name is None:
+            node_name = self._info_card._current_block_name if self._info_card else None
         node = self.tech_tree.get(node_name) if node_name else None
         if node is None:
             return
@@ -314,10 +533,12 @@ class TechTreeDialog(QDialog):
             return
         path = self._path_for_node(node_name)
         if path is None or not self._guard_file_writable(path):
+            self._refresh_web()
             return
         prior = capture_file(path)
         if not set_block_property(path, node_name, source_key, new_value, old_value):
             QMessageBox.critical(self, t("err.title"), t("techtree.write_error", name=node_name))
+            self._refresh_web()
             return
         if self._push_undo:
             self._push_undo(FileStateUndo(path, prior,
@@ -420,33 +641,39 @@ class TechTreeDialog(QDialog):
         path = self._path_for_node(node_name)
         if path is None or not self._guard_file_writable(path):
             self._rebuild_all()
+            self._refresh_web()
             return
         prior = capture_file(path)
         if not set_unlock_level(path, node_name, new_level):
             QMessageBox.critical(self, t("err.title"), t("techtree.write_error", name=node_name))
             self._rebuild_all()
+            self._refresh_web()
             return
         node = self.tech_tree.get(node_name)
         node.unlock_level = new_level
         if self._push_undo:
             self._push_undo(FileStateUndo(path, prior, t("wsundo.techtree_level", name=node_name)))
         self._reload_path(path)
+        self._refresh_web()
         if node_name in self.selected_info_label.text():
             self._on_node_selected(node_name)
 
     def _on_cost_changed(self, node_name: str, new_cost: int) -> None:
         path = self._path_for_node(node_name)
         if path is None or not self._guard_file_writable(path):
+            self._refresh_web()
             return
         prior = capture_file(path)
         if not set_unlock_cost(path, node_name, new_cost):
             QMessageBox.critical(self, t("err.title"), t("techtree.write_error", name=node_name))
+            self._refresh_web()
             return
         node = self.tech_tree.get(node_name)
         node.unlock_cost = new_cost
         if self._push_undo:
             self._push_undo(FileStateUndo(path, prior, t("wsundo.techtree_cost", name=node_name)))
         self._reload_path(path)
+        self._refresh_web()
         self._on_node_selected(node_name)
 
     def _on_category_changed(self, node_name: str, new_category: str) -> None:
@@ -458,12 +685,14 @@ class TechTreeDialog(QDialog):
         prior = capture_file(path)
         if not move_to_category(path, node_name, new_category):
             QMessageBox.critical(self, t("err.title"), t("techtree.write_error", name=node_name))
+            self._refresh_web()
             return
         node.categories = [new_category]
         if self._push_undo:
             self._push_undo(FileStateUndo(
                 path, prior, t("wsundo.techtree_category", name=node_name, category=new_category)))
         self._reload_path(path)
+        self._refresh_web()
         # Le noeud change d'onglet : reconstruit les deux vues affectees
         # (celle qu'il quitte ET celle qu'il rejoint).
         for cat in set(old_categories) | {new_category}:
@@ -507,6 +736,7 @@ class TechTreeDialog(QDialog):
         if not set_tech_tree_parent(path, node_name, actual_new_parent):
             QMessageBox.critical(self, t("err.title"), t("techtree.write_error", name=node_name))
             self._rebuild_all()
+            self._refresh_web()
             return
         node = self.tech_tree.get(node_name)
         node.parent_name = actual_new_parent
@@ -515,9 +745,45 @@ class TechTreeDialog(QDialog):
             self._push_undo(FileStateUndo(
                 path, prior, t(label_key, name=node_name, parent=actual_new_parent or "")))
         self._reload_path(path)
+        self._refresh_web()
         # Le lien parent-enfant a change : la disposition en voies de TOUTE
         # categorie affichant ce noeud doit etre recalculee (voir
         # core.tech_tree_layout.compute_layout).
         for view in self._views.values():
             if view.category in node.categories:
                 view.rebuild()
+
+
+class _WebTranslatePickDialog(QDialog):
+    """Choix des langues cibles pour la traduction de la description éditée
+    dans la fiche web (demande du 31/10 : ne plus traduire TOUTES les
+    langues d'office). Une case par colonne de langue du CSV, toutes cochées
+    par défaut ; l'édité est absent de la liste (déjà à jour)."""
+
+    def __init__(self, header, columns, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("webtree.translate_pick_title"))
+        self.setMinimumWidth(280)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(t("webtree.translate_pick_intro")))
+        self._boxes = []
+        for c in columns:
+            name = header[c] if c < len(header) else str(c)
+            box = QCheckBox(name)
+            box.setChecked(True)
+            layout.addWidget(box)
+            self._boxes.append((c, box))
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        btn_ok = QPushButton(t("webtree.translate_go"))
+        btn_ok.setDefault(True)
+        btn_ok.clicked.connect(self.accept)
+        buttons.addWidget(btn_ok)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        btn_cancel.clicked.connect(self.reject)
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+
+    def selected_columns(self):
+        return [c for c, box in self._boxes if box.isChecked()]
