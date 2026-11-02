@@ -2372,11 +2372,17 @@ class MainWindow(QMainWindow):
         """Fiche du scénario : contenu joueur par origine, monde (playfields,
         planètes, POI), difficulté vs vanille — export Markdown FR/EN pour
         une note de version Workshop/Discord (core/scenario_digest.py)."""
-        from gui.scenario_digest_dialog import ScenarioDigestDialog
         working = ""
         ws = getattr(self, "workspace", None)
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
+        from gui import digest_web
+        if digest_web.is_available():       # chantier webapp, 02/11
+            from gui.digest_web import DigestWebDialog
+            dlg = DigestWebDialog(self, working_root=working)
+            dlg.exec()
+            return
+        from gui.scenario_digest_dialog import ScenarioDigestDialog
         dlg = ScenarioDigestDialog(self, working_root=working)
         dlg.exec()
 
