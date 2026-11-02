@@ -35,7 +35,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QSplitter, QLabel, QLineEdit, QPushButton, QMenu, QMessageBox,
     QTabWidget, QDialog, QListWidget, QListWidgetItem, QTextEdit, QSizePolicy,
     QApplication, QComboBox, QFormLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QCompleter,
-    QStyledItemDelegate,
+    QStyledItemDelegate, QStackedWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -60,6 +60,7 @@ from gui.msgboxes import ask_yes_no
 from gui import theme as _theme
 from gui.neon_delegate import NeonItemDelegate
 from gui.csv_edit_widget import TranslationResultDialog, mark_modified
+from gui import ecf_web_view as _ecf_web
 from gui.text_tools import add_clipboard_menu_actions, install_clipboard_shortcuts, open_bbcode_tool
 
 COLOR_MODIFIED_ROW = QBrush(QColor(255, 250, 200))  # jaune clair : ligne modifiee dans cette session
@@ -1261,6 +1262,10 @@ class EcfEditWidget(QWidget):
         self._info_card_icon_index = None
         self._undo_stack: list = []  # textes serialises (fidelite deja prouvee par le parser)
         self._undo_max = 20
+        # Vue web (consultation/navigation, chantier webapp 02/11) : creee
+        # au premier basculement (lourd) ; l'arbre Qt reste source de verite.
+        self._web_view = None
+        self._web_bridge = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
@@ -1332,6 +1337,15 @@ class EcfEditWidget(QWidget):
         self.btn_undo.clicked.connect(self.undo)
         self.btn_undo.setEnabled(False)
         toolbar.addWidget(self.btn_undo)
+        self.btn_web_view = QPushButton(icon("fa5s.desktop", "#4a7dfc"),
+                                        t("csv.web_toggle"))
+        self.btn_web_view.setIconSize(icon_size())
+        self.btn_web_view.setObjectName("secondaryButton")
+        self.btn_web_view.setCheckable(True)
+        self.btn_web_view.setToolTip(t("csv.web_toggle_tooltip"))
+        self.btn_web_view.setVisible(_ecf_web.is_available())
+        self.btn_web_view.toggled.connect(self._toggle_web_view)
+        toolbar.addWidget(self.btn_web_view)
         btn_save = QPushButton(icon("fa5s.save", "#ffffff"), t("btn.save"))
         btn_save.setIconSize(icon_size())
         btn_save.clicked.connect(self.save)
@@ -1368,7 +1382,11 @@ class EcfEditWidget(QWidget):
         # PAS d'icones dans l'arbre : trop long a charger sur les gros fichiers
         # (retour utilisateur 09/09/2026) -- les icones sont dans la fiche info,
         # le catalogue, le tableau economie et les tables d'ingredients.
-        splitter.addWidget(self.tree)
+        # Vue web : empilee PAR-DESSUS l'arbre (l'arbre reste vivant -- toutes
+        # les methodes existantes le referencent), le bouton bascule.
+        self._view_stack = QStackedWidget()
+        self._view_stack.addWidget(self.tree)
+        splitter.addWidget(self._view_stack)
 
         self.props_table = QTableWidget(0, 2)
         self.props_table.setHorizontalHeaderLabels(["Propriete", "Valeur"])
@@ -1390,6 +1408,29 @@ class EcfEditWidget(QWidget):
         self._search_matches: list = []
         self._search_index = -1
         self._search_last_query = ""
+
+    # ------------------------------------------------------------------
+    # Vue web (consultation/navigation) -- chantier webapp, 02/11
+    # ------------------------------------------------------------------
+
+    def _toggle_web_view(self, checked: bool):
+        """Bascule arbre Qt / vue web (le bouton n'existe que si WebEngine
+        est disponible). L'arbre Qt reste la source de verite : la vue web
+        n'y ecrit pas, elle ne fait que lire et renvoyer la selection."""
+        if checked:
+            if self._web_view is None:
+                self._web_view, self._web_bridge = _ecf_web.make_web_view(self, self)
+                self._view_stack.addWidget(self._web_view)
+            self._web_view.refresh()
+            self._view_stack.setCurrentWidget(self._web_view)
+        else:
+            self._view_stack.setCurrentWidget(self.tree)
+
+    def _web_refresh(self):
+        """Re-pousse l'arbre vers la vue web apres _populate_tree — no-op
+        tant que la vue web n'a pas ete creee."""
+        if self._web_view is not None and self.btn_web_view.isChecked():
+            self._web_bridge.push_reset()
 
     # ------------------------------------------------------------------
     # Etat modifie / enregistrement
@@ -1533,6 +1574,7 @@ class EcfEditWidget(QWidget):
                 self.tree.addTopLevelItem(self._make_group_header_item(group_before[index]))
             if isinstance(node, EcfBlock):
                 self.tree.addTopLevelItem(self._make_block_item(node))
+        self._web_refresh()          # la vue web suit l'arbre (source de verite)
 
     def _make_group_header_item(self, title: str) -> QTreeWidgetItem:
         """Ligne de section non selectionnable (juste un repere visuel), pour les
