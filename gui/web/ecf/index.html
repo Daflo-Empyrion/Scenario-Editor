@@ -26,9 +26,10 @@ body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--b
 .search input:focus{border-color:rgba(0,229,255,.45)}
 .search .st{font:10.5px var(--mono);color:var(--dim);min-width:70px;text-align:right}
 .grid{position:relative;overflow:auto;flex:1;cursor:default;background:var(--bg)}
-.grid::-webkit-scrollbar{width:11px;height:11px}
-.grid::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
-.grid::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+.grid::-webkit-scrollbar,.detail::-webkit-scrollbar{width:11px;height:11px}
+.grid::-webkit-scrollbar-track,.detail::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.grid::-webkit-scrollbar-thumb,.detail::-webkit-scrollbar-thumb{
+  background:rgba(130,205,255,.20);border-radius:6px;
   border:3px solid transparent;background-clip:content-box}
 .sizer{position:relative;width:max-content;min-width:100%}
 .row{position:absolute;display:flex;align-items:center;height:var(--rh);left:0;right:0;
@@ -40,6 +41,23 @@ body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--b
 .row.gray{color:var(--dim);font-style:italic}
 .row.block{cursor:pointer}
 .ind{display:inline-block}
+.detail{height:42%;border-top:1px solid var(--line-strong);overflow:auto;
+  background:rgba(8,12,21,.5)}
+.detail table{border-collapse:collapse;font:12px var(--mono);min-width:100%}
+.detail th{position:sticky;top:0;background:#0E1422;color:#8FE7F5;text-align:left;
+  font:600 11px var(--mono);padding:5px 10px;border-bottom:1px solid var(--line-strong);
+  white-space:nowrap}
+.detail td{padding:4px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+  max-width:520px;overflow:hidden;text-overflow:ellipsis}
+.detail td.ed{cursor:text}
+.detail td.ed:hover{background:rgba(0,229,255,.08);
+  box-shadow:inset 0 -1px 0 rgba(0,229,255,.45)}
+.detail tr:hover td{background:rgba(0,229,255,.05)}
+.detail .empty{padding:14px;font:12px var(--font);color:var(--dim)}
+.detail .mode{font:10px var(--mono);color:var(--dim);padding:4px 10px;display:block}
+input.cedit{font:12px var(--mono);color:var(--txt);width:95%;
+  background:rgba(6,11,20,.95);border:1px solid rgba(0,229,255,.55);outline:none;
+  border-radius:4px;padding:2px 6px}
 </style>
 </head>
 <body>
@@ -58,16 +76,16 @@ body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--b
     <div id="viewport" style="position:absolute;left:0;right:0;top:0"></div>
   </div>
 </div>
+<div class="detail" id="detail"></div>
 
 <script>__QWEBCHANNEL_JS__</script>
 <script>
 "use strict";
-let BRIDGE=null, ALL=[], SEL=-1;
+let BRIDGE=null, ALL=[], VIEW=[], SEL=-1, DET=null;
 const RH=26, OVERSCAN=8;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const grid=$("grid"), sizer=$("sizer"), vp=$("viewport");
-let VIEW=[];
 
 function boot(){
   if (typeof qt==="undefined"||!qt.webChannelTransport){ setTimeout(boot,300); return; }
@@ -78,11 +96,16 @@ function boot(){
   });
 }
 
+/* payload COMPLET (cle entries) au boot/refresh ; etat LEGER (detail +
+   selection) a chaque clic/edition — meme convention que les autres ponts */
 function shape(m){
-  ALL=m.entries; SEL=m.selected;
-  $("name").textContent=m.name;
+  if (m.entries) ALL=m.entries;
+  if (m.detail) DET=m.detail;
+  if (m.selected!==undefined) SEL=m.selected;
+  if (m.name) $("name").textContent=m.name;
   $("q").placeholder=(m.labels&&m.labels.search)||"Filtrer…";
   applyFilter();
+  renderDetail();
 }
 
 function applyFilter(){
@@ -113,12 +136,53 @@ function render(){
   vp.innerHTML=html;
 }
 
+function renderDetail(){
+  const box=$("detail");
+  if (!DET || !DET.rows.length){
+    box.innerHTML=`<span class="empty">Sélectionnez un bloc pour voir ses propriétés.</span>`;
+    return;
+  }
+  let html=`<span class="mode">${esc(DET.mode)}</span><table><thead><tr>`
+    +DET.cols.map(c=>`<th>${esc(c)}</th>`).join("")
+    +`</tr></thead><tbody>`;
+  DET.rows.forEach((row,r)=>{
+    html+="<tr>";
+    row.forEach((cell,c)=>{
+      if (cell.e) html+=`<td class="ed" data-r="${r}" data-c="${c}" title="${esc(cell.t)}">${esc(cell.t)}</td>`;
+      else html+=`<td title="${esc(cell.t)}">${esc(cell.t)}</td>`;
+    });
+    html+="</tr>";
+  });
+  box.innerHTML=html+"</tbody></table>";
+}
+
+function openEditor(td){
+  if (td.querySelector("input")) return;
+  const r=+td.dataset.r, c=+td.dataset.c;
+  const input=document.createElement("input");
+  input.className="cedit";
+  input.value=DET.rows[r][c].t;
+  td.textContent="";
+  td.appendChild(input);
+  input.focus();
+  let done=false;
+  const commit=()=>{ if (done) return; done=true;
+    BRIDGE.set_cell(r,c,input.value); };  /* l'etat re-pousse rafraichit */
+  input.addEventListener("blur",commit);
+  input.addEventListener("change",commit);
+}
+
 vp.addEventListener("click",ev=>{
   const row=ev.target.closest(".row.block");
   if (!row) return;
   SEL=+row.dataset.i;
-  BRIDGE.select_entry(SEL);
+  BRIDGE.select_entry(SEL);   /* l'etat leger (detail+selection) revient */
   render();
+});
+
+$("detail").addEventListener("dblclick",ev=>{
+  const td=ev.target.closest("td.ed");
+  if (td) openEditor(td);
 });
 
 $("q").addEventListener("input",applyFilter);

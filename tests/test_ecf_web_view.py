@@ -82,6 +82,62 @@ def test_select_entry_mirrors_to_tree(ecf_widget):
     assert json.loads(bridge.get_entries())["selected"] == child_idx
 
 
+def test_select_entry_pushes_light_state(ecf_widget):
+    """select_entry pousse l'ETAT LEGER : detail de la table de proprietes
+    (cellules {texte, editable}) + selection — jamais les libelles de tout
+    l'arbre (gros fichiers)."""
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    bridge.get_entries()
+    seen = []
+    bridge.data_changed.connect(seen.append)
+    bridge.select_entry(1)                     # bloc +Container Id: 1
+    state = json.loads(seen[-1])
+    assert "entries" not in state              # etat LEGER
+    assert state["selected"] == 1
+    det = state["detail"]
+    assert det["mode"] == "flat"
+    assert det["cols"] == ["Propriete", "Valeur"]
+    assert any(row[0]["t"] == "Name" and row[1]["t"] == "Caisse"
+               and row[1]["e"] for row in det["rows"])
+
+
+def test_set_cell_mirrors_to_block(ecf_widget):
+    """Edition web -> item.setText() -> itemChanged -> _on_cell_changed :
+    le chemin EXACT de la table Qt (snapshot undo, ecriture modele,
+    annotation, drapeau modifie)."""
+    from core.ecf.model import EcfProperty
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    bridge.get_entries()
+    bridge.select_entry(1)
+    det = json.loads(bridge._state())["detail"]
+    r, c = next((i, j) for i, row in enumerate(det["rows"])
+                for j, cell in enumerate(row) if cell["e"])
+    bridge.set_cell(r, c, "Caisse Renommee")
+    assert ecf_widget.is_modified() is True
+    assert len(ecf_widget._undo_stack) == 1        # snapshot undo une fois
+    state2 = json.loads(bridge._state())
+    assert state2["detail"]["rows"][r][c]["t"] == "Caisse Renommee"
+    # la valeur est bien ecrite dans le MODELE — le rendu du doc est ce qui
+    # est sauvegarde (la cellule editee peut porter sur le bloc (Id) ou sur
+    # une propriete enfant (Name) : le rendu couvre les deux)
+    assert "Caisse Renommee" in ecf_widget.doc.render()
+
+
+def test_set_cell_refuses_out_of_range(ecf_widget):
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    bridge.get_entries()
+    bridge.select_entry(1)
+    before = json.dumps(bridge._state())
+    bridge.set_cell(999, 0, "x")
+    bridge.set_cell(-1, 0, "x")
+    bridge.set_cell(0, 99, "x")
+    assert json.dumps(bridge._state()) == before
+    assert ecf_widget.is_modified() is False
+
+
 def test_select_entry_skips_headers_and_out_of_range(ecf_widget):
     from gui.ecf_web_view import EcfWebBridge
     bridge = EcfWebBridge(ecf_widget)

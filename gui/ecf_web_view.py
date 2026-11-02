@@ -111,20 +111,57 @@ class EcfWebBridge(QObject):
             walk(tree.topLevelItem(i), 0)
         return items, entries
 
+    def _selected_index(self) -> int:
+        current = self._widget.tree.currentItem()
+        for i, item in enumerate(self._items):
+            if item is current:
+                return i
+        return -1
+
+    def _detail(self) -> dict:
+        """La table de proprietes Qt (source de verite) : grille de cellules
+        {t: texte, e: editable} — editable = UserRole (prop_node, pair_key)
+        present, c'est-a-dire exactement les cellules que _on_cell_changed
+        sait ecrire."""
+        table = self._widget.props_table
+        cols = table.columnCount()
+        header = []
+        for c in range(cols):
+            h = table.horizontalHeaderItem(c)
+            header.append(h.text() if h is not None else "")
+        rows = []
+        for r in range(table.rowCount()):
+            row = []
+            for c in range(cols):
+                item = table.item(r, c)
+                if item is None:
+                    row.append({"t": "", "e": False})
+                else:
+                    row.append({"t": item.text(),
+                                "e": item.data(Qt.ItemDataRole.UserRole) is not None})
+            rows.append(row)
+        mode = ("grid" if self._widget._table_mode
+                else "ingredients" if self._widget._ingredient_mode else "flat")
+        return {"cols": header, "rows": rows, "mode": mode}
+
     def _payload(self) -> str:
         items, entries = self._collect()
         self._items = items
-        current = self._widget.tree.currentItem()
-        selected = -1
-        for i, item in enumerate(items):
-            if item is current:
-                selected = i
-                break
         return json.dumps({
             "name": self._widget.path.name,
             "entries": entries,
-            "selected": selected,
+            "selected": self._selected_index(),
+            "detail": self._detail(),
             "labels": {"search": t("label.search")},
+        }, ensure_ascii=False)
+
+    def _state(self) -> str:
+        """Etat LEGER (detail + selection) — repousser tous les libelles de
+        l'arbre a chaque clic/edition serait lourd sur les gros fichiers."""
+        return json.dumps({
+            "name": self._widget.path.name,
+            "selected": self._selected_index(),
+            "detail": self._detail(),
         }, ensure_ascii=False)
 
     def push_reset(self) -> None:
@@ -158,6 +195,27 @@ class EcfWebBridge(QObject):
         w.tree.setCurrentItem(item)
         w.tree.scrollToItem(item)
         w._on_block_selected(item, 0)
+        # la table de proprietes vient d'etre remplie : la page recoit le
+        # detail (etat leger, pas les libelles de tout l'arbre)
+        self.data_changed.emit(self._state())
+
+    @pyqtSlot(int, int, str)
+    def set_cell(self, row: int, col: int, text: str) -> None:
+        """Edition web d'une cellule de proprietes -> MIRROIR dans props_table
+        (source de verite) : item.setText() declenche itemChanged ->
+        _on_cell_changed — undo, annotation, mark_modified, drapeau
+        « modifie » : le chemin EXACT d'une edition au clavier dans la table
+        Qt. Les cellules sans UserRole (affichage) sont refusees."""
+        table = self._widget.props_table
+        if not (0 <= row < table.rowCount() and 0 <= col < table.columnCount()):
+            return
+        item = table.item(row, col)
+        if item is None or item.data(Qt.ItemDataRole.UserRole) is None:
+            return
+        if item.text() == text:
+            return
+        item.setText(text)           # -> itemChanged -> _on_cell_changed
+        self.data_changed.emit(self._state())
 
 
 def make_web_view(widget, parent=None):
