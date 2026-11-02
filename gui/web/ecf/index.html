@@ -25,6 +25,18 @@ body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--b
   background:rgba(6,11,20,.72);color:var(--txt);font:12px var(--font);padding:0 9px;outline:none}
 .search input:focus{border-color:rgba(0,229,255,.45)}
 .search .st{font:10.5px var(--mono);color:var(--dim);min-width:70px;text-align:right}
+.tools{display:flex;gap:6px;align-items:center;padding:0 12px 8px}
+.tbtn{height:26px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);padding:0 10px;white-space:nowrap;cursor:pointer;
+  background:linear-gradient(180deg, rgba(40,52,80,.55), rgba(16,22,38,.55));
+  color:var(--muted);font:11.5px var(--font);
+  transition:border-color .12s, color .12s, background .12s}
+.tbtn:hover{color:var(--txt);border-color:rgba(0,229,255,.45);
+  background:rgba(0,229,255,.10)}
+.tbtn:disabled{opacity:.35;cursor:default;pointer-events:none}
+.tbtn.primary{border-color:rgba(0,229,255,.5);
+  background:linear-gradient(180deg, rgba(0,229,255,.22), rgba(0,140,190,.18));
+  color:#DFFAFF;font-weight:600}
 .grid{position:relative;overflow:auto;flex:1;cursor:default;background:var(--bg)}
 .grid::-webkit-scrollbar,.detail::-webkit-scrollbar{width:11px;height:11px}
 .grid::-webkit-scrollbar-track,.detail::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
@@ -70,6 +82,7 @@ input.cedit{font:12px var(--mono);color:var(--txt);width:95%;
       <span class="st" id="qstat"></span>
     </div>
   </div>
+  <div class="tools" id="tools"></div>
 </div>
 <div class="grid" id="grid">
   <div class="sizer" id="sizer">
@@ -81,7 +94,7 @@ input.cedit{font:12px var(--mono);color:var(--txt);width:95%;
 <script>__QWEBCHANNEL_JS__</script>
 <script>
 "use strict";
-let BRIDGE=null, ALL=[], VIEW=[], SEL=-1, DET=null;
+let BRIDGE=null, ALL=[], VIEW=[], SEL=-1, DET=null, LBL=null, ACT=null;
 const RH=26, OVERSCAN=8;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -103,10 +116,36 @@ function shape(m){
   if (m.detail) DET=m.detail;
   if (m.selected!==undefined) SEL=m.selected;
   if (m.name) $("name").textContent=m.name;
-  $("q").placeholder=(m.labels&&m.labels.search)||"Filtrer…";
+  if (m.labels) LBL=m.labels;
+  if (m.actions) ACT=m.actions;
+  $("q").placeholder=(LBL&&LBL.search)||"Filtrer…";
+  buildTools();
   applyFilter();
   renderDetail();
 }
+
+const TOOLBTNS = [
+  ["add_block","add_block",""], ["add_prop","add_prop",""],
+  ["add_row","add_row",""], ["catalog","catalog",""],
+  ["filter","filter",""], ["disabled_blocks","disabled_blocks",""],
+  ["transform","transform",""], ["undo","undo",""], ["save","save","primary"],
+];
+
+function buildTools(){
+  const box=$("tools");
+  const sig=JSON.stringify([LBL,ACT]);
+  if (box.dataset.sig===sig) return;   /* rien n'a change : pas de rebuild */
+  box.dataset.sig=sig;
+  box.innerHTML=TOOLBTNS.map(([action,key,cls])=>{
+    const off=(ACT&&ACT[key]===false)?" disabled":"";
+    return `<button class="tbtn ${cls}${off}" data-action="${action}">${esc((LBL&&LBL[key])||key)}</button>`;
+  }).join("");
+}
+
+$("tools").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-action]");
+  if (b && !b.disabled) BRIDGE.run_action(b.dataset.action);
+});
 
 function applyFilter(){
   const q=$("q").value.trim().toLowerCase();

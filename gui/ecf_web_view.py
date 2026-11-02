@@ -147,21 +147,46 @@ class EcfWebBridge(QObject):
     def _payload(self) -> str:
         items, entries = self._collect()
         self._items = items
+        w = self._widget
         return json.dumps({
-            "name": self._widget.path.name,
+            "name": w.path.name,
             "entries": entries,
             "selected": self._selected_index(),
             "detail": self._detail(),
-            "labels": {"search": t("label.search")},
+            "labels": {
+                "search": t("label.search"),
+                "add_block": t("btn.add_block"),
+                "add_prop": t("btn.add_property"),
+                "add_row": t("btn.add_row_table"),
+                "catalog": t("eco.btn.catalog"),
+                "filter": t("btn.filter_by_property"),
+                "disabled_blocks": t("ecf.disabled_blocks_menu"),
+                "transform": t("btn.transform"),
+                "undo": t("btn.undo"),
+                "save": t("btn.save"),
+            },
+            # visibilite/etat MIROIRES des boutons Qt (meme contrat) : le
+            # mode tableau/ingredients cache « ajouter propriete »
+            "actions": {
+                "add_prop": w.btn_add_prop.isVisible(),
+                "add_row": w.btn_add_row.isVisible(),
+                "undo": w.btn_undo.isEnabled(),
+            },
         }, ensure_ascii=False)
 
     def _state(self) -> str:
         """Etat LEGER (detail + selection) — repousser tous les libelles de
         l'arbre a chaque clic/edition serait lourd sur les gros fichiers."""
+        w = self._widget
         return json.dumps({
-            "name": self._widget.path.name,
+            "name": w.path.name,
             "selected": self._selected_index(),
             "detail": self._detail(),
+            "actions": {
+                "add_prop": w.btn_add_prop.isVisible(),
+                "add_row": w.btn_add_row.isVisible(),
+                "undo": w.btn_undo.isEnabled(),
+            },
         }, ensure_ascii=False)
 
     def push_reset(self) -> None:
@@ -216,6 +241,36 @@ class EcfWebBridge(QObject):
             return
         item.setText(text)           # -> itemChanged -> _on_cell_changed
         self.data_changed.emit(self._state())
+
+    # -- actions de barre (liste blanche : jamais getattr libre sur un nom
+    # venu du web — meme forme que CsvWebBridge) ----------------------------
+    _ACTIONS = {
+        "add_block": "_add_block_dialog",
+        "add_prop": "_add_property_dialog",
+        "add_row": "_on_add_row_clicked",
+        "catalog": "_open_ecf_item_catalog",
+        "filter": "_open_property_filter",
+        "disabled_blocks": "_open_disabled_blocks_dialog",
+        "transform": "_open_transform_dialog",
+        "undo": "undo",
+        "save": "save",
+    }
+
+    @pyqtSlot(str)
+    def run_action(self, name: str) -> None:
+        """Action de barre demandee par la page -> methode EXISTANTE du
+        widget (meme chemin que les boutons Qt : les dialogues s'ouvrent
+        natifs, dialog_policy les rend non modaux). Apres coup, l'arbre a pu
+        changer : payload COMPLET re-pousse."""
+        method_name = self._ACTIONS.get(name)
+        w = self._widget
+        if method_name is None:
+            return
+        try:
+            getattr(w, method_name)()
+        except Exception:
+            pass       # les dialogues affichent eux-memes leurs erreurs
+        self.push_reset()
 
 
 def make_web_view(widget, parent=None):

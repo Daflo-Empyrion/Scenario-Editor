@@ -167,6 +167,69 @@ def test_populate_tree_repushes_to_page(ecf_widget):
     assert seen, "aucune re-poussée apres populate"
 
 
+def test_payload_carries_action_bar_state(ecf_widget):
+    """La barre d'actions web suit les boutons Qt : libelles t() et
+    visibilite/etat MIRROIRES (mode plat : « ajouter propriete » visible,
+    « ajouter ligne » cache ; undo actif apres une edition)."""
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    data = json.loads(bridge.get_entries())
+    for key in ("add_block", "add_prop", "add_row", "catalog", "filter",
+                "disabled_blocks", "transform", "undo", "save"):
+        assert data["labels"][key]
+    assert data["actions"]["add_row"] is False      # mode plat
+    assert data["actions"]["undo"] is False         # rien a annuler
+    bridge.select_entry(1)
+    det = json.loads(bridge._state())["detail"]
+    r, c = next((i, j) for i, row in enumerate(det["rows"])
+                for j, cell in enumerate(row) if cell["e"])
+    bridge.set_cell(r, c, "Valeur Modifiee")
+    assert json.loads(bridge._state())["actions"]["undo"] is True
+
+
+def test_run_action_whitelist_undo_and_save(ecf_widget):
+    """Actions via la barre web -> methodes EXISTANTES du widget (meme
+    chemin que les boutons Qt). Nom inconnu ignore ; undo repousse
+    l'arbre complet (payload avec entries)."""
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    bridge.get_entries()
+    bridge.select_entry(1)
+    det = json.loads(bridge._state())["detail"]
+    r, c = next((i, j) for i, row in enumerate(det["rows"])
+                for j, cell in enumerate(row) if cell["e"])
+    original = det["rows"][r][c]["t"]
+    bridge.set_cell(r, c, "AB1234")
+    assert ecf_widget.is_modified() is True
+
+    seen = []
+    bridge.data_changed.connect(seen.append)
+    bridge.run_action("undo")
+    payload = json.loads(seen[-1])
+    assert "entries" in payload                     # re-pousse COMPLETE
+    # undo restaure la valeur du snapshot et laisse volontairement le
+    # drapeau « modifie » (contrat du widget Qt, pas une regression)
+    state = json.loads(bridge._state())
+    texts = [cell["t"] for row in state["detail"]["rows"] for cell in row]
+    assert original in texts and "AB1234" not in texts
+
+    # liste blanche stricte : rien n'atteint getattr libre
+    bridge.run_action("__init__")
+    bridge.run_action("n_importe_quoi")
+    bridge.run_action("save")                       # vrai bouton : ecrit
+    assert ecf_widget.is_modified() is False
+
+
+def test_run_action_unknown_name_ignored(ecf_widget):
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    bridge.get_entries()
+    before = ecf_widget.doc.render()
+    for name in ("__class__", "", "delete", "exec"):
+        bridge.run_action(name)
+    assert ecf_widget.doc.render() == before
+
+
 def test_toggle_creates_web_view(ecf_widget, monkeypatch):
     from PyQt6.QtWidgets import QWidget
     from gui import ecf_web_view as ewv
