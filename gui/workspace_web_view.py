@@ -14,10 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Arbre du WORKSPACE en vue web (chantier webapp, tranche finale, 02/11) :
-la page gui/web/workspace/index.html remplace la QTreeWidget de la copie de
-travail (panneau bas de la fenetre principale), meme repartition que les
-autres vues web.
+"""Arbres du workspace en vue web (chantier webapp, 02/11) : la page
+gui/web/workspace/index.html remplace les QTreeWidget de navigation de la
+fenetre principale (copie de travail ET scenarios A/B), meme repartition
+que les autres vues web.
 
 REPARTITION STRICTE :
   - l'arbre QTreeWidget RESTE la source de verite (recherche, menu
@@ -58,15 +58,19 @@ def is_available() -> bool:
 
 
 class WorkspaceWebBridge(QObject):
-    """Objet expose a la page : lecture de l'arbre de la copie de travail et
-    ouverture d'un fichier par le chemin du double-clic Qt."""
+    """Objet expose a la page : lecture d'un arbre de navigation du
+    workspace (copie de travail ou Scenario A/B) et ouverture d'un fichier
+    par le chemin de double-clic Qt correspondant (`opener`)."""
 
     data_changed = pyqtSignal(str)  # Python -> page : l'arbre a change
 
-    def __init__(self, main_window, tree, parent=None):
+    def __init__(self, main_window, tree, opener=None, parent=None):
         super().__init__(parent)
         self._mw = main_window
         self._tree = tree          # QTreeWidget (source de verite)
+        # ouverture d'une entree : par defaut le double-clic de la copie de
+        # travail ; pour les scenarios A/B le panneau passe son propre chemin
+        self._opener = opener or (lambda item: main_window._on_working_double_clicked(item, 0))
         self._items = []           # QTreeWidgetItem parallele a entries
 
     def _collect(self):
@@ -113,21 +117,21 @@ class WorkspaceWebBridge(QObject):
     @pyqtSlot(int)
     def open_entry(self, idx: int) -> None:
         """Double-clic d'un FICHIER de la page -> le chemin EXACT du
-        double-clic Qt (_on_working_double_clicked : verifie que l'entree
-        est bien un fichier puis open_working_file_tab). Les dossiers ne
+        double-clic Qt du panneau (copie de travail : open_working_file_tab ;
+        scenarios A/B : open_file_tab read_only). Les dossiers ne
         s'ouvrent pas (parite Qt)."""
         if not (0 <= idx < len(self._items)):
             return
-        self._mw._on_working_double_clicked(self._items[idx], 0)
+        self._opener(self._items[idx])
 
 
-def make_web_view(main_window, tree, parent=None):
+def make_web_view(main_window, tree, parent=None, opener=None):
     """Construit (QWidget vue, bridge) — a n'appeler que si is_available()."""
     from PyQt6.QtWebChannel import QWebChannel
     from PyQt6.QtWebEngineWidgets import QWebEngineView
     from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
-    bridge = WorkspaceWebBridge(main_window, tree)
+    bridge = WorkspaceWebBridge(main_window, tree, opener=opener)
 
     class _View(QWidget):
         def __init__(self):

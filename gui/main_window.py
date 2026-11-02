@@ -2785,9 +2785,10 @@ class MainWindow(QMainWindow):
         self.tree_a.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_a.customContextMenuRequested.connect(
             lambda pos: self._show_source_context_menu(self.tree_a, pos, self._root_a))
-        layout_a.addWidget(self.label_a)
         self._attach_tree_filter(self.tree_a, layout_a)
-        layout_a.addWidget(self.tree_a)
+        self._a_stack, self._btn_a_web = self._attach_web_tree(
+            layout_a, self.tree_a, self.label_a,
+            lambda item: self._on_source_double_clicked(item, self._root_a))
         bottom_splitter.addWidget(self.panel_a)
 
         self.panel_working = QWidget()
@@ -2801,27 +2802,10 @@ class MainWindow(QMainWindow):
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
         self.tree_working.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_working.customContextMenuRequested.connect(self._show_working_context_menu)
-        # Vue web de l'arbre (chantier webapp, tranche finale 02/11) :
-        # EMPILEE par-dessus l'arbre Qt (source de verite, reste vivant).
-        self._ws_web_view = None
-        self._ws_web_bridge = None
-        label_row = QHBoxLayout()
-        label_row.setContentsMargins(0, 0, 0, 0)
-        label_row.addWidget(self.label_working, 1)
-        self.btn_ws_web = QPushButton(icon("fa5s.desktop", "#4a7dfc"),
-                                      t("csv.web_toggle"))
-        self.btn_ws_web.setIconSize(icon_size())
-        self.btn_ws_web.setObjectName("secondaryButton")
-        self.btn_ws_web.setCheckable(True)
-        self.btn_ws_web.setToolTip(t("csv.web_toggle_tooltip"))
-        self.btn_ws_web.setVisible(_ws_web.is_available())
-        self.btn_ws_web.toggled.connect(self._toggle_workspace_web)
-        label_row.addWidget(self.btn_ws_web)
-        layout_w.addLayout(label_row)
         self._attach_tree_filter(self.tree_working, layout_w)
-        self._ws_stack = QStackedWidget()
-        self._ws_stack.addWidget(self.tree_working)
-        layout_w.addWidget(self._ws_stack)
+        self._ws_stack, self._btn_ws_web = self._attach_web_tree(
+            layout_w, self.tree_working, self.label_working,
+            self._on_working_double_clicked)
         bottom_splitter.addWidget(self.panel_working)
 
         self.panel_b = QWidget()
@@ -2836,9 +2820,10 @@ class MainWindow(QMainWindow):
         self.tree_b.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_b.customContextMenuRequested.connect(
             lambda pos: self._show_source_context_menu(self.tree_b, pos, self._root_b))
-        layout_b.addWidget(self.label_b)
         self._attach_tree_filter(self.tree_b, layout_b)
-        layout_b.addWidget(self.tree_b)
+        self._b_stack, self._btn_b_web = self._attach_web_tree(
+            layout_b, self.tree_b, self.label_b,
+            lambda item: self._on_source_double_clicked(item, self._root_b))
         bottom_splitter.addWidget(self.panel_b)
         self.panel_b.setVisible(False)
 
@@ -3005,35 +2990,58 @@ class MainWindow(QMainWindow):
         search = self._tree_search_boxes.get(tree)
         if search is not None and search.text().strip():
             self._filter_tree(tree, search.text())
-        if tree is getattr(self, "tree_working", None):
-            self._workspace_web_refresh()
+        self._workspace_web_refresh(tree)
 
     # ------------------------------------------------------------------
-    # Vue web de la copie de travail (chantier webapp, 02/11)
+    # Vues web des arbres de navigation (chantier webapp, 02/11) — copie
+    # de travail ET scenarios A/B : meme helper, meme page.
     # ------------------------------------------------------------------
 
-    def _toggle_workspace_web(self, checked: bool):
-        """Bascule arbre Qt / vue web du panneau « Copie de travail ». L'arbre
-        Qt reste la source de verite : la page ne fait que lire et rejouer le
-        double-clic (ouverture par open_working_file_tab)."""
-        if checked:
-            if self._ws_web_view is None:
-                self._ws_web_view, self._ws_web_bridge = _ws_web.make_web_view(
-                    self, self.tree_working, self)
-                self._ws_stack.addWidget(self._ws_web_view)
-            self._ws_web_view.refresh()
-            self._ws_stack.setCurrentWidget(self._ws_web_view)
-        else:
-            self._ws_stack.setCurrentWidget(self.tree_working)
+    def _attach_web_tree(self, layout, tree, label, opener):
+        """Empile une vue web par-dessus un arbre de navigation (l'arbre Qt
+        reste la source de verite et vivant) et pose le bouton de bascule a
+        cote du libelle du panneau. Retourne (stack, bouton)."""
+        stack = QStackedWidget()
+        stack.addWidget(tree)
+        btn = QPushButton(icon("fa5s.desktop", "#4a7dfc"), t("csv.web_toggle"))
+        btn.setIconSize(icon_size())
+        btn.setObjectName("secondaryButton")
+        btn.setCheckable(True)
+        btn.setToolTip(t("csv.web_toggle_tooltip"))
+        btn.setVisible(_ws_web.is_available())
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(label, 1)
+        row.addWidget(btn)
+        layout.addLayout(row)
+        layout.addWidget(stack)
 
-    def _workspace_web_refresh(self):
-        """Re-pousse l'arbre vers la vue web apres _populate_tree — no-op
-        tant que la vue n'existe pas (getattr : _populate_tree peut tourner
-        avant la construction du panneau)."""
-        view = getattr(self, "_ws_web_view", None)
-        btn = getattr(self, "btn_ws_web", None)
-        if view is not None and btn is not None and btn.isChecked():
-            self._ws_web_bridge.push_reset()
+        def _toggle(checked):
+            view, bridge = getattr(tree, "_web_pair", (None, None))
+            if checked:
+                if view is None:
+                    view, bridge = _ws_web.make_web_view(self, tree, self,
+                                                         opener=opener)
+                    tree._web_pair = (view, bridge)
+                    stack.addWidget(view)
+                view.refresh()
+                stack.setCurrentWidget(view)
+            else:
+                stack.setCurrentWidget(tree)
+
+        btn.toggled.connect(_toggle)
+        tree._web_btn = btn
+        return stack, btn
+
+    def _workspace_web_refresh(self, tree=None):
+        """Re-pousse l'arbre vers sa vue web apres _populate_tree — no-op
+        tant que la vue n'existe pas ou que la bascule est eteinte."""
+        if tree is None:
+            tree = getattr(self, "tree_working", None)
+        pair = getattr(tree, "_web_pair", None)
+        btn = getattr(tree, "_web_btn", None)
+        if pair is not None and btn is not None and btn.isChecked():
+            pair[1].push_reset()
 
     def _attach_tree_filter(self, tree: QTreeWidget, layout: QVBoxLayout):
         """Insere un champ de filtrage au-dessus d'un arbre et le branche au

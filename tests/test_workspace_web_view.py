@@ -73,17 +73,19 @@ def test_populate_tree_repushes_when_web_checked(panel):
     page (par le canal), mais seulement si la vue web est affichee."""
     from gui.workspace_web_view import WorkspaceWebBridge
     bridge = WorkspaceWebBridge(panel, panel.tree_working)
-    panel._ws_web_bridge = bridge
-    panel._ws_web_view = object()          # vue stub, jamais le vrai ici
+    # _web_pair pre-rempli (vue stub) — jamais le vrai QWebEngineView ici ;
+    # le vrai bouton est coché SANS signal (le toggle creerait la vue)
+    panel.tree_working._web_pair = (object(), bridge)
+    panel._btn_ws_web.blockSignals(True)
+    panel._btn_ws_web.setChecked(True)
+    panel._btn_ws_web.blockSignals(False)
     seen = []
     bridge.data_changed.connect(seen.append)
-    panel._workspace_web_refresh()         # bouton non coche : no-op
-    assert seen == []
-    panel.btn_ws_web.blockSignals(True)
-    panel.btn_ws_web.setChecked(True)
-    panel.btn_ws_web.blockSignals(False)
+    # bouton coche : un refresh explicite pousse immediatement
+    panel._workspace_web_refresh(panel.tree_working)
+    assert len(seen) == 1
     panel._populate_tree(panel.tree_working, panel.workspace.working)
-    assert seen, "aucune re-poussée apres populate"
+    assert len(seen) == 2, "aucune re-poussée apres populate"
 
 
 def test_toggle_creates_web_view(panel, monkeypatch):
@@ -97,11 +99,32 @@ def test_toggle_creates_web_view(panel, monkeypatch):
 
     from gui.workspace_web_view import WorkspaceWebBridge
     monkeypatch.setattr(wwv, "make_web_view",
-                        lambda mw, tree, parent=None: (
-                            _StubView(), WorkspaceWebBridge(mw, tree)))
-    panel.btn_ws_web.setVisible(True)
-    panel._toggle_workspace_web(True)
-    assert panel._ws_web_view is not None
-    assert panel._ws_stack.currentWidget() is panel._ws_web_view
-    panel._toggle_workspace_web(False)
+                        lambda mw, tree, parent=None, opener=None: (
+                            _StubView(), WorkspaceWebBridge(mw, tree,
+                                                            opener=opener)))
+    panel._btn_ws_web.setVisible(True)
+    panel._btn_ws_web.setChecked(True)          # declenche le toggle du helper
+    assert panel.tree_working._web_pair is not None
+    assert panel._ws_stack.currentWidget() is panel.tree_working._web_pair[0]
+    panel._btn_ws_web.setChecked(False)
     assert panel._ws_stack.currentWidget() is panel.tree_working
+
+
+def test_source_tree_web_opens_read_only_tab(panel, monkeypatch):
+    """Scenario A : open_entry rejoue _on_source_double_clicked -> onglet
+    lecture seule source_root=working_root."""
+    from gui.workspace_web_view import WorkspaceWebBridge, make_web_view
+    # le panneau B existe (masque) avec sa pile et son bouton
+    assert panel._b_stack is not None and panel._btn_b_web is not None
+    bridge = WorkspaceWebBridge(
+        panel, panel.tree_a,
+        opener=lambda item: panel._on_source_double_clicked(item,
+                                                            panel._root_a))
+    panel._populate_tree(panel.tree_a, panel.workspace.source_a)
+    data = json.loads(bridge.get_entries())
+    idx = next(i for i, e in enumerate(data["entries"])
+               if e["label"] == "ItemsConfig.ecf")
+    bridge.open_entry(idx)
+    assert panel.tabs.count() == 1
+    # l'onglet source est en lecture seule (titre du widget != working)
+    assert panel.tabs.tabToolTip(0).endswith("ItemsConfig.ecf")
