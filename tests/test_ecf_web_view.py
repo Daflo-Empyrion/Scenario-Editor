@@ -230,6 +230,41 @@ def test_run_action_unknown_name_ignored(ecf_widget):
     assert ecf_widget.doc.render() == before
 
 
+def test_detail_carries_modified_halo_and_options(ecf_widget):
+    """Dettes 02/11 : halo « modifie cette session » (m) et pool de valeurs
+    observees (o) — meme information que la table Qt (mark_modified ambre +
+    QCompleter du delegate)."""
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    bridge.get_entries()
+    bridge.select_entry(1)
+    det = json.loads(bridge._state())["detail"]
+    editable = [(i, j, row[j]) for i, row in enumerate(det["rows"])
+                for j, cell in enumerate(row) if cell["e"]]
+    assert editable                            # le mode plat a des cellules
+    for _i, _j, cell in editable:
+        assert cell.get("m") is False          # rien de touche encore
+    bridge.set_cell(editable[0][0], editable[0][1], "Valeur Web")
+    det2 = json.loads(bridge._state())["detail"]
+    touched = det2["rows"][editable[0][0]][editable[0][1]]
+    assert touched["m"] is True                # halo miroire apres edition
+    # pool du delegate : la cellule Valeur (col 1) porte des options
+    val_cells = [row[1] for row in det2["rows"] if row[1]["e"]]
+    assert any(cell.get("o") for cell in val_cells)
+
+
+def test_entries_carry_parent_links(ecf_widget):
+    """Filtre : chaque entree porte l'index de son parent (-1 racine) pour
+    que la page garde les ancetres d'un bloc filtre."""
+    from gui.ecf_web_view import EcfWebBridge
+    bridge = EcfWebBridge(ecf_widget)
+    data = json.loads(bridge.get_entries())
+    entries = data["entries"]
+    assert entries[0]["parent"] == -1          # racine / entete
+    child = entries[2]                         # bloc enfant de Child Items
+    assert child["parent"] == 1                # -> l'entree 'Child Items'
+
+
 def test_toggle_creates_web_view(ecf_widget, monkeypatch):
     from PyQt6.QtWidgets import QWidget
     from gui import ecf_web_view as ewv

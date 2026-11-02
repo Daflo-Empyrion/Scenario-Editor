@@ -64,12 +64,14 @@ body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--b
 .detail td.ed{cursor:text}
 .detail td.ed:hover{background:rgba(0,229,255,.08);
   box-shadow:inset 0 -1px 0 rgba(0,229,255,.45)}
+.detail td.mod{color:var(--amber)}
 .detail tr:hover td{background:rgba(0,229,255,.05)}
 .detail .empty{padding:14px;font:12px var(--font);color:var(--dim)}
 .detail .mode{font:10px var(--mono);color:var(--dim);padding:4px 10px;display:block}
 input.cedit{font:12px var(--mono);color:var(--txt);width:95%;
   background:rgba(6,11,20,.95);border:1px solid rgba(0,229,255,.55);outline:none;
   border-radius:4px;padding:2px 6px}
+.row.anc{opacity:.55}
 </style>
 </head>
 <body>
@@ -149,8 +151,21 @@ $("tools").addEventListener("click",e=>{
 
 function applyFilter(){
   const q=$("q").value.trim().toLowerCase();
-  VIEW = q ? ALL.filter(e=>e.search.indexOf(q)>=0 || (e.kind!=="block"&&e.label.toLowerCase().indexOf(q)>=0))
-           : ALL;
+  if (!q){
+    VIEW = ALL.slice();
+  } else {
+    /* un bloc filtre garde ses ANCE TRES visibles (sinon un Child Items
+       matche apparaissait orphelin de son conteneur) */
+    const keep=new Set();
+    for (let i=0;i<ALL.length;i++){
+      const e=ALL[i];
+      if (e.search.indexOf(q)>=0 || (e.kind!=="block"&&e.label.toLowerCase().indexOf(q)>=0)){
+        let p=i;
+        while (p>=0 && !keep.has(p)){ keep.add(p); p=ALL[p].parent; }
+      }
+    }
+    VIEW = [...keep].sort((a,b)=>a-b);
+  }
   /* conserver l'index d'origine ALL -> VIEW : select_entry vise l'index
      du pont, pas la position dans la vue filtree */
   for (const e of VIEW) e._idx = ALL.indexOf(e);
@@ -164,12 +179,15 @@ function applyFilter(){
 function render(){
   const first=Math.max(0,Math.floor(grid.scrollTop/RH)-OVERSCAN);
   const last=Math.min(VIEW.length,Math.ceil((grid.scrollTop+grid.clientHeight)/RH)+OVERSCAN);
+  const q=$("q").value.trim().toLowerCase();
   let html="";
   for (let i=first;i<last;i++){
     const e=VIEW[i];
     const cls=e.kind==="block"?"block":e.kind;
     const cur=(e.kind==="block"&&e._idx===SEL)?" cur":"";
-    html+=`<div class="row ${cls}${cur}" data-i="${e._idx}" style="top:${i*RH}px">`
+    /* ancetre inclus seulement pour servir de repere au filtre */
+    const anc=(q&&e.kind==="block"&&e.search.indexOf(q)<0)?" anc":"";
+    html+=`<div class="row ${cls}${cur}${anc}" data-i="${e._idx}" style="top:${i*RH}px">`
       +`<span class="ind" style="width:${e.depth*16}px"></span>${esc(e.label)}</div>`;
   }
   vp.innerHTML=html;
@@ -177,6 +195,9 @@ function render(){
 
 function renderDetail(){
   const box=$("detail");
+  /* datalists des valeurs observees : une par ligne editable (colonne
+     Valeur), meme pool que le QCompleter natif */
+  box.innerHTML="";
   if (!DET || !DET.rows.length){
     box.innerHTML=`<span class="empty">Sélectionnez un bloc pour voir ses propriétés.</span>`;
     return;
@@ -187,8 +208,8 @@ function renderDetail(){
   DET.rows.forEach((row,r)=>{
     html+="<tr>";
     row.forEach((cell,c)=>{
-      if (cell.e) html+=`<td class="ed" data-r="${r}" data-c="${c}" title="${esc(cell.t)}">${esc(cell.t)}</td>`;
-      else html+=`<td title="${esc(cell.t)}">${esc(cell.t)}</td>`;
+      const cls=[cell.e?"ed":"",cell.m?"mod":""].filter(Boolean).join(" ");
+      html+=`<td class="${cls}" data-r="${r}" data-c="${c}" title="${esc(cell.t)}">${esc(cell.t)}</td>`;
     });
     html+="</tr>";
   });
@@ -201,7 +222,16 @@ function openEditor(td){
   const input=document.createElement("input");
   input.className="cedit";
   input.value=DET.rows[r][c].t;
-  td.textContent="";
+  /* valeurs observees : meme pool que le QCompleter natif (saisie libre
+     toujours possible — datalist ne fait que suggerer) */
+  const opts=DET.rows[r][c].o;
+  td.textContent="";            /* vide AVANT d'ajouter input + datalist */
+  if (opts && opts.length){
+    const dl=document.createElement("datalist");
+    dl.innerHTML=opts.map(v=>`<option value="${esc(v)}">`).join("");
+    input.setAttribute("list",dl.id=("dlopt"+r+"_"+c));
+    td.appendChild(dl);
+  }
   td.appendChild(input);
   input.focus();
   let done=false;

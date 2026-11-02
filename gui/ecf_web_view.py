@@ -76,13 +76,15 @@ class EcfWebBridge(QObject):
 
     def _collect(self):
         """Parcours recursive de l'arbre Qt (source de verite) ->
-        (items, entries) : entries[kind, label, depth, search] dans l'ordre
-        d'affichage ; kind = block (selectionnable) | header (repere de
-        groupe) | gray (bloc commente nativement)."""
+        (items, entries) : entries[kind, label, depth, search, parent] dans
+        l'ordre d'affichage ; kind = block (selectionnable) | header (repere
+        de groupe) | gray (bloc commente nativement) ; parent = index de
+        l'entree parente (-1 pour les racines) — sert au filtre cote page
+        (un bloc filtre garde ses ancetres visibles)."""
         from core.ecf.model import EcfBlock
         items, entries = [], []
 
-        def push(item, depth):
+        def push(item, depth, parent_idx):
             block = item.data(0, Qt.ItemDataRole.UserRole)
             selectable = bool(item.flags() & Qt.ItemFlag.ItemIsSelectable)
             label = item.text(0)
@@ -99,16 +101,18 @@ class EcfWebBridge(QObject):
                 kind, search = "header", ""
             items.append(item)
             entries.append({"label": label, "kind": kind,
-                            "depth": depth, "search": search.lower()})
+                            "depth": depth, "search": search.lower(),
+                            "parent": parent_idx})
+            return len(items) - 1
 
-        def walk(item, depth):
-            push(item, depth)
+        def walk(item, depth, parent_idx):
+            my_idx = push(item, depth, parent_idx)
             for i in range(item.childCount()):
-                walk(item.child(i), depth + 1)
+                walk(item.child(i), depth + 1, my_idx)
 
         tree = self._widget.tree
         for i in range(tree.topLevelItemCount()):
-            walk(tree.topLevelItem(i), 0)
+            walk(tree.topLevelItem(i), 0, -1)
         return items, entries
 
     def _selected_index(self) -> int:
@@ -120,25 +124,45 @@ class EcfWebBridge(QObject):
 
     def _detail(self) -> dict:
         """La table de proprietes Qt (source de verite) : grille de cellules
-        {t: texte, e: editable} — editable = UserRole (prop_node, pair_key)
-        present, c'est-a-dire exactement les cellules que _on_cell_changed
-        sait ecrire."""
+        {t: texte, e: editable, m: modifie cette session, o: valeurs
+        observees} — editable = UserRole (prop_node, pair_key) present,
+        c'est-a-dire exactement les cellules que _on_cell_changed sait
+        ecrire ; m = halo ambre (prop touchee cette session, parite
+        mark_modified) ; o = pool de valeurs observees du delegate Qt
+        (colonne Valeur, meme liste que le QCompleter natif)."""
         table = self._widget.props_table
         cols = table.columnCount()
         header = []
         for c in range(cols):
             h = table.horizontalHeaderItem(c)
             header.append(h.text() if h is not None else "")
+        # pool du delegate pose sur la colonne Valeur (mode plat uniquement)
+        delegate = table.itemDelegateForColumn(1) if cols > 1 else None
+        pool = getattr(delegate, "_values_by_key", None) or {}
+        edited = self._widget._edited_prop_nodes
         rows = []
         for r in range(table.rowCount()):
             row = []
+            key = None
+            kitem = table.item(r, 0)
+            if kitem is not None:
+                key = kitem.data(Qt.ItemDataRole.UserRole)
+                # la cle stockee peut etre la paire (prop_node, pair_key) —
+                # le pool du delegate est indexe par la CLE SEULE
+                if isinstance(key, tuple):
+                    key = key[1]
             for c in range(cols):
                 item = table.item(r, c)
                 if item is None:
                     row.append({"t": "", "e": False})
-                else:
-                    row.append({"t": item.text(),
-                                "e": item.data(Qt.ItemDataRole.UserRole) is not None})
+                    continue
+                data = item.data(Qt.ItemDataRole.UserRole)
+                cell = {"t": item.text(), "e": data is not None}
+                if data is not None:
+                    cell["m"] = id(data[0]) in edited
+                    if c == 1 and key is not None:
+                        cell["o"] = pool.get(key, [])[:30]
+                row.append(cell)
             rows.append(row)
         mode = ("grid" if self._widget._table_mode
                 else "ingredients" if self._widget._ingredient_mode else "flat")
