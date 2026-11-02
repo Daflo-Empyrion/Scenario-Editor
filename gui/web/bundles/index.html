@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bundles — comparateur</title>
+<style>
+:root{
+  --bg:#05070D; --line:rgba(130,205,255,.10); --line-strong:rgba(130,205,255,.28);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --amber:#FFC24D; --green:#3DDC84; --red:#FF5C5C;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--bg);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.top{border-bottom:1px solid var(--line);background:rgba(10,15,26,.7);padding:8px 12px}
+.intro{font:11px var(--font);color:var(--muted);margin-bottom:6px}
+.prow{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.prow label{font:11px var(--mono);color:var(--dim);min-width:80px}
+.path{flex:1;height:26px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:12px var(--mono);
+  padding:0 9px;outline:none}
+.path:focus{border-color:rgba(0,229,255,.45)}
+.tbtn{height:26px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);padding:0 10px;white-space:nowrap;cursor:pointer;
+  background:linear-gradient(180deg, rgba(40,52,80,.55), rgba(16,22,38,.55));
+  color:var(--muted);font:11.5px var(--font)}
+.tbtn:hover{color:var(--txt);border-color:rgba(0,229,255,.45);background:rgba(0,229,255,.10)}
+.tbtn:disabled{opacity:.35;cursor:default;pointer-events:none}
+.tbtn.primary{border-color:rgba(0,229,255,.5);
+  background:linear-gradient(180deg, rgba(0,229,255,.22), rgba(0,140,190,.18));
+  color:#DFFAFF;font-weight:600}
+.wrap{flex:1;overflow:auto}
+.wrap::-webkit-scrollbar{width:11px;height:11px}
+.wrap::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.wrap::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+table{width:100%;border-collapse:collapse;font:11.5px var(--mono)}
+th{position:sticky;top:0;background:#0E1422;color:#8FE7F5;text-align:left;
+  font:600 11px var(--mono);padding:5px 10px;border-bottom:1px solid var(--line-strong)}
+td{padding:4px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+  max-width:520px;overflow:hidden;text-overflow:ellipsis}
+tr:nth-child(even) td{background:rgba(27,35,55,.45)}
+.added{color:var(--green)}
+.removed{color:var(--red)}
+.changed{color:var(--amber)}
+.bottom{display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-top:1px solid var(--line);background:rgba(10,15,26,.7)}
+.status{flex:1;font:11px var(--mono);color:var(--muted);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="intro" id="intro"></div>
+  <div class="prow"><label for="pa" id="lbl_a"></label>
+    <input class="path" id="pa" spellcheck="false">
+    <button class="tbtn" id="br_a"></button></div>
+  <div class="prow"><label for="pb" id="lbl_b"></label>
+    <input class="path" id="pb" spellcheck="false">
+    <button class="tbtn" id="br_b"></button></div>
+  <button class="tbtn primary" id="btn_run"></button>
+  <button class="tbtn" id="btn_info"></button>
+</div>
+<div class="wrap">
+  <table><thead><tr id="hrow"></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="bottom">
+  <span class="status" id="status"></span>
+  <button class="tbtn" id="btn_export"></button>
+  <button class="tbtn" id="btn_close"></button>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, M=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function boot(){
+  if (typeof qt==="undefined"||!qt.webChannelTransport){ setTimeout(boot,300); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.bridge;
+    BRIDGE.data_changed.connect(p => shape(JSON.parse(p)));
+    BRIDGE.get_init(m => shape(JSON.parse(m)));
+  });
+}
+
+function shape(m){
+  M=m; const L=m.labels;
+  $("intro").textContent=L.intro;
+  $("lbl_a").textContent=L.path_a; $("lbl_b").textContent=L.path_b;
+  $("br_a").textContent=L.browse; $("br_b").textContent=L.browse;
+  if (document.activeElement!==$("pa")) $("pa").value=m.paths.a||"";
+  if (document.activeElement!==$("pb")) $("pb").value=m.paths.b||"";
+  $("pa").placeholder=L.path_hint; $("pb").placeholder=L.path_hint;
+  $("btn_run").textContent=L.compare; $("btn_run").disabled=!!m.running;
+  $("btn_info").textContent=L.info;
+  $("btn_export").textContent=L.export;
+  $("btn_export").disabled=!m.export_enabled;
+  $("btn_close").textContent=L.close;
+  $("hrow").innerHTML=[L.col_status,L.col_path,L.col_type_a,L.col_type_b]
+    .map(h=>`<th>${esc(h)}</th>`).join("");
+  $("status").textContent=m.status;
+  $("tbody").innerHTML=m.rows.map(r=>
+    `<tr><td class="${esc(r.sev)}">${esc(r.status)}</td>`
+      +`<td title="${esc(r.path)}">${esc(r.path)}</td>`
+      +`<td>${esc(r.ta)}</td><td>${esc(r.tb)}</td></tr>`).join("");
+}
+
+$("pa").addEventListener("change",e=>BRIDGE.set_path("a",e.target.value));
+$("pb").addEventListener("change",e=>BRIDGE.set_path("b",e.target.value));
+$("br_a").onclick=()=>BRIDGE.browse("a");
+$("br_b").onclick=()=>BRIDGE.browse("b");
+$("btn_run").onclick=()=>{ BRIDGE.set_path("a",$("pa").value);
+                           BRIDGE.set_path("b",$("pb").value);
+                           BRIDGE.run_action("run"); };
+$("btn_export").onclick=()=>BRIDGE.run_action("export");
+$("btn_info").onclick=()=>BRIDGE.run_action("info");
+$("btn_close").onclick=()=>BRIDGE.run_action("close");
+boot();
+</script>
+</body>
+</html>

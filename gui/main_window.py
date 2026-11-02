@@ -2442,6 +2442,11 @@ class MainWindow(QMainWindow):
         """Comparer deux bundles Unity de scenarios (ajouts/retraits) :
         les bundles ne se fusionnent pas en binaire, on decide AVANT la
         fusion de dossier."""
+        from gui import bundles_web
+        if bundles_web.is_available():      # chantier webapp, 02/11
+            from gui.bundles_web import BundlesWebDialog
+            BundlesWebDialog(self).exec()
+            return
         from gui.bundles_dialog import BundlesDialog
         dlg = BundlesDialog(self)
         dlg.exec()
