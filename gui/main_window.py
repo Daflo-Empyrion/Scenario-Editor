@@ -2706,6 +2706,12 @@ class MainWindow(QMainWindow):
         if not self.workspace:
             QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return
+        from gui import health_web
+        if health_web.is_available():       # chantier webapp, 02/11
+            from gui.health_web import HealthWebDialog
+            self._health_check_dialog = HealthWebDialog(self, parent=self)
+            self._health_check_dialog.show()
+            return
         from gui.health_check_dialog import HealthCheckDialog
         self._health_check_dialog = HealthCheckDialog(self, parent=self)
         self._health_check_dialog.show()

@@ -13,6 +13,15 @@ from PyQt6.QtWidgets import QMessageBox
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "orphan_scenario"
 
 
+@pytest.fixture(autouse=True)
+def _force_qt_dashboard(monkeypatch):
+    """Ce fichier teste le TABLEAU DE BORD QT : on force la branche Qt du
+    routage de _open_health_check_dialog (is_available() depend de l'ordre
+    d'import QtWebEngineWidgets/QApplication sous pytest — jamais de
+    QWebEngineView reel ici, il bloquerait sous offscreen)."""
+    monkeypatch.setattr("gui.health_web.is_available", lambda: False)
+
+
 @pytest.fixture
 def window_with_scenario(qapp, tmp_path):
     from gui.theme import apply_theme

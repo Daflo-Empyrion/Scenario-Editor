@@ -136,42 +136,7 @@ class HealthCheckDialog(QDialog):
         self._apply_check_results(counts)
 
     def _collect_all_checks(self) -> dict:
-        """Les 4 familles de verifications, SANS toucher aux widgets
-        (executable hors du thread GUI)."""
-        from core.ecf.cross_reference_check import (CROSS_REFERENCE_CHECKS,
-                                                    CrossRefContext,
-                                                    run_checks)
-        from core.ecf.orphan_check import find_unused_tokens
-        from core.ecf.pending_conflicts import find_pending_conflicts
-        from core.ecf.parser import parse_ecf_file
-        from core.ecf.validation import validate_scenario
-
-        ecf_files = self._ecf_files()
-        ctx = CrossRefContext(ecf_files=ecf_files, yaml_files=[],
-                              scenario_root=self.workspace.working_root)
-        ref_issues = run_checks(ctx, [c.id for c in CROSS_REFERENCE_CHECKS])
-        by_file = validate_scenario(self.workspace.working_root)
-        pending_count = 0
-        for path in ecf_files:
-            try:
-                doc = parse_ecf_file(path)
-            except Exception:
-                continue
-            pending_count += len(find_pending_conflicts(doc))
-        unused = find_unused_tokens(ecf_files)
-        from core.launch_check import run_launch_checks
-        from core.settings import get_vanilla_content_path
-        launch_issues = run_launch_checks(
-            self.workspace.working_root, get_vanilla_content_path() or "")
-        launch_errors = sum(1 for i in launch_issues
-                            if i.severity == "error")
-        return {
-            "refs": len(ref_issues),
-            "validation": sum(len(issues) for issues in by_file.values()),
-            "pending": pending_count,
-            "orphans": len(unused),
-            "launch_errors": launch_errors,
-        }
+        return collect_all_checks(self.workspace)
 
     def _apply_check_results(self, counts: dict):
         total_problems = (counts["refs"] + counts["validation"]
@@ -229,3 +194,44 @@ class HealthCheckDialog(QDialog):
         dlg = LaunchCheckDialog(self.main_window,
                                 working_root=str(self.workspace.working_root))
         dlg.show()
+
+
+def collect_all_checks(workspace) -> dict:
+    """Les 5 familles de verifications, SANS toucher aux widgets
+    (executable hors du thread GUI). Partagee par le dialogue Qt ci-dessus
+    et la vue web (gui/health_web.py) — une seule implementation."""
+    from core.ecf.cross_reference_check import (CROSS_REFERENCE_CHECKS,
+                                                CrossRefContext,
+                                                run_checks)
+    from core.ecf.orphan_check import find_unused_tokens
+    from core.ecf.pending_conflicts import find_pending_conflicts
+    from core.ecf.parser import parse_ecf_file
+    from core.ecf.validation import validate_scenario
+
+    ecf_files = [f.path for f in workspace.working.configuration
+                 if f.extension == '.ecf']
+    ctx = CrossRefContext(ecf_files=ecf_files, yaml_files=[],
+                          scenario_root=workspace.working_root)
+    ref_issues = run_checks(ctx, [c.id for c in CROSS_REFERENCE_CHECKS])
+    by_file = validate_scenario(workspace.working_root)
+    pending_count = 0
+    for path in ecf_files:
+        try:
+            doc = parse_ecf_file(path)
+        except Exception:
+            continue
+        pending_count += len(find_pending_conflicts(doc))
+    unused = find_unused_tokens(ecf_files)
+    from core.launch_check import run_launch_checks
+    from core.settings import get_vanilla_content_path
+    launch_issues = run_launch_checks(
+        workspace.working_root, get_vanilla_content_path() or "")
+    launch_errors = sum(1 for i in launch_issues
+                        if i.severity == "error")
+    return {
+        "refs": len(ref_issues),
+        "validation": sum(len(issues) for issues in by_file.values()),
+        "pending": pending_count,
+        "orphans": len(unused),
+        "launch_errors": launch_errors,
+    }
