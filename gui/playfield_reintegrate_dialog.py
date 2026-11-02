@@ -292,6 +292,13 @@ def open_reintegrate(parent, main_window=None) -> bool:
     if root is None:
         info(parent, t("reintegrate.title"), t("reintegrate.no_workspace"))
         return False
+    from gui import reintegrate_web
+    if reintegrate_web.is_available():      # chantier webapp, 02/11
+        from gui.reintegrate_web import ReintegrateWebDialog
+        dialog = ReintegrateWebDialog(root, parent=parent,
+                                      main_window=main_window)
+        dialog.exec()
+        return dialog._bridge.applied > 0
     dialog = PlayfieldReintegrateDialog(root, parent=parent,
                                        main_window=main_window)
     dialog.exec()
