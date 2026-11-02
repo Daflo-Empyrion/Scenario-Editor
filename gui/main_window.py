@@ -2398,11 +2398,16 @@ class MainWindow(QMainWindow):
         """Look cartoon : preset visuel data (terrain + ciels des
         playfields), previsualisation puis application + synchro
         production (core/cartoon_look.py)."""
-        from gui.cartoon_dialog import CartoonDialog
         working = ""
         ws = getattr(self, "workspace", None)
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
+        from gui import cartoon_web
+        if cartoon_web.is_available():      # chantier webapp, 02/11
+            from gui.cartoon_web import CartoonWebDialog
+            CartoonWebDialog(self, working_root=working).exec()
+            return
+        from gui.cartoon_dialog import CartoonDialog
         dlg = CartoonDialog(self, working_root=working)
         dlg.exec()
 
