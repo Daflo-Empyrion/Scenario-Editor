@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QSplitter, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QMessageBox, QMenu,
     QProgressDialog, QInputDialog, QPushButton, QDialog, QRadioButton, QButtonGroup, QComboBox, QTextEdit,
+    QStackedWidget,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -78,6 +79,7 @@ from gui.wiki_viewer import open_wiki
 from gui.theme import icon, icon_size
 from gui import theme as _theme
 from gui import fluent_pilot
+from gui import workspace_web_view as _ws_web
 from gui.neon_delegate import NeonItemDelegate
 from gui.busy import busy_guard
 from gui.msgboxes import ask_save_discard_cancel, ask_yes_no
@@ -2783,9 +2785,27 @@ class MainWindow(QMainWindow):
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
         self.tree_working.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_working.customContextMenuRequested.connect(self._show_working_context_menu)
-        layout_w.addWidget(self.label_working)
+        # Vue web de l'arbre (chantier webapp, tranche finale 02/11) :
+        # EMPILEE par-dessus l'arbre Qt (source de verite, reste vivant).
+        self._ws_web_view = None
+        self._ws_web_bridge = None
+        label_row = QHBoxLayout()
+        label_row.setContentsMargins(0, 0, 0, 0)
+        label_row.addWidget(self.label_working, 1)
+        self.btn_ws_web = QPushButton(icon("fa5s.desktop", "#4a7dfc"),
+                                      t("csv.web_toggle"))
+        self.btn_ws_web.setIconSize(icon_size())
+        self.btn_ws_web.setObjectName("secondaryButton")
+        self.btn_ws_web.setCheckable(True)
+        self.btn_ws_web.setToolTip(t("csv.web_toggle_tooltip"))
+        self.btn_ws_web.setVisible(_ws_web.is_available())
+        self.btn_ws_web.toggled.connect(self._toggle_workspace_web)
+        label_row.addWidget(self.btn_ws_web)
+        layout_w.addLayout(label_row)
         self._attach_tree_filter(self.tree_working, layout_w)
-        layout_w.addWidget(self.tree_working)
+        self._ws_stack = QStackedWidget()
+        self._ws_stack.addWidget(self.tree_working)
+        layout_w.addWidget(self._ws_stack)
         bottom_splitter.addWidget(self.panel_working)
 
         self.panel_b = QWidget()
@@ -2969,6 +2989,35 @@ class MainWindow(QMainWindow):
         search = self._tree_search_boxes.get(tree)
         if search is not None and search.text().strip():
             self._filter_tree(tree, search.text())
+        if tree is getattr(self, "tree_working", None):
+            self._workspace_web_refresh()
+
+    # ------------------------------------------------------------------
+    # Vue web de la copie de travail (chantier webapp, 02/11)
+    # ------------------------------------------------------------------
+
+    def _toggle_workspace_web(self, checked: bool):
+        """Bascule arbre Qt / vue web du panneau « Copie de travail ». L'arbre
+        Qt reste la source de verite : la page ne fait que lire et rejouer le
+        double-clic (ouverture par open_working_file_tab)."""
+        if checked:
+            if self._ws_web_view is None:
+                self._ws_web_view, self._ws_web_bridge = _ws_web.make_web_view(
+                    self, self.tree_working, self)
+                self._ws_stack.addWidget(self._ws_web_view)
+            self._ws_web_view.refresh()
+            self._ws_stack.setCurrentWidget(self._ws_web_view)
+        else:
+            self._ws_stack.setCurrentWidget(self.tree_working)
+
+    def _workspace_web_refresh(self):
+        """Re-pousse l'arbre vers la vue web apres _populate_tree — no-op
+        tant que la vue n'existe pas (getattr : _populate_tree peut tourner
+        avant la construction du panneau)."""
+        view = getattr(self, "_ws_web_view", None)
+        btn = getattr(self, "btn_ws_web", None)
+        if view is not None and btn is not None and btn.isChecked():
+            self._ws_web_bridge.push_reset()
 
     def _attach_tree_filter(self, tree: QTreeWidget, layout: QVBoxLayout):
         """Insere un champ de filtrage au-dessus d'un arbre et le branche au

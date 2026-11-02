@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Workspace — copie de travail</title>
+<style>
+:root{
+  --bg:#05070D; --line:rgba(130,205,255,.10); --line-strong:rgba(130,205,255,.28);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --amber:#FFC24D;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+  --rh:24px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--bg);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.top{border-bottom:1px solid var(--line);background:rgba(10,15,26,.7)}
+.bar{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px}
+.bar input{flex:1;height:24px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:11.5px var(--font);
+  padding:0 8px;outline:none}
+.bar input:focus{border-color:rgba(0,229,255,.45)}
+.bar .st{font:10px var(--mono);color:var(--dim);min-width:60px;text-align:right}
+.grid{position:relative;overflow:auto;flex:1;cursor:default}
+.grid::-webkit-scrollbar{width:10px;height:10px}
+.grid::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.grid::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+.sizer{position:relative;width:max-content;min-width:100%}
+.row{position:absolute;display:flex;align-items:center;height:var(--rh);left:0;right:0;
+  padding:0 9px;font:11.5px var(--mono);color:var(--txt);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;user-select:none}
+.row:hover{background:rgba(0,229,255,.07)}
+.row.file{cursor:pointer}
+.row.folder{color:#8FE7F5;font-weight:600}
+.ind{display:inline-block}
+.ico{width:12px;display:inline-block;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="bar">
+    <input id="q" spellcheck="false">
+    <span class="st" id="qstat"></span>
+  </div>
+</div>
+<div class="grid" id="grid">
+  <div class="sizer" id="sizer">
+    <div id="viewport" style="position:absolute;left:0;right:0;top:0"></div>
+  </div>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, ALL=[], VIEW=[], LBL=null;
+const RH=24, OVERSCAN=10;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const grid=$("grid"), sizer=$("sizer"), vp=$("viewport");
+
+function boot(){
+  if (typeof qt==="undefined"||!qt.webChannelTransport){ setTimeout(boot,300); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.wsbridge;
+    BRIDGE.data_changed.connect(p => shape(JSON.parse(p)));
+    BRIDGE.get_entries(m => shape(JSON.parse(m)));
+  });
+}
+
+function shape(m){
+  ALL=m.entries||[];
+  if (m.labels) LBL=m.labels;
+  if (LBL) $("q").placeholder=LBL.search;
+  applyFilter();
+}
+
+function applyFilter(){
+  const q=$("q").value.trim().toLowerCase();
+  VIEW = q ? ALL.filter(e=>e.search.indexOf(q)>=0) : ALL;
+  for (const e of VIEW) e._idx = ALL.indexOf(e);
+  $("qstat").textContent=q?`${VIEW.length}/${ALL.length}`:"";
+  sizer.style.height=(VIEW.length*RH+8)+"px";
+  grid.scrollTop=0;
+  render();
+}
+
+function render(){
+  const first=Math.max(0,Math.floor(grid.scrollTop/RH)-OVERSCAN);
+  const last=Math.min(VIEW.length,Math.ceil((grid.scrollTop+grid.clientHeight)/RH)+OVERSCAN);
+  let html="";
+  for (let i=first;i<last;i++){
+    const e=VIEW[i];
+    const ico=e.kind==="folder"?"▸":"·";
+    html+=`<div class="row ${e.kind}" data-i="${e._idx}" style="top:${i*RH}px">`
+      +`<span class="ind" style="width:${e.depth*14}px"></span>`
+      +`<span class="ico">${ico}</span>${esc(e.label)}</div>`;
+  }
+  vp.innerHTML=html;
+}
+
+/* double-clic (parite Qt) : ouvre le fichier dans l'editeur existant */
+vp.addEventListener("dblclick",ev=>{
+  const row=ev.target.closest(".row.file");
+  if (row) BRIDGE.open_entry(+row.dataset.i);
+});
+
+$("q").addEventListener("input",applyFilter);
+grid.addEventListener("scroll",render);
+window.addEventListener("resize",render);
+boot();
+</script>
+</body>
+</html>
