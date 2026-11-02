@@ -2398,11 +2398,17 @@ class MainWindow(QMainWindow):
         UnlockCost, corrélations, spawns, progression) consolidés en
         constatations avec module de correction conseillé
         (core/coherence_audit.py)."""
-        from gui.coherence_dialog import CoherenceDialog
         working = ""
         ws = getattr(self, "workspace", None)
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
+        from gui import coherence_web
+        if coherence_web.is_available():    # chantier webapp, 02/11
+            from gui.coherence_web import CoherenceWebDialog
+            dlg = CoherenceWebDialog(self, working_root=working)
+            dlg.exec()
+            return
+        from gui.coherence_dialog import CoherenceDialog
         dlg = CoherenceDialog(self, working_root=working)
         dlg.exec()
 

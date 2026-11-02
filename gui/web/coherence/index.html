@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Cohérence — contrôle global</title>
+<style>
+:root{
+  --bg:#05070D; --line:rgba(130,205,255,.10); --line-strong:rgba(130,205,255,.28);
+  --txt:#E9F2FA; --muted:#8FA3B8; --dim:#5E7085;
+  --cyan:#00E5FF; --amber:#FFC24D; --red:#FF5C5C;
+  --font:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);color:var(--txt);overflow:hidden;background:var(--bg);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.top{border-bottom:1px solid var(--line);background:rgba(10,15,26,.7)}
+.bar{height:46px;display:flex;align-items:center;gap:8px;padding:0 12px}
+.bar label{font:11px var(--mono);color:var(--dim);white-space:nowrap}
+.path{flex:1;height:28px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(6,11,20,.72);color:var(--txt);font:12px var(--mono);
+  padding:0 9px;outline:none}
+.path:focus{border-color:rgba(0,229,255,.45)}
+.tbtn{height:28px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);padding:0 11px;white-space:nowrap;cursor:pointer;
+  background:linear-gradient(180deg, rgba(40,52,80,.55), rgba(16,22,38,.55));
+  color:var(--muted);font:11.5px var(--font);
+  transition:border-color .12s, color .12s, background .12s}
+.tbtn:hover{color:var(--txt);border-color:rgba(0,229,255,.45);
+  background:rgba(0,229,255,.10);box-shadow:0 0 14px -6px rgba(0,229,255,.6)}
+.tbtn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.tbtn.primary{border-color:rgba(0,229,255,.5);
+  background:linear-gradient(180deg, rgba(0,229,255,.22), rgba(0,140,190,.18));
+  color:#DFFAFF;font-weight:600;
+  box-shadow:0 0 16px -8px rgba(0,229,255,.8), inset 0 1px 0 rgba(255,255,255,.15)}
+.tbtn.primary:hover{background:rgba(0,229,255,.28)}
+.status{padding:6px 12px;font:11px var(--mono);color:var(--muted);
+  border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;min-height:24px}
+.status.on{color:var(--amber)}
+.wrap{flex:1;overflow:auto}
+.wrap::-webkit-scrollbar{width:11px;height:11px}
+.wrap::-webkit-scrollbar-track{background:rgba(8,12,21,.4)}
+.wrap::-webkit-scrollbar-thumb{background:rgba(130,205,255,.20);border-radius:6px;
+  border:3px solid transparent;background-clip:content-box}
+table{width:100%;border-collapse:collapse;font:12px var(--mono)}
+th{position:sticky;top:0;background:#0E1422;color:#8FE7F5;font:600 11px var(--mono);
+  text-align:left;padding:6px 10px;border-bottom:1px solid var(--line-strong);
+  white-space:nowrap}
+td{padding:5px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:nth-child(even) td{background:rgba(27,35,55,.45)}
+tr:hover td{background:rgba(0,229,255,.07)}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.detail{color:var(--muted);word-break:break-word}
+.sev{font:600 11px var(--mono);white-space:nowrap}
+.sev-error{color:var(--red)}
+.sev-warning{color:var(--amber)}
+.sev-info{color:var(--dim)}
+.sec{color:var(--txt);white-space:nowrap}
+.tool{color:#8FE7F5;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="bar">
+    <label for="path" id="lbl_scenario"></label>
+    <input class="path" id="path" spellcheck="false">
+    <button class="tbtn" id="btn_browse"></button>
+    <button class="tbtn primary" id="btn_run"></button>
+    <button class="tbtn" id="btn_export"></button>
+  </div>
+</div>
+<div class="status" id="status"></div>
+<div class="wrap">
+  <table>
+    <thead><tr id="hrow"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>__QWEBCHANNEL_JS__</script>
+<script>
+"use strict";
+let BRIDGE=null, M=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function boot(){
+  if (typeof qt==="undefined"||!qt.webChannelTransport){ setTimeout(boot,300); return; }
+  new QWebChannel(qt.webChannelTransport, ch => {
+    BRIDGE = ch.objects.bridge;
+    BRIDGE.data_changed.connect(p => shape(JSON.parse(p)));
+    BRIDGE.get_init(m => shape(JSON.parse(m)));
+  });
+}
+
+function shape(m){
+  M=m;
+  if (document.activeElement!==$("path")) $("path").value=m.path||"";
+  const L=m.labels;
+  $("lbl_scenario").textContent=L.scenario;
+  $("path").placeholder=L.scenario_hint;
+  $("btn_browse").textContent=L.browse;
+  $("btn_run").textContent=L.analyze;
+  $("btn_run").title=L.analyze_tip;
+  $("btn_run").disabled=!!m.running;
+  $("btn_export").textContent=L.export;
+  $("btn_export").disabled=!m.export_enabled;
+  $("status").textContent=m.status;
+  $("status").classList.toggle("on",!!m.running);
+  $("hrow").innerHTML=[L.col_domain,L.col_severity,L.col_count,
+                       L.col_examples,L.col_module]
+    .map(h=>`<th>${esc(h)}</th>`).join("");
+  $("tbody").innerHTML=m.rows.map(r=>
+    `<tr>`
+    +`<td class="sec" title="${esc(r.section)}">${esc(r.section)}</td>`
+    +`<td class="sev ${esc(r.sev_key)}">${esc(r.sev)}</td>`
+    +`<td class="num">${r.count}</td>`
+    +`<td class="detail" title="${esc(r.detail)}">${esc(r.detail)}</td>`
+    +`<td class="tool">${esc(r.fix_tool)}</td>`
+    +`</tr>`).join("");
+}
+
+$("path").addEventListener("change",e=>BRIDGE.set_path(e.target.value));
+$("btn_browse").onclick=()=>BRIDGE.run_action("browse");
+$("btn_run").onclick=()=>{ BRIDGE.set_path($("path").value);
+                           BRIDGE.run_action("run"); };
+$("btn_export").onclick=()=>BRIDGE.run_action("export");
+boot();
+</script>
+</body>
+</html>
