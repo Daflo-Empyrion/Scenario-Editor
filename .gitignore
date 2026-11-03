@@ -22,6 +22,9 @@ itemicons/
 # utilisateur, contiennent projets recents, langue choisie, etc.)
 .empyrion_editor/
 CONTEXTE_REPRISE.md
+PLAN_FUSION_*.md
+references_croisees*.txt
+bilan_lancement*.csv
 AGENTS.md
 
 # Documentation PDA du jeu (Doxygen Eleon.PdaScript) -- fichier du jeu, local

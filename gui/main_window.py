@@ -592,6 +592,11 @@ class MainWindow(QMainWindow):
         self.action_vanilla_content = self.menu_translation.addAction(
             t("menu.options.vanilla_content"))
         self.action_vanilla_content.triggered.connect(self._set_vanilla_content_dialog)
+        # Corpus de traduction perso (03/11/2026) : ajoute ses cles deja
+        # traduites au corpus embarque (core/trad_corpus.py).
+        self.action_corpus_trad = self.menu_translation.addAction(
+            t("menu.options.corpus_trad"))
+        self.action_corpus_trad.triggered.connect(self._set_corpus_trad_dir_dialog)
 
         # -- Interface (sous-menu) --------------------------------------------
         self.menu_interface = self.menu_options.addMenu(
@@ -2451,6 +2456,28 @@ class MainWindow(QMainWindow):
             return
         settings.set_vanilla_content_path(path)
         QMessageBox.information(self, t("vanilla.title"), t("vanilla.saved", path=path))
+
+    def _set_corpus_trad_dir_dialog(self):
+        """Dossier PERSONNEL de corpus de traduction : tout Localization.csv,
+        Dialogues.csv ou PDA.csv (a n'importe quelle profondeur) y ajoute ses
+        cles deja traduites au corpus embarque. Vide = corpus embarque seul."""
+        current = settings.get_corpus_trad_dir()
+        path = QFileDialog.getExistingDirectory(self, t("corpus.trad_dir_title"),
+                                                current or "")
+        if not path:
+            if current and ask_yes_no(self, t("corpus.trad_dir_title"),
+                                      t("corpus.trad_dir_clear_confirm")):
+                settings.set_corpus_trad_dir("")
+                from core import trad_corpus
+                trad_corpus.clear_cache()
+            return
+        settings.set_corpus_trad_dir(path)
+        from core import trad_corpus
+        trad_corpus.clear_cache()
+        counts = trad_corpus.available()
+        QMessageBox.information(self, t("corpus.trad_dir_title"),
+                                t("corpus.trad_dir_saved", path=path,
+                                  n=sum(counts.values())))
 
     def check_pending_conflicts_dialog(self):
         if not self.workspace:

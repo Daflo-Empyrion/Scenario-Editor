@@ -54,6 +54,8 @@ def test_multiple_removals_persist(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(project_store, "CONFIG_FILE",
                         tmp_path / "cfg" / "projets_recents.json")
     for record in (a, b, c):
+        Path(record.source_a).mkdir(parents=True)
+        Path(record.working).mkdir(parents=True)
         project_store.add_recent_project(record)
 
     dlg = StartupDialog(project_store.load_recent_projects())
@@ -70,3 +72,30 @@ def test_multiple_removals_persist(qapp, tmp_path, monkeypatch):
         project_store.remove_project(record.working)
     assert load_recent_projects() == []
     dlg.reject()          # ne JAMAIS appeler exec() dans un test : boucle modale
+
+
+def test_load_ignores_deleted_projects(tmp_path, monkeypatch):
+    """Projets supprimes hors de l'editeur : ils ne doivent plus apparaitre
+    dans la liste des recents (vecu 03/11/2026 : 9 projets morts proposes
+    au demarrage)."""
+    monkeypatch.setattr(project_store, "CONFIG_DIR", tmp_path / "cfg")
+    monkeypatch.setattr(project_store, "CONFIG_FILE",
+                        tmp_path / "cfg" / "projets_recents.json")
+
+    def rec(name):
+        return ProjectRecord(source_a=str(tmp_path / name),
+                             working=str(tmp_path / name / "working"),
+                             source_b=str(tmp_path / name / "b") if name == "Fusion" else None,
+                             label=name)
+
+    vivant, fantome, fusion = rec("Vivant"), rec("Fantome"), rec("Fusion")
+    for r in (vivant, fusion):
+        for path in (r.source_a, r.working, r.source_b):
+            if path:
+                Path(path).mkdir(parents=True)
+    project_store.add_recent_project(fantome)
+    project_store.add_recent_project(vivant)
+    project_store.add_recent_project(fusion)
+
+    # fantome (aucun dossier) et fusion (source_b manquante) ne reviennent pas
+    assert [r.label for r in load_recent_projects()] == ["Fusion", "Vivant"]

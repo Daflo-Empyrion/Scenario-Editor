@@ -495,6 +495,18 @@ def set_vanilla_content_path(path: str) -> None:
     _set('vanilla_content_path', path)
 
 
+def get_corpus_trad_dir() -> str:
+    """Dossier PERSONNEL de corpus de traduction (core/trad_corpus.py) :
+    tout CSV nomme Localization.csv / Dialogues.csv / PDA.csv y ajoute ses
+    cles deja traduites au corpus embarque avec l'application. Vide = seul
+    le corpus embarque est utilise."""
+    return _get('corpus_trad_dir', '')
+
+
+def set_corpus_trad_dir(path: str) -> None:
+    _set('corpus_trad_dir', path)
+
+
 def get_ewa() -> dict:
     """Configuration du module admin serveur (EWA) : dict libre (url,
     identifiants, sftp{}, telnet{}...) -- whole-dict remplace, la structure

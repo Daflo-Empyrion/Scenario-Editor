@@ -39,7 +39,7 @@ un rapport deja ouvert (relancer le rapport pour rafraichir).
 """
 from PyQt6 import sip
 from PyQt6.QtCore import QEventLoop, Qt
-from PyQt6.QtWidgets import QDialog, QMessageBox
+from PyQt6.QtWidgets import QDialog, QMessageBox, QProgressDialog
 
 from gui.window_geometry import enable_maximize
 
@@ -96,12 +96,21 @@ def exec_without_locking(dialog):
             dialog.finished.disconnect(_stop)
         except (TypeError, RuntimeError):
             pass              # dialogue detruit par le systeme entre-temps
-    return dialog.result()
+    # QDialog.result NON LIE : certains dialogues stockent leur propre
+    # attribut d'instance 'result' (MergePreviewDialog -> MergeResult), qui
+    # masque la methode heritee et faisait 'MergeResult object is not
+    # callable' (vecu 03/11/2026 a la fusion du premier fichier).
+    return QDialog.result(dialog)
 
 
 def _policy_init(self, *args, **kwargs):
     _original_init(self, *args, **kwargs)
-    if not isinstance(self, QMessageBox):
+    # QProgressDialog : JAMAIS de boutons Min/Max. setWindowFlags sur cet
+    # objet en cours de construction faisait une ACCESS VIOLATION native
+    # (vecu 03/11/2026 : la creation de projet fermait l'application sans
+    # message, pile dans enable_maximize) ; une barre de progression n'a de
+    # toute facon rien a agrandir.
+    if not isinstance(self, (QMessageBox, QProgressDialog)):
         enable_maximize(self)
 
 

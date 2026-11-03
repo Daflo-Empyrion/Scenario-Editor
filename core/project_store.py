@@ -45,16 +45,26 @@ class ProjectRecord:
         mode = "  (fusion)" if self.source_b else ""
         return f"{name}{mode}"
 
+    def exists_on_disk(self) -> bool:
+        # un projet dont un seul chemin a disparu n'est pas rouvrable
+        # (scan_scenario leve une erreur des la reprise)
+        paths = [Path(self.source_a), Path(self.working)]
+        if self.source_b:
+            paths.append(Path(self.source_b))
+        return all(p.exists() for p in paths)
+
 
 def load_recent_projects() -> List[ProjectRecord]:
     if not CONFIG_FILE.exists():
         return []
     try:
         data = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
-        return [ProjectRecord(**p) for p in data.get('projects', [])]
+        projects = [ProjectRecord(**p) for p in data.get('projects', [])]
     except Exception as e:
         logger.warning('Projets recents illisibles : %s', e)
         return []
+    # un projet supprime hors de l'editeur ne doit plus s'afficher au demarrage
+    return [p for p in projects if p.exists_on_disk()]
 
 
 def save_recent_projects(projects: List[ProjectRecord]) -> None:

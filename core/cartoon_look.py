@@ -383,6 +383,10 @@ def restore_backup(scenario: str | Path, backup_dir: str | Path,
         rep["prod"] = prod
         rep["bins"] = bins
         rep["copied"] = copied
+        # le marqueur existe aussi cote production (pose par run_preset) :
+        # un etat restaure peut etre pre-cartoon des deux cotes (vecu
+        # 03/11 : il restait apres restauration)
+        (Path(prod) / MARKER).unlink(missing_ok=True)
     rep["ok"] = True
     return rep
 

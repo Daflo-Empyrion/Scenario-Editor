@@ -68,6 +68,8 @@ def mark_modified(item, column: int = None):
 # distinct du jaune 'modifie' -- demande 17/09/2026.
 COLOR_VANILLA_CELL = QBrush(QColor(228, 243, 232))
 FOREGROUND_VANILLA = QBrush(QColor(24, 66, 40))
+COLOR_CORPUS_CELL = QBrush(QColor(228, 236, 250))
+FOREGROUND_CORPUS = QBrush(QColor(26, 52, 110))
 
 
 def mark_vanilla(item):
@@ -76,6 +78,21 @@ def mark_vanilla(item):
     familles de themes."""
     item.setBackground(COLOR_VANILLA_CELL)
     item.setForeground(FOREGROUND_VANILLA)
+
+
+def mark_corpus(item):
+    """Cellule reprise du corpus de traduction (cle deja traduite dans
+    Localization/Dialogues/PDA de reference) : fond bleu pale, distinct du
+    vert 'vanille' pour montrer d'ou vient le texte."""
+    item.setBackground(COLOR_CORPUS_CELL)
+    item.setForeground(FOREGROUND_CORPUS)
+
+
+def _detect_corpus_type(path) -> Optional[str]:
+    """Type de corpus de traduction du fichier (localization/dialogues/pda),
+    ou None. Import local : core.trad_corpus lit le zip embarque."""
+    from core import trad_corpus
+    return trad_corpus.detect_type(path)
 
 
 class CsvEditWidget(QWidget):
@@ -105,6 +122,7 @@ class CsvEditWidget(QWidget):
         self._search_last_scope_key = None
         self._batch_worker = None  # traduction en lot en cours (ref forte : sinon le GC tue le QThread en vol)
         self._highlighted_keys: set = set()  # cles CSV modifiees en memoire par l'editeur PDA
+        self._corpus_kind = _detect_corpus_type(path)
         # Vue web (pilote 2026, 01/11) : la QTableWidget reste la source de
         # verite -- chaque edition web est MIRROREE dans la table (signaux
         # bloques), donc sauvegarde/undo/orthographe lisent des donnees a jour.
@@ -178,6 +196,18 @@ class CsvEditWidget(QWidget):
             btn_fill_missing.setObjectName("secondaryButton")
             btn_fill_missing.clicked.connect(self._open_fill_missing_dialog)
             toolbar.addWidget(btn_fill_missing)
+            # Corpus de traduction (demande 03/11/2026) : les cles deja
+            # traduites dans Localization/Dialogues/PDA d'un scenario de
+            # reference, reprises sans repayer d'IA. Visible seulement sur
+            # ces trois fichiers (un CSV quelconque n'a pas de corpus).
+            if self._corpus_kind:
+                btn_corpus = QPushButton(icon("fa5s.database", "#4a7dfc"),
+                                         t("btn.import_corpus"))
+                btn_corpus.setIconSize(icon_size())
+                btn_corpus.setObjectName("secondaryButton")
+                btn_corpus.setToolTip(t("btn.import_corpus_tooltip"))
+                btn_corpus.clicked.connect(self._import_corpus_translations)
+                toolbar.addWidget(btn_corpus)
             btn_quick_translate = QPushButton(icon("fa5s.globe", "#4a7dfc"), t("btn.quick_translate"))
             btn_quick_translate.setIconSize(icon_size())
             btn_quick_translate.setObjectName("secondaryButton")
@@ -707,27 +737,90 @@ class CsvEditWidget(QWidget):
         open_ai_explanation(self, csv_context(
             self.doc.header or [], rows, row, col, self.path.name))
 
+    def _corpus_value(self, row: int, target_code: str, target_label: str) -> Optional[str]:
+        """Traduction de la cle de cette ligne dans la colonne de la langue
+        cible, tiree du corpus (Localization/Dialogues/PDA de reference),
+        ou None. L'en-tete est compare REPARE du mojibake : les CSV d'origine
+        russe portent des en-tetes 'FranГ§ais' qui ne matcheraient jamais."""
+        kind = getattr(self, "_corpus_kind", None)
+        if not kind:
+            return None
+        key_item = self.table.item(row, 0)
+        if key_item is None or not key_item.text().strip():
+            return None
+        from core import trad_corpus
+        values = trad_corpus.lookup(kind, key_item.text())
+        if not values:
+            return None
+        col = self._find_language_column(target_code, target_label)
+        header = self.table.horizontalHeaderItem(col) if col is not None else None
+        want = translation._normalize(translation.repair_mojibake(
+            header.text() if header else target_label))
+        for label, text in values.items():
+            if translation._normalize(
+                    translation.repair_mojibake(label)) == want:
+                return text.strip() or None
+        return None
+
+    def _import_corpus_translations(self):
+        """Complete les cellules VIDES du fichier depuis le corpus de
+        traduction (toutes les langues de la ligne de reference). Jamais
+        d'ecrasement : une cellule deja remplie est conservee."""
+        if not self.editable:
+            return
+        from core import trad_corpus
+        kind = getattr(self, "_corpus_kind", None)
+        if not kind:
+            return
+        self._snapshot_undo()
+        filled = trad_corpus.fill_document(self.doc, kind)
+        if not filled:
+            QMessageBox.information(self, t("corpus.title"), t("corpus.nothing"))
+            return
+        # la table est reconstruite depuis le doc : re-marquer les cellules
+        # remplies (le populate cree de nouveaux items, toute couleur est perdue)
+        self._populate_table()
+        self.table.blockSignals(True)
+        try:
+            for r, c in filled:
+                item = self.table.item(r, c)
+                if item is not None:
+                    mark_corpus(item)
+                    item.setToolTip(t("trans.corpus_cell_tooltip"))
+        finally:
+            self.table.blockSignals(False)
+        self._set_modified(True)
+        QMessageBox.information(self, t("corpus.title"),
+                                t("corpus.done", n=len(filled)))
+
     def _translate_single_cell(self, item: QTableWidgetItem, text: str, target_code: str, target_label: str):
         """Traduit une cellule et propose de remplacer soit la cellule elle-meme, soit
         la colonne correspondant a la langue cible sur la meme ligne si elle existe --
         logique partagee entre le menu contextuel (clic droit -> Traduire vers) et le
         bouton 'Traduire' rapide de la barre d'outils."""
         row = item.row()
-        if not translation.is_available():
+        corpus_text = self._corpus_value(row, target_code, target_label)
+        if corpus_text:
+            # cle deja traduite dans le corpus : aucune IA a payer
+            translated, src = corpus_text, "corpus"
+        elif not translation.is_available():
             QMessageBox.warning(self, t("trans.unavailable_title"), t("trans.unavailable_msg", error=translation.get_import_error()))
             return
-        try:
-            translated, src = translation.translate_text_with_source(
-                text, target=target_code)
-        except Exception as e:
-            QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
-            return
+        else:
+            try:
+                translated, src = translation.translate_text_with_source(
+                    text, target=target_code)
+            except Exception as e:
+                QMessageBox.critical(self, t("trans.error_title"), t("trans.error_msg", error=e))
+                return
 
         # Correction grammaticale Grammalecte AVANT l'apercu (demande du
         # 12/09/2026) : l'utilisateur valide une version deja corrigee, qui
-        # alimente ensuite memoire/glossaire a l'application.
-        from core import spellcheck as _sp
-        translated, _fixed = _sp.auto_fix(translated)
+        # alimente ensuite memoire/glossaire a l'application. Jamais pour le
+        # corpus : la traduction y est deja validee, la repasser la modifierait.
+        if src != "corpus":
+            from core import spellcheck as _sp
+            translated, _fixed = _sp.auto_fix(translated)
 
         target_col = self._find_language_column(target_code, target_label)
         dest_label = None
@@ -768,22 +861,30 @@ class CsvEditWidget(QWidget):
                 dest_item = QTableWidgetItem("")
                 self.table.setItem(row, target_col, dest_item)
             dest_item.setText(result_text)
-            if src == "vanilla":
+            if src in ("vanilla", "corpus"):
                 self.table.blockSignals(True)
                 try:
-                    mark_vanilla(dest_item)
-                    dest_item.setToolTip(t("trans.vanilla_cell_tooltip"))
+                    if src == "vanilla":
+                        mark_vanilla(dest_item)
+                        dest_item.setToolTip(t("trans.vanilla_cell_tooltip"))
+                    else:
+                        mark_corpus(dest_item)
+                        dest_item.setToolTip(t("trans.corpus_cell_tooltip"))
                 finally:
                     self.table.blockSignals(False)
         else:
             # Pas de colonne correspondant a cette langue trouvee dans l'en-tete ->
             # on remplace la cellule d'origine par defaut, comme avant.
             item.setText(result_text)
-            if src == "vanilla":
+            if src in ("vanilla", "corpus"):
                 self.table.blockSignals(True)
                 try:
-                    mark_vanilla(item)
-                    item.setToolTip(t("trans.vanilla_cell_tooltip"))
+                    if src == "vanilla":
+                        mark_vanilla(item)
+                        item.setToolTip(t("trans.vanilla_cell_tooltip"))
+                    else:
+                        mark_corpus(item)
+                        item.setToolTip(t("trans.corpus_cell_tooltip"))
                 finally:
                     self.table.blockSignals(False)
 
@@ -1095,6 +1196,42 @@ class CsvEditWidget(QWidget):
         target_col = self._find_language_column(target_code, target_label)
         source_code = self._header_language_code(
             self.table.currentColumn() if self.table.currentColumn() >= 0 else None)
+        # Pre-passe corpus : une cle deja traduite ne part JAMAIS vers l'IA
+        # (demande 03/11/2026 -- eviter une traduction payante inutile). Les
+        # cellules trouvees sont remplies tout de suite ; seules les autres
+        # passent par le worker et la revue.
+        corpus_filled = []
+        if getattr(self, "_corpus_kind", None):
+            corpus_hits = []
+            for it in candidates:
+                val = self._corpus_value(it.row(), target_code, target_label)
+                if val:
+                    corpus_hits.append((it, val))
+            if corpus_hits:
+                self._snapshot_undo()
+                for it, val in corpus_hits:
+                    if target_col is not None and target_col != it.column():
+                        dst = self.table.item(it.row(), target_col)
+                        if dst is None:
+                            dst = QTableWidgetItem("")
+                            self.table.setItem(it.row(), target_col, dst)
+                    else:
+                        dst = it
+                    dst.setText(val)
+                    self.table.blockSignals(True)
+                    try:
+                        mark_corpus(dst)
+                        dst.setToolTip(t("trans.corpus_cell_tooltip"))
+                    finally:
+                        self.table.blockSignals(False)
+                self._set_modified(True)
+                hit_ids = {id(it) for it, _v in corpus_hits}
+                candidates = [it for it in candidates if id(it) not in hit_ids]
+                if not candidates:
+                    QMessageBox.information(
+                        self, t("corpus.title"),
+                        t("corpus.batch_all_done", n=len(corpus_hits)))
+                    return
         plan = []
         for it in candidates:
             header = self.table.horizontalHeaderItem(it.column())

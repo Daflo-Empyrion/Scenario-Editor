@@ -371,6 +371,42 @@
     "fr": "Aucun nom existant ne ressemble a cette reference : la suppression est probablement la correction la plus sure.",
     "en": "No existing name resembles this reference: removing it is probably the safest fix."
   },
+  "crossref.fix_implication_next": {
+    "fr": "Supprimer la branche (et sa condition NextIf) : si la condition échouait, le dialogue se termine simplement — même comportement visible qu'aujourd'hui, sans l'erreur moteur. Le PNJ ne propose rien de plus.",
+    "en": "Removing the branch (and its NextIf condition): if the condition failed, the dialogue simply ends — same visible behavior as today, without the engine error. The NPC offers nothing more."
+  },
+  "crossref.fix_implication_option": {
+    "fr": "Supprimer l'option {n} en entier (texte + condition + cible) : le choix disparaît du menu du PNJ. La clé de localisation reste dans Localization.csv, sans effet.",
+    "en": "Removing option {n} entirely (text + condition + target): the choice disappears from the NPC menu. Its localization key stays in Localization.csv, harmless."
+  },
+  "crossref.fix_stats": {
+    "fr": "« {name} » : pointé par {refs} référence(s) ; {kind}.",
+    "en": "'{name}': pointed to by {refs} reference(s); {kind}."
+  },
+  "crossref.fix_terminal": {
+    "fr": "terminal (affiche un texte puis se termine)",
+    "en": "terminal (shows text then ends)"
+  },
+  "crossref.fix_branching": {
+    "fr": "non terminal (ouvre d'autres dialogues)",
+    "en": "not terminal (opens further dialogues)"
+  },
+  "crossref.fix_stats_unknown": {
+    "fr": "Nom absent du scénario : l'alerte ne s'éteindra pas tant que ce dialogue n'existe pas.",
+    "en": "Name not in the scenario: the alert will not go away until this dialogue exists."
+  },
+  "crossref.pda_fix_explain": {
+    "fr": "La mission '{block}' ({file}) vise '{value}' via {key}, mais aucun POI du scénario ne correspond (ni GroupName, ni nom affiché, ni prefab placé). Corrections possibles :",
+    "en": "Mission '{block}' ({file}) targets '{value}' via {key}, but no POI in the scenario matches it (no GroupName, display name or placed prefab). Possible fixes:"
+  },
+  "crossref.pda_fix_implication_remove": {
+    "fr": "Retirer '{value}' de la liste Names de '{block}' : cette étape de la mission ne pourra plus jamais se déclencher (mission bloquée à cette action, sauf autre condition d'achèvement). À choisir seulement si la mission doit être abandonnée ou corrigée autrement.",
+    "en": "Removing '{value}' from the Names list of '{block}': this mission step can never trigger again (mission stuck at that action unless another completion condition exists). Only choose this if the mission should be abandoned or fixed another way."
+  },
+  "crossref.pda_fix_done": {
+    "fr": "PDA corrigé : {key} -> {new}",
+    "en": "PDA fixed: {key} -> {new}"
+  },
   "crossref.fix_apply": {
     "fr": "Appliquer la correction",
     "en": "Apply the fix"
@@ -3483,6 +3519,10 @@
     "fr": "Traduction issue de la localisation officielle du jeu (vanille Eleon).",
     "en": "Translation from the official game localization (Eleon vanilla)."
   },
+  "trans.corpus_cell_tooltip": {
+    "fr": "Traduction reprise du corpus (clé déjà traduite dans Localization/Dialogues/PDA de référence) — aucune IA appelée.",
+    "en": "Translation taken from the corpus (key already translated in the reference Localization/Dialogues/PDA) — no AI call."
+  },
   "spellcheck.title": {
     "fr": "Revue des corrections",
     "en": "Correction review"
@@ -3794,6 +3834,46 @@
   "btn.fill_missing_translations": {
     "fr": "Combler les langues manquantes...",
     "en": "Fill missing translations..."
+  },
+  "btn.import_corpus": {
+    "fr": "Importer les traductions connues",
+    "en": "Import known translations"
+  },
+  "btn.import_corpus_tooltip": {
+    "fr": "Complète les cellules vides avec les clés déjà traduites dans les corpus Localization/Dialogues/PDA de référence (aucune traduction IA).",
+    "en": "Fill empty cells with keys already translated in the reference Localization/Dialogues/PDA corpora (no AI translation)."
+  },
+  "corpus.title": {
+    "fr": "Corpus de traduction",
+    "en": "Translation corpus"
+  },
+  "corpus.nothing": {
+    "fr": "Aucune cellule vide à compléter : toutes les clés de ce fichier présentes dans le corpus sont déjà traduites.",
+    "en": "No empty cell to fill: every key of this file present in the corpus is already translated."
+  },
+  "corpus.done": {
+    "fr": "{n} cellule(s) complétée(s) depuis le corpus — à enregistrer pour écrire sur disque.",
+    "en": "{n} cell(s) filled from the corpus — save to write them to disk."
+  },
+  "corpus.batch_all_done": {
+    "fr": "{n} cellule(s) déjà traduite(s) dans le corpus ont été remplies directement : aucune traduction IA n'a été appelée pour ces clés.",
+    "en": "{n} cell(s) already translated in the corpus were filled directly: no AI translation was called for these keys."
+  },
+  "menu.options.corpus_trad": {
+    "fr": "Dossier du corpus de traduction...",
+    "en": "Translation corpus folder..."
+  },
+  "corpus.trad_dir_title": {
+    "fr": "Corpus de traduction",
+    "en": "Translation corpus"
+  },
+  "corpus.trad_dir_saved": {
+    "fr": "Dossier enregistré :\n{path}\n\n{n} clé(s) disponible(s) au total (embarquées + les vôtres).",
+    "en": "Folder saved:\n{path}\n\n{n} key(s) available in total (embedded + yours)."
+  },
+  "corpus.trad_dir_clear_confirm": {
+    "fr": "Effacer le dossier de corpus personnel ? Seul le corpus embarqué avec l'application restera utilisé.",
+    "en": "Clear the personal corpus folder? Only the corpus embedded with the application will remain in use."
   },
   "trans.fill_missing_title": {
     "fr": "Combler les traductions manquantes",
@@ -12250,6 +12330,10 @@
   "launchcheck.check_tokens": {
     "fr": "Jetons de quête",
     "en": "Quest tokens"
+  },
+  "launchcheck.check_dialogues": {
+    "fr": "Références de dialogues",
+    "en": "Dialogue references"
   },
   "menu.tools.progression": {
     "fr": "Danger & progression (tableau de bord)",

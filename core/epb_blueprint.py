@@ -38,6 +38,7 @@ Format reconstruit et verifie contre le moteur du jeu (v1.19.2) :
 from __future__ import annotations
 
 import csv
+import io
 import os
 import re
 import struct
@@ -311,14 +312,22 @@ def read_id_mapping(path: os.PathLike, max_bytes: int = 2_000_000):
     return _scan_id_mapping(data, 8, pk if pk > 8 else len(data))
 
 
-def read_header(path: os.PathLike, max_bytes: int = 262144):
-    """(Name, groupes) d'un .epb, ou None si illisible.
+def _read_header_fields(path: os.PathLike, max_bytes: int = 262144):
+    """(GroupName, Tags, DisplayName) d'un .epb, ou None si illisible.
 
-    Les groupes (et tags) sont la propriete 21, separes par des virgules :
-    c'est « les groupes deja definis dans les fichiers blueprint » dont parle
-    `_PoiGroupsConfig.yaml`. Les lire ici evite un boot du jeu (bplib export
-    exige une partie en cours). Le Name (propriete 7) differe souvent du nom
-    de fichier ; les playfields peuvent referencer l'un ou l'autre.
+    Numerotation VERIFIEE dans le moteur (source deobfusquee, part_0052.cs,
+    `enum EnumProperties`) : GroupName = propriete **7**, Tags = **21**,
+    DisplayName = 16, et le nom de fichier vient du FileName. La docstring
+    precedente annoncait l'inverse (Name=7, groupes=21), ce qui faisait
+    passer les GroupName reels pour des noms de prefabs et rendait le
+    controle des groupes de POI inutilisable (842 faux positifs sur RE2
+    Beta, corrige le 03/11/2026).
+
+    Le moteur (`FormDictionary`, part_0053.cs) indexe les prefabs par
+    `Header.GroupName` (chaine entiere) puis par Tags separes par virgule :
+    les deux doivent alimenter le pool de groupes. Le Name (propriete 7) est
+    souvent le nom de FICHIER ; les playfields peuvent referencer l'un ou
+    l'autre.
 
     Lecture BORNEE au debut du fichier : l'en-tete precede toujours les
     donnees compressees. Toute anomalie rend None — un prefab exotique ne
@@ -339,7 +348,7 @@ def read_header(path: os.PathLike, max_bytes: int = 262144):
         r.i32(); r.i32(); r.i32()
         r.u16()
         count = r.u16()
-        name = groups = ""
+        name = groups = display = ""
         for _ in range(count):
             key = r.i32()
             r.boolean(); r.boolean(); r.boolean()
@@ -364,9 +373,104 @@ def read_header(path: os.PathLike, max_bytes: int = 262144):
                 name = value
             elif ptype == 0 and key == 21:
                 groups = value
-        return name, groups
+            elif ptype == 0 and key == 16:
+                display = value
+        return name, groups, display
     except (OSError, struct.error, IndexError, EpbError):
         return None
+
+
+def read_header(path: os.PathLike, max_bytes: int = 262144):
+    """(GroupName, Tags) d'un .epb, ou None si illisible.
+
+    Signature historique (2 valeurs) conservee : les appelants (`_index_prefabs`,
+    `pda_script_dialog`) n'ont pas a changer. Le DisplayName est expose par
+    `read_display_name()`."""
+    fields = _read_header_fields(path, max_bytes)
+    return (fields[0], fields[1]) if fields else None
+
+
+def read_display_name(path: os.PathLike, max_bytes: int = 262144):
+    """Nom d'AFFICHAGE du prefab (propriete 16), ou vide.
+
+    C'est le nom que le joueur voit et que le PDA vise dans `NearPoi:` —
+    souvent different du nom de fichier et du GroupName (vecu 03/11/2026 :
+    `Ship Landing Site` = DisplayName de R2BA_FreighterStory.epb)."""
+    fields = _read_header_fields(path, max_bytes)
+    return (fields[2] or "") if fields else ""
+
+
+# ---------------------------------------------------------------------------
+# Entites internes (NPC, conteneurs nommes) : le payload de l'entree zip n'est
+# PAS parse par l'editeur (sa structure apres les uint32 de blocs n'est pas
+# cartographiee). En revanche les NOMS y figurent en clair : on extrait les
+# chaines imprimables. C'est ce qu'un `NearPoi:` du PDA vise quand il DESIGN
+# une entite (`Security Manager` = NPC, confirme par l'utilisateur 03/11).
+# Extraction volontairement grossiere : elle sert a RECONNAITRE un nom, jamais
+# a l'editer.
+# ---------------------------------------------------------------------------
+_STRING_RE = re.compile(rb"[\x20-\x7e]{4,80}")
+_NAME_HINT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 _'\-]{2,59}$")
+
+
+def read_entity_names(path: os.PathLike,
+                      max_bytes: int = 1_000_000) -> Set[str]:
+    """Noms d'ENTITES du header seul (crew/NPC), sans decompression.
+
+    Variante rapide de `read_internal_strings` pour indexer des milliers de
+    prefabs : les entites sont dans le binaire non compresse avant la
+    frontiere zip (verifie : `Security Manager`, `Resident`, `Gambler`,
+    `Station Chief` dans RBA_PolarisTradingStory.epb)."""
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read(max_bytes)
+    except OSError:
+        return set()
+    start = data.find(b"PK\x03\x04")
+    head = data[:start] if start > 0 else data
+    out: Set[str] = set()
+    for raw in _STRING_RE.findall(head):
+        text = raw.decode("ascii", "ignore").strip()
+        if _NAME_HINT_RE.match(text):
+            out.add(text)
+    return out
+
+
+def read_internal_strings(path: os.PathLike,
+                          max_payload: int = 8_000_000) -> Set[str]:
+    """Chaines « nom » d'un .epb : ENTITES du header + payload decompresse.
+
+    Les noms d'entites (crew/NPC : `Security Manager`, `Resident`,
+    `Gambler`...) sont dans le binaire NON compresse du header, juste avant
+    la frontiere zip — verifie sur RBA_PolarisTradingStory.epb (03/11/2026).
+    Le payload apporte les dialogues/identifiants internes.
+
+    Vide si le fichier n'a pas d'entree zip lisible (97 prefabs exotiques du
+    corpus RE2) — jamais d'exception."""
+    import zipfile
+    try:
+        data = Path(path).read_bytes()
+        start = data.find(b"PK\x03\x04")
+        head = data[:start] if start > 0 else data
+        out: Set[str] = set()
+        for raw in _STRING_RE.findall(head):
+            text = raw.decode("ascii", "ignore").strip()
+            if _NAME_HINT_RE.match(text):
+                out.add(text)
+        if start < 0:
+            return out
+        with zipfile.ZipFile(io.BytesIO(data[start:])) as zf:
+            for info in zf.infolist():
+                if sum(len(x) for x in out) > max_payload:
+                    break
+                blob = zf.read(info.filename)
+                for raw in _STRING_RE.findall(blob):
+                    text = raw.decode("ascii", "ignore").strip()
+                    if _NAME_HINT_RE.match(text):
+                        out.add(text)
+        return out
+    except (OSError, zipfile.BadZipFile, RuntimeError):
+        return set()
 
 
 def _7bit_encode(n: int) -> bytes:

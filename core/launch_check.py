@@ -58,6 +58,12 @@ _GALAXY_INDEX_RE = re.compile(r'^Child (StarRegion|Territory)_(\d+)$')
 # `Fixed:` avec un `GroupName:` a l'interieur — ce GroupName designe le bloc
 # local, pas un groupe de prefab (vecu 22/10 : alerte a tort)
 _TOP_KEY_RE = re.compile(r'^([A-Za-z0-9_.\- ]+):[ \t]*$')
+# MEME chose mais dans les playfields REELS : les cles sont INDENTEES et la
+# valeur repete la cle (`          DroneBaseSetup: DroneBaseSetup`). Sans ce
+# motif, ces setups n'etaient jamais indexes -> 842 faux positifs « groupe de
+# POI inconnu » sur RE2 Beta lui-meme (mesure 03/11/2026). Le `\1` final
+# evite d'avaler toutes les cles indentees ordinaires (Faction:, Names:...).
+_TOP_KEY_SELF_RE = re.compile(r'^[ \t]+([A-Za-z0-9_.\- ]+):[ \t]*\1[ \t]*$')
 
 # formes de valeurs pour le check « valeurs » (dictionnaire vanille)
 _NUM_RE = re.compile(
@@ -134,6 +140,13 @@ def _index_prefabs(*roots: Path):
                 name, raw_groups = header
                 if name:
                     names.add(name.casefold())
+                    # `read_header` renvoie la PROPRIETE 7 = GroupName (code
+                    # du jeu : EnumProperties.GroupName=7, Tags=21) : c'est
+                    # aussi une cle de groupe. Sans cette ligne, tous les
+                    # GroupName reels des playfields etaient declares
+                    # « inconnus » (842 faux positifs sur RE2 Beta, mesure
+                    # 03/11/2026, verifie dans le deobfusque part_0052.cs).
+                    groups.add(name.casefold())
                 for group in raw_groups.split(","):
                     if group.strip():
                         groups.add(group.strip().casefold())
@@ -178,7 +191,7 @@ def _index_setups(playfields_root: Path) -> set[str]:
             except OSError:
                 continue
             for line in text.splitlines():
-                m = _TOP_KEY_RE.match(line)
+                m = _TOP_KEY_RE.match(line) or _TOP_KEY_SELF_RE.match(line)
                 if m:
                     names.add(m.group(1).strip().casefold())
     return names
@@ -1024,6 +1037,23 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
             path=token_path.relative_to(root).as_posix() if token_path else "",
             line=0, severity=issue.level,
             message=f"[{issue.code}] {issue.message}"))
+
+    # --- dialogues : Next_N/OptionNext_N vers un Name absent du scenario
+    # ET de la vanilla (core/ecf/cross_reference_check.py) ; jamais bloquant
+    # au boot : le moteur ignore la branche, d'ou severity warning ---
+    config_dir = Path(root) / "Content" / "Configuration"
+    ecf_files = sorted(config_dir.glob("*.ecf")) if config_dir.is_dir() else []
+    if ecf_files:
+        from .ecf.cross_reference_check import CrossRefContext, run_checks
+        context = CrossRefContext(ecf_files=ecf_files, yaml_files=[],
+                                  scenario_root=root)
+        for ref in run_checks(context, ["dialogue_refs"]):
+            issues.append(LaunchIssue(
+                check="dialogues",
+                path=ref.display_path or "",
+                line=0, severity="warning",
+                message=f"{ref.source_kind} [{ref.source_identity}] : "
+                        f"{ref.ref_key}: {ref.ref_value} ({ref.detail})"))
 
     # --- scripts C# du scenario : compilation reelle (csc + assemblies du
     # jeu) — le boot du jeu n'affiche qu'une erreur a la fois ---

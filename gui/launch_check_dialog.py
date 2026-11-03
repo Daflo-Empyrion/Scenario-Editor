@@ -267,7 +267,8 @@ class LaunchCheckDialog(QDialog):
                   "warfare": t("launchcheck.check_warfare"),
                   "pda": t("launchcheck.check_pda"),
                   "scripts": t("launchcheck.check_scripts"),
-                  "tokens": t("launchcheck.check_tokens")}
+                  "tokens": t("launchcheck.check_tokens"),
+                  "dialogues": t("launchcheck.check_dialogues")}
         n_errors = 0
         for issue in issues:
             is_error = issue.severity == "error"

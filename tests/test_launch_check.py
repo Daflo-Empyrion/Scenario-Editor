@@ -731,3 +731,33 @@ def test_compound_without_subdesc_is_flagged(tmp_path):
     issues = [i for i in run_launch_checks(root, "")
               if "Compound POI 'CompoundX'" in i.message]
     assert issues == []
+
+
+def test_poi_group_comes_from_blueprint_group_name(tmp_path, monkeypatch):
+    """Decouverte du 03/11 (source deobfusquee, part_0052.cs) : GroupName =
+    propriete 7, Tags = 21. `read_header` renvoie le GroupName en premier :
+    il doit alimenter le pool de GROUPES, sinon tous les GroupName reels des
+    playfields sont declares « inconnus » (842 faux positifs sur RE2 Beta
+    avant correctif)."""
+    from core import epb_blueprint
+    from core.launch_check import _index_prefabs
+
+    prefabs = tmp_path / "Prefabs"
+    prefabs.mkdir()
+    (prefabs / "BA_MonPrefab.epb").write_bytes(b"x")
+    monkeypatch.setattr(epb_blueprint, "read_header",
+                        lambda p: ("MonGroupePOI", "Tag1,Tag2"))
+
+    playfields = tmp_path / "Playfields" / "Planete"
+    playfields.mkdir(parents=True)
+    (playfields / "playfield_static.yaml").write_text(
+        "POIs:\n    Random:\n        - GroupName: MonGroupePOI\n", encoding="utf-8")
+
+    names, groups = _index_prefabs(prefabs)
+    assert "mongroupepoi" in groups          # GroupName (prop 7)
+    assert "tag1" in groups and "tag2" in groups   # Tags (prop 21)
+
+    from core.launch_check import _check_prefabs
+    issues = [i for i in _check_prefabs(tmp_path / "Playfields", names, groups, "")
+              if i.check == "poi_groups"]
+    assert issues == []

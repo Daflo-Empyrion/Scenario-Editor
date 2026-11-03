@@ -124,3 +124,34 @@ def test_same_window_can_reopen_after_close(policy):
     second = _SingleDialog()
     QTimer.singleShot(0, second.accept)
     assert second.exec() == int(QDialog.DialogCode.Accepted)
+
+
+def test_progress_dialogs_get_no_maximize_buttons(policy):
+    """Vecu 03/11/2026 : creer un projet fermait l'application SANS message
+    (access violation native dans setWindowFlags, pile enable_maximize) --
+    la QProgressDialog de la copie du scenario passait par ce patch. Une
+    barre de progression ne doit JAMAIS recevoir de boutons de fenetre."""
+    from PyQt6.QtWidgets import QProgressDialog
+    progress = QProgressDialog("copie", None, 0, 0)
+    flags = progress.windowFlags()
+    assert not (flags & Qt.WindowType.WindowMaximizeButtonHint)
+    assert not (flags & Qt.WindowType.WindowMinimizeButtonHint)
+
+
+def test_exec_survives_a_dialog_with_its_own_result_attribute(policy):
+    """Vecu 03/11/2026 : MergePreviewDialog stocke son resultat dans
+    self.result (objet MergeResult), ce qui masquait la methode
+    QDialog.result() -- 'MergeResult object is not callable', la fusion du
+    premier fichier echouait. exec() doit rester insensible a cet attribut."""
+    class _OwnResultDialog(QDialog):
+        def __init__(self):
+            super().__init__()
+            self.result = "mon propre resultat"
+
+    dialog = _OwnResultDialog()
+    QTimer.singleShot(0, dialog.accept)
+    assert dialog.exec() == int(QDialog.DialogCode.Accepted)
+
+    dialog2 = _OwnResultDialog()
+    QTimer.singleShot(0, dialog2.reject)
+    assert dialog2.exec() == int(QDialog.DialogCode.Rejected)

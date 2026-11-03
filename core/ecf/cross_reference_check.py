@@ -28,7 +28,7 @@ graphique (gui/cross_reference_dialog.py) pour construire les cases a cocher.
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 from core.yamllite.parser import parse_yaml_file
 from .parser import parse_ecf_file_cached
@@ -200,18 +200,31 @@ def _check_item_block_pool(ctx: CrossRefContext) -> List[CrossRefIssue]:
 _TOKEN_REF_PATTERN = re.compile(r'Token:\s*(\d+)')
 
 
+def _collect_token_ids(path, token_ids: Set[str]) -> None:
+    try:
+        doc = parse_ecf_file_cached(path)
+        for block in doc.iter_blocks():
+            id_val = block.get_property('Id')
+            if id_val:
+                token_ids.add(id_val.strip().lstrip('0') or '0')
+    except Exception:
+        pass
+
+
 def _check_token_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     token_file = _find_file(ctx.ecf_files, 'TokenConfig.ecf')
     token_ids: Set[str] = set()
     if token_file is not None:
-        try:
-            doc = parse_ecf_file_cached(token_file)
-            for block in doc.iter_blocks():
-                id_val = block.get_property('Id')
-                if id_val:
-                    token_ids.add(id_val.strip().lstrip('0') or '0')
-        except Exception:
-            pass
+        _collect_token_ids(token_file, token_ids)
+    # Le jeu charge la config VANILLA comme couche de base sous celle du
+    # scenario : un Id defini la-bas existe en jeu meme sans redeclaration
+    # (vecu 03/11/2026 : les CredTokens 100-113 etaient signales a tort).
+    # Repli gracieux si le chemin du jeu n'est pas renseigne.
+    from core.settings import get_vanilla_content_path
+    content = get_vanilla_content_path()
+    if content:
+        _collect_token_ids(Path(content) / 'Configuration' / 'TokenConfig.ecf',
+                           token_ids)
 
     issues: List[CrossRefIssue] = []
     for path in ctx.ecf_files:
@@ -259,18 +272,31 @@ _DIALOGUE_REF_KEY_PATTERN = re.compile(r'^(Next|OptionNext)_\d+$')
 _DIALOGUE_REF_SENTINELS = {'End', 'GotoAndReset', 'Return'}
 
 
+def _collect_dialogue_names(path, names: Set[str]) -> None:
+    try:
+        doc = parse_ecf_file_cached(path)
+    except Exception:
+        return
+    for block in doc.iter_blocks():
+        if block.kind == '+Dialogue':
+            name = block.get_property('Name')
+            if name:
+                names.add(name)
+
+
 def _check_dialogue_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     dialogue_names: Set[str] = set()
     for path in ctx.ecf_files:
-        try:
-            doc = parse_ecf_file_cached(path)
-        except Exception:
-            continue
-        for block in doc.iter_blocks():
-            if block.kind == '+Dialogue':
-                name = block.get_property('Name')
-                if name:
-                    dialogue_names.add(name)
+        _collect_dialogue_names(path, dialogue_names)
+    # Le jeu charge la config VANILLA comme couche de base sous celle du
+    # scenario : un dialogue defini la-bas existe en jeu meme sans
+    # redeclaration (comme pour les jetons, vecu 03/11/2026). Repli
+    # gracieux si le chemin du jeu n'est pas renseigne.
+    from core.settings import get_vanilla_content_path
+    content = get_vanilla_content_path()
+    if content:
+        _collect_dialogue_names(
+            Path(content) / 'Configuration' / 'Dialogues.ecf', dialogue_names)
 
     issues: List[CrossRefIssue] = []
     for path in ctx.ecf_files:
@@ -324,6 +350,18 @@ def _check_dialogue_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
 # blocs chargeait morte, cascade « No template found » + NRE au demarrage)
 # ============================================================================
 
+def _collect_material_names(path, defined: Set[str]) -> None:
+    try:
+        doc = parse_ecf_file_cached(path)
+    except Exception:
+        return
+    for block in doc.iter_blocks():
+        if block.kind.lstrip('+').rstrip(',').casefold() == 'material':
+            name = block.get_property('Name')
+            if name:
+                defined.add(name)
+
+
 def _check_material_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     materials_file = _find_file(ctx.ecf_files, 'MaterialConfig.ecf')
     if materials_file is None:
@@ -340,9 +378,26 @@ def _check_material_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
             name = block.get_property('Name')
             if name:
                 defined.add(name)
+    # couche de base : un materiau defini dans la VANILLA existe en jeu meme
+    # sans redeclaration du scenario (comme jetons et dialogues, vecu
+    # 03/11/2026). Repli gracieux si le chemin du jeu n'est pas renseigne.
+    from core.settings import get_vanilla_content_path
+    content = get_vanilla_content_path()
+    if content:
+        _collect_material_names(
+            Path(content) / 'Configuration' / 'MaterialConfig.ecf', defined)
     issues: List[CrossRefIssue] = []
     for path in ctx.ecf_files:
         if path == materials_file:
+            continue
+        if path.name == 'EClassConfig.ecf':
+            # les ENTITES reference des archetypes de materiau INTERNES AU
+            # MOTEUR (HumanSoft, CreatureSoft, Mechanical, DronePlanet,
+            # Player...) : AUCUN MaterialConfig ne les definit — ni vanilla
+            # (37 materiaux de terrain/blocs), ni RE2, ni ATL ; RE2 les
+            # reference sans les definir depuis toujours (vecu 03/11/2026 :
+            # 146 faux positifs). L'incident du 04/10 concernait les BLOCS
+            # (BlocksConfig -> table morte + NRE) : on ne verifie que la.
             continue
         try:
             doc = parse_ecf_file_cached(path)
@@ -375,14 +430,154 @@ def _check_material_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
 _PDA_POI_CHECKS = ('NearPoi', 'PoiDiscovered')
 
 
+_PREFAB_DISPLAY_CACHE: Dict[str, tuple] = {}
+
+
+def _prefab_display_names(scenario_root) -> Set[str]:
+    """Noms d'AFFICHAGE des prefabs du scenario (propriete 16 de l'en-tete).
+
+    Un `NearPoi:` du PDA peut viser ce nom et non un nom de playfield :
+    `Ship Landing Site` est le DisplayName de R2BA_FreighterStory.epb et
+    fonctionne en jeu (signale par l'utilisateur le 03/11/2026, verifie sur
+    la source RE2). Cache memoire par signature du dossier (nombre + mtime)."""
+    prefabs = Path(scenario_root) / "Prefabs"
+    if not prefabs.is_dir():
+        return set()
+    files = sorted(prefabs.glob("*.epb"))
+    sig = (len(files), max((f.stat().st_mtime_ns for f in files), default=0))
+    cached = _PREFAB_DISPLAY_CACHE.get(str(prefabs))
+    if cached is not None and cached[0] == sig:
+        return cached[1]
+    from core.epb_blueprint import read_display_name
+    names: Set[str] = set()
+    for f in files:
+        try:
+            name = read_display_name(f)
+        except Exception:
+            continue
+        if name:
+            names.add(name.casefold())
+    _PREFAB_DISPLAY_CACHE[str(prefabs)] = (sig, names)
+    return names
+
+
+_PREFAB_ENTITY_CACHE: Dict[str, tuple] = {}
+
+
+def _prefab_entity_names(scenario_root) -> Set[str]:
+    """Noms d'ENTITES (crew/NPC) lus dans les en-tetes des .epb.
+
+    Un `NearPoi:` du PDA peut viser une entite et non un POI de playfield :
+    `Security Manager` est un NPC d'un prefab (confirme par l'utilisateur
+    le 03/11/2026). Extraction sur le seul header (cf.
+    `core.epb_blueprint.read_entity_names`), mise en cache disque
+    (`~/.empyrion_editor/cache/prefab_entities.json`) car le scan de 5 800
+    prefabs coute quelques dizaines de secondes."""
+    import json
+    prefabs = Path(scenario_root) / "Prefabs"
+    if not prefabs.is_dir():
+        return set()
+    files = sorted(prefabs.glob("*.epb"))
+    sig = [len(files), max((f.stat().st_mtime_ns for f in files), default=0)]
+    cache = Path.home() / ".empyrion_editor" / "cache" / "prefab_entities.json"
+    cached = _PREFAB_ENTITY_CACHE.get(str(prefabs))
+    if cached is not None and cached[0] == sig:
+        return cached[1]
+    if cache.is_file():
+        try:
+            raw = json.loads(cache.read_text(encoding="utf-8"))
+            if raw.get("sig") == sig:
+                names = set(raw.get("names", []))
+                _PREFAB_ENTITY_CACHE[str(prefabs)] = (sig, names)
+                return names
+        except (OSError, ValueError):
+            pass
+    from core.epb_blueprint import read_entity_names
+    names: Set[str] = set()
+    for f in files:
+        names |= read_entity_names(f)
+    folded = {n.casefold() for n in names}
+    _PREFAB_ENTITY_CACHE[str(prefabs)] = (sig, folded)
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps({"sig": sig, "names": sorted(folded)}),
+                         encoding="utf-8")
+    except OSError:
+        pass
+    return folded
+
+
+def collect_pda_poi_pool(scenario_root):
+    """(noms exacts, chaines d'affichage) des POI des playfields — le pool du
+    check pda_poi_refs, repris tel quel par la fenetre de correction pour
+    suggerer les cibles existantes (GroupName, Name, Prefab, PrefabName,
+    DisplayName, a toute profondeur, crochets retires), PLUS les noms
+    d'affichage des prefabs (DisplayName de l'en-tete .epb)."""
+    pool_exact: Set[str] = set()
+    display_pool: List[str] = []
+    pf_dir = Path(scenario_root) / 'Playfields'
+    for f in sorted(pf_dir.rglob('*.yaml')) if pf_dir.is_dir() else []:
+        try:
+            pf_doc = parse_yaml_file(f)
+        except Exception:
+            continue
+
+        def collect(nodes):
+            for node in nodes:
+                k = getattr(node, 'key', None)
+                if k not in ('GroupName', 'Name', 'Prefab', 'PrefabName',
+                             'DisplayName'):
+                    collect(getattr(node, 'children', None) or [])
+                    continue
+                # noms composes : le PDA peut cible une sous-chaine du
+                # nom affiche (vecu 03/11 : NearPoi 'Kenex Station 62'
+                # vs DisplayName 'Kenex 62 Kenex Station 62') ; les valeurs
+                # peuvent etre bracketees 'Name: [X]' (le parseur yamllite
+                # rend alors les items en enfants) ou en liste '[A, B]'
+                values = []
+                v = (getattr(node, 'value', '') or '').strip()
+                if v:
+                    values.append(v)
+                for ch in getattr(node, 'children', None) or []:
+                    cv = (getattr(ch, 'value', '') or '').strip()
+                    if cv:
+                        values.append(cv)
+                for raw in values:
+                    val = raw.strip("'\"[] ")
+                    if not val:
+                        continue
+                    pool_exact.add(val.casefold())
+                    # convention RE2/ATL : le GroupName d'un POI = stem du
+                    # blueprint + suffixe (RG, Story...) et le nom VISIBLE
+                    # en jeu vient du blueprint — le PDA vise le stem
+                    # (vecu 03/11 : NearPoi 'FarrTemplePrime' vs GroupName
+                    # 'FarrTemplePrimeRG') ; sous-chaine acceptee pour
+                    # GroupName/Name/DisplayName
+                    if k in ('GroupName', 'Name', 'DisplayName'):
+                        display_pool.append(val.casefold())
+                    if k == 'PrefabName':
+                        pool_exact.add(Path(val).stem.casefold())
+                collect(getattr(node, 'children', None) or [])
+        collect(pf_doc.nodes)
+    # noms affiches des prefabs : le PDA les vise directement
+    # (`NearPoi: Ship Landing Site` = DisplayName de R2BA_FreighterStory.epb)
+    pool_exact |= _prefab_display_names(scenario_root)
+    # entites internes des prefabs : un NearPoi peut viser un NPC
+    # (`Security Manager`), qui n'existe dans aucun playfield
+    pool_exact |= _prefab_entity_names(scenario_root)
+    return pool_exact, display_pool
+
+
 def _check_pda_poi_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     """Chaque POI cible par une action de mission du PDA.yaml
     (Check: NearPoi / PoiDiscovered, propriete Names) doit correspondre a
-    un POI spawnable dans les playfields du scenario (GroupName, Name ou
-    Prefab). Collecte GENEREUSE du pool (toute profondeur, tous les yamls
-    de Playfields/) pour minimiser les faux positifs ; les noms avec
-    joker '*' sont ignores. Scenario sans PDA.yaml ou sans Playfields ->
-    rien a verifier."""
+    un POI spawnable dans les playfields du scenario. Collecte GENEREUSE du
+    pool pour minimiser les faux positifs (vecu 03/11/2026 : 15 cibles
+    legitimes ratees) : GroupName/Name/Prefab/PrefabName/DisplayName a toute
+    profondeur de Playfields/, crochets retires (Name: [X]), et sous-chaine
+    des Name/DisplayName (NearPoi 'Kenex Station 62' vs DisplayName
+    'Kenex 62 Kenex Station 62') ; les noms avec joker '*' sont ignores.
+    Scenario sans PDA.yaml ou sans Playfields -> rien a verifier."""
     if ctx.scenario_root is None:
         return []
     pda_path = Path(ctx.scenario_root) / 'Extras' / 'PDA' / 'PDA.yaml'
@@ -393,22 +588,7 @@ def _check_pda_poi_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     except Exception:
         return []
 
-    pool_cf: Set[str] = set()
-    pf_dir = Path(ctx.scenario_root) / 'Playfields'
-    for f in sorted(pf_dir.glob('*/*.yaml')) if pf_dir.is_dir() else []:
-        try:
-            pf_doc = parse_yaml_file(f)
-        except Exception:
-            continue
-
-        def collect(nodes):
-            for node in nodes:
-                k = getattr(node, 'key', None)
-                v = (getattr(node, 'value', '') or '').strip().strip("'\"")
-                if k in ('GroupName', 'Name', 'Prefab') and v:
-                    pool_cf.add(v.casefold())
-                collect(getattr(node, 'children', None) or [])
-        collect(pf_doc.nodes)
+    pool_exact, display_pool = collect_pda_poi_pool(ctx.scenario_root)
 
     issues: List[CrossRefIssue] = []
 
@@ -427,20 +607,73 @@ def _check_pda_poi_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
                         nm = (getattr(c, 'value', '') or '').strip().strip("'\"")
                         if not nm or '*' in nm:
                             continue
-                        if nm.casefold() not in pool_cf:
-                            issues.append(CrossRefIssue(
-                                source_file=pda_path,
-                                source_kind='PDA',
-                                source_identity=str(getattr(node, 'value', '') or '?'),
-                                ref_key=check_val,
-                                ref_value=nm,
-                                check_id='pda_poi_refs',
-                                display_path='Extras/PDA/PDA.yaml',
-                            ))
+                        cf = nm.casefold()
+                        if cf in pool_exact or any(cf in d for d in display_pool):
+                            continue
+                        issues.append(CrossRefIssue(
+                            source_file=pda_path,
+                            source_kind='PDA',
+                            source_identity=str(getattr(node, 'value', '') or '?'),
+                            ref_key=check_val,
+                            ref_value=nm,
+                            check_id='pda_poi_refs',
+                            display_path='Extras/PDA/PDA.yaml',
+                        ))
             walk_actions(getattr(node, 'children', []) or [])
 
     walk_actions(pda_doc.nodes)
     return issues
+
+
+def apply_pda_poi_fix(path: Path, action_title: str, check_key: str,
+                      old_value: str, new_value: Optional[str]) -> bool:
+    """Repare une cible POI du PDA SUR DISQUE (ecriture atomique, parse SANS
+    cache — fonction mutatrice, meme regle qu'apply_dialogue_ref_fix) :
+    - new_value = nom -> remplace l'item vise dans la liste Names de l'action
+      'action_title' dont le Check est 'check_key' ;
+    - new_value = None -> RETIRE l'item de la liste (l'etape ne pourra plus
+      jamais se declencher : c'est assume, la fenetre previent).
+    Retourne True si la modification a eu lieu."""
+    from core.yamllite.model import remove_entry
+    from ..fsutil import atomic_write_text
+
+    doc = parse_yaml_file(path)
+    target = None
+
+    def find(nodes):
+        nonlocal target
+        for node in nodes:
+            k = getattr(node, 'key', None)
+            if (k == 'ActionTitle'
+                    and (getattr(node, 'value', '') or '').strip() == action_title):
+                # ref_key porte la VALEUR du Check ('NearPoi'), pas la cle
+                # du noeud ('Check') : retrouver Names + valider le Check
+                names_entry = has_check = None
+                for ch in getattr(node, 'children', None) or []:
+                    ck = getattr(ch, 'key', None)
+                    if ck == 'Names':
+                        names_entry = ch
+                    elif ck == 'Check' and (getattr(ch, 'value', '') or '').strip() == check_key:
+                        has_check = ch
+                if has_check is not None and names_entry is not None:
+                    for item in getattr(names_entry, 'children', None) or []:
+                        v = (getattr(item, 'value', '') or '').strip().strip("'\"")
+                        if v == old_value:
+                            target = (names_entry, item)
+                            return
+            if target is None:
+                find(getattr(node, 'children', None) or [])
+    find(doc.nodes)
+    if target is None:
+        return False
+    names_entry, item = target
+    if new_value is None:
+        if not remove_entry(names_entry.children, item):
+            return False
+    else:
+        item.set_own_value(new_value)
+    atomic_write_text(path, doc.render())
+    return True
 
 
 CROSS_REFERENCE_CHECKS: List[CrossRefCheck] = [
@@ -556,6 +789,47 @@ def collect_dialogue_names(ecf_files: List[Path]) -> List[str]:
     return sorted(names)
 
 
+def collect_dialogue_stats(ecf_files: List[Path]) -> Dict[str, dict]:
+    """Par nom de dialogue du scenario : combien de references Next/OptionNext
+    le pointent, et s'il est terminal (aucune branche : affiche un texte puis
+    se termine). Indicateur de coherence affiche par la fenetre de correction :
+    remplacer par un dialogue terminal = l'echange s'arrete la ; remplacer par
+    un dialogue pointe ailleurs = un chemin deja parcouru par le scenario."""
+    stats: Dict[str, dict] = {}
+    for path in ecf_files:
+        try:
+            doc = parse_ecf_file_cached(path)
+        except Exception:
+            continue
+        # passe 1 : les noms definis (une reference peut pointer vers un
+        # dialogue declare PLUS LOIN dans le fichier)
+        for block in doc.iter_blocks():
+            if block.kind == '+Dialogue':
+                name = block.get_property('Name')
+                if name:
+                    stats.setdefault(name, {"refs": 0, "terminal": True})
+        # passe 2 : les branches et les references qu'elles portent
+        for block in doc.iter_blocks():
+            if block.kind != '+Dialogue':
+                continue
+            name = block.get_property('Name')
+            if not name:
+                continue
+            info = stats[name]
+            for child in block.children:
+                if not isinstance(child, EcfProperty):
+                    continue
+                has_ref = False
+                for k, v in child.pairs:
+                    if (k and v and _DIALOGUE_REF_KEY_PATTERN.match(k)
+                            and not v.startswith('@') and v in stats):
+                        stats[v]["refs"] += 1
+                        has_ref = True
+                if has_ref:
+                    info["terminal"] = False
+    return stats
+
+
 def closest_dialogue_name(value: str, names: List[str]) -> Optional[str]:
     """Le nom de dialogue existant le plus proche de la reference cassee
     (typo probable) -- None si rien ne se rapproche assez."""
@@ -568,8 +842,10 @@ def apply_dialogue_ref_fix(path: Path, source_identity: str, ref_key: str,
                            ref_value: str, new_value: Optional[str]) -> bool:
     """Applique la correction choisie SUR DISQUE (ecriture atomique) :
     - new_value = nom -> remplace la valeur de la reference cassee ;
-    - new_value = None -> RETIRE la paire cassee (et la ligne entiere si elle
-      ne contenait qu'elle).
+    - new_value = None -> RETIRE la reference (et la ligne entiere si elle ne
+      contenait qu'elle) ; pour une OptionNext_N, retire aussi l'option du
+      menu NPC (Option_N/OptionIf_N...) — sinon le PNJ garderait un bouton
+      sans cible.
     Retourne True si la modification a eu lieu (fonction MUTATRICE : parse
     SANS cache — un echec d'ecriture laisserait sinon un doc modifie en
     cache, divergent du disque)."""
@@ -600,26 +876,62 @@ def apply_dialogue_ref_fix(path: Path, source_identity: str, ref_key: str,
     if target is None:
         return False
 
+    m_option = None if new_value is not None else re.fullmatch(
+        r"OptionNext_(\d+)", ref_key)
+    m_next = None if new_value is not None else re.fullmatch(
+        r"Next_(\d+)", ref_key)
     modified = False
     for child in list(target.children):
         if not isinstance(child, EcfProperty):
             continue
         if not any(k == ref_key and v == ref_value for k, v in child.pairs):
             continue
-        if new_value is None and len(child.pairs) == 1:
-            target.children.remove(child)
+        if new_value is None:
+            # suppression : on retire la paire cassee ; une ligne qui ne
+            # contient plus que des param1 (orphelins sans leur reference,
+            # ex: 'OptionNext_2: X, param1: GotoAndReset') saute entiere
+            new_pairs = [(k, v) for k, v in child.pairs
+                         if not (k == ref_key and v == ref_value)]
             modified = True
+            if new_pairs and all(k == "param1" for k, _ in new_pairs):
+                new_pairs = []
+            if new_pairs:
+                child.pairs = new_pairs
+                child.dirty = True
+            else:
+                target.children.remove(child)
         else:
             new_pairs = []
             for k, v in child.pairs:
                 if k == ref_key and v == ref_value:
-                    if new_value is not None:
-                        new_pairs.append((k, new_value))
+                    new_pairs.append((k, new_value))
                     modified = True
                     continue
                 new_pairs.append((k, v))
             child.pairs = new_pairs
             child.dirty = True
+    if m_option:
+        # l'option du menu NPC va avec sa cible : retirer aussi son texte
+        # (Option_N), sa condition (OptionIf_N) etc., sinon le PNJ garderait
+        # un bouton mort. Les cles de localisation restent dans
+        # Localization.csv (sans effet).
+        for child in list(target.children):
+            if not isinstance(child, EcfProperty):
+                continue
+            if any(k and re.fullmatch(rf"Option(?!Next).*_{m_option.group(1)}", k)
+                   for k, _ in child.pairs):
+                target.children.remove(child)
+                modified = True
+    if m_next:
+        # la condition NextIf_N va avec sa branche Next_N : orpheline sans
+        # elle, elle ne signifierait plus rien pour le moteur
+        for child in list(target.children):
+            if not isinstance(child, EcfProperty):
+                continue
+            if any(k and k == f"NextIf_{m_next.group(1)}"
+                   for k, _ in child.pairs):
+                target.children.remove(child)
+                modified = True
     if not modified:
         return False
     atomic_write_text(path, doc.render())

@@ -33,7 +33,7 @@ from core.i18n import t
 from gui.module_info import add_info_button
 from core.ecf.cross_reference_check import (
     CROSS_REFERENCE_CHECKS, CrossRefContext, CrossRefIssue, run_checks,
-    apply_dialogue_ref_fix,
+    apply_dialogue_ref_fix, apply_pda_poi_fix, collect_pda_poi_pool,
 )
 from gui.results_window_helpers import export_text_to_file
 from gui.theme import icon, icon_size
@@ -176,14 +176,21 @@ class CrossReferenceDialog(QDialog):
             QRadioButton, QPushButton,
         )
         from core.ecf.cross_reference_check import (
-            collect_dialogue_names, closest_dialogue_name,
+            collect_dialogue_names, collect_dialogue_stats,
+            closest_dialogue_name,
         )
         from core.workspace_undo import FileStateUndo, capture_file
+        import re as _re
 
         ecf_files = [f.path for f in self.workspace.working.configuration
                      if f.extension == '.ecf']
         names = collect_dialogue_names(ecf_files)
-        suggestion = closest_dialogue_name(issue.ref_value, names)
+        stats = collect_dialogue_stats(ecf_files)
+        # la suggestion ne propose jamais le bloc source lui-meme (vecu
+        # 03/11 : ExpeditionGeneral_Quit -> suggerait ExpeditionGeneral_Greet,
+        # une auto-boucle)
+        suggestion = closest_dialogue_name(
+            issue.ref_value, [n for n in names if n != issue.source_identity])
 
         if self._is_path_modified(issue.source_file):
             QMessageBox.warning(self, t("crossref.fix_title"),
@@ -212,10 +219,40 @@ class CrossReferenceDialog(QDialog):
         layout.addWidget(replace_radio)
         layout.addWidget(combo)
 
+        # coherence : a quoi ressemble le dialogue choisi (pointe par qui ?
+        # terminal ?) -- le remplacement reste un choix de fond, l'indicateur
+        # evite juste de poser une cible au hasard
+        stats_label = QLabel("")
+        stats_label.setWordWrap(True)
+        stats_label.setStyleSheet("color: gray;")
+        layout.addWidget(stats_label)
+
+        def _update_stats():
+            name = combo.currentText().strip()
+            info = stats.get(name)
+            if info is None:
+                stats_label.setText(t("crossref.fix_stats_unknown"))
+            else:
+                kind = (t("crossref.fix_terminal") if info["terminal"]
+                        else t("crossref.fix_branching"))
+                stats_label.setText(t("crossref.fix_stats", name=name,
+                                      refs=info["refs"], kind=kind))
+        combo.currentTextChanged.connect(_update_stats)
+        _update_stats()
+
         remove_radio = QRadioButton(t("crossref.fix_remove", key=issue.ref_key))
         remove_radio.setChecked(suggestion is None)
         replace_radio.setChecked(suggestion is not None)
         layout.addWidget(remove_radio)
+
+        # consequences concretes de la suppression, selon la forme de la ref
+        m_opt = _re.match(r"OptionNext_(\d+)", issue.ref_key)
+        implication = QLabel(
+            t("crossref.fix_implication_option", n=m_opt.group(1)) if m_opt
+            else t("crossref.fix_implication_next"))
+        implication.setWordWrap(True)
+        implication.setStyleSheet("color: gray;")
+        layout.addWidget(implication)
 
         note = QLabel(t("crossref.fix_note", suggest=suggestion) if suggestion
                       else t("crossref.fix_note_none"))
@@ -289,6 +326,125 @@ class CrossReferenceDialog(QDialog):
     def _is_path_modified(self, path):
         return self.main_window._is_path_modified(path)
 
+    def _propose_pda_poi_fix(self, issue: CrossRefIssue):
+        """Fenetre de correction d'une cible POI de mission PDA inexistante
+        (vecu 03/11/2026) : remplacer par un POI/GroupName existant du
+        scenario (nom le plus proche preselectionne) ou retirer la cible de
+        la liste Names. Retourne True (appliquee), False (voir sans
+        corriger) ou None (ferme sans rien faire)."""
+        from PyQt6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+            QRadioButton, QPushButton,
+        )
+        from core.ecf.cross_reference_check import closest_dialogue_name
+        from core.workspace_undo import FileStateUndo, capture_file
+
+        pool_exact, _display = collect_pda_poi_pool(self.workspace.working_root)
+        names = sorted(pool_exact)
+        # la suggestion ne propose jamais la valeur cassee elle-meme
+        suggestion = closest_dialogue_name(
+            issue.ref_value, [n for n in names if n != issue.ref_value])
+
+        if self._is_path_modified(issue.source_file):
+            QMessageBox.warning(self, t("crossref.fix_title"),
+                                t("crossref.fix_locked", name=issue.source_file.name))
+            return None
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("crossref.fix_title"))
+        dialog.setMinimumWidth(520)
+        layout = QVBoxLayout(dialog)
+
+        explanation = QLabel(t("crossref.pda_fix_explain",
+                               key=issue.ref_key, value=issue.ref_value,
+                               block=issue.source_identity,
+                               file=issue.source_file.name))
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+
+        replace_radio = QRadioButton(t("crossref.fix_replace"))
+        combo = QComboBox()
+        combo.setEditable(True)
+        combo.addItems(names)
+        if suggestion:
+            combo.setCurrentText(suggestion)
+        combo.setEnabled(False)
+        replace_radio.toggled.connect(combo.setEnabled)
+        layout.addWidget(replace_radio)
+        layout.addWidget(combo)
+
+        remove_radio = QRadioButton(t("crossref.fix_remove", key=issue.ref_key))
+        remove_radio.setChecked(suggestion is None)
+        replace_radio.setChecked(suggestion is not None)
+        layout.addWidget(remove_radio)
+
+        implication = QLabel(t("crossref.pda_fix_implication_remove",
+                               value=issue.ref_value, block=issue.source_identity))
+        implication.setWordWrap(True)
+        implication.setStyleSheet("color: gray;")
+        layout.addWidget(implication)
+
+        note = QLabel(t("crossref.fix_note", suggest=suggestion) if suggestion
+                      else t("crossref.fix_note_none"))
+        note.setWordWrap(True)
+        note.setStyleSheet("color: gray;")
+        layout.addWidget(note)
+
+        buttons = QHBoxLayout()
+        btn_apply = QPushButton(t("crossref.fix_apply"))
+        btn_apply.setObjectName("primaryButton")
+        buttons.addWidget(btn_apply)
+        btn_view = QPushButton(t("crossref.fix_view"))
+        btn_view.setObjectName("secondaryButton")
+        buttons.addWidget(btn_view)
+        btn_cancel = QPushButton(t("btn.cancel"))
+        btn_cancel.setObjectName("secondaryButton")
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+
+        outcome = {"applied": None}
+        btn_apply.clicked.connect(lambda: outcome.__setitem__("applied", True)
+                                  or dialog.accept())
+        btn_view.clicked.connect(lambda: outcome.__setitem__("applied", False)
+                                 or dialog.accept())
+        btn_cancel.clicked.connect(lambda: outcome.__setitem__("applied", None)
+                                   or dialog.reject())
+
+        dialog.exec()
+        if outcome["applied"] is None:
+            return None
+        if not outcome["applied"]:
+            return False
+
+        new_value = combo.currentText().strip() if replace_radio.isChecked() else None
+        if replace_radio.isChecked() and not new_value:
+            QMessageBox.warning(self, t("crossref.fix_title"), t("crossref.fix_empty"))
+            return False
+        try:
+            prior = capture_file(issue.source_file)
+            applied = apply_pda_poi_fix(
+                issue.source_file, issue.source_identity,
+                issue.ref_key, issue.ref_value, new_value)
+        except Exception as e:
+            QMessageBox.critical(self, t("err.title"),
+                                 t("check.verification_error") + " : " + str(e))
+            return False
+        if not applied:
+            QMessageBox.warning(self, t("crossref.fix_title"), t("crossref.fix_notfound"))
+            return False
+        self.main_window._push_workspace_undo(FileStateUndo(
+            issue.source_file, prior,
+            t("crossref.fix_undo", key=issue.ref_key, value=issue.ref_value)))
+        self.main_window.workspace.rescan_working()
+        self.main_window._reload_tab_if_open_and_unmodified(issue.source_file)
+        if new_value is None:
+            self.statusBarMessage(t("crossref.fix_done", key=issue.ref_key,
+                                    value=issue.ref_value))
+        else:
+            self.statusBarMessage(t("crossref.pda_fix_done", key=issue.ref_key,
+                                    new=new_value))
+        return True
+
     def _navigate_to_issue(self, item: QListWidgetItem):
         """Ouvre (ou active) l'onglet du fichier concerne par ce resultat, puis
         navigue directement jusqu'au bloc/sous-bloc et, si possible, jusqu'a la
@@ -306,6 +462,12 @@ class CrossReferenceDialog(QDialog):
 
         if issue.check_id == "dialogue_refs":
             applied = self._propose_dialogue_fix(issue)
+            if applied is None:
+                return  # ferme : ne rien faire
+            if applied:
+                self._do_run()  # la correction a ete ecrite : resultats frais
+        elif issue.check_id == "pda_poi_refs":
+            applied = self._propose_pda_poi_fix(issue)
             if applied is None:
                 return  # ferme : ne rien faire
             if applied:
