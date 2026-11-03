@@ -176,9 +176,9 @@ def validate_document(doc, file_path: Optional[Path] = None,
 
 def validate_file(path: Path, materials: Optional[Set[str]] = None) -> List[ValidationIssue]:
     """Valide un fichier ECF unique."""
-    from .parser import parse_ecf_file
+    from .parser import parse_ecf_file_cached
     try:
-        doc = parse_ecf_file(path)
+        doc = parse_ecf_file_cached(path)
     except Exception as e:
         return [ValidationIssue(code='E000', level='error',
                                  message=f"Impossible de parser le fichier : {e}",
@@ -463,7 +463,7 @@ def load_scenario_materials(root: Path) -> Set[str]:
     valides -- l'arbre MaterialConfig les montrait, la validation les
     refusait. Fichier absent/illisible -> ensemble vide (retombe sur la
     liste figee)."""
-    from .parser import parse_ecf_file
+    from .parser import parse_ecf_file_cached
     root = Path(root)
     candidates = [root / 'Content' / 'Configuration' / 'MaterialConfig.ecf']
     candidates.extend(sorted(root.rglob('MaterialConfig.ecf')))
@@ -471,7 +471,7 @@ def load_scenario_materials(root: Path) -> Set[str]:
         if not path.is_file():
             continue
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:                    # noqa: BLE001 - fichier illisible
             continue
         materials = set()

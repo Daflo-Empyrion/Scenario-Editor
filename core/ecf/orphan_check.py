@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-from .parser import parse_ecf_file
+from .parser import parse_ecf_file_cached
 from .model import EcfBlock, EcfProperty, EcfComment
 
 _TOKEN_REF_PATTERN = re.compile(r'Token:\s*(\d+)')
@@ -88,7 +88,7 @@ def find_unused_tokens(ecf_files: List[Path]) -> List[OrphanedDefinition]:
         return []
 
     try:
-        token_doc = parse_ecf_file(token_path)
+        token_doc = parse_ecf_file_cached(token_path)
     except Exception:
         return []
 
@@ -103,7 +103,7 @@ def find_unused_tokens(ecf_files: List[Path]) -> List[OrphanedDefinition]:
     referenced: set = set()
     for path in ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         referenced |= _iter_token_refs(doc.nodes)

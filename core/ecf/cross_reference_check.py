@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Callable, List, Optional, Set
 
 from core.yamllite.parser import parse_yaml_file
-from .parser import parse_ecf_file
+from .parser import parse_ecf_file_cached
 from .model import block_identity, EcfBlock, EcfProperty
 
 
@@ -157,7 +157,7 @@ def _build_item_block_pool(ctx: CrossRefContext) -> Set[str]:
     pool: Set[str] = set()
     for path in target_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for block in doc.iter_blocks():
@@ -173,7 +173,7 @@ def _check_item_block_pool(ctx: CrossRefContext) -> List[CrossRefIssue]:
 
     for path in ctx.ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for top_block, prop_node, key, value in _all_property_pairs(doc):
@@ -205,7 +205,7 @@ def _check_token_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     token_ids: Set[str] = set()
     if token_file is not None:
         try:
-            doc = parse_ecf_file(token_file)
+            doc = parse_ecf_file_cached(token_file)
             for block in doc.iter_blocks():
                 id_val = block.get_property('Id')
                 if id_val:
@@ -216,7 +216,7 @@ def _check_token_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     issues: List[CrossRefIssue] = []
     for path in ctx.ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for top_block, prop_node, key, value in _all_property_pairs(doc):
@@ -263,7 +263,7 @@ def _check_dialogue_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     dialogue_names: Set[str] = set()
     for path in ctx.ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for block in doc.iter_blocks():
@@ -275,7 +275,7 @@ def _check_dialogue_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
     issues: List[CrossRefIssue] = []
     for path in ctx.ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for block in doc.iter_blocks():
@@ -332,7 +332,7 @@ def _check_material_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
         return []
     defined: Set[str] = set()
     try:
-        doc = parse_ecf_file(materials_file)
+        doc = parse_ecf_file_cached(materials_file)
     except Exception:
         return []
     for block in doc.iter_blocks():
@@ -345,7 +345,7 @@ def _check_material_refs(ctx: CrossRefContext) -> List[CrossRefIssue]:
         if path == materials_file:
             continue
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for top_block, _node, key, value in _all_property_pairs(doc):
@@ -545,7 +545,7 @@ def collect_dialogue_names(ecf_files: List[Path]) -> List[str]:
     names: Set[str] = set()
     for path in ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         for block in doc.iter_blocks():
@@ -570,7 +570,9 @@ def apply_dialogue_ref_fix(path: Path, source_identity: str, ref_key: str,
     - new_value = nom -> remplace la valeur de la reference cassee ;
     - new_value = None -> RETIRE la paire cassee (et la ligne entiere si elle
       ne contenait qu'elle).
-    Retourne True si la modification a eu lieu."""
+    Retourne True si la modification a eu lieu (fonction MUTATRICE : parse
+    SANS cache — un echec d'ecriture laisserait sinon un doc modifie en
+    cache, divergent du disque)."""
     from .parser import parse_ecf_file
     from .model import EcfProperty, block_identity
     from ..fsutil import atomic_write_text

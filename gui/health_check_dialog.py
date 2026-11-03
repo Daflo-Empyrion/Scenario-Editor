@@ -205,8 +205,8 @@ def collect_all_checks(workspace) -> dict:
                                                 run_checks)
     from core.ecf.orphan_check import find_unused_tokens
     from core.ecf.pending_conflicts import find_pending_conflicts
-    from core.ecf.parser import parse_ecf_file
-    from core.ecf.validation import validate_scenario
+    from core.ecf.parser import parse_ecf_file_cached   # lecture seule :
+    from core.ecf.validation import validate_scenario   # parsing cache F5
 
     ecf_files = [f.path for f in workspace.working.configuration
                  if f.extension == '.ecf']
@@ -217,7 +217,7 @@ def collect_all_checks(workspace) -> dict:
     pending_count = 0
     for path in ecf_files:
         try:
-            doc = parse_ecf_file(path)
+            doc = parse_ecf_file_cached(path)
         except Exception:
             continue
         pending_count += len(find_pending_conflicts(doc))

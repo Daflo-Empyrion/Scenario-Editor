@@ -30,6 +30,7 @@ Le parsing des paires "Cle: valeur" est "quote-aware" : les virgules et les '#'
 ce qui est indispensable ici car des valeurs comme "5,19" ou "8,1" contiennent
 des virgules.
 """
+import os
 import re
 from typing import List, Optional, Tuple
 
@@ -52,6 +53,55 @@ def parse_ecf_file(path) -> EcfDocument:
     with open(path, 'r', encoding='utf-8', newline='') as f:
         text = f.read()
     return parse_ecf_text(text, source_path=str(path))
+
+
+# ------------------------------------------------------------------
+# Cache de parsing OPT-IN (02/11/2026) pour les analyses LECTURE SEULE
+# (bilan F5, references croisees, jetons, validation) qui reparsent chacun
+# les memes fichiers ECF au meme instant. JAMAIS pour les editeurs :
+# EcfEditWidget mute son document (editions/undo) — un doc partage depuis
+# le cache serait corrompu pour l'appelant suivant.
+#   - cle de fraicheur = (chemin, mtime_ns, taille) : une edition externe
+#     ou une sauvegarde casse la cle sans aucune action ;
+#   - invalidation immediate = hook d'ecriture de core.fsutil (deja branche
+#     sur TOUTES les ecritures atomiques du projet) ;
+#   - aucun fichier .cache sur disque : jamais de pollution de l'archive
+#     Workshop du scenario.
+# ------------------------------------------------------------------
+_DOC_CACHE: dict = {}
+_HOOK_REGISTERED = False
+
+
+def _evict_from_cache(path) -> None:
+    """Hook fsutil : une ecriture atomique reussie evite le chemin."""
+    str_path = str(path)
+    for key in [k for k in _DOC_CACHE if k[0] == str_path]:
+        _DOC_CACHE.pop(key, None)
+
+
+def parse_ecf_file_cached(path) -> EcfDocument:
+    """Parse AVEC cache memoire — RESERVE aux consommateurs lecture seule
+    (audits, verifications). Le document retourne est PARTAGE : ne jamais
+    le muter (editer, annoter, reordonner). Les editeurs et tout code qui
+    modifie le doc utilisent parse_ecf_file()."""
+    global _HOOK_REGISTERED
+    if not _HOOK_REGISTERED:
+        from core import fsutil
+        fsutil.register_write_hook(_evict_from_cache)
+        _HOOK_REGISTERED = True
+    p = path if isinstance(path, str) else str(path)
+    st = os.stat(p)
+    key = (p, st.st_mtime_ns, st.st_size)
+    doc = _DOC_CACHE.get(key)
+    if doc is None:
+        doc = parse_ecf_file(p)
+        _DOC_CACHE[key] = doc
+    return doc
+
+
+def clear_parse_cache() -> None:
+    """Purge manuelle (tests, rescan complet du workspace)."""
+    _DOC_CACHE.clear()
 
 
 # ------------------------------------------------------------------
