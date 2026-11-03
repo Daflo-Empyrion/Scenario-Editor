@@ -49,11 +49,6 @@ def test_menu_path_and_flow(qapp, tmp_path, monkeypatch):
         def exec(self):
             calls["exec"] = True
 
-    # le menu ouvre la VUE WEB quand WebEngine est present (chantier
-    # webapp, 02/11), sinon le dialogue Qt historique — is_available()
-    # depend de l'ordre d'import QtWebEngineWidgets/QApplication, on stubbe
-    # donc les DEUX branches pour tester le contrat (root + exec) partout
-    monkeypatch.setattr("gui.coherence_web.CoherenceWebDialog", _Stub)
     monkeypatch.setattr("gui.coherence_dialog.CoherenceDialog", _Stub)
     win._open_coherence_dialog()
     assert calls == {"root": "", "exec": True}

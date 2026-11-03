@@ -128,8 +128,8 @@ class BlockLibraryDialog(QDialog):
 
 
 # ----------------------------------------------------------------------
-# Logique partagee par le dialogue Qt et la vue web (gui/blocklib_web.py)
-# -- une seule implementation, boites de dialogue natives via `parent`.
+# Logique extraite du dialogue (02/11) -- une seule implementation,
+# boites de dialogue natives via `parent`.
 # ----------------------------------------------------------------------
 def delete_snippet_confirmed(parent, path) -> bool:
     if not path:

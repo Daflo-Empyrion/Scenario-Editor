@@ -199,7 +199,7 @@ class HealthCheckDialog(QDialog):
 def collect_all_checks(workspace) -> dict:
     """Les 5 familles de verifications, SANS toucher aux widgets
     (executable hors du thread GUI). Partagee par le dialogue Qt ci-dessus
-    et la vue web (gui/health_web.py) — une seule implementation."""
+    par tous les consommateurs — une seule implementation."""
     from core.ecf.cross_reference_check import (CROSS_REFERENCE_CHECKS,
                                                 CrossRefContext,
                                                 run_checks)

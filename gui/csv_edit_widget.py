@@ -34,10 +34,6 @@ from core import vanilla_memory
 from core.translation import find_language_aliases, _normalize, repair_mojibake
 from core import translation, settings, translation_memory
 from core.i18n import t
-try:
-    from gui import csv_web_view as _csv_web
-except Exception:  # pragma: no cover - WebEngine absent
-    _csv_web = None
 from core.csv_column_glossary import get_csv_column_tooltip
 from gui.theme import icon, icon_size
 from gui.text_tools import (
@@ -112,8 +108,6 @@ class CsvEditWidget(QWidget):
         # Vue web (pilote 2026, 01/11) : la QTableWidget reste la source de
         # verite -- chaque edition web est MIRROREE dans la table (signaux
         # bloques), donc sauvegarde/undo/orthographe lisent des donnees a jour.
-        self._web_view = None          # cree au premier basclement (lourd)
-        self._web_undo_armed = False   # snapshot undo pris pour cette salve ?
 
         handler = CsvHandler()
         raw = handler.load(path)
@@ -223,15 +217,6 @@ class CsvEditWidget(QWidget):
             self.btn_undo.clicked.connect(self.undo)
             self.btn_undo.setEnabled(False)
             toolbar.addWidget(self.btn_undo)
-            self.btn_web_view = QPushButton(icon("fa5s.desktop", "#4a7dfc"),
-                                            t("csv.web_toggle"))
-            self.btn_web_view.setIconSize(icon_size())
-            self.btn_web_view.setObjectName("secondaryButton")
-            self.btn_web_view.setCheckable(True)
-            self.btn_web_view.setToolTip(t("csv.web_toggle_tooltip"))
-            self.btn_web_view.setVisible(_csv_web.is_available())
-            self.btn_web_view.toggled.connect(self._toggle_web_view)
-            toolbar.addWidget(self.btn_web_view)
             btn_save = QPushButton(icon("fa5s.save", "#ffffff"), t("btn.save"))
             btn_save.setIconSize(icon_size())
             btn_save.clicked.connect(self.save)
@@ -277,16 +262,7 @@ class CsvEditWidget(QWidget):
             # Pas de QShortcut Undo ici : gere par le raccourci UNIQUE de la
             # fenetre principale (main_window._global_undo) -- un doublon le
             # rendrait ambigu (CSV-010).
-        # Conteneur a bascule : table Qt (source de verite) / vue web
-        from PyQt6.QtWidgets import QStackedWidget
-        self._stack = QStackedWidget(self)
-        self._stack.addWidget(self.table)
-        layout.addWidget(self._stack, 1)
-        # Vue web PAR DEFAUT (chantier webapp, 02/11) : bascule diffee apres
-        # la construction (le moteur web est lourd au premier appel). La
-        # table Qt reste construite et synchronisee : source de verite.
-        if editable and _csv_web and _csv_web.is_available()                 and settings.get_csv_web_default_enabled()                 and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
-            QTimer.singleShot(0, lambda: self.btn_web_view.setChecked(True))
+        layout.addWidget(self.table, 1)
         # Proposition de reprise apres la construction (jamais un dialogue
         # modal pendant __init__) : lit la session de revision du fichier.
         if editable:
@@ -354,10 +330,6 @@ class CsvEditWidget(QWidget):
         self.table.blockSignals(False)
         self._apply_row_highlights()
         self._apply_vanilla_highlights()
-        # Vue web active : la table vient de changer sous ses pieds
-        # (ajout de lignes PDA, undo...) -> re-pousser la forme
-        if self._web_view is not None and self._stack.currentWidget() is self._web_view:
-            self._web_view.refresh()
 
     def _apply_vanilla_highlights(self):
         """Colore en vert les cellules cibles dont le contenu est
@@ -484,49 +456,9 @@ class CsvEditWidget(QWidget):
         self.table.scrollToItem(self.table.item(r, c))
         self.search_status.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
-    # -- vue web (pilote 2026, 01/11) ----------------------------------------
-
-    def _toggle_web_view(self, checked: bool) -> None:
-        """Bascule table Qt <-> vue web. La table reste la source de verite :
-        la vue web la lit par viewport et chaque edition y est MIRROREE."""
-        if not (_csv_web and _csv_web.is_available()):
-            self.btn_web_view.setChecked(False)
-            return
-        if checked:
-            if self._web_view is None:
-                self._web_view, self._web_bridge = _csv_web.make_web_view(self, self)
-                self._stack.addWidget(self._web_view)
-            self._web_view.refresh()
-            self._stack.setCurrentWidget(self._web_view)
-        else:
-            self._stack.setCurrentWidget(self.table)
-
-    def _web_set_cell(self, row: int, col: int, text: str) -> None:
-        """Edition arrivee de la vue web : snapshot undo UNE fois par salve
-        (pas par cellule -- 13 000 lignes x 20 snapshots seraient lourds),
-        puis MIROIR dans la table (signaux bloques : _on_cell_changed ne
-        doit pas repartir), mark_modified et drapeau modifie."""
-        table = self.table
-        if row < 0 or row >= table.rowCount() or col < 0 or col >= table.columnCount():
-            return
-        if not self._web_undo_armed:
-            self._snapshot_undo()
-            self._web_undo_armed = True
-        table.blockSignals(True)
-        item = table.item(row, col)
-        if item is None:
-            from PyQt6.QtWidgets import QTableWidgetItem
-            item = QTableWidgetItem("")
-            table.setItem(row, col, item)
-        item.setText(text)
-        table.blockSignals(False)
-        mark_modified(item)   # QTableWidgetItem : pas de colonne (QTree sinon)
-        self._set_modified(True)
-
     def save(self):
         if not self.editable:
             return
-        self._web_undo_armed = False
         self._sync_doc_from_table()
         rendered = render_csv(self.doc)
         try:
@@ -563,7 +495,6 @@ class CsvEditWidget(QWidget):
     def undo(self):
         if not self._undo_stack:
             return
-        self._web_undo_armed = False
         snapshot = self._undo_stack.pop()
         self.table.blockSignals(True)
         self.table.setRowCount(len(snapshot))

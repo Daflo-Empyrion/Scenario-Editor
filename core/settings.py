@@ -256,18 +256,6 @@ def set_titlebar_custom_enabled(enabled: bool) -> None:
     _set('titlebar_custom_enabled', enabled)
 
 
-def get_csv_web_default_enabled() -> bool:
-    """Vue web PAR DEFAUT de l'editeur CSV (chantier webapp, 02/11) : un
-    CSV ouvert s'affiche directement dans la grille web (la table Qt reste
-    le modele invisible). True par defaut quand WebEngine est disponible ;
-    le bouton « Vue web » de l'editeur permet de revenir a la table."""
-    return _get('csv_web_default_enabled', True)
-
-
-def set_csv_web_default_enabled(enabled: bool) -> None:
-    _set('csv_web_default_enabled', enabled)
-
-
 def get_tech_tree_web_enabled() -> bool:
     """Vue HTML de l'arbre technologique (pilote 2026, decision du 31/10) :
     False par defaut -- rien ne change tant que l'utilisateur n'a pas coche

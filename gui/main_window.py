@@ -38,7 +38,6 @@ from PyQt6.QtWidgets import (
     QTabWidget, QSplitter, QWidget, QVBoxLayout,
     QHBoxLayout, QLineEdit, QLabel, QStatusBar, QMessageBox, QMenu,
     QProgressDialog, QInputDialog, QPushButton, QDialog, QRadioButton, QButtonGroup, QComboBox, QTextEdit,
-    QStackedWidget,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QTreeWidgetItemIterator
@@ -79,7 +78,6 @@ from gui.wiki_viewer import open_wiki
 from gui.theme import icon, icon_size
 from gui import theme as _theme
 from gui import fluent_pilot
-from gui import workspace_web_view as _ws_web
 from gui.neon_delegate import NeonItemDelegate
 from gui.busy import busy_guard
 from gui.msgboxes import ask_save_discard_cancel, ask_yes_no
@@ -635,13 +633,6 @@ class MainWindow(QMainWindow):
         # s'affiche directement dans la grille web. Toggle immediate pour les
         # PROCHAINS fichiers ouverts (les onglets deja construits ne bougent
         # pas) ; grisee si WebEngine manque.
-        self.action_csv_web_default = self.menu_interface.addAction(
-            t("menu.options.csv_web_default"))
-        self.action_csv_web_default.setCheckable(True)
-        self.action_csv_web_default.setChecked(settings.get_csv_web_default_enabled())
-        self.action_csv_web_default.setEnabled(_ttweb_available())
-        self.action_csv_web_default.toggled.connect(self._toggle_csv_web_default)
-
         # Barre de titre custom style webapp (31/10) : fenetre sans cadre,
         # barre maison au-dessus des menus. Pris en compte au PROCHAIN
         # lancement ; grisee si qframelesswindow manque / hors Windows.
@@ -671,11 +662,6 @@ class MainWindow(QMainWindow):
         d'etat comme pour un message ephemere."""
         fluent_pilot.set_enabled(checked)
         self.statusBar().showMessage(t("menu.options.fluent_pilot.restart"), 8000)
-
-    def _toggle_csv_web_default(self, checked: bool):
-        """Persiste l'option de la vue web par defaut des CSV — appliquee
-        aux PROCHAINS fichiers ouverts."""
-        settings.set_csv_web_default_enabled(checked)
 
     def _toggle_titlebar_custom(self, checked: bool):
         """Persiste l'option de la barre de titre custom -- pris en compte au
@@ -2214,12 +2200,6 @@ class MainWindow(QMainWindow):
     def _open_block_library(self):
         """Bibliotheque de blocs reutilisables (demande du 10/09/2026) --
         dialogue NON MODAL, consultable pendant l'edition."""
-        from gui import blocklib_web
-        if blocklib_web.is_available():     # chantier webapp, 02/11
-            from gui.blocklib_web import BlocklibWebDialog
-            self._block_library_dialog = BlocklibWebDialog(self, parent=self)
-            self._block_library_dialog.show()
-            return
         from gui.block_library_dialog import BlockLibraryDialog
         self._block_library_dialog = BlockLibraryDialog(self)
         self._block_library_dialog.show()
@@ -2384,12 +2364,6 @@ class MainWindow(QMainWindow):
         ws = getattr(self, "workspace", None)
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
-        from gui import digest_web
-        if digest_web.is_available():       # chantier webapp, 02/11
-            from gui.digest_web import DigestWebDialog
-            dlg = DigestWebDialog(self, working_root=working)
-            dlg.exec()
-            return
         from gui.scenario_digest_dialog import ScenarioDigestDialog
         dlg = ScenarioDigestDialog(self, working_root=working)
         dlg.exec()
@@ -2402,11 +2376,6 @@ class MainWindow(QMainWindow):
         ws = getattr(self, "workspace", None)
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
-        from gui import cartoon_web
-        if cartoon_web.is_available():      # chantier webapp, 02/11
-            from gui.cartoon_web import CartoonWebDialog
-            CartoonWebDialog(self, working_root=working).exec()
-            return
         from gui.cartoon_dialog import CartoonDialog
         dlg = CartoonDialog(self, working_root=working)
         dlg.exec()
@@ -2421,12 +2390,6 @@ class MainWindow(QMainWindow):
         ws = getattr(self, "workspace", None)
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
-        from gui import coherence_web
-        if coherence_web.is_available():    # chantier webapp, 02/11
-            from gui.coherence_web import CoherenceWebDialog
-            dlg = CoherenceWebDialog(self, working_root=working)
-            dlg.exec()
-            return
         from gui.coherence_dialog import CoherenceDialog
         dlg = CoherenceDialog(self, working_root=working)
         dlg.exec()
@@ -2447,11 +2410,6 @@ class MainWindow(QMainWindow):
         """Comparer deux bundles Unity de scenarios (ajouts/retraits) :
         les bundles ne se fusionnent pas en binaire, on decide AVANT la
         fusion de dossier."""
-        from gui import bundles_web
-        if bundles_web.is_available():      # chantier webapp, 02/11
-            from gui.bundles_web import BundlesWebDialog
-            BundlesWebDialog(self).exec()
-            return
         from gui.bundles_dialog import BundlesDialog
         dlg = BundlesDialog(self)
         dlg.exec()
@@ -2730,12 +2688,6 @@ class MainWindow(QMainWindow):
         if not self.workspace:
             QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return
-        from gui import health_web
-        if health_web.is_available():       # chantier webapp, 02/11
-            from gui.health_web import HealthWebDialog
-            self._health_check_dialog = HealthWebDialog(self, parent=self)
-            self._health_check_dialog.show()
-            return
         from gui.health_check_dialog import HealthCheckDialog
         self._health_check_dialog = HealthCheckDialog(self, parent=self)
         self._health_check_dialog.show()
@@ -2750,17 +2702,6 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self._close_tab)
-        # Page d'accueil / launchpad webapp (02/11) : premier onglet,
-        # non-fermable ; projets recents cliquables. Absent si WebEngine
-        # manque ou plateforme offscreen (voir gui/home_page.py).
-        from gui import home_page
-        self._home_bridge = None
-        if home_page.is_available():
-            try:
-                home_view, self._home_bridge = home_page.make_home_view(self)
-                self.tabs.addTab(home_view, t("tab.home"))
-            except Exception:
-                self._home_bridge = None
         self.main_splitter.addWidget(self.tabs)
 
         # -- Bas : bande de navigation A | copie de travail | B --
@@ -2785,10 +2726,9 @@ class MainWindow(QMainWindow):
         self.tree_a.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_a.customContextMenuRequested.connect(
             lambda pos: self._show_source_context_menu(self.tree_a, pos, self._root_a))
+        layout_a.addWidget(self.label_a)
         self._attach_tree_filter(self.tree_a, layout_a)
-        self._a_stack, self._btn_a_web = self._attach_web_tree(
-            layout_a, self.tree_a, self.label_a,
-            lambda item: self._on_source_double_clicked(item, self._root_a))
+        layout_a.addWidget(self.tree_a)
         bottom_splitter.addWidget(self.panel_a)
 
         self.panel_working = QWidget()
@@ -2802,10 +2742,9 @@ class MainWindow(QMainWindow):
         self.tree_working.itemDoubleClicked.connect(self._on_working_double_clicked)
         self.tree_working.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_working.customContextMenuRequested.connect(self._show_working_context_menu)
+        layout_w.addWidget(self.label_working)
         self._attach_tree_filter(self.tree_working, layout_w)
-        self._ws_stack, self._btn_ws_web = self._attach_web_tree(
-            layout_w, self.tree_working, self.label_working,
-            self._on_working_double_clicked)
+        layout_w.addWidget(self.tree_working)
         bottom_splitter.addWidget(self.panel_working)
 
         self.panel_b = QWidget()
@@ -2820,10 +2759,9 @@ class MainWindow(QMainWindow):
         self.tree_b.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_b.customContextMenuRequested.connect(
             lambda pos: self._show_source_context_menu(self.tree_b, pos, self._root_b))
+        layout_b.addWidget(self.label_b)
         self._attach_tree_filter(self.tree_b, layout_b)
-        self._b_stack, self._btn_b_web = self._attach_web_tree(
-            layout_b, self.tree_b, self.label_b,
-            lambda item: self._on_source_double_clicked(item, self._root_b))
+        layout_b.addWidget(self.tree_b)
         bottom_splitter.addWidget(self.panel_b)
         self.panel_b.setVisible(False)
 
@@ -2932,11 +2870,6 @@ class MainWindow(QMainWindow):
         try:
             self.workspace = load_existing_workspace(source_a, working, source_b)
             self._refresh_panel_and_status_labels()
-            if self._home_bridge is not None:
-                try:
-                    self._home_bridge.push_reset()
-                except Exception:
-                    pass
         except Exception as e:
             QMessageBox.critical(self, t("err.title"),
                                   f"{t('recent.resume_error')} :\n{e}\n\n{t('recent.resume_error_hint')}")
@@ -2990,58 +2923,6 @@ class MainWindow(QMainWindow):
         search = self._tree_search_boxes.get(tree)
         if search is not None and search.text().strip():
             self._filter_tree(tree, search.text())
-        self._workspace_web_refresh(tree)
-
-    # ------------------------------------------------------------------
-    # Vues web des arbres de navigation (chantier webapp, 02/11) — copie
-    # de travail ET scenarios A/B : meme helper, meme page.
-    # ------------------------------------------------------------------
-
-    def _attach_web_tree(self, layout, tree, label, opener):
-        """Empile une vue web par-dessus un arbre de navigation (l'arbre Qt
-        reste la source de verite et vivant) et pose le bouton de bascule a
-        cote du libelle du panneau. Retourne (stack, bouton)."""
-        stack = QStackedWidget()
-        stack.addWidget(tree)
-        btn = QPushButton(icon("fa5s.desktop", "#4a7dfc"), t("csv.web_toggle"))
-        btn.setIconSize(icon_size())
-        btn.setObjectName("secondaryButton")
-        btn.setCheckable(True)
-        btn.setToolTip(t("csv.web_toggle_tooltip"))
-        btn.setVisible(_ws_web.is_available())
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(label, 1)
-        row.addWidget(btn)
-        layout.addLayout(row)
-        layout.addWidget(stack)
-
-        def _toggle(checked):
-            view, bridge = getattr(tree, "_web_pair", (None, None))
-            if checked:
-                if view is None:
-                    view, bridge = _ws_web.make_web_view(self, tree, self,
-                                                         opener=opener)
-                    tree._web_pair = (view, bridge)
-                    stack.addWidget(view)
-                view.refresh()
-                stack.setCurrentWidget(view)
-            else:
-                stack.setCurrentWidget(tree)
-
-        btn.toggled.connect(_toggle)
-        tree._web_btn = btn
-        return stack, btn
-
-    def _workspace_web_refresh(self, tree=None):
-        """Re-pousse l'arbre vers sa vue web apres _populate_tree — no-op
-        tant que la vue n'existe pas ou que la bascule est eteinte."""
-        if tree is None:
-            tree = getattr(self, "tree_working", None)
-        pair = getattr(tree, "_web_pair", None)
-        btn = getattr(tree, "_web_btn", None)
-        if pair is not None and btn is not None and btn.isChecked():
-            pair[1].push_reset()
 
     def _attach_tree_filter(self, tree: QTreeWidget, layout: QVBoxLayout):
         """Insere un champ de filtrage au-dessus d'un arbre et le branche au
@@ -4646,10 +4527,6 @@ class MainWindow(QMainWindow):
             dlg.exec()
 
     def _close_tab(self, index: int) -> None:
-        """Fermeture d'onglet : l'onglet Accueil (index 0, launchpad webapp)
-        n'est jamais fermable."""
-        if index == 0 and self._home_bridge is not None:
-            return
         self.tabs.removeTab(index)
 
     # nativeEvent : l'override de delegation au chrome a ete SUPPRIME le
