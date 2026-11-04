@@ -690,8 +690,28 @@ def _walk(entries: List[YamlEntry], segments: tuple) -> Optional[YamlEntry]:
     return cur
 
 
+def _render_parses(text: str) -> bool:
+    """Le rendu est-il relisible par le YAML DU JEU (YamlDotNet, outil
+    tools/yamlcheck) ? Verificateur absent -> True : ce garde-fou ne doit
+    jamais bloquer une fusion, il l'annule seulement quand le fichier
+    deviendrait illisible."""
+    try:
+        from core import yaml_game_check
+        checker = yaml_game_check.locate_checker()
+        if checker is None:
+            return True
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "rendu.yaml").write_text(text, encoding="utf-8")
+            findings, _ = yaml_game_check.run_yaml_check(checker, [tmp])
+            return not findings
+    except Exception:                                      # noqa: BLE001
+        return True
+
+
 def apply_yaml_units(working_yaml: Path, source_yaml: Path,
-                     units: List[YamlUnit]) -> int:
+                     units: List[YamlUnit],
+                     refused: Optional[List[str]] = None) -> int:
     """Insere les unites cochees dans le YAML de la copie de travail
     (rendu yamllite : commentaires preserves) et ecrit en atomique ;
     retourne le nombre d'unites reellement inserees. Idempotent : une
@@ -786,5 +806,18 @@ def apply_yaml_units(working_yaml: Path, source_yaml: Path,
         applied += 1
     if applied:
         from core.fsutil import atomic_write_text
-        atomic_write_text(working_yaml, working_doc.render())
+        text = working_doc.render()
+        if not _render_parses(text):
+            # Vecu 04/11 : la fusion generique a laisse 88 playfield_static
+            # .yaml que le YAML du jeu refuse (« did not find expected key »)
+            # — fichiers valides chez A et B, casses apres insertion. On
+            # n'ecrit JAMAIS un rendu que le moteur ne peut pas relire :
+            # mieux vaut 0 unite appliquee qu'un scenario qui ne charge plus.
+            if refused is not None:
+                refused.append(
+                    f"{Path(working_yaml).name} : rendu REFUSE, le YAML ne "
+                    f"serait plus relisible par le jeu ({applied} unite(s) "
+                    f"abandonnee(s)) — fusion annulee, fichier inchange")
+            return 0
+        atomic_write_text(working_yaml, text)
     return applied

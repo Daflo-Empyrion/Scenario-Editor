@@ -3229,13 +3229,24 @@ class MainWindow(QMainWindow):
             from core.sectors_merge import apply_structural_units
             sectors_dest = review.sectors_plan.dest
             prior = capture_file(sectors_dest)
+            skipped: list = []
+            starts: list = []
             applied = apply_structural_units(sectors_dest, units,
-                                             review.sectors_plan.source)
+                                             review.sectors_plan.source,
+                                             skipped, starts)
             self._push_workspace_undo(FileStateUndo(
                 sectors_dest, prior, t("mergeplan.struct_undo")))
             selected = [p for p in selected
                         if p != review.sectors_plan.source]
             structural_note = " " + t("mergeplan.struct_done", n=applied)
+            if skipped:
+                structural_note += " " + t(
+                    "mergeplan.struct_skipped", n=len(skipped),
+                    detail="; ".join(skipped[:3]))
+            if starts:
+                structural_note += " " + t(
+                    "mergeplan.struct_starters", n=len(starts),
+                    detail="; ".join(starts[:3]))
 
         # fusion structurelle GENERIQUE des autres YAML (PDA.yaml, playfield
         # static...) : insertion des unites cochees dans NOS fichiers

@@ -491,11 +491,17 @@ def plan_placements(root, picks: Iterable[str],
         if coords is None:
             continue
         used.add(_coords_key(f"{coords[0]},{coords[1]},{coords[2]}"))
-        used_names.add(name.casefold())
         arrival = ""
-        if orphan.category == "planet" and orbits.get(system):
-            arrival = orbits[system]
+        if orphan.category == "planet":
+            arrival = orbits.get(system, "")
+            if not arrival:
+                # pas d'orbite d'arrivee disponible : la carte n'aurait
+                # aucune cible de warp dans ce secteur et « Selectionner »
+                # ne ferait rien (vecu 22/10) -> on ne pose PAS la planete,
+                # le dialogue compte l'unite comme ecartee.
+                continue
             used_names.add(f"{name} Sector".casefold())
+        used_names.add(name.casefold())
         placements.append(Placement(orphan.type_name, orphan.category,
                                     system, name, "sector", coords,
                                     arrival=arrival))
@@ -711,6 +717,8 @@ def find_missing_arrivals(root) -> List[Placement]:
         return []
     orbit_types = _orbit_types(root)
     if not orbit_types:
+        return []
+    if not (root / "Playfields").is_dir():
         return []
     space = {folder.name.casefold() for folder in
              (root / "Playfields").iterdir()

@@ -381,9 +381,64 @@ def _split_flow(value: str) -> List[str]:
     return [f.strip().strip("'\"") for f in fields]
 
 
+def _start_marker_span(value: str) -> Optional[Tuple[int, int]]:
+    """Span du 4e champ d'une ligne playfield flow : le marqueur de depart
+    ('Human:1'...). None si la ligne a moins de 4 champs."""
+    lo, hi = value.find("["), value.rfind("]")
+    if lo == -1 or hi <= lo:
+        return None
+    spans, start, quote = [], lo + 1, None
+    for i in range(lo + 1, hi):
+        c = value[i]
+        if quote:
+            if c == quote:
+                quote = None
+            continue
+        if c in "\"'":
+            quote = c
+        elif c == ",":
+            spans.append((start, i))
+            start = i + 1
+    spans.append((start, hi))
+    return spans[3] if len(spans) >= 4 else None
+
+
+def _disable_start_markers(entry: YamlEntry, found: List[str]) -> None:
+    """Neutralise la fonction « starter » des lignes de playfield importees
+    (4e champ 'Human:1' -> '') : la copie de travail garde SES planetes de
+    depart, celles de la source ne viennent pas s'ajouter a la liste
+    « Start Location » du nouveau jeu (demande du 04/11 : A garde ses
+    starters, B est importe sans les siens). Accepte un systeme, un secteur
+    ou une ligne seule."""
+    pf = _find_child(entry, "Playfields")
+    if pf is not None:
+        rows = _seq_items(pf)
+    else:
+        sec = _find_child(entry, "Sectors")
+        if sec is not None:
+            for child in _seq_items(sec):
+                _disable_start_markers(child, found)
+            return
+        rows = [entry]
+    for row in rows:
+        if not row.value:
+            continue
+        span = _start_marker_span(row.value)
+        if span is None:
+            continue
+        s, e = span
+        while s < e and row.value[s] == " ":
+            s += 1                      # garde l'espacement d'origine
+        if not row.value[s:e].strip().strip("'\""):
+            continue                    # pas de marqueur sur cette ligne
+        names = _split_flow(row.value)
+        row.set_own_value(row.value[:s] + "''" + row.value[e:])
+        if len(names) > 1:
+            found.append(f"{names[1]} : depart neutralise")
+
+
 def _coords_key(value: str) -> tuple:
     return tuple(_COORD_RE.findall(value or ""))
-
 
 def _coords_text(entry: YamlEntry) -> str:
     """Representation des coordonnees d'un secteur : la valeur inline
@@ -573,7 +628,9 @@ def _filtered_sector_copy(sector: YamlEntry, want_rows: Optional[set],
             details.append(f"{nm} exclu de {sname} (deja dans le working)")
             return None, [], False
         global_pf.add(nm.casefold())
-        return (_copy_entry(sector), [nm],
+        clone = _copy_entry(sector)
+        _disable_start_markers(clone, details)
+        return (clone, [nm],
                 len(fields) > 2 and _is_sun_type(fields[2]))
     clone = _copy_entry(sector)
     clone_pf = _find_child(clone, "Playfields")
@@ -597,6 +654,7 @@ def _filtered_sector_copy(sector: YamlEntry, want_rows: Optional[set],
             sun = True
     if not inserted:
         return None, [], False
+    _disable_start_markers(clone, details)
     return clone, inserted, sun
 
 
@@ -748,13 +806,32 @@ def _ensure_blank_before(children: List[YamlNode], eol: str) -> None:
 
 
 def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
-                           source_yaml: Path) -> int:
+                           source_yaml: Path,
+                           skipped: Optional[List[str]] = None,
+                           disabled_starts: Optional[List[str]] = None
+                           ) -> int:
     """Insere les unites cochees dans le Sectors.yaml de la copie de
     travail (rendu yamllite : commentaires et mise en forme preserves) et
     ECRIT le fichier en atomique ; retourne le nombre d'unites reellement
-    inserees. L'appelant gere backup (.bak) et undo (capture_file avant)."""
+    inserees. L'appelant gere backup (.bak) et undo (capture_file avant).
+
+    `skipped` : si fourni, recoit une ligne par unite DEMANDEE mais NON
+    inseree (conflit de nom de playfield, soleil deja pris, ligne absente
+    chez la source...). Sans ca une fusion partielle se presentait comme
+    un succes : l'utilisateur croyait avoir tout fusionne et le contenu
+    manquant ne se voyait qu'en jeu (vecu 04/11).
+    `disabled_starts` : si fourni, recoit les playfields importes dont la
+    fonction « starter » a ete neutralisee (la copie de travail garde ses
+    propres planetes de depart).
+    """
     if not units:
         return 0
+    reasons = skipped if skipped is not None else []
+    starts: List[str] = []
+
+    def _why(msg: str) -> None:
+        reasons.append(msg)
+
     working_doc = parse_yaml_file(working_yaml)
     source_doc = parse_yaml_file(source_yaml)
     working_solar = _find_solar_systems(working_doc)
@@ -772,14 +849,18 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
                               if _strip_quotes(c.value).casefold()
                               == unit.system.casefold()), None)
         if source_system is None:
+            _why(f"{unit.kind} {unit.system}/{unit.name} : systeme absent "
+                 f"de la source")
             continue
         working_system = next((c for c in _systems(working_solar)
                                if _strip_quotes(c.value).casefold()
                                == unit.system.casefold()), None)
         if unit.kind == "system":
             if working_system is not None:
+                _why(f"systeme {unit.system} : deja dans la copie de travail")
                 continue
             clone = _copy_entry(source_system)
+            _disable_start_markers(clone, starts)
             clone_sectors = _find_child(clone, "Sectors")
             if clone_sectors is not None:
                 # exclusion des secteurs dont un playfield existe DEJA
@@ -798,6 +879,8 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
                 source_sectors = _find_child(source_system, "Sectors")
                 if not inserted and source_sectors is not None \
                         and _seq_items(source_sectors):
+                    _why(f"systeme {unit.system} : tous ses playfields "
+                         f"existent deja")
                     continue    # tous ses secteurs etaient en conflit
                 if source_sectors is not None \
                         and any(_sector_has_sun(s)
@@ -805,6 +888,8 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
                         and not any(_sector_has_sun(s) for s in kept
                                     if isinstance(s, YamlEntry)
                                     and s.is_sequence_item):
+                    _why(f"systeme {unit.system} : son soleil est deja "
+                         f"utilise ailleurs")
                     continue    # son seul soleil est en conflit : casse
             else:
                 inserted = set()
@@ -814,10 +899,14 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
             applied += 1
             continue
         if working_system is None:
+            _why(f"{unit.kind} {unit.system}/{unit.name} : systeme absent "
+                 f"de la copie de travail")
             continue
         source_sectors_entry = _find_child(source_system, "Sectors")
         working_sectors_entry = _find_child(working_system, "Sectors")
         if source_sectors_entry is None or working_sectors_entry is None:
+            _why(f"{unit.kind} {unit.system}/{unit.name} : enfant Sectors "
+                 f"absent d'un des deux fichiers")
             continue
         ckey = _coords_key(unit.coordinates)
         source_sector = next((c for c in _seq_items(source_sectors_entry)
@@ -825,38 +914,62 @@ def apply_structural_units(working_yaml: Path, units: List[SectorUnit],
         working_sector = next((c for c in _seq_items(working_sectors_entry)
                                if _coords_key(_coords_text(c)) == ckey), None)
         if unit.kind == "sector":
-            if source_sector is None or working_sector is not None:
+            if source_sector is None:
+                _why(f"secteur {unit.system} {unit.coordinates} : absent "
+                     f"de la source")
                 continue
-            if any(n.casefold() in global_pf for n in
-                   _sector_playfield_names(source_sector)):
+            if working_sector is not None:
+                _why(f"secteur {unit.system} {unit.coordinates} : deja "
+                     f"dans la copie de travail")
+                continue
+            taken = sorted(n for n in _sector_playfield_names(source_sector)
+                           if n.casefold() in global_pf)
+            if taken:
+                _why(f"secteur {unit.system} {unit.coordinates} : "
+                     f"playfields deja utilises ({', '.join(taken)})")
                 continue            # un de ses playfields est deja pris
             _ensure_blank_before(working_sectors_entry.children, eol)
-            working_sectors_entry.children.append(_copy_entry(source_sector))
+            clone = _copy_entry(source_sector)
+            _disable_start_markers(clone, starts)
+            working_sectors_entry.children.append(clone)
             global_pf |= {n.casefold() for n in
                           _sector_playfield_names(source_sector)}
             applied += 1
             continue
         if source_sector is None or working_sector is None:
+            _why(f"playfield {unit.name} : secteur {unit.system} "
+                 f"{unit.coordinates} absent d'un des deux fichiers")
             continue
         source_pf = _find_child(source_sector, "Playfields")
         working_pf = _find_child(working_sector, "Playfields")
         if source_pf is None or working_pf is None:
+            _why(f"playfield {unit.name} : enfant Playfields absent d'un "
+                 f"des deux fichiers")
             continue
         row = next((c for c in _seq_items(source_pf) if c.value
                     and _split_flow(c.value)[1:2]
                     and _split_flow(c.value)[1].casefold()
                     == unit.name.casefold()), None)
         if row is None:
+            _why(f"playfield {unit.name} : ligne absente de la source")
             continue
         already = any(_split_flow(c.value)[1:2]
                       and _split_flow(c.value)[1].casefold()
                       == unit.name.casefold()
                       for c in _seq_items(working_pf) if c.value)
-        if already or unit.name.casefold() in global_pf:
+        if already:
+            _why(f"playfield {unit.name} : deja dans la copie de travail")
             continue
-        working_pf.children.append(_copy_entry(row))
+        if unit.name.casefold() in global_pf:
+            _why(f"playfield {unit.name} : nom deja utilise ailleurs")
+            continue
+        row_clone = _copy_entry(row)
+        _disable_start_markers(row_clone, starts)
+        working_pf.children.append(row_clone)
         global_pf.add(unit.name.casefold())
         applied += 1
+    if disabled_starts is not None:
+        disabled_starts.extend(starts)
     if applied:
         text = working_doc.render()
         from core.fsutil import atomic_write_text

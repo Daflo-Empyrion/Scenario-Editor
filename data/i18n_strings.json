@@ -7875,6 +7875,14 @@
     "fr": "{n} élément(s) inséré(s) dans votre Sectors.yaml.",
     "en": "{n} element(s) inserted into your Sectors.yaml."
   },
+  "mergeplan.struct_skipped": {
+    "fr": "ATTENTION : {n} unité(s) DEMANDÉE(S) mais NON insérée(s) — {detail}",
+    "en": "WARNING: {n} requested unit(s) NOT inserted — {detail}"
+  },
+  "mergeplan.struct_starters": {
+    "fr": "{n} starter(s) de la source neutralisé(s), vos planètes de départ sont conservées — {detail}",
+    "en": "{n} starter(s) from the source disabled, your start planets kept — {detail}"
+  },
   "mergeplan.dep_only_done": {
     "fr": "{n} dépendance(s) copiée(s).",
     "en": "{n} dependency(ies) copied."
@@ -8322,6 +8330,18 @@
   "galaxy.sectors_none": {
     "fr": "Aucune unite a fusionner : le Sectors.yaml de la source n'apporte rien de nouveau.",
     "en": "Nothing to merge: the source Sectors.yaml brings nothing new."
+  },
+  "galaxy.sectors_skipped": {
+    "fr": "ATTENTION : {n} unite(s) COCHEE(S) mais NON inseree(s) — {detail}",
+    "en": "WARNING: {n} checked unit(s) NOT inserted — {detail}"
+  },
+  "galaxy.sectors_conflicts": {
+    "fr": "ATTENTION : {n} unite(s) NON fusionnee(s), decochee(s) d'office (playfields deja presents ailleurs) — {detail}",
+    "en": "WARNING: {n} unit(s) NOT merged, auto-unchecked (playfields already present elsewhere) — {detail}"
+  },
+  "galaxy.sectors_starters": {
+    "fr": "{n} starter(s) de la source neutralise(s), vos planetes de depart sont conservees — {detail}",
+    "en": "{n} starter(s) from the source disabled, your start planets kept — {detail}"
   },
   "galaxy.sectors_apply": {
     "fr": "Inserer les unites cochees",

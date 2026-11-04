@@ -66,6 +66,37 @@ def test_missing_sectors_yaml(tmp_path):
     assert "introuvable" in _errors(issues)[0].message
 
 
+SECTORS_NO_WARP = """SolarSystems:
+  - Name: Sys1
+    Sectors:
+      - Coordinates: [0, 0, 0]
+        Playfields:
+          - ['0,0,0', Soleil1, SunRandom, '']
+      - Coordinates: [30, 0, 0]
+        Playfields:
+          - ['0, 0, 0', Planete1, Pf1, '', '', '', '']
+"""
+
+
+def test_planet_sector_without_warp_target_is_flagged(tmp_path):
+    """Reintegration d'orphelins : un secteur de planete sans playfield
+    d'arrivee laisse la carte systeme SANS cible de warp — « Selectionner »
+    ne fait rien (vecu 22/10). Le bilan doit le dire avant le lancement."""
+    root = _build_scenario(tmp_path, SECTORS_NO_WARP)
+    sun = root / "Playfields" / "SunRandom"
+    sun.mkdir()
+    (sun / "playfield_static.yaml").write_text("PlayfieldType: Sun\n",
+                                              encoding="utf-8")
+    orbit = root / "Playfields" / "Starter_OrbitEasy"
+    orbit.mkdir()
+    (orbit / "space_dynamic.yaml").write_text("PlayfieldType: Space\n",
+                                              encoding="utf-8")
+    issues = run_launch_checks(root, "")
+    routes = [i for i in issues if "cible de warp" in i.message]
+    assert len(routes) == 1
+    assert "Planete1" in routes[0].message and "Sys1" in routes[0].message
+
+
 def test_duplicate_playfield_across_systems(tmp_path):
     # le crash du jeu porte sur le NOM (2e champ), vecu « Duplicate
     # playfield name 'Parthix' » — pas sur le dossier (3e champ)

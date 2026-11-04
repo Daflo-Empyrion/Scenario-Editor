@@ -105,6 +105,13 @@ _STRING_READ_FLOATS = {
     "Radiation", "LPHardnessScale", "LifetimeOnDrop", "Specular",
     "Emissive", "Light", "MovementFactor",
 }
+# Sens inverse : ces cles-la ne sont PAS lues comme chaine, elles exigent leur
+# annotation (la vanille l'ecrit toujours ; 0 occurrence nue en vanilla et dans
+# RE2-ATL-PRO). Sans elle la valeur reste une String -> « Error converting
+# property 'X' to a bool/float value » puis NRE PartitionDictionary.Init et
+# table de blocs partielle (vecu 04/11, RE2-EVO). Liste fermee : d'autres cles
+# nues sont legitimes (Range, RangeSpace, RepairCount : 230 fois en vanilla).
+_TYPE_REQUIRED = {"IsAccessible": "bool", "Hardness": "float"}
 _TYPED_MARKERS = {"int", "float", "bool"}
 
 
@@ -529,6 +536,29 @@ def _check_blocks(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
                         f"alors que le chargeur lit cette propriete comme "
                         f"CHAINE ; retirer 'type:' (forme vanille "
                         f"'{key}: <nombre>, display: true')"))
+                    break
+
+        # Sens inverse (log client 04/11) : 'IsAccessible' / 'Hardness' SANS
+        # annotation restent des chaines -> conversion ratee puis NRE
+        # PartitionDictionary.Init. Les lignes couvertes sont les proprietes
+        # enfants (une cle sur la ligne d'ouverture n'est pas vue ici).
+        for line in b.children:
+            if not isinstance(line, EcfProperty):
+                continue
+            markers = {v.strip().strip('"').lower()
+                       for k, v in line.pairs if k == 'type'}
+            if markers & _TYPED_MARKERS:
+                continue
+            for key, _val in line.pairs:
+                if key in _TYPE_REQUIRED:
+                    kind = _TYPE_REQUIRED[key]
+                    issues.append(_issue(
+                        rel, "error",
+                        f"moteur (chargeur blocs) : « Error converting property "
+                        f"'{key}' to a {kind} value ... Type: System.String » — "
+                        f"{name} : ecrire '{key}: ..., type: {kind}' (sans "
+                        f"annotation la valeur reste une chaine, puis NRE "
+                        f"PartitionDictionary.Init et table de blocs partielle)"))
                     break
 
 # ---------------------------------------------------------------------------

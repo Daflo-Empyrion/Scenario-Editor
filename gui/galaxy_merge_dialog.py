@@ -376,8 +376,10 @@ class GalaxyMergeDialog(QDialog):
                                         copy_playfield_type_deps)
         from core.workspace_undo import FileStateUndo, capture_file
         prior = capture_file(working_sectors)
+        skipped: list = []
+        starts: list = []
         applied = run_long(self, lambda: apply_structural_units(
-            working_sectors, checked, source_sectors))
+            working_sectors, checked, source_sectors, skipped, starts))
         copied = run_long(self, lambda: copy_playfield_type_deps(
             checked_deps, ws.working_root))
         dups_fixed, dups_details = (run_long(
@@ -398,6 +400,21 @@ class GalaxyMergeDialog(QDialog):
                 if reload_tab:
                     reload_tab(working_sectors)
         msg = t("galaxy.done_sectors", n=applied)
+        conflicts = [u for u in units if u.conflict]
+        if conflicts:
+            # unites DECOCHEES d'office (playfield deja present ailleurs) :
+            # sans cette ligne elles disparaissaient du bilan et le contenu
+            # manquant ne se voyait qu'en jeu (vecu 04/11)
+            msg += " " + t(
+                "galaxy.sectors_conflicts", n=len(conflicts),
+                detail="; ".join(f"{u.system} {u.coordinates}".strip()
+                                 for u in conflicts[:3]))
+        if skipped:
+            msg += " " + t("galaxy.sectors_skipped", n=len(skipped),
+                           detail="; ".join(skipped[:3]))
+        if starts:
+            msg += " " + t("galaxy.sectors_starters", n=len(starts),
+                           detail="; ".join(starts[:3]))
         if copied:
             msg += " " + t("galaxy.done_pf", n=copied)
         if dups_fixed:

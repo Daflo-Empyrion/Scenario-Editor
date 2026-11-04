@@ -98,6 +98,46 @@ def test_apply_empty_units_writes_nothing(yaml_paths):
     assert working.read_bytes() == before
 
 
+def test_imported_playfield_loses_its_starter_marker(yaml_paths):
+    """Un import ne doit PAS apporter les planetes de depart de la source :
+    la copie de travail garde ses starters, ceux de la source sont
+    neutralises (4e champ 'Human:1' -> ''). Vecu 04/11."""
+    working, source = yaml_paths
+    src = source.read_text(encoding="utf-8").replace(
+        "- ['120,0,0', MaPlanete, TempX, '']",
+        "- ['120,0,0', MaPlanete, TempX, 'Human:1', '', '', '']")
+    source.write_text(src, encoding="utf-8")
+    units = analyze_sectors_merge(working, source)
+    starts = []
+    apply_structural_units(working, units, source, None, starts)
+    text = working.read_text(encoding="utf-8")
+    assert "MaPlanete, TempX, '', '', '', '']" in text
+    assert "Human:1" not in text
+    assert len(starts) == 1 and "MaPlanete" in starts[0]
+    # le starter de la copie de travail n'est pas touche
+    assert "Ancienne, OldTemplate, ''" in text
+
+
+def test_apply_reports_checked_but_unapplied_units(yaml_paths):
+    """Vecu 04/11 (RE2-EVO) : une unite cochee peut ne pas atterrir
+    (conflit de nom, ligne absente) et la fusion se presentait quand meme
+    comme un succes — 281 secteurs jamais fusionnes sans le moindre
+    message. Chaque unite demandee mais non inseree remonte ici."""
+    from core.sectors_merge import SectorUnit
+    working, source = yaml_paths
+    units = analyze_sectors_merge(working, source)
+    fantome = SectorUnit(kind="sector", system="Alpha",
+                         coordinates="[9, 9, 9]", name="Alpha",
+                         playfields=("Fantome",))
+    skipped = []
+    n = apply_structural_units(working, units + [fantome], source, skipped)
+    assert n == 2                       # les 2 vraies unites passent
+    assert len(skipped) == 1
+    assert "Fantome" in skipped[0] or "[9, 9, 9]" in skipped[0]
+    # sans la liste, le comportement d'origine est inchange
+    assert apply_structural_units(working, [fantome], source) == 0
+
+
 def test_dialog_structural_section(qapp, yaml_paths, monkeypatch):
     """Le dialogue de revision affiche la section structurelle quand un
     Sectors.yaml est dans le plan, avec les unites cochees."""

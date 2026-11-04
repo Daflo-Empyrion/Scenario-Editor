@@ -879,6 +879,19 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
             line=0, severity="warning",
             message=f"systeme '{system}' sans aucun soleil : injoignable en jeu"))
 
+    # --- secteurs de planete sans cible de warp (reintegration d'orphelins :
+    # la carte systeme n'a rien a selectionner, vecu 22/10) ---
+    from core.playfield_reintegrate import find_missing_arrivals
+    for route in find_missing_arrivals(root):
+        cx, cy, cz = route.sector
+        issues.append(LaunchIssue(
+            check="sectors", path=str(sectors_yaml.relative_to(root)),
+            line=0, severity="warning",
+            message=f"planete '{route.name}' (systeme {route.system}, secteur "
+                    f"[{cx}, {cy}, {cz}]) sans cible de warp : aucun "
+                    f"playfield d'arrivee dans le secteur, « Selectionner » "
+                    f"ne fait rien dans la carte systeme"))
+
     # --- playfields references vs dossiers reels (scenario OU vanille :
     # les scenarios a generateur referencent les templates de
     # Content/Playfields du jeu — GasGiant, Omicron, SpaceWarpTarget...) ---

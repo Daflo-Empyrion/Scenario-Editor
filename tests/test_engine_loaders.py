@@ -329,6 +329,48 @@ def test_block_untyped_radiation_is_accepted(tmp_path):
     assert not [i for i in _run(root) if "Single.Parse(null)" in i.message]
 
 
+def test_block_missing_type_on_accessibility_is_fatal(tmp_path):
+    """Vecu 04/11 (RE2-EVO) : sens INVERSE de Radiation — `IsAccessible: true`
+    sans annotation reste une chaine (« Error converting property ... Type:
+    System.String »), puis NRE PartitionDictionary.Init et table de blocs
+    partielle (372 NRE, client arrete). La vanille annote toujours ces cles."""
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: TestBlockA\n"
+        "  Material: Device\n"
+        "  IsAccessible: true\n"
+        "}\n"))
+    issues = [i for i in _run(root) if "Error converting property" in i.message]
+    assert len(issues) == 1
+    assert "IsAccessible" in issues[0].message
+    assert "TestBlockA" in issues[0].message
+    assert "type: bool" in issues[0].message
+
+
+def test_block_missing_type_on_hardness_is_fatal(tmp_path):
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: TestBlockA\n"
+        "  Material: Device\n"
+        "  Hardness: 150\n"
+        "}\n"))
+    issues = [i for i in _run(root) if "Error converting property" in i.message]
+    assert len(issues) == 1
+    assert "Hardness" in issues[0].message
+    assert "type: float" in issues[0].message
+
+
+def test_block_typed_accessibility_is_accepted(tmp_path):
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: TestBlockA\n"
+        "  Material: Device\n"
+        "  IsAccessible: true, type: bool\n"
+        "  Hardness: 150, type: float, display: false\n"
+        "}\n"))
+    assert not [i for i in _run(root) if "Error converting property" in i.message]
+
+
 def test_block_class_damage_is_known(tmp_path):
     """Vecu sur RE2 : Class: Damage est dans le registre « Block » du jeu
     (table des registres du moteur) alors qu'aucun bloc vanilla ne l'utilise —
@@ -497,3 +539,4 @@ def test_engine_checks_run_inside_launch_checks(tmp_path, monkeypatch):
     assert all(i.check == "engine" for i in issues)
     assert any("Ghost" in i.message for i in issues)
     assert not hasattr(run_launch_checks, "_skip_engine")
+

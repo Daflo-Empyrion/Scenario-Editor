@@ -602,3 +602,16 @@ def test_yaml_review_dialog_shows_subkey_kind(qapp, tmp_path):
     labels = {dlg.tree.topLevelItem(i).text(1)
               for i in range(dlg.tree.topLevelItemCount())}
     assert "Sous-clé ajoutée" in labels
+
+
+def test_render_guard_rejects_unreadable_yaml():
+    """Vecu 04/11 : la fusion generique a casse 88 playfield_static.yaml
+    (fichiers valides chez A et B, « did not find expected key » apres
+    insertion). apply_yaml_units n'ecrit plus un rendu que le YAML du jeu
+    ne peut pas relire — ici on teste le garde-fou lui-meme."""
+    from core.yaml_merge import _render_parses
+
+    assert _render_parses("SolarSystems:\n  - Name: A\n    Sectors: []\n")
+    # indentation cassee : le moteur refuse ce fichier
+    assert not _render_parses(
+        "SolarSystems:\n  - Name: A\n      NoShieldReload: True\n    - x: 1\n")

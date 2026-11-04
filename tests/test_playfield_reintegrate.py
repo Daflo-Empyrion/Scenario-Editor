@@ -127,6 +127,29 @@ def test_plan_spreads_across_systems_and_rings(tmp_path):
     assert by_name["EdenSpace_AsteroidT1"].map_type == "AsteroidFieldFew"
 
 
+def test_planet_always_carries_a_warp_arrival(tmp_path):
+    """Chaque planete posee recoit sa ligne d'arrivee `<Nom> Sector` : sans
+    cible de warp dans le secteur, « Selectionner » ne fait rien dans la
+    carte systeme (vecu 22/10, demande utilisateur 04/11)."""
+    root = _build(tmp_path)
+    plan = plan_placements(root, ["EdenOcean2"], per_system=1)
+    planet = next(p for p in plan if p.category == "planet")
+    assert planet.arrival == "Starter_Akua_Orbit"
+    rows = planet.rows()
+    assert any("EdenOcean2 Sector" in r and "Starter_Akua_Orbit" in r
+               for r in rows)
+
+
+def test_planet_is_not_placed_without_any_orbit_type(tmp_path):
+    """Aucun playfield d'orbite dans le scenario : plutot que de poser une
+    planete sans route de warp (injoignable, vecu 22/10), on l'ecarte."""
+    import shutil
+    root = _build(tmp_path)
+    shutil.rmtree(root / "Playfields" / "Starter_Akua_Orbit")
+    plan = plan_placements(root, ["EdenOcean2"], per_system=1)
+    assert not [p for p in plan if p.category == "planet"]
+
+
 def test_orbit_is_centered_on_a_shifted_sun(tmp_path):
     """Etoile DECALEE : l'orbite verticale tourne autour d'ELLE, pas de
     l'origine (des systemes du corpus ont un soleil hors [0,0,0])."""
