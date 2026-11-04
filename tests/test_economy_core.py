@@ -279,10 +279,11 @@ def test_validate_assignments():
     codes = {i.code: i.params for i in issues}
     assert "eco.zone_unknown_trader" in codes
     assert codes["eco.zone_unknown_trader"]["trader"] == "Inconnu"
-    assert "eco.trader_unassigned" in codes
-    assert codes["eco.trader_unassigned"]["trader"] == "TraderDefault"
-    # fichier trader absent : pas d'avertissement 'jamais assigne' (on ne
-    # connait aucun profil), mais les zones orphelines restent signalees
+    # un profil sans zone n'est PAS signale : le PNJ porte sa table dans son
+    # prefab, seuls les PNJ #ZONE# lisent les zones (vecu 04/11/2026 : 317
+    # faux avertissements sur un scenario sain)
+    assert {i.code for i in issues} == {"eco.zone_unknown_trader"}
+    # fichier trader absent : les zones orphelines restent signalees
     issues2 = validate_assignments(set(), zones)
     assert {i.code for i in issues2} == {"eco.zone_unknown_trader"}
 

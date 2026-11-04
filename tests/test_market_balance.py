@@ -210,14 +210,16 @@ def test_missing_ingredient_without_price_blocks_recipe(tmp_path):
     assert e.cost is None
 
 
-def test_cycle_resolves_to_market_price(tmp_path):
-    # LoopA/LoopB se referencent ; le cycle est coupe par le PRIX MARCHE
-    # du maillon qui en a un : cout de LoopA = 7 (feuille), prix conserve
+def test_cycle_is_never_valued_at_market_price(tmp_path):
+    """Un cycle de recettes n'a PAS de cout exploitable. Se rabattre sur le
+    MarketPrice du maillon cyclique entretenait la boucle exponentielle du
+    04/11/2026 (chaque application gonflait le cout suivant)."""
     _, _, rep = _report(tmp_path)
     e = _entry(rep, "LoopA")
-    assert e.cost == 7.0
-    assert e.price == 7
-    assert e.target == 7
+    assert e.cost is None
+    assert e.target is None
+    assert e.price == 7            # prix existant conserve tel quel
+    assert "cycle" in (e.detail or "")
 
 
 def test_ref_inherits_price(tmp_path):

@@ -6171,10 +6171,6 @@
     "fr": "Impossible de créer le fichier dans la copie de travail.",
     "en": "Cannot create the file in the working copy."
   },
-  "eco.trader_unassigned": {
-    "fr": "marchand jamais assigné à une zone : {trader}",
-    "en": "trader never assigned to a zone: {trader}"
-  },
   "eco.zone_unknown_trader": {
     "fr": "TraderZone vers un profil inexistant : {trader} ({playfield}{poi})",
     "en": "TraderZone pointing to a missing profile: {trader} ({playfield}{poi})"
@@ -12680,16 +12676,16 @@
     "en": "Engine errors (pre-launch check)"
   },
   "coh.fix.f5_errors": {
-    "fr": "Jetons de quête / éditeur ECF",
-    "en": "Quest tokens / ECF editor"
+    "fr": "Réparations automatiques (ordre Ref)",
+    "en": "Automatic repairs (Ref order)"
   },
   "coh.sec.f5_tech_progress": {
     "fr": "Arbre tech : progression non croissante",
     "en": "Tech tree: non-increasing progression"
   },
   "coh.fix.f5_tech": {
-    "fr": "Arbre technologique",
-    "en": "Tech tree"
+    "fr": "Réparations automatiques (niveaux d'arbre)",
+    "en": "Automatic repairs (tech-tree levels)"
   },
   "coh.sec.f5_misc": {
     "fr": "Autres avertissements (bénins)",
@@ -13666,5 +13662,125 @@
   "menu.options.csv_web_default": {
     "fr": "Vue web par défaut des CSV",
     "en": "Web view as CSV default"
+  },
+  "menu.tools.inactive_decls": {
+    "fr": "Déclarations inactives...",
+    "en": "Inactive declarations..."
+  },
+  "inactive.title": {
+    "fr": "Déclarations inactives",
+    "en": "Inactive declarations"
+  },
+  "inactive.intro": {
+    "fr": "Détecte les déclarations Item/Block commentées d'un ECF de la copie de travail. Un nom absent des déclarations actives est réactivé (Id abandonné s'il est déjà pris) ; les variantes déjà représentées peuvent être supprimées avec leur en-tête de fusion.",
+    "en": "Finds commented-out Item/Block declarations in a working-copy ECF. A name missing from the active declarations is reactivated (Id dropped if already taken); already-represented variants can be deleted with their merge header."
+  },
+  "inactive.file_label": {
+    "fr": "Fichier ECF :",
+    "en": "ECF file:"
+  },
+  "inactive.remove_dropped": {
+    "fr": "Supprimer aussi les déclarations inactives déjà représentées",
+    "en": "Also delete inactive declarations already represented"
+  },
+  "inactive.analyse": {
+    "fr": "Analyser",
+    "en": "Analyse"
+  },
+  "inactive.apply": {
+    "fr": "Appliquer",
+    "en": "Apply"
+  },
+  "inactive.no_ecf": {
+    "fr": "Aucun fichier ECF dans la copie de travail.",
+    "en": "No ECF file in the working copy."
+  },
+  "inactive.nothing": {
+    "fr": "Aucune déclaration inactive : rien à faire.",
+    "en": "No inactive declaration: nothing to do."
+  },
+  "inactive.report": {
+    "fr": "{active} noms actifs, {inactive} déclarations inactives.\nÀ réactiver : {restore} — à supprimer : {drop} — Id abandonnés : {ids}.",
+    "en": "{active} active names, {inactive} inactive declarations.\nTo reactivate: {restore} — to delete: {drop} — Ids dropped: {ids}."
+  },
+  "inactive.restore_list": {
+    "fr": "Réactivés : {names}",
+    "en": "Reactivated: {names}"
+  },
+  "inactive.drop_list": {
+    "fr": "Supprimés : {names}",
+    "en": "Deleted: {names}"
+  },
+  "inactive.id_list": {
+    "fr": "Ajoutés sans Id (déjà pris) : {names}",
+    "en": "Added without Id (already taken): {names}"
+  },
+  "inactive.analyse_first": {
+    "fr": "Lance d'abord l'analyse du fichier sélectionné.",
+    "en": "Analyse the selected file first."
+  },
+  "inactive.confirm": {
+    "fr": "Appliquer à {file} ?\nRéactivations : {restore} — suppressions : {drop}.\nUne sauvegarde sera créée.",
+    "en": "Apply to {file}?\nReactivated: {restore} — deleted: {drop}.\nA backup will be created."
+  },
+  "inactive.undo_label": {
+    "fr": "Déclarations inactives ({n} réactivées)",
+    "en": "Inactive declarations ({n} reactivated)"
+  },
+  "inactive.done": {
+    "fr": "{restore} réactivée(s), {drop} supprimée(s), {headers} en-tête(s) retiré(s).",
+    "en": "{restore} reactivated, {drop} deleted, {headers} header(s) removed."
+  },
+  "menu.tools.auto_repair": {
+    "fr": "Réparations automatiques...",
+    "en": "Automatic repairs..."
+  },
+  "repair.title": {
+    "fr": "Réparations automatiques",
+    "en": "Automatic repairs"
+  },
+  "repair.intro": {
+    "fr": "Trois corrections mécaniques : ordre des déclarations pour les Ref:, niveaux d'arbre technologique non croissants, et recettes générées cycliques avec remise à niveau des prix aberrants (valeur vanilla quand elle existe, sinon coût recalculé). Aucun contenu n'est choisi.",
+    "en": "Three mechanical fixes: declaration order for Ref: targets, non-increasing tech-tree levels, and cyclic generated recipes with aberrant prices reset (vanilla value when available, otherwise recomputed cost). No content is chosen."
+  },
+  "repair.analyse": {
+    "fr": "Analyser",
+    "en": "Analyse"
+  },
+  "repair.apply": {
+    "fr": "Appliquer",
+    "en": "Apply"
+  },
+  "repair.no_ecf": {
+    "fr": "Aucun BlocksConfig.ecf / ItemsConfig.ecf dans la copie de travail.",
+    "en": "No BlocksConfig.ecf / ItemsConfig.ecf in the working copy."
+  },
+  "repair.nothing": {
+    "fr": "Rien à corriger.",
+    "en": "Nothing to fix."
+  },
+  "repair.report": {
+    "fr": "Ref : {moves} relation(s) à corriger.\nArbre technologique : {levels} niveau(x) à relever.",
+    "en": "Ref: {moves} relation(s) to fix.\nTech tree: {levels} level(s) to raise."
+  },
+  "repair.cycles": {
+    "fr": "{n} cycle(s) de Ref non réparables par réordonnancement (à traiter à la main).",
+    "en": "{n} Ref cycle(s) cannot be fixed by reordering (handle manually)."
+  },
+  "repair.confirm": {
+    "fr": "Appliquer {moves} correction(s) de Ref, {levels} niveau(x), {templates} suppression(s) de template et {prices} prix ?\nUne sauvegarde sera créée.",
+    "en": "Apply {moves} Ref fix(es), {levels} level(s), {templates} template removal(s) and {prices} price(s)?\nA backup will be created."
+  },
+  "repair.undo_label": {
+    "fr": "Réparation automatique ({file})",
+    "en": "Automatic repair ({file})"
+  },
+  "repair.done": {
+    "fr": "{moves} Ref, {levels} niveau(x), {templates} template(s), {prices} prix corrigés.",
+    "en": "{moves} Ref, {levels} level(s), {templates} template(s), {prices} price(s) fixed."
+  },
+  "repair.market": {
+    "fr": "Recettes générées cycliques : {templates} template(s) à retirer.\nPrix aberrants : {prices} à remettre à niveau ({unresolved} sans ancrage).",
+    "en": "Cyclic generated recipes: {templates} template(s) to remove.\nAberrant prices: {prices} to reset ({unresolved} without anchor)."
   }
 }

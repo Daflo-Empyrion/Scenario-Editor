@@ -327,6 +327,10 @@ class MainWindow(QMainWindow):
         menu_edit = self.menu_tools.addMenu(t("menu.tools.sub.edit"))
         self.action_block_library = menu_edit.addAction(t("menu.tools.block_library"))
         self.action_block_library.triggered.connect(self._open_block_library)
+        self.action_inactive_decls = menu_edit.addAction(t("menu.tools.inactive_decls"))
+        self.action_inactive_decls.triggered.connect(self._open_inactive_declarations)
+        self.action_auto_repair = menu_edit.addAction(t("menu.tools.auto_repair"))
+        self.action_auto_repair.triggered.connect(self._open_auto_repair)
         self.action_yaml_compare = menu_edit.addAction(t("menu.tools.yaml_compare"))
         self.action_yaml_compare.triggered.connect(self._open_yaml_compare_tool)
         self.action_bundles = menu_edit.addAction(t("menu.tools.bundles"))
@@ -2209,6 +2213,20 @@ class MainWindow(QMainWindow):
         self._block_library_dialog = BlockLibraryDialog(self)
         self._block_library_dialog.show()
 
+    def _open_inactive_declarations(self):
+        """Declarations Item/Block commentees (demande du 04/11/2026) --
+        dialogue NON MODAL : analyse, puis application confirmee."""
+        from gui.inactive_declarations_dialog import InactiveDeclarationsDialog
+        self._inactive_decls_dialog = InactiveDeclarationsDialog(self)
+        self._inactive_decls_dialog.show()
+
+    def _open_auto_repair(self):
+        """Reparations mecaniques du bilan F5 (ordre des Ref, niveaux d'arbre
+        technologique) -- dialogue NON MODAL, analyse avant application."""
+        from gui.auto_repair_dialog import AutoRepairDialog
+        self._auto_repair_dialog = AutoRepairDialog(self)
+        self._auto_repair_dialog.show()
+
     def _open_modified_files(self):
         """Vue des fichiers de la copie de travail differs du scenario A."""
         from gui.modified_files_dialog import ModifiedFilesDialog
@@ -2636,9 +2654,10 @@ class MainWindow(QMainWindow):
         """Verification economie (lecture seule, fenetre non modale -- meme
         raisonnement que check_cross_references_dialog) : regles ECO de
         core/economy/validation.py -- items inconnus du catalogue, plages
-        inversees, TraderZone vers un profil inexistant, profils jamais
-        assignes. Lit le TraderNPCConfig.ecf ENREGISTRE (la fenetre ne voit
-        pas les modifications non enregistrees de l'editeur)."""
+        inversees, TraderZone vers un profil inexistant. Un profil sans zone
+        n'est pas signale (le PNJ porte sa table dans son prefab). Lit le
+        TraderNPCConfig.ecf ENREGISTRE (la fenetre ne voit pas les
+        modifications non enregistrees de l'editeur)."""
         if not self.workspace:
             QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
             return

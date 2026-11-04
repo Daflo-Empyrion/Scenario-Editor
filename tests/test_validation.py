@@ -36,6 +36,21 @@ def test_id_at_or_above_limit_is_error():
     assert '8192' in e001[0].message
 
 
+def test_token_config_id_above_block_limit_is_valid():
+    """La limite de 8192 est celle des BlockIDs : la vanilla TokenConfig va
+    jusqu'a 9981, et les jetons utilises du scenario aussi (vecu 04/11/2026 :
+    27 faux E001)."""
+    doc = parse_ecf_text("{ Token Id: 9981\n  Name: TokenTest\n}\n")
+    issues = validate_document(doc, file_path=Path("TokenConfig.ecf"))
+    assert len(_issues_with_code(issues, 'E001')) == 0
+
+
+def test_blocks_config_id_above_limit_still_errors():
+    doc = parse_ecf_text("{ Block Id: 9000\n  Name: TestBlock\n}\n")
+    issues = validate_document(doc, file_path=Path("BlocksConfig.ecf"))
+    assert len(_issues_with_code(issues, 'E001')) == 1
+
+
 def test_block_without_id_is_valid():
     """Un bloc sans Id du tout (identifie par Name seul) ne doit jamais
     declencher les regles liees a l'Id."""
@@ -60,6 +75,16 @@ def test_duplicate_id_is_error():
     doc = parse_ecf_text(text)
     issues = validate_document(doc)
     assert len(_issues_with_code(issues, 'E003')) == 1
+
+
+def test_duplicate_id_message_names_the_other_block():
+    """Le message doit nommer le PREMIER bloc : sans lui, retrouver la paire
+    dans un ItemsConfig de 1 500 items se fait a la main (vecu 03/11/2026)."""
+    text = "{ Block Id: 300\n  Name: BlockOne\n}\n{ Block Id: 300\n  Name: BlockTwo\n}\n"
+    issues = validate_document(parse_ecf_text(text))
+    e003 = _issues_with_code(issues, 'E003')
+    assert len(e003) == 1
+    assert 'BlockOne' in e003[0].message
 
 
 def test_duplicate_name_without_id_is_warning():
@@ -113,6 +138,17 @@ def test_container_without_volume_capacity_is_error():
     doc = parse_ecf_text("{ Block Id: 500\n  Name: TestContainer\n  Class: Container\n}\n")
     issues = validate_document(doc)
     assert len(_issues_with_code(issues, 'E005')) == 1
+
+
+def test_container_without_volume_capacity_matching_vanilla_is_valid(monkeypatch):
+    """CryoPodTalonAr de la vanilla 1.19.1 est 'Class: Container' sans
+    VolumeCapacity et le jeu le charge : un scenario qui le copie ne doit pas
+    etre signale (repli vanilla, meme principe que les materiaux)."""
+    import core.ecf.validation as validation
+    monkeypatch.setattr(validation, '_vanilla_containers_without_volume',
+                        lambda: {'TestContainer'})
+    doc = parse_ecf_text("{ Block Id: 500\n  Name: TestContainer\n  Class: Container\n}\n")
+    assert len(_issues_with_code(validate_document(doc), 'E005')) == 0
 
 
 def test_container_with_volume_capacity_is_valid():
@@ -224,6 +260,22 @@ def test_negative_mass_is_warning():
 
 def test_zero_maxcount_is_warning():
     doc = parse_ecf_text("{ Block Id: 300\n  Name: TestBlock\n  MaxCount: 0\n}\n")
+    issues = validate_document(doc)
+    assert len(_issues_with_code(issues, 'W011')) == 1
+
+
+def test_zero_maxcount_forced_is_valid():
+    """ForceMaxCount: true + MaxCount 0 = variante POI volontairement non
+    placable (vanilla) -- ce n'est pas une anomalie."""
+    doc = parse_ecf_text(
+        "{ Block Id: 300\n  Name: TestBlock\n  MaxCount: 0\n  ForceMaxCount: true\n}\n")
+    issues = validate_document(doc)
+    assert len(_issues_with_code(issues, 'W011')) == 0
+
+
+def test_zero_maxcount_with_force_false_still_warns():
+    doc = parse_ecf_text(
+        "{ Block Id: 300\n  Name: TestBlock\n  MaxCount: 0\n  ForceMaxCount: false\n}\n")
     issues = validate_document(doc)
     assert len(_issues_with_code(issues, 'W011')) == 1
 

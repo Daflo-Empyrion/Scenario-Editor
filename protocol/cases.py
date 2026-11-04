@@ -2738,7 +2738,7 @@ CASES = [
             "Modifie une ligne Item pour référencer un item inexistant (ou crée une TraderZone vers un marchand supprimé), enregistre.",
             "Menu Vérification > Vérification économie (marchands PNJ)...",
         ],
-        "attendu": "La fenêtre liste chaque problème (ERR = item absent du catalogue, plage inversée, TraderZone vers un profil inexistant ; ATT = profil jamais assigné à une zone). Corrige dans l'éditeur d'économie puis relance : plus aucun problème.",
+        "attendu": "La fenêtre liste chaque problème (ERR = item absent du catalogue, plage inversée, TraderZone vers un profil inexistant). Un profil jamais couvert par une TraderZone n'est pas signalé : le PNJ porte sa table dans son prefab et seuls les PNJ #ZONE# lisent les zones. Corrige dans l'éditeur d'économie puis relance : plus aucun problème.",
     },
 ]
 

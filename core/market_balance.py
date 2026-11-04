@@ -63,6 +63,10 @@ from core.fsutil import atomic_write_text, central_backup
 # Valeurs par defaut validees avec l'utilisateur (16/10/2026, ajustees 28/10)
 DEFAULT_MARGIN = 1.0        # philosophie RE2 : prix = cout
 DEFAULT_FAB_PCT = 0.0       # % du cout des matieres ajoute (fabrication)
+# Plafond de vraisemblance : au-dela, le cout vient forcement d'une chaine
+# faussee (recette cyclique/copiee). Aucune cible n'est proposee -- vecu
+# 04/11/2026 : 72 prix a 1e17-1e18 apres une boucle de recettes boost.
+MAX_SANE_TARGET = 1_000_000_000
 
 FABRIQUABLE, GROUPE, COUSIN, MATERIAU, FAMILLE, ANCRAGE, NON_VENDABLE = (
     "fabriquable", "groupe", "cousin", "materiau", "famille", "ancrage",
@@ -294,6 +298,11 @@ def _unit_cost(idx: MarketIndex, name: str, seen: frozenset
         if qty == 0:
             continue                # ligne isolee a 0 = ingredient gratuit
         c, why = _unit_cost(idx, ing, seen | {name})
+        if why == "cycle de recettes":
+            # JAMAIS se rabattre sur le MarketPrice d'un ingredient cyclique :
+            # ce prix a lui-meme ete calcule depuis le cycle, et l'ecrire
+            # gonfle le cout suivant (boucle exponentielle vecue 04/11/2026).
+            return None, "cycle de recettes"
         if c is None:
             p = resolve_price(idx, ing)
             if p is None:
@@ -440,6 +449,8 @@ def plan_recipes(idx: MarketIndex, report: MarketReport
     Exclus : items en cycle, cibles <= 1 (placeholders), sans membre modele.
     Retourne (plans, candidats ecartes avec raison)."""
     by_name = {e.name: e for e in report.entries}
+    edges: Dict[str, List[str]] = {n: [i for i, _ in tpl.inputs]
+                                   for n, tpl in idx.templates.items()}
     fam_members: Dict[str, List[str]] = {}
     for e in report.entries:
         if e.status in (FAMILLE, ANCRAGE, NON_VENDABLE) or e.target is None:
@@ -475,15 +486,46 @@ def plan_recipes(idx: MarketIndex, report: MarketReport
             skipped.append(f"{e.name}: modele de famille illisible")
             continue
         ratio = (e.target or 1) / max(1.0, float(me.target))
-        inputs = [(m, max(1, round(q * ratio))) for m, q in mt.inputs
-                  if q != 0]
+        inputs = _safe_inputs(edges, e.name, mt.inputs, ratio)
         if not inputs:
-            skipped.append(f"{e.name}: modele de famille vide")
+            skipped.append(f"{e.name}: modele de famille vide ou cyclique")
             continue
         plans.append(RecipePlan(name=e.name, target=e.target,
                                 craft_time=mt.craft_time or 10,
                                 inputs=inputs, source=best_m))
+        edges[e.name] = [m for m, _ in inputs]
     return plans, skipped
+
+
+def _safe_inputs(edges: Dict[str, List[str]], name: str,
+                 raw_inputs: List[Tuple[str, float]],
+                 ratio: float) -> List[Tuple[str, int]]:
+    """Ingredients d'une recette generee qui ne peuvent pas creer de cycle :
+    ni l'item lui-meme, ni un ingredient qui l'atteint deja par les recettes
+    existantes (vecu 04/11 : boost copie d'un modele qui le contenait)."""
+    out: List[Tuple[str, int]] = []
+    for m, q in raw_inputs:
+        if q == 0 or m == name:
+            continue
+        if _reaches(edges, m, name):
+            continue
+        out.append((m, max(1, round(q * ratio))))
+    return out
+
+
+def _reaches(edges: Dict[str, List[str]], start: str, target: str) -> bool:
+    """Vrai si `start` atteint `target` dans le graphe de recettes."""
+    seen: set = set()
+    stack = [start]
+    while stack:
+        v = stack.pop()
+        if v == target:
+            return True
+        if v in seen:
+            continue
+        seen.add(v)
+        stack.extend(edges.get(v, ()))
+    return False
 
 
 def apply_recipes(plans: List[RecipePlan], root) -> Tuple[Path, int]:
@@ -501,11 +543,18 @@ def apply_recipes(plans: List[RecipePlan], root) -> Tuple[Path, int]:
             f"  CraftTime: {pl.craft_time}\n"
             f'  Target: "SurvC,SmallC,HoverC,BaseC,LargeC,AdvC"\n'
             f"  {{ Child Inputs\n{ins}\n  }}\n}}\n")
-    text = path.read_text(encoding="utf-8", errors="replace")
-    if text and not text.endswith("\n"):
-        text += "\n"
-    text += "\n" + "\n".join(blocks)
-    atomic_write_text(path, text)
+    # lecture/ecriture BINAIRE : read_text convertirait tout le Templates.ecf
+    # en LF (vecu 04/11 : fichier entier passe en LF apres une generation)
+    raw = path.read_bytes()
+    text = raw.decode("utf-8", errors="surrogateescape")
+    eol = "\r\n" if b"\r\n" in raw[:4096] else "\n"
+    if text and not text.endswith(("\n", "\r")):
+        text += eol
+    addition = eol + eol.join(blocks).replace("\n", eol)
+    text += addition
+    from core import fsutil
+    fsutil.atomic_write_bytes(
+        path, text.encode("utf-8", "surrogateescape"))
     parse_ecf_file(path)                    # revalidation : echec = exception
     return path, len(plans)
 
@@ -532,7 +581,10 @@ def build_report(idx: MarketIndex, van: Optional[MarketIndex] = None,
         # INGREDIENT, pas comme cout de fabrication de la racine
         cost, why = ((None, "") if tname is None
                      else _unit_cost(idx, name, frozenset()))
-        if cost is not None and cost > 0:
+        if cost is not None and cost > MAX_SANE_TARGET:
+            entry.detail = (f"cout suspect ({cost:.0f}) : recette cyclique "
+                            f"ou copiee — aucune cible proposee")
+        elif cost is not None and cost > 0:
             entry.cost = cost
             entry.status = FABRIQUABLE if tname == name else GROUPE
             entry.detail = why if tname == name else (
@@ -565,10 +617,23 @@ def build_report(idx: MarketIndex, van: Optional[MarketIndex] = None,
     # repli FAMILLE : mediane des cibles des items partageant un token —
     # APRES retarget (les cibles fabriquables/groupe doivent exister)
     famille_targets(report, idx)
+    _cap_targets(report)
     report.counts = {}
     for e in entries:
         report.counts[e.status] = report.counts.get(e.status, 0) + 1
     return report
+
+
+def _cap_targets(report: MarketReport) -> None:
+    """Aucune cible au-dela du plafond, QUELLE QUE SOIT sa source (cout,
+    cousin, materiau, famille) : le repli materiau/masse reutilise des prix
+    de blocs qui peuvent eux-memes etre gonfles par une chaine fautive."""
+    for e in report.entries:
+        if e.target is not None and e.target > MAX_SANE_TARGET:
+            e.target = None
+            detail = e.detail or ""
+            if "plafond" not in detail:
+                e.detail = (detail + " ; cible au-dela du plafond").strip(" ;")
 
 
 def retarget(report: MarketReport, idx: MarketIndex, margin: float,
@@ -583,6 +648,7 @@ def retarget(report: MarketReport, idx: MarketIndex, margin: float,
     # de bouger ci-dessus) — rafraichissement idempotent
     if any(e.status == FAMILLE for e in report.entries):
         famille_targets(report, idx)
+    _cap_targets(report)
 
 
 # ------------------------------------------------------------ application

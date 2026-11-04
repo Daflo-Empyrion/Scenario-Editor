@@ -1,10 +1,14 @@
 """Validation economie (regles ECO) + extraction des assignations TraderZone.
 
 Les problemes sont decrits par CLES i18n (jamais de texte en dur) : l'interface
-les passe dans t(cle, **params). Un fichier TraderNPCConfig.ecf sans
-TraderZone dans les playfields n'est pas une erreur en soi (les PNJ peuvent
-porter leur table dans leur blueprint) -- 'trader_unassigned' est un simple
-avertissement (regle YAML-009 : visible, jamais bloquant).
+les passe dans t(cle, **params). Seule une zone qui pointe un profil INEXISTANT
+est signalee : un profil jamais couvert par une TraderZone n'est PAS un defaut,
+c'est meme le cas normal. Le jeu assigne la table directement au PNJ (champ
+Type de l'entite Trader dans le prefab .epb) et seuls les PNJ de type #ZONE#
+lisent la zone ; mesure sur RE2-EVO : 0 zone, 0 PNJ #ZONE#, 303/317 profils
+portes par les prefabs. La vanilla a 65 profils et aucun playfield reel avec
+TraderZone -- l'ancien avertissement 'trader_unassigned' criait sur chaque
+scenario sain (317 ATT vecus le 04/11/2026) et a ete retire.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -116,21 +120,15 @@ def extract_zone_assignments(working_root: Path) -> List[TraderZoneAssignment]:
 
 def validate_assignments(known: set,
                          assignments: List[TraderZoneAssignment]) -> List[EcoIssue]:
-    """Coherence zones <-> profils : zone pointant un profil inexistant (erreur),
-    profil jamais reference par aucune zone (avertissement -- un PNJ peut aussi
-    porter sa table directement dans son blueprint). `known` = noms des profils
-    du TraderNPCConfig.ecf (vide si le fichier n'existe pas : seules les zones
-    vers un profil inconnu sont alors signalables)."""
+    """Coherence zones <-> profils : SEULE une zone pointant un profil inexistant
+    est une erreur. Un profil sans zone n'est jamais signale (le PNJ porte sa
+    table dans son prefab ; seuls les PNJ #ZONE# lisent les zones). `known` =
+    noms des profils du TraderNPCConfig.ecf (vide si le fichier n'existe pas :
+    seules les zones vers un profil inconnu sont alors signalables)."""
     issues: List[EcoIssue] = []
     for a in assignments:
         if a.trader not in known:
             issues.append(EcoIssue(code="eco.zone_unknown_trader", level="error",
                                    params={"trader": a.trader, "playfield": a.playfield,
                                            "poi": a.poi or ""}))
-    if known:
-        assigned = {a.trader for a in assignments}
-        for name in known:
-            if name not in assigned:
-                issues.append(EcoIssue(code="eco.trader_unassigned", level="warning",
-                                       params={"trader": name}))
     return issues

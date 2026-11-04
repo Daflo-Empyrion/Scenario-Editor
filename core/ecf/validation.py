@@ -152,6 +152,7 @@ def validate_document(doc, file_path: Optional[Path] = None,
     all_blocks = list(_iter_all_blocks(doc.nodes))
     blocks_scoped = _is_blocks_config_file(file_path)
     items_scoped = _is_items_config_file(file_path)
+    id_limited = _is_id_limited_file(file_path)
 
     name_index: Dict[str, EcfBlock] = {}
     for block in all_blocks:
@@ -167,7 +168,7 @@ def validate_document(doc, file_path: Optional[Path] = None,
     for block in all_blocks:
         issues.extend(validate_block(block, name_index=name_index,
                                       blocks_scoped=blocks_scoped, items_scoped=items_scoped,
-                                      materials=materials))
+                                      materials=materials, id_limited=id_limited))
 
     for issue in issues:
         issue.file_path = file_path
@@ -203,7 +204,8 @@ def validate_scenario(root: Path) -> Dict[Path, List[ValidationIssue]]:
 
 def validate_block(block: EcfBlock, name_index: Optional[Dict[str, EcfBlock]] = None,
                     blocks_scoped: bool = True, items_scoped: bool = True,
-                    materials: Optional[Set[str]] = None) -> List[ValidationIssue]:
+                    materials: Optional[Set[str]] = None,
+                    id_limited: bool = True) -> List[ValidationIssue]:
     """Valide un bloc ECF unique (hors doublons, verifies au niveau document).
     blocks_scoped=False desactive Material/VolumeCapacity (fiables uniquement
     sur BlocksConfig.ecf) ; items_scoped=False desactive HoldType (fiable
@@ -215,7 +217,8 @@ def validate_block(block: EcfBlock, name_index: Optional[Dict[str, EcfBlock]] = 
     desormais en l'ajoutant au registre, sans toucher a cette fonction."""
     issues: List[ValidationIssue] = []
     context = {'name_index': name_index or {}, 'blocks_scoped': blocks_scoped,
-               'items_scoped': items_scoped, 'materials': materials or set()}
+               'items_scoped': items_scoped, 'materials': materials or set(),
+               'id_limited': id_limited}
     for rule in _BLOCK_RULES:
         if rule.applies(context):
             issues.extend(rule.run(block, context))
@@ -250,6 +253,18 @@ def _is_items_config_file(file_path: Optional[Path]) -> bool:
     if file_path is None:
         return True
     return file_path.name == 'ItemsConfig.ecf'
+
+
+def _is_id_limited_file(file_path: Optional[Path]) -> bool:
+    """E001/E002 : la limite de 8192 est celle des BlockIDs/ItemIds (notes
+    Eleon v1.17). TokenConfig a son propre espace d'Id et ne la subit pas :
+    la vanilla y declare 9981, et des jetons utilises du scenario depassent
+    aussi 8192 (vecu 04/11/2026 : 27 faux E001). Les autres fichiers gardent
+    la regle, faute de preuve qu'ils s'en affranchissent. file_path None
+    (tests) : regles appliquees, comme _is_blocks_config_file."""
+    if file_path is None:
+        return True
+    return file_path.name != 'TokenConfig.ecf'
 
 
 def _resolve_ref_chain(block: EcfBlock, name_index: Dict[str, EcfBlock],
@@ -371,9 +386,11 @@ def _check_duplicates(all_blocks: List[EcfBlock], check_name_duplicates: bool = 
 
         if id_val is not None:
             if id_val in seen_ids:
+                other = seen_ids[id_val]
+                other_name = (other.get_property('Name') or other.get('Name') or '?').strip()
                 issues.append(ValidationIssue(
                     code='E003', level='error', block=block, property_key='Id',
-                    message=f"Id {id_val} duplique (deja utilise par un autre bloc)."))
+                    message=f"Id {id_val} duplique (deja utilise par '{other_name}')."))
             else:
                 seen_ids[id_val] = block
 
@@ -411,6 +428,47 @@ def _check_id(block: EcfBlock) -> List[ValidationIssue]:
     return issues
 
 
+# Repli vanilla (vecu 03/11/2026) : le jeu charge la config de base sous celle
+# du scenario. La vanilla 1.19.1 contient UN SEUL bloc 'Class: Container' sans
+# VolumeCapacity ni Ref: (CryoPodTalonAr, l. 38176, Category Deco Blocks) et
+# le charge sans broncher -- E005 ne doit pas le reprocher a un scenario qui
+# le copie. Cache par (chemin, mtime, taille) : un seul parse du fichier jeu.
+_VANILLA_NO_VOLUME_CACHE: Optional[tuple] = None
+
+
+def _vanilla_containers_without_volume() -> Set[str]:
+    global _VANILLA_NO_VOLUME_CACHE
+    from core.settings import get_vanilla_content_path
+    content = get_vanilla_content_path()
+    if not content:
+        return set()
+    path = Path(content) / 'Configuration' / 'BlocksConfig.ecf'
+    try:
+        st = path.stat()
+        key = (str(path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        return set()
+    if _VANILLA_NO_VOLUME_CACHE and _VANILLA_NO_VOLUME_CACHE[0] == key:
+        return _VANILLA_NO_VOLUME_CACHE[1]
+    names: Set[str] = set()
+    try:
+        from .parser import parse_ecf_file_cached
+        for block in parse_ecf_file_cached(path).iter_blocks():
+            if block.get_property('Class') not in CONTAINER_CLASSES:
+                continue
+            if block.get_property('VolumeCapacity') is not None:
+                continue
+            if block.get_property('Ref') is not None:
+                continue
+            name = (block.get_property('Name') or '').strip()
+            if name:
+                names.add(name)
+    except Exception:
+        names = set()                  # repli gracieux : regle inchangee
+    _VANILLA_NO_VOLUME_CACHE = (key, names)
+    return names
+
+
 def _check_container_volume(block: EcfBlock, name_index: Dict[str, EcfBlock]) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
     class_value = block.get_property('Class')
@@ -422,6 +480,11 @@ def _check_container_volume(block: EcfBlock, name_index: Dict[str, EcfBlock]) ->
     for ancestor in _resolve_ref_chain(block, name_index):
         if ancestor.get_property('VolumeCapacity') is not None:
             return issues
+    # Meme nom que dans la config du jeu, sans VolumeCapacity la-bas non plus :
+    # le jeu charge ce bloc vanilla tel quel, inutile d'alerter.
+    name = (block.get_property('Name') or '').strip()
+    if name and name in _vanilla_containers_without_volume():
+        return issues
     issues.append(ValidationIssue(
         code='E005', level='error', block=block, property_key='VolumeCapacity',
         message=f"La classe '{class_value}' necessite VolumeCapacity (absent, y compris via Ref:)."))
@@ -575,6 +638,11 @@ def _check_mass(block: EcfBlock) -> List[ValidationIssue]:
 
 def _check_maxcount(block: EcfBlock) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
+    # ForceMaxCount: true + MaxCount 0 = bloc volontairement non placable
+    # (variantes POI de la vanilla) : la limite est une intention, pas un defaut.
+    force = (block.get_property('ForceMaxCount') or '').strip().lower()
+    if force in ('true', 'yes', '1'):
+        return issues
     maxcount = block.get_property('MaxCount')
     if maxcount is not None:
         try:
@@ -608,7 +676,8 @@ class _BlockRule:
 
 
 _BLOCK_RULES: List[_BlockRule] = [
-    _BlockRule('id', lambda block, ctx: _check_id(block)),
+    _BlockRule('id', lambda block, ctx: _check_id(block),
+                condition=lambda ctx: ctx['id_limited']),
     _BlockRule('unquoted_commas', lambda block, ctx: _check_unquoted_commas(block)),
     _BlockRule('block_color', lambda block, ctx: _check_block_color(block)),
     _BlockRule('custom_icon', lambda block, ctx: _check_custom_icon(block)),
