@@ -291,3 +291,23 @@ def test_require_tools_tries_a_link_with_unknown_capability(monkeypatch):
     result, _ = router.chat_with_link([{"role": "user", "content": "x"}],
                                       tools=[], require_tools=True)
     assert result["content"] == "ok"
+
+
+def test_cooldown_message_names_the_link(monkeypatch):
+    # Vecu 04/11 : un echec precedent met le maillon en repos, puis chaque
+    # nouvel appel echoue avec "aucun maillon disponible" sans aucun detail
+    # -- le message doit nommer le maillon et son temps de repos.
+    _setup([_provider("p1")], [_link("p1", "m1")])
+    router._mark("p1:m1", 600)
+    with pytest.raises(EngineUnavailableError, match=r"m1.*min"):
+        router.complete([{"role": "user", "content": "x"}])
+
+
+def test_quick_check_resets_cooldown(monkeypatch):
+    # "Tester la traduction" est une action explicite : elle doit retenter
+    # un maillon en repos, pas echouer pendant 10-30 min (vecu 04/11).
+    _setup([_provider("p1")], [_link("p1", "m1")])
+    monkeypatch.setattr(client, "chat",
+                        lambda *a, **k: _answer("Les generateurs."))
+    router._mark("p1:m1", 600)
+    assert router.quick_check() == "[P1 / m1] Les generateurs."

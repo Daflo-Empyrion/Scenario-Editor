@@ -25,16 +25,18 @@ import csv
 import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout,
                              QLabel, QLineEdit, QPushButton, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout)
 
 from core.i18n import t
 from core.launch_check import LaunchIssue, run_launch_checks
+from core.playfield_sweep import sweep_playfields
 from core.settings import get_production_scenario_path, get_vanilla_content_path
 from gui.ewa_async import async_call
 from gui.module_info import add_info_button
+from gui.msgboxes import ask_yes_no, info
 from gui.window_geometry import track
 
 
@@ -66,6 +68,10 @@ class LaunchCheckDialog(QDialog):
         # (1-3 min, ports et sauvegarde jetables)
         self.chk_dedi = QCheckBox(t("launchcheck.dedi"))
         self.chk_dedi.setToolTip(t("launchcheck.dedi.tip"))
+        # coche par defaut : c'est le SEUL test qui charge vraiment le
+        # scenario, et il ne prend qu'une minute (le bilan seul ne prouvait
+        # rien du chargement — vecu 05/11 : bloc manquant invisible)
+        self.chk_dedi.setChecked(True)
         self.chk_dedi.toggled.connect(self._sync_dedi_box)
         self.path_edit.textChanged.connect(self._sync_dedi_box)
         lay.addWidget(self.chk_dedi)
@@ -73,6 +79,30 @@ class LaunchCheckDialog(QDialog):
         self.btn_run = QPushButton(t("launchcheck.run"))
         self.btn_run.clicked.connect(self._run)
         lay.addWidget(self.btn_run)
+
+        # recherche des prefabs inutilises : nettoyage de la distribution,
+        # sans rapport avec le chargement — donc un bouton a part, pas une
+        # ligne du bilan (le bilan doit rester vide quand tout va bien)
+        self.btn_unused = QPushButton(t("launchcheck.unused_btn"))
+        self.btn_unused.setToolTip(t("launchcheck.unused_tip"))
+        self.btn_unused.clicked.connect(self._scan_unused)
+        lay.addWidget(self.btn_unused)
+
+        # nettoyage complet : .bak, caches .yaml.bin orphelins, compagnons de
+        # prefabs disparus (SURS) et images non citees (A VERIFIER)
+        self.btn_junk = QPushButton(t("launchcheck.junk_btn"))
+        self.btn_junk.setToolTip(t("launchcheck.junk_tip"))
+        self.btn_junk.clicked.connect(self._scan_junk)
+        lay.addWidget(self.btn_junk)
+
+        # corbeille : cocher les lignes a retirer, sauvegarde centralisee
+        # avant toute suppression (jamais de *.bak dans Prefabs/ : le jeu le
+        # chargerait comme un blueprint)
+        self.btn_trash = QPushButton(t("launchcheck.trash_btn"))
+        self.btn_trash.setToolTip(t("launchcheck.trash_tip"))
+        self.btn_trash.setEnabled(False)
+        self.btn_trash.clicked.connect(self._trash_checked)
+        lay.addWidget(self.btn_trash)
 
         buttons = QHBoxLayout()
         self.btn_export = QPushButton(t("launchcheck.export"))
@@ -155,6 +185,11 @@ class LaunchCheckDialog(QDialog):
             scanned = 0
             for root in roots:
                 issues.extend(run_launch_checks(root, vanilla))
+                # balayage par planete (prefabs cites + blocs de leurs tables
+                # IdMapping) : ce que le boot dedie ne voit PAS — il ne charge
+                # que les secteurs, aucun playfield n'est instancie avant
+                # qu'un joueur n'y entre.
+                issues.extend(sweep_playfields(Path(root)))
             # moteur du jeu (yaml + ecf) : si l'outil est absent, le bilan
             # structurel reste rendu — le statut dira que le moteur a ete saute
             engine_ok = True
@@ -262,6 +297,7 @@ class LaunchCheckDialog(QDialog):
         checks = {"sectors": t("launchcheck.check_sectors"),
                   "playfields": t("launchcheck.check_playfields"),
                   "prefabs": t("launchcheck.check_prefabs"),
+                  "plane": t("launchcheck.check_plane"),
                   "poi_groups": t("launchcheck.check_poi_groups"),
                   "spawn": t("launchcheck.check_spawn"),
                   "warfare": t("launchcheck.check_warfare"),
@@ -323,3 +359,153 @@ class LaunchCheckDialog(QDialog):
         self._running = False
         self.btn_run.setEnabled(True)
         self.status_label.setText(f"{t('yamlcheck.failed')}  ({exc})")
+
+    def _scan_unused(self):
+        """Prefabs du scenario cites NULLE PART (ni nom de fichier, ni Name
+        interne, ni tag) : candidats au menage avant distribution. Regle
+        volontairement conservatrice (un faux positif ferait supprimer un
+        prefab utilise) — voir core/prefab_usage.py."""
+        root = self.path_edit.text().strip()
+        if not root:
+            self.status_label.setText(t("yamlcheck.need_scenario"))
+            return
+        if self._running:
+            return
+        self._running = True
+        self.btn_run.setEnabled(False)
+        self.btn_unused.setEnabled(False)
+        self.tree.clear()
+        self.status_label.setText(t("launchcheck.unused_running"))
+
+        from core.prefab_usage import scan_prefab_usage
+
+        def work():
+            return scan_prefab_usage(Path(root))
+
+        async_call(self, work, on_done=self._on_unused_done,
+                   on_fail=self._on_fail, name="unused-prefabs")
+
+    def _on_unused_done(self, rapport):
+        self._running = False
+        self.btn_run.setEnabled(True)
+        self.btn_unused.setEnabled(True)
+        sev_info = t("launchcheck.sev_info")
+        check = t("launchcheck.check_prefabs")
+        for chemin, taille in rapport.unused:
+            item = QTreeWidgetItem([
+                f"Prefabs/{chemin.name}", sev_info, check,
+                t("launchcheck.unused_row", ko=f"{taille / 1024:.0f}")])
+            # decoche par defaut : la suppression reste un geste explicite
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.CheckState.Unchecked)
+            item.setData(0, Qt.ItemDataRole.UserRole, str(chemin))
+            item.setToolTip(0, str(chemin))
+            self.tree.addTopLevelItem(item)
+        self.btn_trash.setEnabled(bool(rapport.unused))
+        if rapport.unused:
+            self.status_label.setText(t(
+                "launchcheck.unused_done", n=len(rapport.unused),
+                mo=f"{rapport.unused_bytes / 1e6:.1f}",
+                used=rapport.used, total=rapport.scanned))
+        else:
+            self.status_label.setText(t("launchcheck.unused_none",
+                                        total=rapport.scanned))
+        self.btn_export.setEnabled(self.tree.topLevelItemCount() > 0)
+
+    def _scan_junk(self):
+        """Fichiers inutiles du scenario : `.bak`, caches `*.yaml.bin`
+        orphelins, compagnons de prefabs disparus (SURS) et images dont le nom
+        n'est cite nulle part (A VERIFIER — le jeu peut les charger par
+        convention, l'utilisateur tranche)."""
+        root = self.path_edit.text().strip()
+        if not root:
+            self.status_label.setText(t("yamlcheck.need_scenario"))
+            return
+        if self._running:
+            return
+        self._running = True
+        self.btn_run.setEnabled(False)
+        self.btn_junk.setEnabled(False)
+        self.tree.clear()
+        self.status_label.setText(t("launchcheck.junk_running"))
+
+        from core.scenario_cleanup import scan_junk
+
+        def work():
+            return scan_junk(Path(root))
+
+        async_call(self, work, on_done=self._on_junk_done,
+                   on_fail=self._on_fail, name="scenario-junk")
+
+    def _on_junk_done(self, items):
+        self._running = False
+        self.btn_run.setEnabled(True)
+        self.btn_junk.setEnabled(True)
+        check = t("launchcheck.check_cleanup")
+        for junk in items:
+            etat = t("launchcheck.junk_safe") if junk.safe \
+                else t("launchcheck.junk_check")
+            item = QTreeWidgetItem([
+                f"{junk.path.parent.name}/{junk.path.name}"
+                if junk.path.parent != Path(self.path_edit.text().strip())
+                else junk.path.name,
+                etat, check,
+                t("launchcheck.junk_row", cat=junk.category,
+                  ko=f"{junk.octets / 1024:.0f}")])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            # les SURS sont pre-coches, les autres non : un fichier « a
+            # verifier » ne doit jamais partir par une validation distraite
+            item.setCheckState(0, Qt.CheckState.Checked if junk.safe
+                               else Qt.CheckState.Unchecked)
+            item.setData(0, Qt.ItemDataRole.UserRole, str(junk.path))
+            item.setToolTip(0, str(junk.path))
+            self.tree.addTopLevelItem(item)
+        self.btn_trash.setEnabled(bool(items))
+        surs = sum(1 for j in items if j.safe)
+        self.status_label.setText(t(
+            "launchcheck.junk_done", n=len(items), surs=surs,
+            mo=f"{sum(j.octets for j in items) / 1e6:.1f}") if items
+            else t("launchcheck.junk_none"))
+        self.btn_export.setEnabled(self.tree.topLevelItemCount() > 0)
+
+    def _checked_prefabs(self) -> list:
+        """Chemins des lignes cochees (les seules concernables par la
+        corbeille : un resultat de bilan n'a pas de case)."""
+        coches = []
+        for i in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(i)
+            if item.checkState(0) != Qt.CheckState.Checked:
+                continue
+            chemin = item.data(0, Qt.ItemDataRole.UserRole)
+            if chemin:
+                coches.append((item, Path(chemin)))
+        return coches
+
+    def _trash_checked(self):
+        """Sauvegarde centralisee puis suppression des prefabs coches et de
+        leurs .decals/.jpg. Confirmation obligatoire, avec le total."""
+        from core.scenario_cleanup import trash_files
+
+        coches = self._checked_prefabs()
+        if not coches:
+            self.status_label.setText(t("launchcheck.trash_none"))
+            return
+        octets = sum(p.stat().st_size for _i, p in coches if p.exists())
+        question = t("launchcheck.trash_confirm", n=len(coches),
+                     mo=f"{octets / 1e6:.1f}",
+                     dir=str(Path.home() / ".empyrion_editor" / "backups"))
+        if not ask_yes_no(self, t("launchcheck.trash_btn"), question):
+            return
+        racine = Path(self.path_edit.text().strip() or ".")
+        faits, echecs = trash_files([p for _i, p in coches],
+                                    kind=f"nettoyage-{racine.name}")
+        for item, chemin in coches:
+            if not chemin.exists():
+                idx = self.tree.indexOfTopLevelItem(item)
+                if idx >= 0:
+                    self.tree.takeTopLevelItem(idx)
+        self.btn_trash.setEnabled(bool(self._checked_prefabs()))
+        self.status_label.setText(t("launchcheck.trash_done", n=faits,
+                                    e=len(echecs)))
+        if echecs:
+            info(self, t("launchcheck.trash_btn"), "\n".join(echecs[:10]))

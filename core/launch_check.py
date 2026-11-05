@@ -64,6 +64,18 @@ _TOP_KEY_RE = re.compile(r'^([A-Za-z0-9_.\- ]+):[ \t]*$')
 # POI inconnu » sur RE2 Beta lui-meme (mesure 03/11/2026). Le `\1` final
 # evite d'avaler toutes les cles indentees ordinaires (Faction:, Names:...).
 _TOP_KEY_SELF_RE = re.compile(r'^[ \t]+([A-Za-z0-9_.\- ]+):[ \t]*\1[ \t]*$')
+# cle NON indentee, avec ou sans valeur : sert a savoir dans quelle SECTION on
+# est (`Seed: 1` ferme la section `DroneBaseSetup:` precedente). Ne pas utiliser
+# _TOP_KEY_RE pour ca : il exige une ligne sans valeur et accepte une
+# indentation (l'espace est dans sa classe) — la section ne retombait donc
+# jamais, et tout le fichier finissait indexe comme setup (vecu 05/11 : bilan
+# a 0 alerte a tort).
+_SECTION_KEY_RE = re.compile(r'^([A-Za-z0-9_.\- ]+):')
+# valeurs qu'un scenario peut ecrire la ou la vanille ne le fait jamais, et
+# que le moteur accepte : (cle, valeur). Ne contenir QUE du verifie en jeu.
+_VALUES_TOLERATED = frozenset({
+    ("param2", "EntityShipSV"),      # AITarget : type d'entite suivi (RE2)
+})
 
 # formes de valeurs pour le check « valeurs » (dictionnaire vanille)
 _NUM_RE = re.compile(
@@ -177,7 +189,13 @@ def _index_setups(playfields_root: Path) -> set[str]:
 
     Un `GroupName` peut designer un de ces blocs locaux au lieu d'un groupe
     de prefab : c'est la forme utilisee par `playfield_static.yaml` pour les
-    setups de drones (vecu 22/10 : alerte a tort sur DroneBaseSetup)."""
+    setups de drones (vecu 22/10 : alerte a tort sur DroneBaseSetup).
+
+    Les `GroupName:` INTERNES d'une section *Setup* sont indexes aussi : le
+    bloc `DroneBaseSetup:` liste ses variantes (`- GroupName:
+    DroneBaseSetupXen`) et les POI les appellent par ce nom
+    (`DroneBaseSetup: DroneBaseSetupXen`) — sans cette ligne, 7 fausses
+    alertes sur RE2-FR (mesure 05/11/2026)."""
     names: set[str] = set()
     for pf_dir in sorted(playfields_root.iterdir()) if playfields_root.is_dir() else []:
         if not pf_dir.is_dir() or pf_dir.name.startswith('+'):
@@ -190,10 +208,21 @@ def _index_setups(playfields_root: Path) -> set[str]:
                                            errors="replace")
             except OSError:
                 continue
+            section = ""
             for line in text.splitlines():
-                m = _TOP_KEY_RE.match(line) or _TOP_KEY_SELF_RE.match(line)
-                if m:
-                    names.add(m.group(1).strip().casefold())
+                self_key = _TOP_KEY_SELF_RE.match(line)
+                if self_key:
+                    names.add(self_key.group(1).strip().casefold())
+                    continue
+                top = _SECTION_KEY_RE.match(line)
+                if top and not line[:1].isspace():
+                    section = top.group(1).strip().casefold()
+                    names.add(section)
+                    continue
+                if "setup" in section:
+                    found = _GROUP_NAME_RE.search(line)
+                    if found:
+                        names.add(found.group(1).strip().strip("'\"").casefold())
     return names
 
 
@@ -740,7 +769,12 @@ def _check_values(root: Path, vanilla_conf: Path | None,
             #   (ShowUser: true dans Rise of the Dark Faction officiel)
             if (v.lstrip().startswith('"')
                     or fam in fams
-                    or (fam == "bool" and "str" in fams)):
+                    or (fam == "bool" and "str" in fams)
+                    # - VALUES_TOLERATED : identifiants de type d'entite que
+                    #   la vanille n'emploie pas la ou RE2 les met (`param2:
+                    #   EntityShipSV` sur AITarget) et que le moteur accepte
+                    #   (vecu RE2-FR, 05/11)
+                    or (key, v.strip()) in _VALUES_TOLERATED):
                 continue
             n_bad += 1
             issues.append(LaunchIssue(
@@ -947,6 +981,11 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
     # locale/Workshop (le client la parse au demarrage, vecu 27/10 :
     # « Block 'ThrusterJetMSRound3x13x3' not found » sur un blueprint) ---
     conf = root / "Content" / "Configuration"
+    # PAS d'union avec la config vanille : un scenario RE2 REMPLACE le
+    # BlocksConfig (il reattribue des Ids vanille : l'ancien 2031 = 
+    # CPUBrokenCVT4 chez RE2). Si les deux couches se cumulaient, ces Ids
+    # entreraient en collision — donc un bloc declare seulement en vanille
+    # n'existe PAS dans le scenario, et le signaler est correct.
     config_names = _declared_names(conf)
     vanilla_names: Optional[set[str]] = None
     library_files: tuple[Path, ...] = ()

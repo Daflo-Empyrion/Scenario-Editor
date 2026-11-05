@@ -638,10 +638,6 @@ class MainWindow(QMainWindow):
         self.action_techtree_web.setEnabled(_ttweb_available())
         self.action_techtree_web.toggled.connect(self._toggle_techtree_web)
 
-        # Vue web par defaut des CSV (chantier webapp, 02/11) : un CSV ouvert
-        # s'affiche directement dans la grille web. Toggle immediate pour les
-        # PROCHAINS fichiers ouverts (les onglets deja construits ne bougent
-        # pas) ; grisee si WebEngine manque.
         # Barre de titre custom style webapp (31/10) : fenetre sans cadre,
         # barre maison au-dessus des menus. Pris en compte au PROCHAIN
         # lancement ; grisee si qframelesswindow manque / hors Windows.

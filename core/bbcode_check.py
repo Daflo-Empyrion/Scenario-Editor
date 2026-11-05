@@ -42,6 +42,21 @@ Choix de reparation :
     '[-]' remet a zero, ce n'est pas une imbrication ;
   - orphelines, balises invalides et imbrications ne sont corrigees que si
     la source ne presente pas deja le meme defaut.
+Adaptation du correcteur externe du 04/11 (C:/Users/David/Desktop, moins de
+faux negatifs que la version precedente) :
+  - un code couleur hexa SANS bloc [c] n'est pas applique par le jeu :
+    le bloc [c] est ajoute ;
+  - une fermeture manquante est inseree AVANT le premier '\\n' litteral
+    (fermee en toute fin, le jeu teintait la ligne suivante) ;
+  - tout [/c] fermant un bloc qui contient une couleur est precede de [-]
+    (convention du jeu : [c][hex]...[-][/c]) ;
+  - espaces recolles : '[-] [/c]' -> '[-][/c]', '[/c] \\n' -> '[/c]\\n'.
+Le RichText Unity (<b>, <i>, <color=#hex>...) est repare par
+repair_richtext : imbrication stricte LIFO, fermeture avant les jetons
+systeme ('\\n', @wN, @pN), fermeture orpheline retiree, tags ouverts
+fermes en fin de texte. Les macros <UPPERCASE> (<DISCOUNTTEXT>...) et les
+balises auto-fermantes sont laissees intactes (le correcteur externe les
+corrompait en </discounttext>).
 Les jetons techniques absents ({0}, \n...) restent signales sans
 proposition : une machine ne devine pas ou le texte a ete coupe.
 """
@@ -62,6 +77,21 @@ KNOWN_TAGS = frozenset(
 
 _TAG_RE = re.compile(r"\[(/?)(-|[A-Za-z0-9#][A-Za-z0-9_#-]*)(=[^\]]*)?\]")
 _HEX_RE = re.compile(r"^(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
+# tag avec espaces interieurs ('[/c ]', '[- ]', '[ c]') : vecu dans RE2-FR
+# (28 [/c ] et 2 [- ] au 04/11). '[ P ]' (touche clavier) reste intact :
+# 'P' n'est pas un nom de balise connue.
+_SPACED_TAG_RE = re.compile(
+    r"\[\s*(/?)(-|[A-Za-z0-9#][A-Za-z0-9_#-]*)\s*(=[^\]]*)?\]")
+
+
+def _normalize_spaced_tags(text: str) -> str:
+    """Recolle les espaces interieurs des balises reconnues ([/c ] -> [/c])."""
+    def _fix(m: re.Match) -> str:
+        slash, name, arg = m.groups()
+        if name == "-" or _HEX_RE.match(name) or name.lower() in KNOWN_TAGS:
+            return f"[{slash}{name}{arg or ''}]"
+        return m.group(0)                  # [ P ] : pas une balise, intact
+    return _SPACED_TAG_RE.sub(_fix, text)
 
 _NEWLINE = "\\n"                      # deux caracteres, pas un vrai saut
 _PLACEHOLDER_RE = re.compile(r"\{[A-Za-z0-9_]+\}")
@@ -145,12 +175,15 @@ def structure(text: str) -> tuple[Counter, Counter]:
 
 
 def repair_text(target: str) -> str:
-    """Reecrit `target` en corrigeant ses balises, SANS toucher au choix de
-    traduction. Controle AUTONOME (02/11/2026) : plus aucune comparaison a
-    la source anglaise — ses regles de tolerance causaient plus de
-    problemes (defauts herites non repares) que de gains.
+    """Reecrit `target` en corrigeant ses balises BBCode, SANS toucher au
+    choix de traduction. Controle AUTONOME (02/11/2026) : plus aucune
+    comparaison a la source anglaise — ses regles de tolerance causaient
+    plus de problemes (defauts herites non repares) que de gains.
 
-      - une fermeture manquante est TOUJOURS ajoutee : un '[c]' orphelin
+      - un code couleur hexa sans bloc [c] recoit son [c] (le jeu n'applique
+        pas la couleur sinon) ;
+      - une fermeture manquante est TOUJOURS ajoutee, AVANT le premier
+        '\\n' litteral s'il y en a un apres le bloc ouvert : un '[c]' orphelin
         peut teinter toute la suite du texte en jeu (31/10/2026) ;
       - une fermeture ORPHELINE ([-] ou [/b] sans ouverture) est retiree ;
       - une balise INVALIDE est retiree ;
@@ -158,9 +191,26 @@ def repair_text(target: str) -> str:
         ferme ferme d'abord le bloc precedent : on ressort
         '[c][green]A[-][/c][c][white]B[-][/c]' au lieu d'empiler deux
         ouvertures pour une seule fermeture ;
-      - une balise bien formee n'est JAMAIS retiree (ni ajoutee : plus de
-        squelette source — une cellule sans balise n'a rien a reparer).
+      - tout [/c] fermant un bloc colore est precede de [-] ;
+      - une balise bien formee n'est JAMAIS retiree.
     Retourne `target` inchange si rien a faire."""
+    # Tags espaces ('[/c ]', '[- ]') : recolles d'abord, sinon invisibles.
+    target = _normalize_spaced_tags(target)
+    # Code couleur hexa ou [/c] orphelin sans bloc [c] : le jeu ignore la
+    # couleur (et la fermeture est orpheline), on ouvre le bloc.
+    if re.search(r"\[c\]", target, re.IGNORECASE) is None \
+            and (any(tok.kind == "color" for tok in tokenize(target))
+                 or re.search(r"\[/c\]", target, re.IGNORECASE) is not None):
+        target = "[c]" + target
+    # Un '[c]' final isole est une coquille pour '[/c]' (vecu RE2-FR L600 :
+    # '...Schutzanzug[-][c]') : retourne le bloc au lieu d'empiler une
+    # ouverture vide.
+    m_end = re.search(r"\[c\]\s*$", target, re.IGNORECASE)
+    if m_end is not None \
+            and len(re.findall(r"\[c\]", target, re.IGNORECASE)) \
+            > len(re.findall(r"\[/c\]", target, re.IGNORECASE)):
+        target = target[:m_end.start()] + "[/c]" + target[m_end.end():]
+
     tgt_tags, _ = structure(target)
     # un bloc '[c]' laisse ouvert quelque part : on separera les blocs
     split_c = tgt_tags["[c]"] > tgt_tags["[/c]"]
@@ -168,7 +218,20 @@ def repair_text(target: str) -> str:
     out: list[str] = []
     stack: list[Token] = []
     pending: Counter = Counter()          # fermetures emises d'office (imbrication)
+    color_open = False                    # couleur posee, pas encore remise
     pos = 0
+
+    def _emit_close(tok: Token) -> None:
+        """Emet la fermeture d'un token sorti de la pile, avec le [-]
+        obligatoire devant [/c] si le bloc contient une couleur."""
+        nonlocal color_open
+        if tok.name == "c" and color_open:
+            out.append("[-]")
+            color_open = False
+        out.append(_closer(tok))
+        if tok.kind == "color":
+            color_open = False
+
     for m in _TAG_RE.finditer(target):
         out.append(target[pos:m.start()])   # le texte entre les balises est conserve
         pos = m.end()
@@ -181,9 +244,11 @@ def repair_text(target: str) -> str:
                             if stack[i].name == "c"), None)
                 if idx is not None:               # bloc couleur precedent non ferme
                     while len(stack) > idx:
-                        out.append(_closer(stack.pop()))
+                        _emit_close(stack.pop())
             elif tok.kind == "color":
                 stack[:] = [t for t in stack if t.kind != "color"]
+            if tok.kind == "color":
+                color_open = True
             out.append(tok.text)
             stack.append(tok)
             continue
@@ -191,6 +256,7 @@ def repair_text(target: str) -> str:
             if any(t.kind == "color" for t in stack):
                 stack[:] = [t for t in stack if t.kind != "color"]
                 out.append(tok.text)
+                color_open = False
             continue                          # '[-]' orphelin : retire
         # close
         if pending.get(tok.norm, 0) > 0:
@@ -202,17 +268,114 @@ def repair_text(target: str) -> str:
             continue                       # fermeture orpheline : retiree
         if idx != len(stack) - 1:
             while len(stack) - 1 > idx:    # imbrication : fermer d'abord
-                closer = _closer(stack.pop())
-                out.append(closer)
-                pending[closer] += 1
+                _emit_close(stack.pop())
+                pending[out[-1]] += 1
         stack.pop()
+        if tok.name == "c" and color_open:
+            out.append("[-]")
+            color_open = False
         out.append(tok.text)
 
-    out.append(target[pos:])
-    for tok in reversed(stack):            # fermetures manquantes : toujours
-        out.append(_closer(tok))
+    tail = target[pos:]
+    if stack:
+        missing = list(reversed(stack))    # fermetures manquantes : toujours
+        idx = tail.find(_NEWLINE)
+        if idx > 0 and tail[idx - 1] == "[":
+            idx -= 1                       # inserer avant le token [\n] entier
+        if idx >= 0:
+            # fermer le bloc AVANT le saut de ligne : au-dela, le jeu
+            # prolonge la couleur sur les lignes suivantes (04/11)
+            out.append(tail[:idx])
+            for t in missing:
+                _emit_close(t)
+            out.append(tail[idx:])
+        else:
+            out.append(tail)
+            for t in missing:
+                _emit_close(t)
+    else:
+        out.append(tail)
 
-    return "".join(out)
+    fixed = "".join(out)
+    # cosmetique (04/11) : espaces accidentels recolles
+    fixed = re.sub(r"\[-\]\s+\[/c\]", "[-][/c]", fixed, flags=re.IGNORECASE)
+    fixed = re.sub(r"\[/c\]\s+(" + re.escape(_NEWLINE) + r")",
+                   r"[/c]\1", fixed, flags=re.IGNORECASE)
+    return fixed
+
+
+_RICH_SPLIT_RE = re.compile(
+    r"(</?[A-Za-z][^>]*>|<#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?>)")
+_RICH_NAME_RE = re.compile(r"^</?([A-Za-z][A-Za-z0-9]*)")
+# Empyrion admet <#ffff00> comme raccourci de <color=#ffff00> (vecu RE2-FR :
+# 172 occurrences) ; la fermeture reste </color>.
+_RICH_SHORT_HEX_RE = re.compile(r"^<#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?>$")
+_SYSTEM_TOKEN_RE = re.compile(r"(\[\\n\]|\\n|@w\d+|@p\d+)")  # jetons du jeu
+# liste blanche RichText Unity : tout ce qui n'y est pas (macros
+# <DISCOUNTTEXT>, comparaisons texte « a < b »...) est laisse intact
+_RICH_TAGS = frozenset(
+    "b i u s color size font link mark sub sup nobr align pos br".split())
+
+
+def repair_richtext(target: str) -> str:
+    """Repare le RichText Unity (<b>, <i>, <color=#hex>...) : imbrication
+    stricte LIFO, fermeture avant les jetons systeme ('\\n', @wN, @pN),
+    fermeture orpheline retiree, tags ouverts fermes en fin de texte.
+    Hors liste blanche : intact. Retourne `target` inchange si rien a faire."""
+    if not target:
+        return target
+    out: list[str] = []
+    stack: list[tuple[str, str]] = []     # (nom, token d'ouverture normalise)
+    for token in _RICH_SPLIT_RE.split(target):
+        if not token:
+            continue
+        if _RICH_SHORT_HEX_RE.match(token):
+            out.append(token)              # <#hex> : ouvert, ferme par </color>
+            stack.append(("color", token))
+            continue
+        m = _RICH_NAME_RE.match(token)
+        if m is None or m.group(1).lower() not in _RICH_TAGS:
+            # texte brut, macro ou balise inconnue : fermer quand meme les
+            # tags ouverts avant un jeton systeme ('\n' coupe la mise en forme)
+            for part in _SYSTEM_TOKEN_RE.split(token):
+                if part and _SYSTEM_TOKEN_RE.fullmatch(part):
+                    while stack:
+                        out.append(f"</{stack.pop()[0]}>")
+                    out.append(part)
+                elif part:
+                    out.append(part)
+            continue
+        low = m.group(1).lower()
+        norm = token.replace(m.group(1), low, 1)     # nom en minuscules
+        if token.startswith("</"):
+            if stack and stack[-1][0] == low:
+                stack.pop()
+                out.append(norm)
+            elif any(n == low for n, _o in stack):
+                # imbrication croisee : fermer en LIFO, puis rouvrir
+                closed: list[tuple[str, str]] = []
+                while stack and stack[-1][0] != low:
+                    n, open_tok = stack.pop()
+                    out.append(f"</{n}>")
+                    closed.append((n, open_tok))
+                if stack:
+                    stack.pop()
+                    out.append(norm)
+                for n, open_tok in reversed(closed):
+                    stack.append((n, open_tok))
+                    out.append(open_tok)
+            # fermeture orpheline : retiree
+        elif token.endswith("/>"):
+            out.append(token)              # auto-fermante : pas de pile
+        else:
+            out.append(norm)
+            stack.append((low, norm))
+    while stack:
+        out.append(f"</{stack.pop()[0]}>")
+    # les reouvertures apres imbrication croisee peuvent laisser une paire
+    # vide (<i></i>) si le texte s'arretait la : elle ne rend rien, on l'ote
+    return re.sub(r"<([A-Za-z][A-Za-z0-9]*)(?:=[^>]*)?></\1>", "",
+                  "".join(out))
 
 
 @dataclass
@@ -250,7 +413,7 @@ def _problem_names(counter: Counter) -> str:
 def check_cell(target: str) -> CellReport | None:
     """Controle AUTONOME des balises d'une cellule (02/11/2026, plus aucune
     comparaison a la source anglaise). Retourne None si rien a signaler :
-    cellule vide, ou balises deja equilibrees."""
+    cellule vide, ou balises deja equilibrees (BBCode ET RichText Unity)."""
     if not (target or "").strip():
         return None
     _tags, problems = structure(target)
@@ -263,12 +426,16 @@ def check_cell(target: str) -> CellReport | None:
         kinds.append("nesting")
     if any(k.startswith("invalid:") for k in problems):
         kinds.append("invalid")
+
+    fixed = repair_text(target)
+    rich = repair_richtext(fixed)
+    if rich != fixed:
+        kinds.append("richtext")
     if not kinds:
         return None
 
     details = _problem_names(Counter({k: 1 for k in problems}))
-    fixed = repair_text(target)
-    after = fixed if fixed != target else ""
+    after = rich if rich != target else ""
     return CellReport(kinds, details, target, after)
 
 

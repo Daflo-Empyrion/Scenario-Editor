@@ -251,13 +251,17 @@ def chat_with_link(messages: list, *, temperature: float = 0.2,
             "Aucun fournisseur IA disponible : ajoute une cle dans Options > "
             "Traduction > Fournisseurs IA.")
     errors = []
+    in_cooldown = []
     tried = set()
     retried_free = False
     index = 0
     while index < len(queue):
         candidate = queue[index]
         index += 1
-        if candidate.key in tried or _down(candidate):
+        if candidate.key in tried:
+            continue
+        if _down(candidate):
+            in_cooldown.append(candidate)
             continue
         if candidate.tier == "paid":
             if candidate.price_in <= 0 and candidate.price_out <= 0:
@@ -315,10 +319,19 @@ def chat_with_link(messages: list, *, temperature: float = 0.2,
                                             candidate.price_out))
         _LAST_LINK = candidate
         return result, candidate
-    detail = " | ".join(f"{label} : {msg}" for label, msg in errors) \
-        or "aucun maillon disponible"
+    detail = " | ".join(f"{label} : {msg}" for label, msg in errors)
+    if not detail and in_cooldown:
+        # Rien n'a ete tente : chaque maillon est en repos apres un echec
+        # precedent (vecu 04/11 : le test affichait "aucun maillon
+        # disponible" alors que le fournisseur etait sain).
+        waits = ", ".join(
+            f"{c.label} ({int(cooldown_remaining(c) // 60) + 1} min)"
+            for c in in_cooldown)
+        detail = ("maillons en repos apres un echec precedent -- "
+                  + waits + " ; reessayez plus tard")
     raise EngineUnavailableError(
-        "Tous les fournisseurs IA ont echoue -- " + detail)
+        "Tous les fournisseurs IA ont echoue -- "
+        + (detail or "aucun maillon disponible"))
 
 
 def complete(messages: list, **kwargs) -> str:
@@ -527,5 +540,9 @@ def translate_batch(protected_texts: list, target_code: str) -> list:
 def quick_check() -> str:
     """Test du dialogue : traduit une phrase courte et dit quel maillon a
     servi. Leve une exception explicite si aucun maillon ne repond."""
+    # Action EXPLICITE de l'utilisateur : on force l'essai malgre un repos
+    # issu d'un echec precedent (sinon le test echoue a tort pendant
+    # 10-30 min avec "aucun maillon disponible" -- vecu 04/11).
+    reset_link_states()
     out = translate_whole("The generators are overloaded.", "fr")
     return f"[{last_link_label()}] {out}"

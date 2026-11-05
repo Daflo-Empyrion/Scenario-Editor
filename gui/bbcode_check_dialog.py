@@ -43,6 +43,7 @@ _KIND_KEYS = {
     "orphan": "bbcheck.issue.orphan",
     "nesting": "bbcheck.issue.nesting",
     "invalid": "bbcheck.issue.invalid",
+    "richtext": "bbcheck.issue.richtext",
     "extra": "bbcheck.issue.extra",
     "missing": "bbcheck.issue.missing",
     "token": "bbcheck.issue.token",

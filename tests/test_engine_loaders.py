@@ -540,3 +540,64 @@ def test_engine_checks_run_inside_launch_checks(tmp_path, monkeypatch):
     assert any("Ghost" in i.message for i in issues)
     assert not hasattr(run_launch_checks, "_skip_engine")
 
+
+
+def test_child_growth_next_missing_block_is_fatal(tmp_path):
+    """Vecu 05/11/2026 (RE2-FR) : le client jette « Block with name
+    'PentaxidSeedCrystal3' not found » et s'arrete. `Next:` vit dans un
+    sous-bloc `{ Child ... }` et echappait a tous les checks de references."""
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: SeedStage2\n"
+        "  Material: Device\n"
+        "  { Child PlantGrowing\n"
+        "    Next: SeedStage3\n"
+        "    GrowthRate: 100\n"
+        "  }\n"
+        "}\n"))
+    issues = [i for i in _run(root) if "SeedStage3" in i.message]
+    assert len(issues) == 1
+    assert issues[0].severity == "error"
+    assert "Next" in issues[0].message
+
+
+def test_child_growth_next_existing_block_is_accepted(tmp_path):
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: SeedStage2\n"
+        "  Material: Device\n"
+        "  { Child PlantGrowing\n"
+        "    Next: SeedStage3\n"
+        "  }\n"
+        "}\n\n"
+        "{ Block Name: SeedStage3\n"
+        "  Material: Device\n"
+        "}\n"))
+    assert [i for i in _run(root) if "SeedStage3" in i.message] == []
+
+
+def test_techtree_uses_scenario_templates_only(tmp_path):
+    """Vecu 05/11/2026 (crash client RE2-FR) : un scenario REMPLACE
+    Templates.ecf. Un bloc visible dans l'arbre dont le template n'existe
+    qu'en vanille fait planter le client (NRE ConfigTree.FormatMenu) — le
+    bilan doit donc ignorer les templates de la vanille des que le scenario a
+    le sien."""
+    from core.engine_loaders import run_engine_loader_checks
+
+    root = _scenario(tmp_path, blocks=(
+        BLOCKS_HEADER +
+        "{ Block Name: OrphanBlock\n"
+        "  Material: Device\n"
+        "  TechTreeNames: \"Base\"\n"
+        "  UnlockLevel: 5\n"
+        "}\n"), templates="{ Template Name: Other\n  Output: 1\n}\n")
+    vanilla = tmp_path / "vanilla" / "Configuration"
+    vanilla.mkdir(parents=True)
+    (vanilla / "Templates.ecf").write_text(
+        "{ Template Name: OrphanBlock\n  Output: 1\n}\n", encoding="utf-8")
+    (vanilla / "MaterialConfig.ecf").write_text(BLOCKS_HEADER,
+                                                encoding="utf-8")
+    issues = run_engine_loader_checks(root, str(tmp_path / "vanilla"))
+    messages = [i.message for i in issues]
+    assert any("No template found for OrphanBlock" in m for m in messages), \
+        messages

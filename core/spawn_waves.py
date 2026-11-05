@@ -320,15 +320,33 @@ def _bracket_list(value) -> List[str]:
 
 
 def _spawnable_names(doc: YamlDocument) -> set:
+    """Noms qu'une zone de spawn peut viser (SpawnAt).
+
+    `GroupName` ET `Name` : un POI peut n'etre declare que par son `Name`
+    (`- Type: BA_Alien` + `Name: [PVF_XenuOPV]`, forme des playfields
+    spatiaux) — ne lire que GroupName faisait alerter a tort (05/11).
+    Les DEPOTS DE RESSOURCES comptent aussi : la doc officielle
+    (`+ExamplePlanet/playfield_static.yaml`) dit « safe zones with less
+    creatures around certain POIs AND RESOURCE DEPOSITS » — sans eux,
+    `SpawnAt: [PentaxidResource]` passait pour un POI inconnu."""
+    from core.playfield_editor import list_items
+
     names = {"START"}
     for item in find_random_poi_items(doc) + find_fixed_poi_items(doc):
         params = dict(get_item_params(item))
-        if params.get("GroupName"):
-            names.add(params["GroupName"].strip())
-        elif item.value:
+        for key in ("GroupName", "Name"):
+            value = params.get(key)
+            if value:
+                names.update(_bracket_list(value) or [str(value).strip()])
+        if item.value:
             names.add(str(item.value).strip())
     for item in find_fixed_player_start_items(doc):
         params = dict(get_item_params(item))
         if params.get("Mode"):
             names.add(params["Mode"].strip())
+    for section in ("Resources", "RandomResources", "AsteroidResources"):
+        for item in list_items(doc, section, "Name"):
+            nom = dict(get_item_params(item)).get("Name") or item.value
+            if nom:
+                names.update(_bracket_list(nom) or [str(nom).strip()])
     return names

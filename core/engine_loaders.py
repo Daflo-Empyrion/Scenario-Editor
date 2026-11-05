@@ -567,11 +567,24 @@ def _check_blocks(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
 
 def _check_techtree(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
     from .tech_tree import load_tech_tree
-    targets = _template_targets(ctx._paths("Templates.ecf"))
+    # Un scenario RE2 REMPLACE Templates.ecf (comme BlocksConfig) : le client
+    # ne voit que le fichier du scenario. Fusionner avec la vanille masquait
+    # cette classe entiere (vecu 05/11/2026 : 5 blocs declares « pourvus d'un
+    # template » par le bilan, « No template found » par le client, puis NRE
+    # ConfigTree.FormatMenu et fermeture du jeu).
+    scenario_templates = ctx.conf / "Templates.ecf"
+    if scenario_templates.exists():
+        targets = _template_targets([scenario_templates])
+    else:
+        targets = _template_targets(ctx._paths("Templates.ecf"))
 
-    tree = load_tech_tree(ctx.blocks_path, ctx.items_path,
-                          vanilla_root=str(ctx.vanilla_conf)
-                          if ctx.vanilla_conf else "")
+    # Le client ne charge QUE le scenario (BlocksConfig ET Templates.ecf
+    # remplacent la vanille). L'arbre est donc construit avec vanilla_root=""
+    # — pas None, qui retombe sur le reglage de l'application et reapplique
+    # les patchs '+Block' de la vanille : c'est ce qui masquait 16 noeuds
+    # visibles sans template et inventait des chaines de parente (mesure
+    # 05/11/2026, crash client NRE ConfigTree.FormatMenu).
+    tree = load_tech_tree(ctx.blocks_path, ctx.items_path, vanilla_root="")
     for n in tree.nodes:
         visible = any(c not in ("Hidden", "") for c in n.categories)
         if visible and targets and n.name not in targets:
@@ -579,8 +592,10 @@ def _check_techtree(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
                 f"{_CONF}/{'BlocksConfig.ecf' if n.source == 'block' else 'ItemsConfig.ecf'}",
                 "warning",
                 f"moteur (arbre technologique) : « No template found for "
-                f"{n.name} » — aucun Template ne vise ce bloc (Target:), pas "
-                f"de barre constructeur en jeu"))
+                f"{n.name} » — aucun Template du SCENARIO ne le produit ; le "
+                f"client s'arrete au chargement de l'arbre (NRE "
+                f"ConfigTree.FormatMenu) : masquer le bloc (TechTreeNames: "
+                f"Hidden) ou lui donner un template"))
 
     # recursion des chaines TechTreeParent (le jeu jette au 8e ancetre)
     parents: Dict[str, str] = {}
@@ -810,6 +825,45 @@ def _check_templates(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
                             f"int.Parse jette"))
 
 
+def _check_transitions(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
+    """`Next:` (dans un sous-bloc `{ Child ... }`), `UpgradeTo:` et
+    `DowngradeTo:` doivent designer un bloc ou un item declare.
+
+    Vecu 05/11/2026 (RE2-FR) : `PentaxidSeedCrystal2` portait
+    `Next: PentaxidSeedCrystal3`, bloc absent du BlocksConfig. Le chargeur
+    jette « Block with name 'PentaxidSeedCrystal3' not found (3597) » puis le
+    client s'arrete — aucun check existant ne voyait cette reference : les
+    cles connues (TemplateRoot, ChildBlocks...) sont lues sur le bloc
+    lui-meme, alors que `Next:` vit dans le sous-bloc `{ Child ... }`."""
+    blocks_p = ctx.blocks_path
+    if blocks_p is None:
+        return
+    connus = {k.casefold() for k in ctx.blocks_by_name()} \
+        | {k.casefold() for k in ctx.items_by_name()}
+    if not connus:
+        return
+    rel = f"{_CONF}/{blocks_p.name}"
+    vus = set()
+    for bloc in get_parsed_doc(blocks_p).iter_blocks():
+        nom = _name(bloc)
+        if not nom:
+            continue
+        for key in ("Next", "UpgradeTo", "DowngradeTo"):
+            for m in re.finditer(rf"(?m)^[ \t]*{key}:[ \t]*([\w\-]+)",
+                                 bloc.render()):
+                cible = m.group(1)
+                if cible.casefold() == "null" or cible.casefold() in connus:
+                    continue
+                if (nom, key, cible) in vus:
+                    continue
+                vus.add((nom, key, cible))
+                issues.append(_issue(
+                    rel, "error",
+                    f"moteur (chargeur blocs) : « Block with name '{cible}' "
+                    f"not found » — {key}: sur {nom} ; le client s'arrete au "
+                    f"chargement (reintegrer ce bloc ou repointur la {key})"))
+
+
 def run_engine_loader_checks(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     """Les checks « chargeurs du moteur » du bilan : repliquent les
     validations fatales des chargeurs ECF/TechTree du jeu (voir docstring du
@@ -821,6 +875,7 @@ def run_engine_loader_checks(root: Path, vanilla_content: str = "") -> list[Laun
     _check_ref_order(ctx, issues)
     _check_blocks(ctx, issues)
     _check_items(ctx, issues)
+    _check_transitions(ctx, issues)
     _check_templates(ctx, issues)
     _check_techtree(ctx, issues)
     return issues

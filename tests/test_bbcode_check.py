@@ -24,7 +24,8 @@ reassemblait que les balises)."""
 import pytest
 
 from core.bbcode_check import (check_cell, check_table, language_columns,
-                               repair_text, source_column, structure)
+                               repair_richtext, repair_text, source_column,
+                               structure)
 
 
 # ----------------------------------------------------------------------
@@ -35,7 +36,9 @@ def test_missing_closer_is_detected_and_closed():
     assert report is not None
     assert "unclosed" in report.kinds
     assert report.repairable
-    assert report.after == "[0AC9F9]Bloc Alien[-]"
+    # adapt. 04/11 : hexa nu -> bloc [c] ouvert, ferme AVANT... ici sans \n :
+    # fermeture en fin, et [-] obligatoire devant [/c] (bloc colore)
+    assert report.after == "[c][0AC9F9]Bloc Alien[-][/c]"
 
 
 def test_text_is_preserved_by_repair():
@@ -44,10 +47,12 @@ def test_text_is_preserved_by_repair():
         == "[c][FF4500]Texte[-][/c]"
 
 
-def test_orphan_closer_is_removed():
+def test_orphan_closer_becomes_complete_block():
+    """Adapt. 04/11 : hexa nu avec [-][/c] mais sans [c] : on ouvre le bloc
+    plutot que retirer la fermeture orpheline (regle du correcteur externe)."""
     report = check_cell("[0AC9F9]Bloc[-][/c]")
     assert "orphan" in report.kinds
-    assert report.after == "[0AC9F9]Bloc[-]"
+    assert report.after == "[c][0AC9F9]Bloc[-][/c]"
 
 
 def test_wrong_nesting_is_reordered():
@@ -73,7 +78,7 @@ def test_unclosed_colour_added_by_translation_is_closed():
     """L'anglais n'a aucune balise, la traduction a ouvert une couleur : la
     fermeture manque dans la traduction, c'est donc a elle de la recevoir."""
     report = check_cell("[0AC9F9]Bloc Alien")
-    assert report.after == "[0AC9F9]Bloc Alien[-]"
+    assert report.after == "[c][0AC9F9]Bloc Alien[-][/c]"
 
 
 def test_two_colour_blocks_with_one_closer_are_split():
@@ -104,6 +109,54 @@ def test_true_nesting_gets_the_missing_reset():
 
 def test_empty_target_is_ignored():
     assert check_cell("") is None
+
+
+# ----------------------------------------------------------------------
+# Adaptation du correcteur externe (04/11)
+# ----------------------------------------------------------------------
+def test_close_inserted_before_newline():
+    """La fermeture manquante doit se mettre AVANT le '\\n' litteral :
+    fermee en fin de texte, le jeu prolonge la couleur sur la ligne suivante."""
+    assert repair_text("[c][FF0000]Bonjour[\\n]Suite") \
+        == "[c][FF0000]Bonjour[-][/c][\\n]Suite"
+
+
+def test_reset_added_before_closer_of_coloured_block():
+    assert repair_text("[c][00FF00]Texte[/c]") == "[c][00FF00]Texte[-][/c]"
+
+
+def test_spaces_are_glued():
+    assert repair_text("[c][00FF00]A[-] [/c][\\n]B") \
+        == "[c][00FF00]A[-][/c][\\n]B"
+
+
+def test_richtext_missing_close_is_added():
+    report = check_cell("<b>Salut le monde")
+    assert report is not None
+    assert "richtext" in report.kinds
+    assert report.after == "<b>Salut le monde</b>"
+
+
+def test_richtext_crossed_nesting_is_repaired():
+    report = check_cell("<b><i>x</b></i>")
+    assert "richtext" in report.kinds
+    assert report.after == "<b><i>x</i></b>"
+
+
+def test_richtext_closed_before_newline_token():
+    assert repair_richtext("<color=#ff0000>A[\\n]B") \
+        == "<color=#ff0000>A</color>[\\n]B"
+
+
+def test_macros_are_never_touched():
+    """<DISCOUNTTEXT> est une macro du jeu : le correcteur externe la
+    corrumpait en </discounttext> — jamais chez nous."""
+    text = "<DISCOUNTTEXT> et a < b"
+    assert repair_richtext(text) == text
+
+
+def test_richtext_orphan_close_is_removed():
+    assert repair_richtext("Texte</b> suite") == "Texte suite"
 
 
 # ----------------------------------------------------------------------
@@ -142,7 +195,7 @@ def test_check_table_skips_the_source_column():
     assert source == 1
     assert columns == [1, 2]
     assert [(r, c) for r, c, _ in reports] == [(0, 2)]
-    assert reports[0][2].after == "[0AC9F9]Bloc Alien[-]"
+    assert reports[0][2].after == "[c][0AC9F9]Bloc Alien[-][/c]"
 
 
 # ----------------------------------------------------------------------
@@ -172,7 +225,7 @@ def test_dialog_applies_fixes_and_writes_backup(qapp, tmp_path, monkeypatch):
     dialog._apply()
 
     saved = path.read_text(encoding="utf-8")
-    assert "[0AC9F9]Bloc Alien[-]" in saved
+    assert "[c][0AC9F9]Bloc Alien[-][/c]" in saved
     assert not (tmp_path / "Localization.csv.bak").exists()   # rien a cote du CSV
     assert (tmp_path / "Localization-backup.bak").exists()
     # l'editeur garde la trace de la modification pour l'undo
@@ -206,13 +259,13 @@ def test_proposal_column_is_editable_and_used(qapp, tmp_path, monkeypatch):
         "KEY,English,Français\r\n"
         "b1,[0AC9F9]Alien Block[-],[0AC9F9]Bloc Alien\r\n")
     from PyQt6.QtCore import Qt
-    assert dialog.table.item(0, 5).text() == "[0AC9F9]Bloc Alien[-]"
+    assert dialog.table.item(0, 5).text() == "[c][0AC9F9]Bloc Alien[-][/c]"
     assert dialog.table.item(0, 3).text() == "[0AC9F9]Alien Block[-]"
     assert not (dialog.table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
     assert not (dialog.table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable)
-    dialog.table.item(0, 5).setText("[0AC9F9]Bloc Alien (manuel)[-]")
+    dialog.table.item(0, 5).setText("[c][0AC9F9]Bloc Alien (manuel)[-][/c]")
     dialog._apply()
-    assert "[0AC9F9]Bloc Alien (manuel)[-]" in path.read_text(encoding="utf-8")
+    assert "[c][0AC9F9]Bloc Alien (manuel)[-][/c]" in path.read_text(encoding="utf-8")
 
 
 def test_columns_are_user_resizable(qapp, tmp_path, monkeypatch):
@@ -247,7 +300,7 @@ def test_scope_applies_only_the_selected_language(qapp, tmp_path, monkeypatch):
     dialog.scope.setCurrentIndex(1)               # Français seulement
     dialog._apply()
     content = path.read_text(encoding="utf-8")
-    assert "[0AC9F9]Bloc Alien[-]" in content     # corrige
+    assert "[c][0AC9F9]Bloc Alien[-][/c]" in content     # corrige
     assert content.splitlines()[-1].endswith("Alien Block")   # Deutsch intact
 
 

@@ -237,6 +237,28 @@ def test_poi_group_may_name_a_local_setup_block(tmp_path):
             if i.check == "poi_groups"] == []
 
 
+def test_poi_group_may_name_a_local_setup_variant(tmp_path):
+    # vecu 05/11 (RE2-FR) : le bloc `DroneBaseSetup:` declare ses VARIANTES
+    # (`- GroupName: DroneBaseSetupXen`) et les POI les appellent par ce nom
+    # (`DroneBaseSetup: DroneBaseSetupXen`) : setup local, pas un groupe de
+    # prefab -> aucune alerte
+    from core.launch_check import _index_setups
+    root = _build_scenario(tmp_path)
+    pf = root / "Playfields" / "Pf1"
+    (pf / "playfield_static.yaml").write_text(
+        "POIs:\n"
+        "  Random:\n"
+        "    - GroupName: DroneBaseSetupXen\n"
+        "      DroneBaseSetup: DroneBaseSetupXen\n"
+        "DroneBaseSetup:\n"
+        "  Random:\n"
+        "    - GroupName: DroneBaseSetupXen\n"
+        "      Difficulty: 6\n", encoding="utf-8")
+    assert "dronebasesetupxen" in _index_setups(pf.parent)
+    assert [i for i in run_launch_checks(root, "")
+            if i.check == "poi_groups"] == []
+
+
 def test_egroup_references(tmp_path):
     root = _build_scenario(tmp_path)
     conf = root / "Content" / "Configuration"
@@ -537,12 +559,18 @@ def test_dialog_connected_run(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(mod_dlg, "run_launch_checks",
                         lambda r, v: [LaunchIssue("sectors", "a.bak", 0,
                                                   "error", "etranger")])
+    # balayage par planete : importe en tete lui aussi ; le vrai parcourrait
+    # les prefabs du scenario de test
+    monkeypatch.setattr(mod_dlg, "sweep_playfields", lambda r: [])
     monkeypatch.setattr(mod_ygc, "ensure_checker", lambda: Path("fake.exe"))
     monkeypatch.setattr(mod_ygc, "run_yaml_check",
                         lambda c, dirs, mode="yaml": ([], 7))
 
     dlg = mod_dlg.LaunchCheckDialog(None, working_root=str(root))
     dlg.chk_production.setChecked(False)
+    # le boot dedie est coche par defaut (voulu a l'usage) : un test ne doit
+    # jamais lancer un serveur
+    dlg.chk_dedi.setChecked(False)
     dlg._run()
     deadline = __import__("time").time() + 30
     while dlg._running and __import__("time").time() < deadline:
@@ -792,3 +820,36 @@ def test_poi_group_comes_from_blueprint_group_name(tmp_path, monkeypatch):
     issues = [i for i in _check_prefabs(tmp_path / "Playfields", names, groups, "")
               if i.check == "poi_groups"]
     assert issues == []
+
+
+def test_trash_requires_confirmation_and_deletes_with_it(qapp, tmp_path,
+                                                         monkeypatch):
+    """La corbeille du bilan : refus = rien ne bouge ; accord = .epb et
+    .decals partent, la ligne disparait de l'arbre."""
+    import gui.launch_check_dialog as mod_dlg
+    from PyQt6.QtCore import Qt
+    from core.prefab_usage import UsageReport
+
+    prefabs = tmp_path / "Prefabs"
+    prefabs.mkdir()
+    epb = prefabs / "Orphan.epb"
+    epb.write_bytes(b"x" * 1024)
+    (prefabs / "Orphan.decals").write_text("d", encoding="utf-8")
+    monkeypatch.setattr("core.fsutil.central_backup",
+                        lambda p, kind="prefabs": tmp_path / "b.bak")
+
+    dlg = mod_dlg.LaunchCheckDialog(None, working_root=str(tmp_path))
+    dlg._on_unused_done(UsageReport(used=1, scanned=2, unused=[(epb, 1024)]))
+    item = dlg.tree.topLevelItem(0)
+    assert item.checkState(0) == Qt.CheckState.Unchecked   # jamais pre-coche
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    monkeypatch.setattr(mod_dlg, "ask_yes_no", lambda *a, **k: False)
+    dlg._trash_checked()
+    assert epb.exists()                                    # refus respecte
+
+    monkeypatch.setattr(mod_dlg, "ask_yes_no", lambda *a, **k: True)
+    dlg._trash_checked()
+    assert not epb.exists()
+    assert not (prefabs / "Orphan.decals").exists()
+    assert dlg.tree.topLevelItemCount() == 0

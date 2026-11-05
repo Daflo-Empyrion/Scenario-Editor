@@ -909,16 +909,10 @@ class CsvEditWidget(QWidget):
 
     # ------------------------------------------------------------------
     # Controle des balises BBCode (core/bbcode_check.py) : reperer les
-    # Controle des balises BBCode (core/bbcode_check.py) : reperer les
     # fermetures manquantes/orphelines, l'imbrication et les couleurs
     # invalides des colonnes de langue.
     # ------------------------------------------------------------------
     def _open_bbcode_check(self):
-        from gui import bbcode_web
-        if bbcode_web.is_available():       # chantier webapp, 02/11
-            from gui.bbcode_web import BbcodeWebDialog
-            BbcodeWebDialog(self).exec()
-            return
         from gui.bbcode_check_dialog import BbcodeCheckDialog
         BbcodeCheckDialog(self, parent=self).exec()
 

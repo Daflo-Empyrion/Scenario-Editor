@@ -10091,6 +10091,90 @@
     "fr": "Attention",
     "en": "Warning"
   },
+  "launchcheck.sev_info": {
+    "fr": "Info",
+    "en": "Info"
+  },
+  "launchcheck.unused_btn": {
+    "fr": "Prefabs non utilisés",
+    "en": "Unused prefabs"
+  },
+  "launchcheck.unused_tip": {
+    "fr": "Liste les .epb dont le nom de fichier, le nom interne et les tags n'apparaissent NULLE PART dans le scénario : ils ne peuvent jamais être générés. À vérifier avant de les supprimer (le nom de fichier est souvent trompeur, l'identité réelle est le nom interne).",
+    "en": "Lists .epb files whose filename, internal name and tags appear NOWHERE in the scenario: they can never spawn. Check before deleting (filenames are often misleading; the real identity is the internal name)."
+  },
+  "launchcheck.unused_running": {
+    "fr": "Recherche des prefabs inutilisés…",
+    "en": "Scanning for unused prefabs…"
+  },
+  "launchcheck.unused_done": {
+    "fr": "{n} prefab(s) inutilisé(s) ({mo} Mo) sur {total} — {used} utilisés",
+    "en": "{n} unused prefab(s) ({mo} MB) of {total} — {used} used"
+  },
+  "launchcheck.unused_none": {
+    "fr": "Aucun prefab inutilisé : les {total} .epb sont référencés",
+    "en": "No unused prefab: all {total} .epb files are referenced"
+  },
+  "launchcheck.unused_row": {
+    "fr": "{ko} Ko — aucun identifiant cité dans le scénario",
+    "en": "{ko} KB — no identifier referenced in the scenario"
+  },
+  "launchcheck.trash_btn": {
+    "fr": "Mettre à la corbeille",
+    "en": "Move to trash"
+  },
+  "launchcheck.trash_tip": {
+    "fr": "Cocher les prefabs à retirer : chacun est d'abord copié dans la sauvegarde (~/.empyrion_editor/backups), puis le .epb et ses compagnons .decals/.jpg sont supprimés. Rien n'est supprimé si la copie échoue.",
+    "en": "Tick the prefabs to remove: each is first copied to the backups folder (~/.empyrion_editor/backups), then the .epb and its .decals/.jpg companions are deleted. Nothing is deleted if the copy fails."
+  },
+  "launchcheck.trash_confirm": {
+    "fr": "Mettre {n} prefab(s) à la corbeille ({mo} Mo) ?\nSauvegarde préalable dans {dir}.\nUn prefab utilisé par un blueprint de joueur (hors scénario) n'est PAS détecté : vérifiez avant.",
+    "en": "Move {n} prefab(s) to the trash ({mo} MB)?\nBacked up first in {dir}.\nA prefab used by a player blueprint (outside the scenario) is NOT detected: check before."
+  },
+  "launchcheck.trash_none": {
+    "fr": "Aucun prefab coché.",
+    "en": "No prefab ticked."
+  },
+  "launchcheck.trash_done": {
+    "fr": "{n} prefab(s) mis à la corbeille, {e} échec(s).",
+    "en": "{n} prefab(s) moved to the trash, {e} failure(s)."
+  },
+  "launchcheck.junk_btn": {
+    "fr": "Fichiers inutiles…",
+    "en": "Unused files…"
+  },
+  "launchcheck.junk_tip": {
+    "fr": "Recense les fichiers inutiles du scénario : .bak, caches *.yaml.bin orphelins, .jpg/.decals de prefabs disparus (sûrs, pré-cochés) et images dont le nom n'est cité nulle part — ECF (Blocks/Items), PDA, dialogues, playfields, manifestes inclus (à vérifier, non cochées). Attention : certains dossiers sont chargés par convention (LoadingScreenshots, Portraits, PreviewPics, aperçus de prefabs) : un fichier non cité peut tout de même être affiché.",
+    "en": "Lists the scenario's useless files: .bak, orphan *.yaml.bin caches, .jpg/.decals of missing prefabs (safe, pre-ticked) and images whose name is referenced nowhere — ECF (Blocks/Items), PDA, dialogues, playfields and manifests included (to check, not ticked). Beware: some folders are loaded by convention (LoadingScreenshots, Portraits, PreviewPics, prefab previews): an uncited file may still be displayed."
+  },
+  "launchcheck.junk_running": {
+    "fr": "Recherche des fichiers inutiles…",
+    "en": "Scanning for useless files…"
+  },
+  "launchcheck.junk_done": {
+    "fr": "{n} fichier(s) inutile(s) ({mo} Mo) dont {surs} sûr(s) pré-coché(s)",
+    "en": "{n} useless file(s) ({mo} MB), {surs} safe one(s) pre-ticked"
+  },
+  "launchcheck.junk_none": {
+    "fr": "Aucun fichier inutile trouvé.",
+    "en": "No useless file found."
+  },
+  "launchcheck.junk_safe": {
+    "fr": "Sûr",
+    "en": "Safe"
+  },
+  "launchcheck.junk_check": {
+    "fr": "À vérifier",
+    "en": "To check"
+  },
+  "launchcheck.junk_row": {
+    "fr": "{cat} — {ko} Ko",
+    "en": "{cat} — {ko} KB"
+  },
+  "launchcheck.check_cleanup": {
+    "fr": "Nettoyage",
+    "en": "Cleanup"
+  },
   "launchcheck.check_sectors": {
     "fr": "Sectors",
     "en": "Sectors"
@@ -10098,6 +10182,10 @@
   "launchcheck.check_playfields": {
     "fr": "Playfields",
     "en": "Playfields"
+  },
+  "launchcheck.check_plane": {
+    "fr": "Planète (prefabs cités)",
+    "en": "Playfield (cited prefabs)"
   },
   "launchcheck.check_prefabs": {
     "fr": "Prefabs",
@@ -13426,6 +13514,10 @@
   "bbcheck.issue.invalid": {
     "fr": "balise invalide",
     "en": "invalid tag"
+  },
+  "bbcheck.issue.richtext": {
+    "fr": "balise <b>/<i>/<color> mal fermée",
+    "en": "unclosed/misnested <b>/<i>/<color> tag"
   },
   "bbcheck.issue.extra": {
     "fr": "balise en trop",
