@@ -926,6 +926,19 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
                     f"playfield d'arrivee dans le secteur, « Selectionner » "
                     f"ne fait rien dans la carte systeme"))
 
+    # --- departs non valides en jeu (aucun critere de forme ne predit si le
+    # client acceptera la donnee : vecu 05/11 sur Lava ET StarterRandom_Arid_V2,
+    # donnees du mod intactes) ; le module de departs tient le cache ---
+    from core.starters import find_untested_starts
+    for name, type_name in find_untested_starts(root):
+        issues.append(LaunchIssue(
+            check="sectors", path=str(sectors_yaml.relative_to(root)),
+            line=0, severity="warning",
+            message=f"depart '{name}' (playfield {type_name}) non valide en "
+                    f"jeu : le menu Nouvelle partie peut refuser sa donnee et "
+                    f"planter le client — a valider dans Outils > Planetes de "
+                    f"depart, ou a retirer"))
+
     # --- playfields references vs dossiers reels (scenario OU vanille :
     # les scenarios a generateur referencent les templates de
     # Content/Playfields du jeu — GasGiant, Omicron, SpaceWarpTarget...) ---

@@ -322,6 +322,9 @@ class MainWindow(QMainWindow):
         self.action_trader_audit.triggered.connect(self._open_trader_audit_dialog)
         self.action_economy_editor = menu_balance.addAction(t("menu.tools.economy"))
         self.action_economy_editor.triggered.connect(self._open_economy_editor)
+        self.action_codex = menu_balance.addAction(t("menu.tools.codex"))
+        self.action_codex.setToolTip(t("menu.tools.codex.tip"))
+        self.action_codex.triggered.connect(self._open_codex)
 
         # -- Edition -----------------------------------------------------------
         menu_edit = self.menu_tools.addMenu(t("menu.tools.sub.edit"))
@@ -342,6 +345,9 @@ class MainWindow(QMainWindow):
             t("menu.tools.reintegrate"))
         self.action_reintegrate.setToolTip(t("menu.tools.reintegrate.tip"))
         self.action_reintegrate.triggered.connect(self._open_reintegrate)
+        self.action_starters = menu_edit.addAction(t("menu.tools.starters"))
+        self.action_starters.setToolTip(t("menu.tools.starters.tip"))
+        self.action_starters.triggered.connect(self._open_starters)
 
         # -- Bilans & tableaux de bord ----------------------------------------
         menu_reports = self.menu_tools.addMenu(t("menu.tools.sub.reports"))
@@ -372,6 +378,12 @@ class MainWindow(QMainWindow):
         un systeme existant (secteur libre, nom unique, backup + undo)."""
         from gui.playfield_reintegrate_dialog import open_reintegrate
         open_reintegrate(self, self)
+
+    def _open_starters(self):
+        """Planetes de depart : marqueur dans Sectors.yaml + kit dans le
+        playfield + fiche du menu Nouvelle partie (backup + undo)."""
+        from gui.starters_dialog import open_starters
+        open_starters(self, self)
 
     def _open_yaml_compare_tool(self):
         """Outil autonome (demande 07/10) : comparer/fusionner DEUX
@@ -928,6 +940,13 @@ class MainWindow(QMainWindow):
         self.action_pda_mission.setText(t("menu.tools.pda_mission"))
         self.action_pda_editor.setText(t("menu.tools.pda_editor"))
         self.action_quit.setText(t("menu.file.quit"))
+        # deux modules d'edition du Sectors dont le libelle depend du corpus
+        self.action_reintegrate.setText(t("menu.tools.reintegrate"))
+        self.action_reintegrate.setToolTip(t("menu.tools.reintegrate.tip"))
+        self.action_starters.setText(t("menu.tools.starters"))
+        self.action_starters.setToolTip(t("menu.tools.starters.tip"))
+        self.action_codex.setText(t("menu.tools.codex"))
+        self.action_codex.setToolTip(t("menu.tools.codex.tip"))
 
         self.menu_check.setTitle(t("menu.verification"))
         self.action_refs.setText(t("menu.verification.check_refs"))
@@ -1433,7 +1452,8 @@ class MainWindow(QMainWindow):
             return
         sectors_files = [f.path for f in self.workspace.working.sectors if f.path.name == "Sectors.yaml"]
         if not sectors_files:
-            QMessageBox.information(self, t("galaxy.title"), t("galaxy.not_found"))
+            QMessageBox.information(self, t("galaxy.viewer_title"),
+                                    t("galaxy.not_found"))
             return
         from gui.busy import run_long
         try:
@@ -2243,6 +2263,12 @@ class MainWindow(QMainWindow):
         from gui.balance_dialog import BalanceDialog
         dlg = BalanceDialog(self)
         dlg.exec()
+
+    def _open_codex(self):
+        """Codex : navigateur d'objets/blocs, comparateur, marchands et
+        matrice de degats (lecture seule, aucune ecriture dans le scenario)."""
+        from gui.codex_dialog import open_codex
+        open_codex(self, self)
 
     def _open_market_price_dialog(self):
         """Prix marche : chaque MarketPrice face a son cout de fabrication

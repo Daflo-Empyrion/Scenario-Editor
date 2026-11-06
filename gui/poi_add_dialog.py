@@ -332,7 +332,7 @@ class PoiAddDialog(QDialog):
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels([t("mergeplan.col_apply"),
                                    t("epb.col_id"), t("poi.col_section"),
-                                   t("epb.col_name")])
+                                   t("poi.col_name")])
         self.tree.setColumnWidth(self.COL_CHECK, 60)
         self.tree.setColumnWidth(self.COL_IDENT, 260)
         self.tree.setColumnWidth(self.COL_SECTION, 150)

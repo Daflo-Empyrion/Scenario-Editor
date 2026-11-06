@@ -104,7 +104,7 @@ class CorrelationDialog(QDialog):
         self.cmb_status.currentIndexChanged.connect(self._refilter)
         filters.addWidget(self.cmb_status)
         self.edit_name = QLineEdit()
-        self.edit_name.setPlaceholderText(t("taudit.filter_name"))
+        self.edit_name.setPlaceholderText(t("corr.filter_name"))
         self.edit_name.textChanged.connect(self._refilter)
         filters.addWidget(self.edit_name, 1)
         lay.addLayout(filters)
@@ -124,7 +124,7 @@ class CorrelationDialog(QDialog):
 
         buttons = QHBoxLayout()
         self.btn_all = QPushButton(t("market.check_all"))
-        self.btn_all.setToolTip(t("market.check_all.tip"))
+        self.btn_all.setToolTip(t("common.check_all_tip"))
         self.btn_all.clicked.connect(self._check_all)
         self.btn_all.setEnabled(False)
         buttons.addWidget(self.btn_all)
@@ -175,7 +175,7 @@ class CorrelationDialog(QDialog):
             self._pinned = None
         self._running = True
         self.btn_run.setEnabled(False)
-        self.status_label.setText(t("taudit.running"))
+        self.status_label.setText(t("busy.analyzing"))
         spec = self.cmb_spec.currentData()
         pinned = dict(self._pinned) if self._pinned else None
 
@@ -293,7 +293,7 @@ class CorrelationDialog(QDialog):
             info(self, t("corr.title"), t("market.apply_none"))
             return
         if not ask_yes_no(self, t("corr.title"),
-                          t("taudit.apply_confirm", n=len(names))):
+                          t("corr.apply_confirm", n=len(names))):
             return
         self._running = True
         self.btn_apply.setEnabled(False)
@@ -306,7 +306,7 @@ class CorrelationDialog(QDialog):
         def _done(res):
             self._running = False
             self.btn_apply.setEnabled(True)
-            info(self, t("corr.title"), t("market.applied", n=res[1]))
+            info(self, t("corr.title"), t("corr.applied", n=res[1]))
             # re-scan avec les medianes EPINGLEES : les membres corriges
             # atterrissent exactement sur la cible, zero proposal fantome
             self._analyze(fresh=False)

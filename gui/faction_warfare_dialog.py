@@ -164,7 +164,7 @@ class FactionWarfareDialog(QDialog):
             return
         self._running = True
         self.btn_scan.setEnabled(False)
-        self.stats_label.setText(t("taudit.running"))
+        self.stats_label.setText(t("busy.analyzing"))
 
         def work():
             return scan(Path(root))

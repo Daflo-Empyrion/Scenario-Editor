@@ -68,6 +68,21 @@ def _no_real_central_backups(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_start_validations(tmp_path, monkeypatch):
+    """Le cache « departs valides en jeu » des tests reste dans tmp_path :
+    il ne doit ni lire ni polluer ~/.empyrion_editor/starts_valides.json."""
+    monkeypatch.setattr("core.starters.validated_cache_path",
+                        lambda: tmp_path / "starts_valides.json")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_codex_store(tmp_path, monkeypatch):
+    """Lieux et routes du Codex restent dans tmp_path : aucun test n'ecrit
+    dans ~/.empyrion_editor/codex/<empreinte>/."""
+    monkeypatch.setattr("core.codex.CONFIG_DIR", tmp_path / "codex_store")
+
+
+@pytest.fixture(autouse=True)
 def _no_real_vanilla_config(monkeypatch):
     """Aucun test ne lit la config vanilla installee (l'arbre technologique
     reporte les patchs '+Block'/'+Item' de la config de base : un test sur

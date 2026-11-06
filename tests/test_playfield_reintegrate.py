@@ -25,8 +25,8 @@ from pathlib import Path
 
 from core.playfield_reintegrate import (apply_placements, find_legacy,
                                         find_missing_arrivals, find_orphans,
-                                        plan_placements, remove_legacy,
-                                        render_preview)
+                                        find_unloadable, plan_placements,
+                                        remove_legacy, render_preview)
 
 SECTORS = """SolarSystems:
   - Name: Alpha
@@ -50,8 +50,10 @@ SECTORS = """SolarSystems:
           - ['0,0,0', Ancien, Ancien, '']
 """
 
-SURFACE = {"playfield_static.yaml": "Description: |\n  Monde de test.\n"}
-SPACE = {"space_dynamic.yaml": "Description: |\n  Espace de test.\n"}
+SURFACE = {"playfield_static.yaml":
+           "PlayfieldType: Planet\nDescription: |\n  Monde de test.\n"}
+SPACE = {"space_dynamic.yaml":
+         "PlayfieldType: Space\nDescription: |\n  Espace de test.\n"}
 
 
 def _build(root: Path) -> Path:
@@ -262,6 +264,48 @@ def _check_by_type(dialog, type_name):
     return False
 
 
+def test_space_placement_is_not_mistaken_for_a_legacy_sector(tmp_path):
+    """Vecu 05/11 : l'espace s'ecrit `['0,0,0', N, N, '']` + `WarpTarget`,
+    exactement la forme du corpus. La detection « ancien format » ne doit pas
+    la reprendre : l'outil proposait alors de supprimer ses propres secteurs
+    et leurs playfields restaient orphelins (boucle sans fin)."""
+    root = _build(tmp_path)
+    plan = plan_placements(root, ["EdenSpace_POI_CombatT1_1"])
+    assert [p.type_name for p in plan] == ["EdenSpace_POI_CombatT1_1"]
+    assert apply_placements(root, plan)[0] == 1
+    # seul le secteur de l'ancien format du corpus de test reste propose
+    assert [i.key for i in find_legacy(root)] == ["Beta [4, 0, 0]"]
+    assert "EdenSpace_POI_CombatT1_1" not in {
+        o.type_name for o in find_orphans(root)}
+
+
+def test_starter_playfield_is_offered_as_a_start(tmp_path):
+    """Un playfield de DEPART reintroduit doit etre propose au menu Nouvelle
+    partie : c'est le marqueur de faction du corpus (`'Human:1'`) qui le fait,
+    pas la simple presence du secteur (vecu 05/11 : `Starter_Haven_V2` pose en
+    planete inerte, donc injouable comme depart)."""
+    root = _build(tmp_path)
+    starter = root / "Playfields" / "Starter_Haven_V2"
+    starter.mkdir(parents=True)
+    (starter / "playfield_static.yaml").write_text(
+        "PlayfieldType: Planet\n", encoding="utf-8")
+    plan = plan_placements(root, ["Starter_Haven_V2"])
+    assert [p.start for p in plan] == [True]
+    assert plan[0].name == "Haven"              # nom du lieu, pas du dossier
+    assert apply_placements(root, plan)[0] == 1
+    text = (root / "Sectors" / "Sectors.yaml").read_text(encoding="utf-8")
+    assert "- ['0, 0, 0', Haven, Starter_Haven_V2,'Human:1', '', '', '']" in text
+    assert "['0,0,0', Haven Sector, Starter_Akua_Orbit, '']" in text
+
+
+def test_plain_playfield_keeps_an_empty_start_marker(tmp_path):
+    root = _build(tmp_path)
+    plan = plan_placements(root, ["EdenOcean2"])
+    assert plan[0].start is False
+    assert "['0, 0, 0', EdenOcean2, EdenOcean2, '', '', '', '']" in \
+        plan[0].row()
+
+
 def test_dialog_lists_kinds_and_previews(qapp, tmp_path):
     from PyQt6 import sip
     from gui.playfield_reintegrate_dialog import PlayfieldReintegrateDialog
@@ -309,5 +353,72 @@ def test_dialog_apply_writes_backup_and_undo(qapp, tmp_path, monkeypatch):
         assert "Ancien" not in text                    # ancien secteur retire
         assert dialog.applied == 2
         assert len(backups) == 1 and len(pushed) == 1
+    finally:
+        sip.delete(dialog)
+
+
+def _child_by_type(dialog, type_name):
+    from PyQt6.QtCore import Qt
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for row in range(parent.childCount()):
+            child = parent.child(row)
+            if child.data(0, Qt.ItemDataRole.UserRole) == type_name:
+                return child
+    return None
+
+
+def test_playfield_without_type_is_never_proposable(tmp_path, monkeypatch):
+    """Sans `PlayfieldType`, le client s'arrete (« unknown playfield type
+    Undefined ») : un tel dossier ne doit pas etre cotisable."""
+    import core.yaml_game_check as ygc
+    root = _build(tmp_path)
+    (root / "Playfields" / "SansType").mkdir()
+    (root / "Playfields" / "SansType" / "terrain.ecf").write_text("x")
+    monkeypatch.setattr(ygc, "locate_checker", lambda: None)
+    assert find_unloadable(root, ["SansType", "EdenOcean2"]) == {
+        "SansType": ("type", "")}
+
+
+def test_broken_yaml_is_blocked_with_the_engine_message(tmp_path, monkeypatch):
+    """Vecu 05/11 : trois lignes perdues dans `EdenOcean2/playfield_static.yaml`
+    — le playfield a ete reintegre et le scenario n'a plus demarre. Le yaml est
+    desormais soumis au moteur du jeu AVANT d'entrer dans `Sectors.yaml`."""
+    import core.yaml_game_check as ygc
+    from core.yaml_game_check import YamlFinding
+    root = _build(tmp_path)
+
+    def fake(checker, dirs, mode="yaml", command=None):
+        return [YamlFinding("EdenOcean2\\playfield_static.yaml", 1131, 9,
+                            "While parsing a block mapping, did not find "
+                            "expected key.")], 1
+
+    monkeypatch.setattr(ygc, "locate_checker", lambda: Path("yamlcheck"))
+    monkeypatch.setattr(ygc, "run_yaml_check", fake)
+    found = find_unloadable(root, ["EdenOcean2", "Start_MoonIce"])
+    assert found["EdenOcean2"][0] == "yaml"
+    assert "block mapping" in found["EdenOcean2"][1]
+    assert "Start_MoonIce" not in found
+
+
+def test_dialog_blocks_an_unloadable_playfield(qapp, tmp_path, monkeypatch):
+    from PyQt6 import sip
+    from PyQt6.QtCore import Qt
+    from gui import playfield_reintegrate_dialog as mod
+    root = _build(tmp_path)
+    (root / "Playfields" / "SansType").mkdir()
+    (root / "Playfields" / "SansType" / "terrain.ecf").write_text("x")
+    monkeypatch.setattr(mod, "find_unloadable",
+                        lambda r, n: {"SansType": ("type", "")})
+    dialog = mod.PlayfieldReintegrateDialog(root)
+    try:
+        child = _child_by_type(dialog, "SansType")
+        assert child is not None
+        assert not child.flags() & Qt.ItemFlag.ItemIsUserCheckable
+        assert "Exclu" in child.text(2)
+        assert "SansType" not in dialog._selected()
+        assert "1 playfield(s) exclu(s)" in dialog.status.text()
+        assert _child_by_type(dialog, "EdenOcean2").flags() \
+            & Qt.ItemFlag.ItemIsUserCheckable
     finally:
         sip.delete(dialog)

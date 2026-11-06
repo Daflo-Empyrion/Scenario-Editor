@@ -55,7 +55,8 @@ def _7bit(n: int) -> bytes:
             return out + bytes([b])
 
 
-def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None):
+def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None,
+              colors=None):
     cells = CELLS if cells is None else cells
     sx, sy, sz = size
     volume = sx * sy * sz
@@ -65,7 +66,19 @@ def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None):
     for cell in sorted(cells):
         mask[cell // 8] |= 1 << (cell % 8)
         values += struct.pack("<I", _raw_for(cells[cell]))
-    stream = struct.pack("<i", mask_count) + bytes(mask) + values + tail
+    stream = struct.pack("<i", mask_count) + bytes(mask) + values
+    # sections qui suivent BlockTypes pour v>11 (ordre EPBParser.cs) :
+    # DamageStates (matrice vide), Densities (uniforme), Colors
+    stream += struct.pack("<i", mask_count) + bytes(mask_count)
+    stream += b"\x01" + b"\x00"
+    colors = {cell: 0 for cell in cells} if colors is None else colors
+    cmask = bytearray(mask_count)
+    cvalues = b""
+    for cell in sorted(colors):
+        cmask[cell // 8] |= 1 << (cell % 8)
+        cvalues += struct.pack("<I", colors[cell] & 0x1F)
+    stream += (struct.pack("<i", mask_count) + bytes(cmask) + cvalues)
+    stream += tail
     comp = zlib.compressobj(9, zlib.DEFLATED, -15)
     payload = comp.compress(stream) + comp.flush()
     crc = zlib.crc32(stream) & 0xFFFFFFFF
@@ -127,7 +140,7 @@ def test_parse_header_older_with_unknown_fields(epb_file, tmp_path):
     bp.save(out, backup=False)
     again = EpbBlueprint(out).parse()
     assert len(again.blocks) == 3
-    assert again._tail == TAIL
+    assert again._tail.endswith(TAIL)       # couleurs + sections conservées
 
 
 @pytest.fixture
@@ -144,6 +157,19 @@ def test_parse_blocks_and_coords(epb_file, tmp_path, catalog):
     assert [(b.x, b.y, b.z) for b in bp.blocks] == [(0, 0, 0), (2, 1, 0), (2, 1, 1)]
     assert [b.block_id for b in bp.blocks] == [412, 7500, 2050]
     assert bp.id_names[412] == "HullTest"
+
+
+def test_parse_block_colors(tmp_path):
+    """Vecu 06/11 (vue 3D facon EPD) : la section Colors suit Densities dans
+    le flux decompresse ; face 0 = index palette affiche par la vue."""
+    from core.epb_blueprint import epb_palette_color
+    colored = {cell: 2 for cell in CELLS}          # 2 = rouge dans la palette
+    colored[11] = 16                               # 16 = gris
+    epb = build_epb(tmp_path / "colors.epb", colors=colored)
+    bp = EpbBlueprint(epb).parse()
+    assert {b.color for b in bp.blocks} == {2, 16}
+    assert epb_palette_color(0) == (255, 255, 255)
+    assert epb_palette_color(2) == (255, 0, 0)
 
 
 def test_unknown_counts(epb_file, catalog):

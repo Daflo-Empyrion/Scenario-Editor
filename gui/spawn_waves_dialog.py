@@ -100,7 +100,7 @@ class SpawnWavesDialog(QDialog):
         self.cmb_type.currentIndexChanged.connect(self._refilter_summary)
         filters.addWidget(self.cmb_type)
         self.edit_pf = QLineEdit()
-        self.edit_pf.setPlaceholderText(t("taudit.filter_name"))
+        self.edit_pf.setPlaceholderText(t("sw.filter_name"))
         self.edit_pf.textChanged.connect(self._refilter_summary)
         filters.addWidget(self.edit_pf, 1)
         lay.addLayout(filters)
@@ -130,7 +130,7 @@ class SpawnWavesDialog(QDialog):
         self.cmb_kind.currentIndexChanged.connect(self._refilter_groups)
         tools.addWidget(self.cmb_kind)
         self.edit_name = QLineEdit()
-        self.edit_name.setPlaceholderText(t("taudit.filter_name"))
+        self.edit_name.setPlaceholderText(t("sw.filter_name"))
         self.edit_name.textChanged.connect(self._refilter_groups)
         tools.addWidget(self.edit_name, 1)
         tools.addWidget(QLabel(t("sw.factor")))
@@ -193,7 +193,7 @@ class SpawnWavesDialog(QDialog):
             return
         self._running = True
         self.btn_scan.setEnabled(False)
-        self.stats_label.setText(t("taudit.running"))
+        self.stats_label.setText(t("busy.analyzing"))
 
         def work():
             return scan(Path(root))
@@ -387,7 +387,7 @@ class SpawnWavesDialog(QDialog):
                 return
             planned.append((self._entries[prop_idx], cmin, cmax))
         if not ask_yes_no(self, t("sw.title"),
-                          t("taudit.apply_confirm", n=len(planned))):
+                          t("sw.apply_confirm", n=len(planned))):
             return
         self._running = True
         self.btn_apply.setEnabled(False)
@@ -400,7 +400,7 @@ class SpawnWavesDialog(QDialog):
         def _done(res):
             self._running = False
             self.btn_apply.setEnabled(True)
-            info(self, t("sw.title"), t("market.applied", n=res[1]))
+            info(self, t("sw.title"), t("sw.applied", n=res[1]))
             self._analyze()          # re-scan automatique
 
         async_call(self, work, on_done=_done, on_fail=self._on_fail,

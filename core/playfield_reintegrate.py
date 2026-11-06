@@ -103,6 +103,7 @@ class Placement:
     coords: Tuple[int, int, int]       # sector : coords ; row : offset
     sector: Tuple[int, int, int] = (0, 0, 0)   # row : secteur hote
     arrival: str = ""                  # planete : type d'ORBITE d'arrivee
+    start: bool = False                # playfield de DEPART (menu Nouvelle partie)
 
     @property
     def family(self) -> str:
@@ -143,7 +144,31 @@ class Placement:
             texture, size = _gas_style(self.type_name)
             return (f"['0, 0, 0', {self.name}, {self.type_name}, '', '', "
                     f"'{texture}', '{size}']")
+        if self.start:
+            # 4e champ = marqueur de faction : c'est LUI que le client lit
+            # pour proposer le playfield au menu Nouvelle partie (corpus :
+            # `['0, 0, 0', Akua, Starter_Akua_V2,'Human:1', '', '', '']`)
+            return (f"['0, 0, 0', {self.name}, {self.type_name},"
+                    f"'Human:1', '', '', '']")
         return f"['0, 0, 0', {self.name}, {self.type_name}, '', '', '', '']"
+
+
+_STARTER_RE = re.compile(r"^Starter(?:Random)?_", re.I)
+_VERSION_RE = re.compile(r"_V\d+$", re.I)
+
+
+def _is_starter(type_name: str) -> bool:
+    """Playfield de DEPART : convention du corpus, le dossier commence par
+    `Starter_` ou `StarterRandom_`. Les `Start_*` (Start_Desert, Start_Snow_V2,
+    Start_OrbitEasy…) sont des TERRAINS utilises partout, pas des departs."""
+    return _STARTER_RE.match(type_name) is not None
+
+
+def _start_name(type_name: str) -> str:
+    """Nom d'instance affiche au menu de depart : le corpus montre le LIEU
+    (`Starter_Haven_V2` -> `Haven`), pas le nom du dossier."""
+    name = _VERSION_RE.sub("", _STARTER_RE.sub("", type_name))
+    return name or type_name
 
 
 def _gas_style(type_name: str) -> Tuple[str, str]:
@@ -160,6 +185,9 @@ _TYPE_RE = re.compile(r"^PlayfieldType:[ 	]*(\w+)", re.M)
 _DEFINITIONS = ("playfield.yaml", "playfield_static.yaml",
                 "playfield_dynamic.yaml", "space_dynamic.yaml",
                 "terrain.ecf", "sun_static.yaml")
+# fichiers ou le corpus declare le TYPE (le client en deduit le chargement)
+_YAML_FILES = ("playfield.yaml", "playfield_static.yaml", "space_dynamic.yaml",
+               "sun_static.yaml")
 
 
 def _is_playfield(folder: Path) -> bool:
@@ -171,15 +199,21 @@ def _is_playfield(folder: Path) -> bool:
 
 
 def _playfield_type(folder: Path) -> str:
-    path = folder / "playfield.yaml"
-    if not path.is_file():
-        return ""
-    try:
-        text = path.read_text(encoding="utf-8-sig", errors="replace")
-    except OSError:
-        return ""
-    match = _TYPE_RE.search(text)
-    return match.group(1) if match else ""
+    """`PlayfieldType` declare, `playfield.yaml` d'abord puis le corpus
+    (`playfield_static.yaml` porte le type des planetes/lunes, `space_dynamic`
+    celui de l'espace, `sun_static` celui des soleils)."""
+    for name in _YAML_FILES:
+        path = folder / name
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            continue
+        match = _TYPE_RE.search(text)
+        if match:
+            return match.group(1)
+    return ""
 
 
 def _is_space(folder: Path) -> bool:
@@ -227,7 +261,14 @@ def sectors_yaml(root) -> Optional[Path]:
 
 def _is_legacy_sector(sector: YamlEntry) -> bool:
     """Secteur ecrit par l'ancienne version : une seule ligne, `Name == Type`,
-    4 champs, `SectorMapType` None/WarpTarget/absent — signature d'ETOILE."""
+    4 champs, `SectorMapType` ABSENT ou `None` — signature d'ETOILE.
+
+    `WarpTarget` ne fait PAS partie de la signature : c'est la forme du
+    CORPUS pour l'espace (`- ['0,0,0', N, N, '']` + `WarpTarget`) et celle
+    que ce module ecrit lui-meme. La compter comme ancien format faisait
+    proposer la SUPPRESSION des secteurs poses par l'outil (et des secteurs
+    de la base) et laissait leurs playfields orphelins a vie, en boucle
+    (vecu 05/11)."""
     playfields = _find_child(sector, "Playfields")
     rows = _seq_items(playfields) if playfields is not None else []
     if len(rows) != 1:
@@ -238,7 +279,7 @@ def _is_legacy_sector(sector: YamlEntry) -> bool:
     if _strip_quotes(fields[1]).casefold() !=             _strip_quotes(fields[2]).casefold():
         return False
     map_type = _find_child(sector, "SectorMapType")
-    return map_type is None or map_type.value.strip() in ("None", "WarpTarget")
+    return map_type is None or map_type.value.strip() == "None"
 
 
 def _referenced_types(solar: YamlEntry) -> set:
@@ -308,6 +349,40 @@ def find_orphans(root) -> List[Orphan]:
             files=len(files),
             size=sum(p.stat().st_size for p in files)))
     return orphans
+
+
+def find_unloadable(root, names: Iterable[str]) -> dict:
+    """Playfields que le CLIENT refuse de charger, avec la raison : aucun
+    `PlayfieldType` declare, ou yaml que le moteur du jeu ne parse pas. Un
+    seul suffit a arreter le scenario (« Playfield X has unknown playfield
+    type Undefined », le jeu ne demarre plus — vecu 05/11 : trois lignes
+    perdues dans `EdenOcean2/playfield_static.yaml`, que ce module a
+    reintroduites en declarant le playfield dans `Sectors.yaml`).
+
+    Valeur = (genre, detail) : `("type", "")` ou `("yaml", message du moteur).
+    Moteur absent (`tools/yamlcheck`) : seul le type est verifie."""
+    wanted = {name.casefold() for name in names}
+    pf_root = Path(root) / "Playfields"
+    out: dict = {}
+    if not wanted or not pf_root.is_dir():
+        return out
+    for folder in pf_root.iterdir():
+        if (folder.is_dir() and folder.name.casefold() in wanted
+                and not _playfield_type(folder)):
+            out[folder.name] = ("type", "")
+    try:
+        from core.yaml_game_check import locate_checker, run_yaml_check
+        checker = locate_checker()
+        if checker is None:
+            return out
+        findings, _ = run_yaml_check(checker, [pf_root])
+    except Exception:       # noqa: BLE001 - outil optionnel, jamais bloquant
+        return out
+    for finding in findings:
+        name = Path(finding.rel_path.replace("\\", "/")).parts[0]
+        if name.casefold() in wanted:
+            out.setdefault(name, ("yaml", finding.message))
+    return out
 
 
 def _playfield_names(solar: YamlEntry, skip_legacy: bool = True) -> set:
@@ -466,10 +541,13 @@ def plan_placements(root, picks: Iterable[str],
         system = _strip_quotes(systems[
             (index // per_system) % len(systems)].value)
         index += 1
-        name = orphan.type_name
+        # playfield de depart : marqueur de faction + nom du lieu
+        start = orphan.category == "planet" and _is_starter(orphan.type_name)
+        base_name = _start_name(orphan.type_name) if start else orphan.type_name
+        name = base_name
         suffix = 2
         while name.casefold() in used_names:
-            name = f"{orphan.type_name}_{suffix}"
+            name = f"{base_name}_{suffix}"
             suffix += 1
         if orphan.category in ("moon", "orbit"):
             available = hosts.get(system) or []
@@ -504,7 +582,7 @@ def plan_placements(root, picks: Iterable[str],
         used_names.add(name.casefold())
         placements.append(Placement(orphan.type_name, orphan.category,
                                     system, name, "sector", coords,
-                                    arrival=arrival))
+                                    arrival=arrival, start=start))
     return placements
 
 

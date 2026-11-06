@@ -60,6 +60,28 @@ def test_good_scenario_no_issues(tmp_path):
     assert _errors(issues) == []
 
 
+def test_untested_start_is_flagged(tmp_path):
+    """Vecu 05/11 (Lava, StarterRandom_Arid_V2) : un depart non valide en jeu
+    peut faire planter le client au menu Nouvelle partie. Le bilan l'affiche
+    — mais seulement quand le cache du module de departs existe."""
+    sectors = SECTORS_NO_WARP.replace(
+        "['0, 0, 0', Planete1, Pf1, '', '', '', '']",
+        "['0, 0, 0', Planete1, Pf1,'Human:1', '', '', '']")
+    scenario = _build_scenario(tmp_path, sectors_text=sectors)
+    # sans cache : aucun jugement
+    assert not [i for i in run_launch_checks(scenario, "")
+                if "non valide" in i.message]
+    # le module de departs a ete ouvert (cache cree) et le depart joue
+    from core.starters import mark_validated, validated_cache_path
+    mark_validated(scenario, [])          # cree le cache, rien dedans
+    assert validated_cache_path().is_file()
+    issues = run_launch_checks(scenario, "")
+    untested = [i for i in issues if "non valide" in i.message]
+    assert len(untested) == 1
+    assert untested[0].severity == "warning"
+    assert "Pf1" in untested[0].message
+
+
 def test_missing_sectors_yaml(tmp_path):
     issues = run_launch_checks(tmp_path, "")
     assert [i.check for i in _errors(issues)] == ["sectors"]

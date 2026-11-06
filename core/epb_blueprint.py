@@ -65,6 +65,26 @@ class EpbBlock:
     block_id: int
     rotation: int
     hp_field: int
+    color: int = 0          # index palette du jeu (face 0 du bloc)
+
+
+# Palette de 32 couleurs du jeu (uint RGBA : R = bits 16-23, G = bits 8-15,
+# B = bits 0-7 ; extraite du decompile EPD, EPBHandler/EPD.EPB/Palette.cs).
+EPB_PALETTE_RAW: Tuple[int, ...] = (
+    16777215, 16777126, 16711680, 16754409, 16639, 65535, 65433,
+    12289882, 14474460, 16774912, 11142405, 16711830, 1716825, 3843799,
+    6749952, 8079662, 11184810, 16755203, 11543098, 11215009, 3940,
+    3765207, 1873188, 4070922, 7237230, 16736003, 6684672, 6300077,
+    3807291, 2564786, 10240, 657930,
+)
+EPB_PALETTE: Tuple[Tuple[int, int, int], ...] = tuple(
+    ((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF) for v in EPB_PALETTE_RAW
+)
+
+
+def epb_palette_color(index: int) -> Tuple[int, int, int]:
+    """RGB d'un index de la palette du jeu (0 = blanc)."""
+    return EPB_PALETTE[index % len(EPB_PALETTE)]
 
 
 class _BinReader:
@@ -715,7 +735,35 @@ class EpbBlueprint:
                 w = br.u32()
                 cells.append((cell, w))
         self._cells = cells
-        self._tail = stream[br.p:]
+
+        # --- sections qui suivent BlockTypes dans le flux decompresse
+        # (ordre EPBParser.cs : DamageStates, Densities, Colors, ...) :
+        # on lit Densities/Colors pour les couleurs de la vue 3D ; les
+        # octets bruts restent dans _tail pour que save() re-ecrive le
+        # fichier a l'identique (matrices clees par cellule : le masque ne
+        # bouge pas lors des remplacements d'ids)
+        sections_start = br.p
+
+        def _matrix_u(read_value):
+            count = br.i32()
+            mask = br.d[br.p:br.p + count]
+            br.skip(count)
+            out = {}
+            for cell in range(volume):
+                if (mask[cell // 8] >> (cell % 8)) & 1:
+                    out[cell] = read_value()
+            return out
+
+        if self.version > 11:
+            _matrix_u(br.u16)                   # DamageStates (ignore)
+        if br.boolean():                        # Densities : uniforme
+            br.skip(1)
+        else:
+            br.skip(volume)                     # octets denses
+        colors = {}
+        if self.version >= 8:
+            # 6 faces x 5 bits ; face 0 = couleur affichee (EPD)
+            colors = _matrix_u(br.u32)
 
         self.blocks = []
         id_hi = self.version >= 28
@@ -732,7 +780,9 @@ class EpbBlueprint:
                 block_id=bid,
                 rotation=(w >> 11) & 0x1F,
                 hp_field=(w >> 16) & 0x7F,
+                color=colors.get(cell, 0) & 0x1F,
             ))
+        self._tail = stream[sections_start:]
         self._loaded = True
         return self
 

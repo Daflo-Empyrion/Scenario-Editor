@@ -9855,9 +9855,29 @@
     "fr": "Repose les dossiers de Playfields/ que le Sectors.yaml ne déclare nulle part dans un système existant (secteur libre, nom unique) — nouveaux playfields, nouvelle partie nécessaire",
     "en": "Puts the Playfields/ folders that Sectors.yaml never declares back into an existing system (free sector, unique name) — new playfields, new game required"
   },
+  "menu.tools.starters": {
+    "fr": "Planètes de départ (starters)...",
+    "en": "Starting planets (starters)..."
+  },
+  "menu.tools.starters.tip": {
+    "fr": "Coche une planète pour la proposer au menu Nouvelle partie, règle son kit de départ (items, Food/Health) et ajoute sa fiche dans le menu — ou désactive un départ existant",
+    "en": "Tick a planet to offer it in the New Game menu, set its start kit (items, Food/Health) and add its card — or disable an existing start"
+  },
   "reintegrate.title": {
     "fr": "Réintégrer des playfields",
     "en": "Reinstate playfields"
+  },
+  "reintegrate.issue_type": {
+    "fr": "Exclu : aucun PlayfieldType déclaré — le jeu s'arrête sur « unknown playfield type Undefined »",
+    "en": "Excluded: no PlayfieldType declared — the game stops with 'unknown playfield type Undefined'"
+  },
+  "reintegrate.issue_yaml": {
+    "fr": "Exclu : YAML refusé par le moteur du jeu — {msg}",
+    "en": "Excluded: YAML rejected by the game engine — {msg}"
+  },
+  "reintegrate.blocked_n": {
+    "fr": "{n} playfield(s) exclu(s) : le client refuse de les charger, un seul empêcherait le scénario de démarrer (raison en colonne Description)",
+    "en": "{n} playfield(s) excluded: the client refuses to load them, a single one would stop the scenario from starting (reason in the Description column)"
   },
   "reintegrate.per_system": {
     "fr": "Playfields par système :",
@@ -9990,6 +10010,178 @@
   "reintegrate.no_sectors": {
     "fr": "Sectors.yaml introuvable dans la copie de travail.",
     "en": "Sectors.yaml not found in the working copy."
+  },
+  "starters.title": {
+    "fr": "Planètes de départ",
+    "en": "Starting planets"
+  },
+  "starters.col_start": {
+    "fr": "Départ (Human:1)",
+    "en": "Start (Human:1)"
+  },
+  "starters.col_system": {
+    "fr": "Système",
+    "en": "System"
+  },
+  "starters.col_sector": {
+    "fr": "Secteur",
+    "en": "Sector"
+  },
+  "starters.col_name": {
+    "fr": "Nom",
+    "en": "Name"
+  },
+  "starters.col_type": {
+    "fr": "Playfield",
+    "en": "Playfield"
+  },
+  "starters.col_status": {
+    "fr": "Statut",
+    "en": "Status"
+  },
+  "starters.validated": {
+    "fr": "validé en jeu",
+    "en": "validated in game"
+  },
+  "starters.untested": {
+    "fr": "à tester",
+    "en": "to test"
+  },
+  "starters.validated_btn": {
+    "fr": "Validé en jeu",
+    "en": "Validated in game"
+  },
+  "starters.validated_btn.tip": {
+    "fr": "Le départ sélectionné a été joué sans crash du menu Nouvelle partie : l'enregistrer pour que le module et le bilan cessent de le signaler",
+    "en": "The selected start was played without the New Game menu crashing: record it so the module and the check stop flagging it"
+  },
+  "starters.validated_done": {
+    "fr": "« {name} » enregistré comme validé en jeu.",
+    "en": "'{name}' recorded as validated in game."
+  },
+  "starters.seed": {
+    "fr": "Marquer tous les départs actuellement cochés comme « validés en jeu » ?\n\nIls sont ceux du scénario d'origine — présumés bons. Répondre non : tout départ sera signalé « à tester » jusqu'à validation (bouton « Validé en jeu » après un essai réussi).",
+    "en": "Mark all currently checked starts as 'validated in game'?\n\nThey are the original scenario's starts — assumed good. Answer no: every start will be flagged 'to test' until validated (the 'Validated in game' button after a successful try)."
+  },
+  "starters.untested_warn": {
+    "fr": "⚠ Départ(s) non validé(s) en jeu : {names} — le menu Nouvelle partie peut refuser sa donnée et planter le client (même sur un playfield du mod). À essayer en jeu ; en cas de crash, décocher ici suffit.",
+    "en": "⚠ Start(s) not validated in game: {names} — the New Game menu may reject its data and crash the client (even on a mod playfield). Try in game; if it crashes, unchecking here is enough."
+  },
+  "starters.col_kit": {
+    "fr": "Kit",
+    "en": "Kit"
+  },
+  "starters.col_card": {
+    "fr": "Fiche",
+    "en": "Card"
+  },
+  "starters.yes": {
+    "fr": "oui",
+    "en": "yes"
+  },
+  "starters.no": {
+    "fr": "non",
+    "en": "no"
+  },
+  "starters.filter_tip": {
+    "fr": "Filtrer (nom, type, système, secteur)…",
+    "en": "Filter (name, type, system, sector)…"
+  },
+  "starters.levels_tip": {
+    "fr": "Kit de départ : une ligne par niveau — EASY / MEDIUM / HARD / FRESH START (préfixe #FreshStart: sur le 4e). Un kit inchangé n'est pas réécrit.",
+    "en": "Start kit: one line per level — EASY / MEDIUM / HARD / FRESH START (#FreshStart: prefix on the 4th). An unchanged kit is not rewritten."
+  },
+  "starters.items_label": {
+    "fr": "Items (4 niveaux)",
+    "en": "Items (4 levels)"
+  },
+  "starters.status_label": {
+    "fr": "Status — Food/Health (4 niveaux)",
+    "en": "Status — Food/Health (4 levels)"
+  },
+  "starters.spawn_label": {
+    "fr": "Spawn : {spawn} — Pos {pos} (capsule larguée au sol, comme Akua)",
+    "en": "Spawn: {spawn} — Pos {pos} (capsule dropped on the ground, like Akua)"
+  },
+  "starters.card_check": {
+    "fr": "Écrire la fiche de départ devant la Description (texte affiché dans le menu Nouvelle partie)",
+    "en": "Write the start card before the Description (text shown in the New Game menu)"
+  },
+  "starters.card_view": {
+    "fr": "Canevas — carte telle que le jeu la lira (balisage converti) :",
+    "en": "Canvas — card as the game will read it (markup converted):"
+  },
+  "starters.preview": {
+    "fr": "Lignes YAML qui seront écrites :",
+    "en": "YAML lines that will be written:"
+  },
+  "starters.preview_btn": {
+    "fr": "Aperçu",
+    "en": "Preview"
+  },
+  "starters.apply": {
+    "fr": "Appliquer",
+    "en": "Apply"
+  },
+  "starters.close": {
+    "fr": "Fermer",
+    "en": "Close"
+  },
+  "starters.none": {
+    "fr": "Aucune planète trouvée dans la galaxie.",
+    "en": "No planet found in the galaxy."
+  },
+  "starters.none_selected": {
+    "fr": "Rien à appliquer : coche une planète ou modifie un kit.",
+    "en": "Nothing to apply: tick a planet or change a kit."
+  },
+  "starters.plan_ready": {
+    "fr": "{n} changement(s) de départ, {k} kit(s), {c} fiche(s).",
+    "en": "{n} start change(s), {k} kit(s), {c} card(s)."
+  },
+  "starters.confirm": {
+    "fr": "Écrire {n} changement(s) de départ, {k} kit(s) et {c} fiche(s) ?",
+    "en": "Write {n} start change(s), {k} kit(s) and {c} card(s)?"
+  },
+  "starters.done": {
+    "fr": "{n} départ(s) activé(s), {r} désactivé(s), {k} kit(s) écrit(s), {c} fiche(s).",
+    "en": "{n} start(s) enabled, {r} disabled, {k} kit(s) written, {c} card(s)."
+  },
+  "starters.undo": {
+    "fr": "Starters : {n} fichier(s)",
+    "en": "Starters: {n} file(s)"
+  },
+  "starters.bilan": {
+    "fr": "Bilan : {e} erreur(s) bloquante(s), {w} avertissement(s)",
+    "en": "Check: {e} blocking error(s), {w} warning(s)"
+  },
+  "starters.bilan_failed": {
+    "fr": "Bilan impossible : {msg}",
+    "en": "Check failed: {msg}"
+  },
+  "starters.no_workspace": {
+    "fr": "Aucune copie de travail ouverte.",
+    "en": "No working copy is open."
+  },
+  "starters.no_sectors": {
+    "fr": "Sectors.yaml introuvable dans la copie de travail.",
+    "en": "Sectors.yaml not found in the working copy."
+  },
+  "starters.kit_warn": {
+    "fr": "Attention : {n} item(s) du kit ne seront pas donnés en jeu — voir ci-dessous.",
+    "en": "Warning: {n} kit item(s) will not be granted in game — see below."
+  },
+  "starters.playfield_broken": {
+    "fr": "Départ refusé — playfield {type} : {msg}. Corrige ce doublon dans le playfield, puis réessaie (le menu perdrait TOUS les départs et le jeu planterait).",
+    "en": "Start refused — playfield {type}: {msg}. Fix that duplicate in the playfield, then try again (the menu would lose ALL starts and the game would crash)."
+  },
+  "starters.new_game": {
+    "fr": "Ces changements ne valent que pour une NOUVELLE partie : le jeu charge la copie du Sectors.yaml faite dans la sauvegarde.",
+    "en": "These changes only apply to a NEW game: the game loads the copy of Sectors.yaml made in the save."
+  },
+  "starters.info_html": {
+    "fr": "<h3>Planètes de départ</h3><p>Un départ jouable tient à <b>deux</b> choses. Dans <code>Sectors.yaml</code>, le <b>4e champ</b> de la ligne de playfield porte le marqueur de faction : <code>['0, 0, 0', Akua, Starter_Akua_V2,'Human:1', '', '', '']</code>. C'est lui que le client lit pour proposer le playfield au menu Nouvelle partie — pas le <code>PlanetType</code> : le scénario vanilla <i>Shadows of Starlight</i> marque une planète <code>PlanetType: Snow</code> avec <code>'Agent:1'</code>. Vider ce champ désactive le départ (méthode que RE2 documente lui-même sur la ligne <code>Random</code>). Dans <code>playfield_static.yaml</code>, un bloc <code>POIs &gt; FixedPlayerStart</code> en <code>Mode: Survival</code> définit la capsule (<code>Spawn: EscapePodLandAtPos</code>), la position, les <code>Status</code> Food/Health et les <code>Items</code> — 4 niveaux EASY / MEDIUM / HARD / FRESH START, le 4e préfixé <code>#FreshStart:</code>. Sans ce bloc le joueur apparaît sans kit : activer une planète sans kit écrit automatiquement celui qui est affiché dans les éditeurs (repli Akua par défaut). Le marqueur seul ne suffit donc pas — la colonne Kit le signale.</p><h4>Sécurité</h4><ul><li>case à cocher = départ ; un kit existant n'est réécrit que si tu le modifies, un kit absent est écrit à l'activation ;</li><li>la fiche du menu est <b>insérée devant</b> la Description du playfield, jamais à sa place — le texte d'origine reste lisible en dessous, et la fiche n'est pas ajoutée deux fois ;</li><li>un playfield que le client refuse de charger (yaml illisible, clé dupliquée sans valeur) est <b>refusé</b> avec la raison ;</li><li>un départ qui n'est pas un starter livré par le mod (<code>Starter_*</code>) est signalé <b>expérimental</b> — le client peut refuser sa donnée au menu, à valider en jeu ;</li><li>sauvegarde centrale par fichier et <b>un seul Annuler</b> pour tout ; bilan intégré.</li></ul><h4>Important</h4><p>Le jeu charge la copie du Sectors.yaml faite dans la sauvegarde : un départ ajouté, un kit ou une fiche ne se voient que sur une <b>NOUVELLE partie</b>.</p>",
+    "en": "<h3>Starting planets</h3><p>A playable start needs <b>two</b> things. In <code>Sectors.yaml</code>, the playfield row's <b>4th field</b> carries the faction marker: <code>['0, 0, 0', Akua, Starter_Akua_V2,'Human:1', '', '', '']</code>. That is what the client reads to offer the playfield in the New Game menu — not <code>PlanetType</code>: the vanilla <i>Shadows of Starlight</i> scenario marks a <code>PlanetType: Snow</code> planet with <code>'Agent:1'</code>. Emptying the field disables the start (the method RE2 itself documents on the <code>Random</code> row). In <code>playfield_static.yaml</code>, a <code>POIs &gt; FixedPlayerStart</code> block in <code>Mode: Survival</code> defines the pod (<code>Spawn: EscapePodLandAtPos</code>), position, Food/Health <code>Status</code> and <code>Items</code> — 4 levels EASY / MEDIUM / HARD / FRESH START, the 4th prefixed <code>#FreshStart:</code>. Without that block the player spawns with no kit: enabling a kit-less planet automatically writes the one shown in the editors (Akua fallback by default). The marker alone is therefore not enough — the Kit column flags it.</p><h4>Safety</h4><ul><li>checkbox = start; an existing kit is only rewritten when you edit it, a missing kit is written on activation;</li><li>the menu card is <b>inserted before</b> the playfield Description, never instead of it — the original text stays readable underneath, and the card is never added twice;</li><li>a playfield the client refuses to load (broken yaml, duplicate key without value) is <b>refused</b> with the reason;</li><li>a start that is not a mod-shipped starter (<code>Starter_*</code>) is flagged <b>experimental</b> — the client may reject its data in the menu, validate in game;</li><li>central backup per file and a <b>single Undo</b> for everything; built-in check.</li></ul><h4>Important</h4><p>The game loads the copy of Sectors.yaml made in the save: a new start, kit or card only shows up in a <b>NEW game</b>.</p>"
   },
   "yamlcheck.title": {
     "fr": "Vérification YAML/ECF — moteur de jeu",
@@ -12568,8 +12760,8 @@
     "en": "<h3>Pre-launch check: what it covers</h3><p>The check reproduces the errors that make the game FAIL to load the scenario, before you launch: <b>Sectors structure</b> (duplicates, foreign files, sunless systems, missing declared playfields), <b>missing prefabs</b> (including the Workshop library and root .epb), <b>real yaml/ecf engine</b> (embedded YamlDotNet — same line/column messages as the game), <b>ItemsConfig</b> (duplicate Ids, dead Refs, unknown classes, ROF &lt; 0.05), <b>BlocksConfig</b> (materials, meshes, shapes, fatal <i>type:</i> annotations), <b>Templates/TechTree</b> (child UnlockLevel &gt; parent), <b>stale/orphan .yaml.bin caches</b>.</p><h4>How to read it</h4><ul><li><b>error</b> = the game will refuse to load (or cascade): fix before testing;</li><li><b>warning</b> = loads anyway, altered behavior (spawn never applied, incoherent price…);</li><li>every rule comes from a real client log — 'verified against actual game loading';</li><li>the scan covers the working copy AND production: keep both in sync;</li><li>CSV export to track progress.</li></ul><h4>Out of scope</h4><p>The check does not see save-game content or client mods. ATL's known 24 E322 'trader tokens' errors are listed on purpose: they do not block loading.</p>"
   },
   "reintegrate.info_html": {
-    "fr": "<h3>Réintégration des playfields orphelins</h3><p>Un dossier de <code>Playfields/&lt;Type&gt;</code> que le Sectors.yaml ne déclare nulle part n'est jamais chargé par le jeu (229 dossiers sur RE2-RPG). Ce module les repose dans des <b>systèmes existants</b> — soleil déjà présent, GalaxyConfig inchangé — en calquant le corpus : planète/géante/station/astéroïde/espace = NOUVEAU secteur en <b>orbite verticale</b> autour de l'étoile (pas de 30, plan Y-Z) ; lune et orbite = ligne à offset dans le secteur d'une planète existante ; <code>SectorMapType</code> seulement quand le jeu en attend un (sinon InvalidCastException dans la carte système).</p><h4>Sécurité</h4><ul><li>liste cochable, lot par système, aperçu des lignes YAML exactes avant écriture ;</li><li>les secteurs écrits par une ancienne version (signature d'étoile invalide) sont proposés à la suppression ;</li><li>application avec backup + undo, puis bilan intégré.</li></ul><h4>Important</h4><p>Le jeu charge la COPIE du Sectors.yaml faite dans la sauvegarde au démarrage : ces ajouts ne valent que pour une <b>NOUVELLE partie</b> (ou après resynchro des playfields de la save).</p>",
-    "en": "<h3>Orphan playfield reintegration</h3><p>A <code>Playfields/&lt;Type&gt;</code> folder never declared in Sectors.yaml is never loaded by the game (229 folders in RE2-RPG). This tool puts them back into <b>existing systems</b> — sun already present, GalaxyConfig untouched — following the corpus: planet/giant/station/asteroid/space = NEW sector on a <b>vertical orbit</b> around the system star (step 30, Y-Z plane); moon and orbit = offset line inside an existing planet's sector; <code>SectorMapType</code> only when the game expects one (else InvalidCastException in the system map).</p><h4>Safety</h4><ul><li>checkable list, batch per system, exact YAML line preview before writing;</li><li>sectors written by an older version (invalid star signature) are offered for deletion;</li><li>apply with backup + undo, then built-in check.</li></ul><h4>Important</h4><p>The game loads the COPY of Sectors.yaml made in the save at start: these additions only apply to a <b>NEW game</b> (or after re-syncing the save's playfields).</p>"
+    "fr": "<h3>Réintégration des playfields orphelins</h3><p>Un dossier de <code>Playfields/&lt;Type&gt;</code> que le Sectors.yaml ne déclare nulle part n'est jamais chargé par le jeu (229 dossiers sur RE2-RPG). Ce module les repose dans des <b>systèmes existants</b> — soleil déjà présent, GalaxyConfig inchangé — en calquant le corpus : planète/géante/station/astéroïde/espace = NOUVEAU secteur en <b>orbite verticale</b> autour de l'étoile (pas de 30, plan Y-Z) ; lune et orbite = ligne à offset dans le secteur d'une planète existante ; <code>SectorMapType</code> seulement quand le jeu en attend un (sinon InvalidCastException dans la carte système).</p><h4>Sécurité</h4><ul><li>liste cochable, lot par système, aperçu des lignes YAML exactes avant écriture ;</li><li>un playfield que le client refuse de charger (yaml illisible pour le moteur du jeu, ou aucun <code>PlayfieldType</code>) est <b>exclu</b> : il reste visible, sans case à cocher, avec la raison — le déclarer empêcherait le scénario de démarrer ;</li><li>un playfield de <b>départ</b> (<code>Starter_*</code>) reçoit le marqueur de faction du corpus (<code>'Human:1'</code>, nom du lieu en clair) : il est proposé au menu Nouvelle partie ; les <code>Start_*</code> sont des terrains, pas des départs ;</li><li>les secteurs écrits par une ancienne version (signature d'étoile invalide) sont proposés à la suppression ;</li><li>application avec backup + undo, puis bilan intégré.</li></ul><h4>Important</h4><p>Le jeu charge la COPIE du Sectors.yaml faite dans la sauvegarde au démarrage : ces ajouts ne valent que pour une <b>NOUVELLE partie</b> (ou après resynchro des playfields de la save).</p>",
+    "en": "<h3>Orphan playfield reintegration</h3><p>A <code>Playfields/&lt;Type&gt;</code> folder never declared in Sectors.yaml is never loaded by the game (229 folders in RE2-RPG). This tool puts them back into <b>existing systems</b> — sun already present, GalaxyConfig untouched — following the corpus: planet/giant/station/asteroid/space = NEW sector on a <b>vertical orbit</b> around the system star (step 30, Y-Z plane); moon and orbit = offset line inside an existing planet's sector; <code>SectorMapType</code> only when the game expects one (else InvalidCastException in the system map).</p><h4>Safety</h4><ul><li>checkable list, batch per system, exact YAML line preview before writing;</li><li>a playfield the client refuses to load (yaml the game engine cannot parse, or no <code>PlayfieldType</code>) is <b>excluded</b>: still visible, no checkbox, reason shown — declaring it would stop the scenario from starting;</li><li>a <b>starting</b> playfield (<code>Starter_*</code>) gets the corpus faction marker (<code>'Human:1'</code>, readable place name): it is offered in the New Game menu; <code>Start_*</code> are terrains, not starts;</li><li>sectors written by an older version (invalid star signature) are offered for deletion;</li><li>apply with backup + undo, then built-in check.</li></ul><h4>Important</h4><p>The game loads the COPY of Sectors.yaml made in the save at start: these additions only apply to a <b>NEW game</b> (or after re-syncing the save's playfields).</p>"
   },
   "prodsync.info_html": {
     "fr": "<h3>Copier vers le scénario en production</h3><p>La copie de travail est ton atelier ; la <b>production</b> (Content/Scenarios/…) est ce que le jeu charge. Ce module liste les fichiers <b>modifiés ou ajoutés</b> (taille puis mtime, hash si horloges divergentes), te laisse choisir le dossier cible (déduit du nom, persisté), et copie en <b>miroir</b> : les fichiers présents en production seulement sont proposés à la suppression (sinon le jeu sert l'ANCIEN état).</p><h4>Sécurité intégrée</h4><ul><li>chaque fichier écrasé ou supprimé est <b>sauvegardé avant</b> (~/.empyrion_editor/production_sync/&lt;date-heure&gt;) ;</li><li>les caches *.yaml.bin ne sont JAMAIS copiés, et celui d'un yaml copié est supprimé (sinon le jeu sert un playfield périmé) ;</li><li>le combo <b>Restaurer</b> remonte une sauvegarde de synchro vers la production (état actuel archivé avant) ;</li><li>option « proposer à la fermeture » pour ne jamais oublier une session.</li></ul><h4>Règle du projet</h4><p>une modif = une synchro miroir : la production doit rester le miroir fidèle de la copie de travail.</p>",
@@ -13894,5 +14086,733 @@
   "repair.market": {
     "fr": "Recettes générées cycliques : {templates} template(s) à retirer.\nPrix aberrants : {prices} à remettre à niveau ({unresolved} sans ancrage).",
     "en": "Cyclic generated recipes: {templates} template(s) to remove.\nAberrant prices: {prices} to reset ({unresolved} without anchor)."
+  },
+  "epb.view3d": {
+    "fr": "Vue 3D",
+    "en": "3D view"
+  },
+  "epb3d.title": {
+    "fr": "Vue 3D du blueprint",
+    "en": "Blueprint 3D view"
+  },
+  "epb3d.hint": {
+    "fr": "Glisser : orbite — Molette : zoom — Clic gauche : info bloc — Clic droit : déplacer",
+    "en": "Drag: orbit — Wheel: zoom — Left click: block info — Right click: pan"
+  },
+  "epb3d.summary": {
+    "fr": "Dimensions {sx}×{sy}×{sz} — {total} blocs ({surface} en surface)",
+    "en": "Size {sx}×{sy}×{sz} — {total} blocks ({surface} surface)"
+  },
+  "epb3d.no_selection": {
+    "fr": "Cliquez sur un bloc pour son nom, sa position et sa couleur.",
+    "en": "Click a block for its name, position and color."
+  },
+  "epb3d.block_info": {
+    "fr": "<b>{name}</b><br>Position : {x}, {y}, {z}<br>Rotation : {rot} — Couleur : {col} <span style='color:{color}'>■</span>",
+    "en": "<b>{name}</b><br>Position: {x}, {y}, {z}<br>Rotation: {rot} — Color: {col} <span style='color:{color}'>■</span>"
+  },
+  "epb3d.unknown": {
+    "fr": " (inconnu)",
+    "en": " (unknown)"
+  },
+  "menu.tools.codex": {
+    "fr": "&Codex (objets, marchands, dégâts)",
+    "en": "&Codex (items, traders, damage)"
+  },
+  "menu.tools.codex.tip": {
+    "fr": "Navigateur objets/blocs, comparateur, marchands, opportunités, lieux/routes et matrice de dégâts — lecture seule.",
+    "en": "Items/blocks browser, comparison, traders, opportunities, places/routes and damage matrix — read only."
+  },
+  "codex.title": {
+    "fr": "Codex",
+    "en": "Codex"
+  },
+  "codex.no_workspace": {
+    "fr": "Aucun scénario ouvert.",
+    "en": "No scenario open."
+  },
+  "codex.loading": {
+    "fr": "Lecture de la configuration…",
+    "en": "Reading configuration…"
+  },
+  "codex.load_error": {
+    "fr": "Lecture impossible : {error}",
+    "en": "Cannot read: {error}"
+  },
+  "codex.reload": {
+    "fr": "Recharger",
+    "en": "Reload"
+  },
+  "codex.info": {
+    "fr": "Comprendre",
+    "en": "About"
+  },
+  "codex.summary": {
+    "fr": "{root} — {items} objets, {blocks} blocs, {tokens} jetons, {traders} marchands",
+    "en": "{root} — {items} items, {blocks} blocks, {tokens} tokens, {traders} traders"
+  },
+  "codex.empty": {
+    "fr": "Aucune entrée.",
+    "en": "No entry."
+  },
+  "codex.count": {
+    "fr": "{shown} entrées",
+    "en": "{shown} entries"
+  },
+  "codex.search": {
+    "fr": "Rechercher (nom ou description)",
+    "en": "Search (name or description)"
+  },
+  "codex.kind.all": {
+    "fr": "Tous",
+    "en": "All"
+  },
+  "codex.kind.item": {
+    "fr": "Objet",
+    "en": "Item"
+  },
+  "codex.kind.block": {
+    "fr": "Bloc",
+    "en": "Block"
+  },
+  "codex.kind.token": {
+    "fr": "Jeton",
+    "en": "Token"
+  },
+  "codex.filter.base": {
+    "fr": "Base",
+    "en": "Base"
+  },
+  "codex.filter.cv": {
+    "fr": "CV",
+    "en": "CV"
+  },
+  "codex.filter.sv": {
+    "fr": "SV",
+    "en": "SV"
+  },
+  "codex.filter.hv": {
+    "fr": "HV",
+    "en": "HV"
+  },
+  "codex.hide_no_price": {
+    "fr": "Masquer sans prix",
+    "en": "Hide without price"
+  },
+  "codex.col.name": {
+    "fr": "Nom",
+    "en": "Name"
+  },
+  "codex.col.kind": {
+    "fr": "Type",
+    "en": "Type"
+  },
+  "codex.col.id": {
+    "fr": "Id",
+    "en": "Id"
+  },
+  "codex.col.category": {
+    "fr": "Catégorie",
+    "en": "Category"
+  },
+  "codex.col.mass": {
+    "fr": "Masse",
+    "en": "Mass"
+  },
+  "codex.col.volume": {
+    "fr": "Volume",
+    "en": "Volume"
+  },
+  "codex.col.price": {
+    "fr": "Prix",
+    "en": "Price"
+  },
+  "codex.col.stack": {
+    "fr": "Empilable",
+    "en": "Stack"
+  },
+  "codex.col.durability": {
+    "fr": "Durabilité",
+    "en": "Durability"
+  },
+  "codex.col.unlock": {
+    "fr": "Niveau",
+    "en": "Level"
+  },
+  "codex.col.material": {
+    "fr": "Matériau",
+    "en": "Material"
+  },
+  "codex.col.hp": {
+    "fr": "PV",
+    "en": "HP"
+  },
+  "codex.col.place": {
+    "fr": "Placement",
+    "en": "Placement"
+  },
+  "codex.pin": {
+    "fr": "Épingler",
+    "en": "Pin"
+  },
+  "codex.pin.tip": {
+    "fr": "Ajouter au comparateur (4 objets maximum ; double-clic dans la grille).",
+    "en": "Add to the comparison (4 items maximum; double-click in the grid)."
+  },
+  "codex.pin.full": {
+    "fr": "Comparateur plein (4 objets maximum) — retirez un épinglage.",
+    "en": "Comparison full (4 items maximum) — unpin one."
+  },
+  "codex.detail.type": {
+    "fr": "Type",
+    "en": "Type"
+  },
+  "codex.detail.price": {
+    "fr": "Prix",
+    "en": "Price"
+  },
+  "codex.detail.cost": {
+    "fr": "Coût matériaux",
+    "en": "Materials cost"
+  },
+  "codex.detail.recipe": {
+    "fr": "Recette",
+    "en": "Recipe"
+  },
+  "codex.detail.flat": {
+    "fr": "Recette aplatie",
+    "en": "Flattened recipe"
+  },
+  "codex.detail.no_recipe": {
+    "fr": "Aucune recette.",
+    "en": "No recipe."
+  },
+  "codex.detail.station": {
+    "fr": "Stations",
+    "en": "Stations"
+  },
+  "codex.detail.time": {
+    "fr": "Temps",
+    "en": "Time"
+  },
+  "codex.detail.output": {
+    "fr": "Sortie",
+    "en": "Output"
+  },
+  "codex.detail.flatten": {
+    "fr": "Recette aplatie",
+    "en": "Flattened recipe"
+  },
+  "codex.detail.trade": {
+    "fr": "Marchands",
+    "en": "Traders"
+  },
+  "codex.detail.props": {
+    "fr": "Propriétés",
+    "en": "Properties"
+  },
+  "codex.tab.items": {
+    "fr": "Objets",
+    "en": "Items"
+  },
+  "codex.tab.compare": {
+    "fr": "Comparer",
+    "en": "Compare"
+  },
+  "codex.tab.traders": {
+    "fr": "Marchands",
+    "en": "Traders"
+  },
+  "codex.tab.weapons": {
+    "fr": "Dégâts",
+    "en": "Damage"
+  },
+  "codex.compare.empty": {
+    "fr": "Épinglez des objets depuis l'onglet Objets.",
+    "en": "Pin items from the Items tab."
+  },
+  "codex.compare.hint": {
+    "fr": "Une colonne par objet épinglé — les différences sont surlignées.",
+    "en": "One column per pinned item — differences are highlighted."
+  },
+  "codex.compare.only_diff": {
+    "fr": "Différences seules",
+    "en": "Differences only"
+  },
+  "codex.compare.property": {
+    "fr": "Propriété",
+    "en": "Property"
+  },
+  "codex.traders.tab": {
+    "fr": "Marchands",
+    "en": "Traders"
+  },
+  "codex.traders.search": {
+    "fr": "Rechercher un marchand",
+    "en": "Search a trader"
+  },
+  "codex.traders.item": {
+    "fr": "Item",
+    "en": "Item"
+  },
+  "codex.traders.name": {
+    "fr": "Marchand",
+    "en": "Trader"
+  },
+  "codex.traders.qty": {
+    "fr": "Quantité",
+    "en": "Quantity"
+  },
+  "codex.traders.direction": {
+    "fr": "Sens",
+    "en": "Direction"
+  },
+  "codex.traders.sell": {
+    "fr": "Vend au joueur",
+    "en": "Sells to the player"
+  },
+  "codex.traders.buy": {
+    "fr": "Rachète au joueur",
+    "en": "Buys from the player"
+  },
+  "codex.traders.discount": {
+    "fr": "Remise (facteur)",
+    "en": "Discount (factor)"
+  },
+  "codex.traders.items": {
+    "fr": "Lignes de trade",
+    "en": "Trade lines"
+  },
+  "codex.traders.none": {
+    "fr": "Aucune ligne.",
+    "en": "No line."
+  },
+  "codex.traders.total": {
+    "fr": "Crédit total estimé",
+    "en": "Estimated total credit"
+  },
+  "codex.traders.unreadable": {
+    "fr": "Lignes illisibles",
+    "en": "Unreadable lines"
+  },
+  "codex.opp.tab": {
+    "fr": "Opportunités",
+    "en": "Opportunities"
+  },
+  "codex.opp.min_profit": {
+    "fr": "Profit minimum",
+    "en": "Minimum profit"
+  },
+  "codex.opp.seller": {
+    "fr": "Acheté chez",
+    "en": "Buy from"
+  },
+  "codex.opp.buyer": {
+    "fr": "Revendu à",
+    "en": "Sell to"
+  },
+  "codex.opp.qty": {
+    "fr": "Volume",
+    "en": "Volume"
+  },
+  "codex.opp.profit": {
+    "fr": "Profit total",
+    "en": "Total profit"
+  },
+  "codex.loc.tab": {
+    "fr": "Lieux et routes",
+    "en": "Places and routes"
+  },
+  "codex.loc.trader": {
+    "fr": "Marchand",
+    "en": "Trader"
+  },
+  "codex.loc.playfield": {
+    "fr": "Playfield",
+    "en": "Playfield"
+  },
+  "codex.loc.poi": {
+    "fr": "POI",
+    "en": "POI"
+  },
+  "codex.loc.restock": {
+    "fr": "Restock (min)",
+    "en": "Restock (min)"
+  },
+  "codex.loc.status": {
+    "fr": "Statut",
+    "en": "Status"
+  },
+  "codex.loc.notes": {
+    "fr": "Notes",
+    "en": "Notes"
+  },
+  "codex.loc.add": {
+    "fr": "Ajouter un lieu",
+    "en": "Add place"
+  },
+  "codex.loc.remove": {
+    "fr": "Retirer",
+    "en": "Remove"
+  },
+  "codex.loc.visited": {
+    "fr": "Marquer visité",
+    "en": "Mark visited"
+  },
+  "codex.loc.ready": {
+    "fr": "Prêt",
+    "en": "Ready"
+  },
+  "codex.loc.wait": {
+    "fr": "Dans {n} min",
+    "en": "In {n} min"
+  },
+  "codex.loc.unknown": {
+    "fr": "—",
+    "en": "—"
+  },
+  "codex.route.tab": {
+    "fr": "Routes",
+    "en": "Routes"
+  },
+  "codex.route.add": {
+    "fr": "Nouvelle route",
+    "en": "New route"
+  },
+  "codex.route.remove": {
+    "fr": "Retirer la route",
+    "en": "Remove route"
+  },
+  "codex.route.add_stop": {
+    "fr": "Ajouter l'étape",
+    "en": "Add stop"
+  },
+  "codex.route.remove_stop": {
+    "fr": "Retirer l'étape",
+    "en": "Remove stop"
+  },
+  "codex.route.default_name": {
+    "fr": "Route {n}",
+    "en": "Route {n}"
+  },
+  "codex.route.net": {
+    "fr": "Net estimé : {low} [conservateur] — {high} [optimiste]",
+    "en": "Estimated net: {low} [conservative] — {high} [optimistic]"
+  },
+  "codex.weapons.tab_matrix": {
+    "fr": "Matrice",
+    "en": "Matrix"
+  },
+  "codex.weapons.tab_lookup": {
+    "fr": "Par bloc",
+    "en": "By block"
+  },
+  "codex.weapons.weapon": {
+    "fr": "Arme",
+    "en": "Weapon"
+  },
+  "codex.weapons.category": {
+    "fr": "Catégorie de matériau",
+    "en": "Material category"
+  },
+  "codex.weapons.multiplier": {
+    "fr": "Multiplicateur",
+    "en": "Multiplier"
+  },
+  "codex.weapons.tier": {
+    "fr": "Palier",
+    "en": "Tier"
+  },
+  "codex.weapons.legend": {
+    "fr": "▼ inutile · = normal · ▲ efficace · ▲▲ très efficace · — immunité · · pas d'entrée (1× en jeu)",
+    "en": "▼ ineffective · = normal · ▲ effective · ▲▲ very effective · — immunity · · no entry (1× in game)"
+  },
+  "codex.weapons.thresholds": {
+    "fr": "Seuils empiriques de la colonne (percentiles 25/75/90 de ses armes) :",
+    "en": "Empirical column thresholds (25/75/90 percentiles of its weapons):"
+  },
+  "codex.tier.none": {
+    "fr": "aucun dégât",
+    "en": "no damage"
+  },
+  "codex.tier.default": {
+    "fr": "défaut (1×)",
+    "en": "default (1×)"
+  },
+  "codex.tier.ineffective": {
+    "fr": "Inutile",
+    "en": "Ineffective"
+  },
+  "codex.tier.normal": {
+    "fr": "Normal",
+    "en": "Normal"
+  },
+  "codex.tier.effective": {
+    "fr": "Efficace",
+    "en": "Effective"
+  },
+  "codex.tier.very": {
+    "fr": "Très efficace",
+    "en": "Very effective"
+  },
+  "codex.info_html": {
+    "fr": "<b>Codex</b> — lecture seule, rien n'est écrit dans le scénario.<br><br><b>Objets</b> : objets, blocs et jetons du scénario, la vanille complétant ce qui manque. Prix = <code>MarketPrice</code>, hérité par <code>Ref</code> comme en jeu. Recette aplatie = récursion jusqu'aux matériaux de base (les 4 minerais ne sont jamais développés).<br><br><b>Marchands</b> : lignes <code>Item&lt;N&gt;</code> ; un facteur <code>mf=</code> s'applique au prix marché, une plage absolue non. Opportunités = un marchand vend, un autre rachète (quantité échangeable × gain unitaire). Lieux et routes sont enregistrés dans <code>~/.empyrion_editor/codex</code>, jamais dans le scénario.<br><br><b>Dégâts</b> : cellule = maximum des multiplicateurs explicites couvrant la catégorie ; les paliers sont empiriques par colonne (percentiles 25/75/90 des armes de la colonne), pas des seuils absolus. Une arme sans entrée affiche · (le jeu applique 1×), un 0 explicite affiche — (immunité).",
+    "en": "<b>Codex</b> — read only, nothing is written to the scenario.<br><br><b>Items</b>: items, blocks and tokens of the scenario, completed by vanilla. Price = <code>MarketPrice</code>, inherited through <code>Ref</code> as in game. Flattened recipe = recursion down to base materials (the four ores are never expanded).<br><br><b>Traders</b>: <code>Item&lt;N&gt;</code> lines; an <code>mf=</code> factor applies to the market price, an absolute range does not. Opportunities = one trader sells, another buys back (tradable quantity × unit gain). Places and routes are stored in <code>~/.empyrion_editor/codex</code>, never in the scenario.<br><br><b>Damage</b>: cell = maximum explicit multiplier covering the category; tiers are empirical per column (25/75/90 percentiles of that column's weapons), not absolute thresholds. A weapon without an entry shows · (the game applies 1×), an explicit 0 shows — (immunity)."
+  },
+  "codex.col.pin": {
+    "fr": "Comparer",
+    "en": "Compare"
+  },
+  "codex.export": {
+    "fr": "Exporter",
+    "en": "Export"
+  },
+  "codex.export.tip": {
+    "fr": "Exporte la vue affichée (onglet et sous-onglet actifs) en CSV point-virgule.",
+    "en": "Exports the current view (active tab and sub-tab) as semicolon CSV."
+  },
+  "codex.export_empty": {
+    "fr": "Rien à exporter dans cette vue.",
+    "en": "Nothing to export in this view."
+  },
+  "codex.export_done": {
+    "fr": "Exporté : {path}",
+    "en": "Exported: {path}"
+  },
+  "codex.loc.known": {
+    "fr": "Lieux connus du marchand",
+    "en": "Known places of the trader"
+  },
+  "codex.loc.log": {
+    "fr": "Carnet de lieux suivis",
+    "en": "Tracked places"
+  },
+  "codex.loc.tab_places": {
+    "fr": "Lieux",
+    "en": "Places"
+  },
+  "codex.loc.search": {
+    "fr": "Chercher les marchands",
+    "en": "Find traders"
+  },
+  "codex.loc.search.tip": {
+    "fr": "Lit l'en-tête des prefabs (quelques secondes, mis en cache) : marchand → prefab → POI → playfield.",
+    "en": "Reads prefab headers (a few seconds, cached): trader → prefab → POI → playfield."
+  },
+  "codex.loc.search_hint": {
+    "fr": "Lancez la recherche : aucun fichier du scénario ne relie un marchand à un playfield, le lien se reconstruit par les prefabs.",
+    "en": "Start the search: no scenario file links a trader to a playfield — the link is rebuilt from the prefabs."
+  },
+  "codex.loc.searching": {
+    "fr": "Recherche dans les prefabs…",
+    "en": "Searching the prefabs…"
+  },
+  "codex.loc.found": {
+    "fr": "{n} lieu(x) trouvé(s) dans les prefabs.",
+    "en": "{n} place(s) found in the prefabs."
+  },
+  "codex.loc.candidates": {
+    "fr": "Aucun nom de marchand dans les prefabs — {n} POI de commerce proposés comme candidats.",
+    "en": "No trader name in the prefabs — {n} trade POIs suggested as candidates."
+  },
+  "codex.loc.system": {
+    "fr": "Système",
+    "en": "System"
+  },
+  "codex.loc.sector": {
+    "fr": "Secteur",
+    "en": "Sector"
+  },
+  "codex.loc.source": {
+    "fr": "Source",
+    "en": "Source"
+  },
+  "codex.loc.confidence": {
+    "fr": "Confiance",
+    "en": "Confidence"
+  },
+  "codex.loc.source_prefab": {
+    "fr": "prefab",
+    "en": "prefab"
+  },
+  "codex.loc.source_zone": {
+    "fr": "TraderZone",
+    "en": "TraderZone"
+  },
+  "codex.loc.source_candidate": {
+    "fr": "candidat",
+    "en": "candidate"
+  },
+  "codex.loc.conf.exact": {
+    "fr": "exact",
+    "en": "exact"
+  },
+  "codex.loc.conf.prefixe": {
+    "fr": "préfixe",
+    "en": "prefix"
+  },
+  "codex.loc.conf.proche": {
+    "fr": "approché",
+    "en": "fuzzy"
+  },
+  "codex.opp.to_route": {
+    "fr": "Créer une route",
+    "en": "Create a route"
+  },
+  "codex.opp.to_route.tip": {
+    "fr": "Deux étapes prêtes : acheter chez le vendeur, revendre à l'acheteur.",
+    "en": "Two ready stops: buy from the seller, sell to the buyer."
+  },
+  "codex.route.name": {
+    "fr": "Route",
+    "en": "Route"
+  },
+  "codex.route.kind.planet": {
+    "fr": "Planète",
+    "en": "Planet"
+  },
+  "codex.route.kind.orbit": {
+    "fr": "Orbite",
+    "en": "Orbit"
+  },
+  "codex.route.kind.system": {
+    "fr": "Système",
+    "en": "System"
+  },
+  "codex.route.kind.poi": {
+    "fr": "POI",
+    "en": "POI"
+  },
+  "codex.route.col.kind": {
+    "fr": "Type",
+    "en": "Type"
+  },
+  "codex.route.col.playfield": {
+    "fr": "Playfield",
+    "en": "Playfield"
+  },
+  "codex.route.col.system": {
+    "fr": "Système",
+    "en": "System"
+  },
+  "codex.route.col.sector": {
+    "fr": "Secteur",
+    "en": "Sector"
+  },
+  "codex.route.col.poi": {
+    "fr": "POI",
+    "en": "POI"
+  },
+  "codex.route.col.item": {
+    "fr": "Item",
+    "en": "Item"
+  },
+  "codex.route.col.qty": {
+    "fr": "Qté",
+    "en": "Qty"
+  },
+  "codex.route.col.note": {
+    "fr": "Note",
+    "en": "Note"
+  },
+  "codex.route.col.seen": {
+    "fr": "Vu",
+    "en": "Seen"
+  },
+  "codex.route.duplicate": {
+    "fr": "Dupliquer",
+    "en": "Duplicate"
+  },
+  "codex.route.rename": {
+    "fr": "Renommer",
+    "en": "Rename"
+  },
+  "codex.route.copy_name": {
+    "fr": "{name} (copie)",
+    "en": "{name} (copy)"
+  },
+  "codex.route.export": {
+    "fr": "Exporter la route",
+    "en": "Export route"
+  },
+  "codex.route.up": {
+    "fr": "Monter",
+    "en": "Up"
+  },
+  "codex.route.down": {
+    "fr": "Descendre",
+    "en": "Down"
+  },
+  "codex.route.stops": {
+    "fr": "{n} étape(s)",
+    "en": "{n} stop(s)"
+  },
+  "codex.route.buy_at": {
+    "fr": "Acheter chez {trader}",
+    "en": "Buy from {trader}"
+  },
+  "codex.route.sell_at": {
+    "fr": "Revendre à {trader}",
+    "en": "Sell to {trader}"
+  },
+  "codex.route.from_opp": {
+    "fr": "{item} — opportunité",
+    "en": "{item} — opportunity"
+  },
+  "sw.apply_confirm": {
+    "fr": "Appliquer {n} modification(s) aux ondes de spawn ?\n\nBackup central avant écriture, re-analyse ensuite.",
+    "en": "Apply {n} spawn-wave change(s)?\n\nCentral backup before writing, re-analysis afterwards."
+  },
+  "sw.applied": {
+    "fr": "{n} ondes de spawn modifiées. Re-analyse lancée.",
+    "en": "{n} spawn waves changed. Re-analysis started."
+  },
+  "sw.filter_name": {
+    "fr": "Filtrer par playfield ou groupe...",
+    "en": "Filter by playfield or group..."
+  },
+  "corr.apply_confirm": {
+    "fr": "Appliquer {n} correction(s) de propriétés ?\n\nBackup central avant écriture, re-scan ensuite.",
+    "en": "Apply {n} property fix(es)?\n\nCentral backup before writing, re-scan afterwards."
+  },
+  "corr.applied": {
+    "fr": "{n} propriétés écrites. Re-scan lancé.",
+    "en": "{n} properties written. Re-scan started."
+  },
+  "corr.filter_name": {
+    "fr": "Filtrer par propriété ou groupe...",
+    "en": "Filter by property or group..."
+  },
+  "diff.filter_name": {
+    "fr": "Filtrer par playfield ou propriété...",
+    "en": "Filter by playfield or property..."
+  },
+  "tokens.filter_name": {
+    "fr": "Filtrer par jeton...",
+    "en": "Filter by token..."
+  },
+  "poi.col_name": {
+    "fr": "Nom du POI",
+    "en": "POI name"
+  },
+  "prog.col_type": {
+    "fr": "Type",
+    "en": "Type"
+  },
+  "busy.analyzing": {
+    "fr": "Analyse en cours...",
+    "en": "Analysing..."
+  },
+  "common.check_all_tip": {
+    "fr": "Coche toutes les lignes VISIBLES et cochables — se combine avec les filtres pour une sélection en masse.",
+    "en": "Checks every VISIBLE checkable row — combines with the filters for bulk selection."
+  },
+  "galaxy.viewer_title": {
+    "fr": "Visualiseur de galaxie — systèmes et secteurs",
+    "en": "Galaxy viewer — systems and sectors"
+  },
+  "report.window_title": {
+    "fr": "Signaler un problème",
+    "en": "Report an issue"
   }
 }

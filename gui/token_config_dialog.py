@@ -76,7 +76,7 @@ class TokenConfigDialog(QDialog):
 
         filters = QHBoxLayout()
         self.edit_filter = QLineEdit()
-        self.edit_filter.setPlaceholderText(t("taudit.filter_name"))
+        self.edit_filter.setPlaceholderText(t("tokens.filter_name"))
         self.edit_filter.textChanged.connect(self._refilter)
         filters.addWidget(self.edit_filter, 1)
         self.btn_new = QPushButton(t("tokens.new"))
@@ -129,7 +129,7 @@ class TokenConfigDialog(QDialog):
             return
         self._running = True
         self.btn_scan.setEnabled(False)
-        self.stats_label.setText(t("taudit.running"))
+        self.stats_label.setText(t("busy.analyzing"))
 
         def work():
             from pathlib import Path

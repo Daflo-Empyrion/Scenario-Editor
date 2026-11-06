@@ -108,7 +108,7 @@ class DifficultyDialog(QDialog):
         self.cmb_filter.currentIndexChanged.connect(self._refilter)
         tools.addWidget(self.cmb_filter)
         self.edit_filter = QLineEdit()
-        self.edit_filter.setPlaceholderText(t("taudit.filter_name"))
+        self.edit_filter.setPlaceholderText(t("diff.filter_name"))
         self.edit_filter.textChanged.connect(self._refilter)
         tools.addWidget(self.edit_filter, 1)
         lay.addLayout(tools)
@@ -193,7 +193,7 @@ class DifficultyDialog(QDialog):
             return
         self._running = True
         self.btn_build.setEnabled(False)
-        self.status_label.setText(t("taudit.running"))
+        self.status_label.setText(t("busy.analyzing"))
         coeffs = self._coefficients()
 
         def work():

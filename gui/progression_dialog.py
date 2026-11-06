@@ -65,7 +65,7 @@ class ProgressionDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.table_pf = self._make_table([
-            t("prog.col_playfield"), t("sw.col_type"), t("prog.col_min"),
+            t("prog.col_playfield"), t("prog.col_type"), t("prog.col_min"),
             t("prog.col_max"), t("prog.col_status")])
         self.table_ch = self._make_table([
             t("prog.col_chapter"), t("pda.chapter.category"), "XP", "UP",
@@ -119,7 +119,7 @@ class ProgressionDialog(QDialog):
             return
         self._running = True
         self.btn_scan.setEnabled(False)
-        self.stats_label.setText(t("taudit.running"))
+        self.stats_label.setText(t("busy.analyzing"))
 
         def work():
             return scan(Path(root))

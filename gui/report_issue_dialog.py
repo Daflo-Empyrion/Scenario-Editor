@@ -75,7 +75,7 @@ class ReportIssueDialog(QDialog):
         self.screenshot = screenshot
         self.recent_actions = recent_actions
 
-        self.setWindowTitle(t("report.title"))
+        self.setWindowTitle(t("report.window_title"))
         layout = QVBoxLayout(self)
 
         if not GITHUB_REPO.strip():
@@ -153,7 +153,7 @@ class ReportIssueDialog(QDialog):
         title = self.title_input.text().strip()
         description = self.description_input.toPlainText().strip()
         if not title or not description:
-            QMessageBox.warning(self, t("report.title"), t("report.error_missing_fields"))
+            QMessageBox.warning(self, t("report.window_title"), t("report.error_missing_fields"))
             return
 
         screenshot_path = _save_screenshot(self.screenshot)
@@ -174,6 +174,6 @@ class ReportIssueDialog(QDialog):
 
         QDesktopServices.openUrl(QUrl(issue_url))
         QMessageBox.information(
-            self, t("report.title"),
+            self, t("report.window_title"),
             t("report.sent_msg", path=str(screenshot_path)))
         self.accept()

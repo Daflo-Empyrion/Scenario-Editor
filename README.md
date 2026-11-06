@@ -139,6 +139,16 @@ aussi depuis le menu Aide de l'application.
 ### Economie des marchands
 - Editeur dedie : prix, stocks, taux de rachat, par station et par faction
 - Verification de coherence integree (menu Verification)
+- **Codex** (menu Outils > Balance) : navigateur objets/blocs/jetons avec
+  recherche et **colonne de cases** (jusqu'a 4 objets au comparateur), fiche
+  detail (stats, recette directe ou aplatie aux materiaux de base, cout,
+  marchands), **comparateur** a differences unilaterales, fiche marchand avec
+  prix estimes, **opportunites de trade** entre marchands (creation de route
+  en un clic), **lieux d'un marchand** retrouves en croisant les en-tetes de
+  prefabs (`Traders <nom>`) avec les POI des playfields, **carnet de lieux et
+  de routes** (destination, item, note, vu date, net marchand) et **matrice de
+  degats** armes x materiaux (paliers empiriques par colonne) — export CSV de
+  chaque vue, lecture seule, rien n'est ecrit dans le scenario
 
 ### Equilibrage et prix marche
 - **Equilibrage du scenario** : regles par propriete (MaxCount, CPUIn,

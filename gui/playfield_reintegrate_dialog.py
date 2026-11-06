@@ -38,9 +38,9 @@ from core.i18n import t
 from gui.module_info import add_info_button
 from core.playfield_reintegrate import (apply_placements,
                                         find_legacy, find_missing_arrivals,
-                                        find_orphans, plan_placements,
-                                        remove_legacy, render_preview,
-                                        sectors_yaml)
+                                        find_orphans, find_unloadable,
+                                        plan_placements, remove_legacy,
+                                        render_preview, sectors_yaml)
 from gui.busy import run_long
 from gui.ewa_async import async_call
 from gui.msgboxes import ask_yes_no, info
@@ -145,6 +145,10 @@ class PlayfieldReintegrateDialog(QDialog):
         self.arrival_check.blockSignals(False)
 
         orphans = run_long(self, lambda: find_orphans(self._root))
+        # un playfield que le client ne sait pas charger ne doit JAMAIS etre
+        # declare dans Sectors.yaml : il empeche le scenario de demarrer
+        blocked = run_long(self, lambda: find_unloadable(
+            self._root, [o.type_name for o in orphans]))
         self.tree.blockSignals(True)
         self.tree.clear()
         for family in ("surface", "space"):
@@ -160,18 +164,30 @@ class PlayfieldReintegrateDialog(QDialog):
             parent.setCheckState(0, Qt.CheckState.Unchecked)
             self.tree.addTopLevelItem(parent)
             for orphan in subset:
+                issue = blocked.get(orphan.type_name)
                 child = QTreeWidgetItem([orphan.type_name,
                                          t(orphan.kind_key),
                                          orphan.description])
-                child.setFlags(Qt.ItemFlag.ItemIsUserCheckable
-                               | Qt.ItemFlag.ItemIsEnabled
-                               | Qt.ItemFlag.ItemIsSelectable)
-                child.setCheckState(0, Qt.CheckState.Unchecked)
+                flags = (Qt.ItemFlag.ItemIsEnabled
+                         | Qt.ItemFlag.ItemIsSelectable)
+                if issue is None:
+                    flags |= Qt.ItemFlag.ItemIsUserCheckable
+                else:
+                    reason = (t("reintegrate.issue_type")
+                              if issue[0] == "type" else
+                              t("reintegrate.issue_yaml", msg=issue[1]))
+                    child.setText(2, reason)
+                    child.setToolTip(2, reason)
+                child.setFlags(flags)
+                if issue is None:
+                    child.setCheckState(0, Qt.CheckState.Unchecked)
                 child.setData(0, Qt.ItemDataRole.UserRole, orphan.type_name)
                 parent.addChild(child)
         self.tree.blockSignals(False)
         self._invalidated()
-        if not orphans and not self._legacy:
+        if blocked:
+            self.status.setText(t("reintegrate.blocked_n", n=len(blocked)))
+        elif not orphans and not self._legacy:
             self.status.setText(t("reintegrate.none"))
 
     def _selected(self) -> list:
@@ -180,7 +196,10 @@ class PlayfieldReintegrateDialog(QDialog):
             parent = self.tree.topLevelItem(index)
             for row in range(parent.childCount()):
                 child = parent.child(row)
-                if child.checkState(0) == Qt.CheckState.Checked:
+                # un playfield exclu (yaml refuse par le client) n'a pas la
+                # case a cocher : il ne doit jamais partir au plan
+                if (child.checkState(0) == Qt.CheckState.Checked
+                        and child.flags() & Qt.ItemFlag.ItemIsUserCheckable):
                     picked.append(child.data(0, Qt.ItemDataRole.UserRole))
         return picked
 

@@ -379,7 +379,7 @@ class GalaxyViewerDialog(QDialog):
         self._is_path_modified = is_path_modified
         self._reload_path = reload_path
         self._move_enabled = False
-        self.setWindowTitle(t("galaxy.title"))
+        self.setWindowTitle(t("galaxy.viewer_title"))
         self.setMinimumSize(900, 650)
 
         layout = QVBoxLayout(self)
@@ -484,7 +484,7 @@ class GalaxyViewerDialog(QDialog):
         if not self._move_enabled or self.sectors_path is None:
             return
         if self._is_path_modified and self._is_path_modified(self.sectors_path):
-            QMessageBox.warning(self, t("galaxy.title"), t("galaxy.move_locked", name=self.sectors_path.name))
+            QMessageBox.warning(self, t("galaxy.viewer_title"), t("galaxy.move_locked", name=self.sectors_path.name))
             self.refresh()
             return
         x, y, _ = system.coordinates
@@ -505,7 +505,7 @@ class GalaxyViewerDialog(QDialog):
             if self._push_undo is not None:
                 self._push_undo(FileStateUndo(path, prior, t("galaxy.move_undo", name=system.name)))
         except OSError as e:
-            QMessageBox.critical(self, t("galaxy.title"), f"{t('save.error_title')} :\n{e}")
+            QMessageBox.critical(self, t("galaxy.viewer_title"), f"{t('save.error_title')} :\n{e}")
             return
         system.coordinates = (screen_x, y, screen_y)
         self._on_system_selected(system)
@@ -519,7 +519,7 @@ class GalaxyViewerDialog(QDialog):
             f"{t('galaxy.n_sectors', n=system.sector_count)}")
 
     def _export(self):
-        lines = [t("galaxy.title"), "=" * len(t("galaxy.title")), ""]
+        lines = [t("galaxy.viewer_title"), "=" * len(t("galaxy.viewer_title")), ""]
         for s in self.systems:
             pos = f"({s.coordinates[0]:.0f}, {s.coordinates[1]:.0f}, {s.coordinates[2]:.0f})" if s.coordinates else "?"
             lines.append(f"{s.name} -- {s.star_class} -- {pos} -- {s.sector_count} secteurs")

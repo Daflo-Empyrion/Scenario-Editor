@@ -130,7 +130,7 @@ class RecipeBalanceDialog(QDialog):
 
         buttons = QHBoxLayout()
         self.btn_all = QPushButton(t("market.check_all"))
-        self.btn_all.setToolTip(t("market.check_all.tip"))
+        self.btn_all.setToolTip(t("common.check_all_tip"))
         self.btn_all.clicked.connect(self._check_all)
         self.btn_all.setEnabled(False)
         buttons.addWidget(self.btn_all)

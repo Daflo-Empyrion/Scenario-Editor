@@ -221,6 +221,16 @@ def test_bbcode_empty_string():
     assert _bbcode_to_html("") == ""
 
 
+def test_bbcode_bare_color_tags_of_start_cards():
+    """Les descriptions de playfields encadrent un crochet litteral avec
+    `[c]`/`[-]` sans couleur (carte de depart du menu Nouvelle partie) : ces
+    deux balises ne doivent pas s'afficher en clair (vecu 05/11)."""
+    html = _bbcode_to_html(
+        "[c][[c][00ff00][b]Haven[/b][-][/c][c]][-][/c]")
+    assert "[c]" not in html and "[-]" not in html
+    assert "<b>Haven</b>" in html and "color:#00ff00" in html
+
+
 # --------------------------------------- blocs CREES sans attribut display
 # (retour utilisateur du 30/08/2026 : la fiche d'un bloc/Template cree par
 # l'application n'affichait que le nom et les ingredients -- ses proprietes

@@ -157,6 +157,11 @@ def _bbcode_to_html(text: str) -> str:
     html = re.sub(r"\[c\]\[([0-9A-Fa-f]{6,8})\]", lambda m: f'<span style="color:#{m.group(1)[:6]}">', html)
     html = html.replace("[-][/c]", "</span>")
     html = html.replace("[/c]", "</span>")  # repli pour balises mal formees dans la source
+    # `[c]` sans couleur et `[-]` isole : forme utilisee par les descriptions de
+    # playfields pour encadrer un crochet litteral (`[c][[c][00ff00][b]Haven`),
+    # c'est-a-dire une couleur par defaut. Sans ces deux regles, l'apercu de la
+    # carte de depart affichait les balises en clair (vecu 05/11).
+    html = html.replace("[c]", "<span>").replace("[-]", "</span>")
     html = html.replace("[u]", "<u>").replace("[/u]", "</u>")
     html = html.replace("[b]", "<b>").replace("[/b]", "</b>")
     html = html.replace("[i]", "<i>").replace("[/i]", "</i>")

@@ -159,6 +159,11 @@ class EpbCheckDialog(QDialog):
         self.btn_color_index.setEnabled(False)
         self.btn_color_index.clicked.connect(self._open_color_index)
         nav.addWidget(self.btn_color_index)
+        self.btn_view3d = QPushButton(t("epb.view3d"))
+        self.btn_view3d.setEnabled(False)
+        self.btn_view3d.clicked.connect(self._open_view3d)
+        nav.addWidget(self.btn_view3d)
+        self._view3d_window = None
         nav.addStretch(1)
         self.lbl_block = QLabel(t("epb.no_selection"))
         nav.addWidget(self.lbl_block, 1)
@@ -433,6 +438,7 @@ class EpbCheckDialog(QDialog):
                                  self._effective_known_ids(target))
             self._current_target = target
         self.btn_export.setEnabled(True)
+        self.btn_view3d.setEnabled(True)
 
     def _effective_known_ids(self, target):
         """Ids connus effectifs pour un blueprint : ceux du catalogue plus
@@ -464,6 +470,20 @@ class EpbCheckDialog(QDialog):
             return int(item.text(3))
         except ValueError:
             return None
+
+    def _open_view3d(self):
+        """Fenetre externe EPD-like : cubes colores, camera orbitale
+        (gui/epb_3d_window.py) ; une seule instance, re-alimentee."""
+        target = self._current_target
+        if target is None:
+            return
+        if self._view3d_window is None:
+            from gui.epb_3d_window import Epb3dWindow
+            self._view3d_window = Epb3dWindow(target["bp"], parent=self)
+        else:
+            self._view3d_window.set_blueprint(target["bp"])
+        self._view3d_window.show()
+        self._view3d_window.raise_()
 
     def _on_block_clicked(self, info):
         """Clic sur un voxel de la vue 3D : affiche id + nom et selectionne
