@@ -34,9 +34,15 @@ Inno Setup le reference deja par ce chemin.
 ## 2. Construire une version (a chaque nouvelle release)
 
 ### Etape 1 — Mettre a jour le numero de version
-**Trois fichiers a modifier, avec exactement le meme numero** (`installer.iss`
-gere `VersionInfoVersion` automatiquement a partir de `MyAppVersion`, donc pas
-de quatrieme fichier separe pour l'installeur) :
+**Trois fichiers, huit valeurs, avec exactement le meme numero** — le plus
+simple est le script dedie, qui ecrit tout puis relit pour verifier :
+
+```bat
+python tools/bump_version.py 2.4.0
+python -m pytest tests/test_version_consistency.py tests/test_installer_version.py -q
+```
+
+Ce qu'il ecrit (a la main si le script est indisponible) :
 - `core/version.py` → `APP_VERSION = "1.1.0"`
 - `installer.iss` → `#define MyAppVersion "1.1.0"`
 - `version_info.txt` → `filevers=(1, 1, 0, 0)`, `prodvers=(1, 1, 0, 0)`, et les
@@ -44,6 +50,10 @@ de quatrieme fichier separe pour l'installeur) :
   les metadonnees Windows (editeur, description, version) visibles dans les
   proprietes des EXECUTABLES DE L'APPLI (pas l'installeur, voir juste en
   dessous), ce qui reduit les faux positifs antivirus (voir section 7)
+
+Oublier UNE de ces valeurs fait echouer la CI **apres** le tag (19 min de
+tests avant le build, puis tag a deplacer) : c'est ce qui est arrive au
+v2.3.0, d'ou le script.
 
 ### Etape 2 — Construire
 Depuis le dossier du projet, **sans avoir besoin d'activer le venv toi-meme** —
