@@ -106,6 +106,19 @@ le pipeline (quelques minutes) ou sans connexion internet.
    git tag v1.1.0
    git push origin main --tags
    ```
+
+   **REGLE : le tag pointe TOUJOURS sur le HEAD de `main`** — jamais sur un
+   commit anterieur, jamais sur un commit alors que du travail non commite
+   reste en attente. Une version telechargeable doit correspondre exactement a
+   ce que montre le depot, et la CI ne s'execute que sur un tag : tout commit
+   pousse sans tag n'est jamais valide par le pipeline (vecu 06/11 : 20 commits
+   du 31/10 au 05/11 n'avaient jamais tourne en CI, et le premier tag a revele
+   quatre tests non hermétiques d'un coup). Avant de taguer, la suite complete
+   doit etre verte **sur ce commit** :
+   ```bat
+   python -m pytest -q          :: 19 min, sur l'etat exact qui sera tague
+   git status --short           :: doit etre vide (hormis les fichiers ignores)
+   ```
 2. Va sur l'onglet **Actions** du depot GitHub pour suivre la construction en
    cours (quelques minutes) -- ou construis en local avec `build.bat` si tu
    preferes ne pas attendre.
