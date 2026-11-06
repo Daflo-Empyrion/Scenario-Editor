@@ -165,6 +165,9 @@ def test_translate_text_ignores_garbage_memory_hit(tmp_path, monkeypatch):
     # moteur IA unique (31/10) : on double translate_whole du routeur
     monkeypatch.setattr('core.ai.router.translate_whole',
                         lambda protected, target: "TRAD:" + protected)
+    # garde de configuration : sans fournisseur local (CI), translate_text
+    # leve AVANT d'atteindre le moteur double
+    monkeypatch.setattr('core.ai.router.configured', lambda: True)
     out = translation.translate_text("Hello", target="fr",
                                      store_in_memory=False)
     assert out == "TRAD:Hello"  # PAS le hit memoire pollue

@@ -30,6 +30,15 @@ from PyQt6.QtCore import Qt
 from test_theme_verriere_and_reorg import _make_window
 
 
+def _fresh_with_chrome(qapp, monkeypatch):
+    """Chrome DESACTIVE par defaut depuis le 02/11 (abort natif frameless) :
+    les tests qui verifient son FONCTIONNEMENT doivent l'activer, les autres
+    (test_disabled_setting_keeps_native_bar) verifient justement le defaut."""
+    from core import settings
+    monkeypatch.setattr(settings, "get_titlebar_custom_enabled", lambda: True)
+    return _make_window(qapp, monkeypatch, None, fresh=True)
+
+
 def _all_actions(menu):
     out = []
     for a in menu.actions():
@@ -43,33 +52,42 @@ def _all_actions(menu):
                     reason="chrome frameless specifique Windows")
 class TestChrome:
 
-    def test_installed_by_default(self, qapp, monkeypatch):
-        win = _make_window(qapp, monkeypatch, None)
+    def test_installed_when_enabled(self, qapp, monkeypatch):
         from gui import chrome
-        assert chrome.is_available()
-        assert win._chrome_installed is True
-        assert win.windowFlags() & Qt.WindowType.FramelessWindowHint
-        assert win._chrome_state.title_bar is not None
+        win = _fresh_with_chrome(qapp, monkeypatch)
+        try:
+            assert chrome.is_available()
+            assert win._chrome_installed is True
+            assert win.windowFlags() & Qt.WindowType.FramelessWindowHint
+            assert win._chrome_state.title_bar is not None
+        finally:
+            win.close()
 
     def test_menus_still_native(self, qapp, monkeypatch):
         """La QMenuBar reste le menu widget natif (jamais remplacee — vecu
         31/10 : setMenuWidget faisait deleteLater sur l'ancienne barre, qui
         tuait les QMenu des que une boucle d'evenements pompait)."""
-        win = _make_window(qapp, monkeypatch, None)
-        assert win.action_tech_tree in _all_actions(win.menu_tools)
-        # la marge haute reserve la place de la barre custom
-        assert win.contentsMargins().top() >= 42
+        win = _fresh_with_chrome(qapp, monkeypatch)
+        try:
+            assert win.action_tech_tree in _all_actions(win.menu_tools)
+            # la marge haute reserve la place de la barre custom
+            assert win.contentsMargins().top() >= 42
+        finally:
+            win.close()
 
     def test_breadcrumb_follows_project(self, qapp, monkeypatch):
         from gui import chrome
-        win = _make_window(qapp, monkeypatch, None)
-        bar = win._chrome_state.title_bar
-        chrome.set_project(win, "RE2-ATL-PRO")
-        assert any(lab.text() == "RE2-ATL-PRO"
-                   for lab in bar.findChildren(type(bar._project_label)))
-        chrome.set_project(win, "")
-        assert all(not lab.isVisible()
-                   for lab in bar.findChildren(type(bar._project_label)))
+        win = _fresh_with_chrome(qapp, monkeypatch)
+        try:
+            bar = win._chrome_state.title_bar
+            chrome.set_project(win, "RE2-ATL-PRO")
+            assert any(lab.text() == "RE2-ATL-PRO"
+                       for lab in bar.findChildren(type(bar._project_label)))
+            chrome.set_project(win, "")
+            assert all(not lab.isVisible()
+                       for lab in bar.findChildren(type(bar._project_label)))
+        finally:
+            win.close()
 
     def test_disabled_setting_keeps_native_bar(self, qapp, monkeypatch):
         from core import settings
@@ -98,7 +116,7 @@ class TestChrome:
 def test_nav_rail_wraps_central_and_launches(qapp, monkeypatch):
     """Le rail enveloppe le central widget, 8 lanceurs, et un clic appelle
     bien la methode MainWindow correspondante."""
-    win = _make_window(qapp, monkeypatch, None, fresh=True)
+    win = _fresh_with_chrome(qapp, monkeypatch)
     try:
         rail = win._chrome_state.nav_rail
         assert rail is not None and len(rail._buttons) == 8
@@ -150,6 +168,15 @@ from PyQt6.QtCore import Qt
 from test_theme_verriere_and_reorg import _make_window
 
 
+def _fresh_with_chrome(qapp, monkeypatch):
+    """Chrome DESACTIVE par defaut depuis le 02/11 (abort natif frameless) :
+    les tests qui verifient son FONCTIONNEMENT doivent l'activer, les autres
+    (test_disabled_setting_keeps_native_bar) verifient justement le defaut."""
+    from core import settings
+    monkeypatch.setattr(settings, "get_titlebar_custom_enabled", lambda: True)
+    return _make_window(qapp, monkeypatch, None, fresh=True)
+
+
 def _all_actions(menu):
     out = []
     for a in menu.actions():
@@ -163,33 +190,42 @@ def _all_actions(menu):
                     reason="chrome frameless specifique Windows")
 class TestChrome:
 
-    def test_installed_by_default(self, qapp, monkeypatch):
-        win = _make_window(qapp, monkeypatch, None)
+    def test_installed_when_enabled(self, qapp, monkeypatch):
         from gui import chrome
-        assert chrome.is_available()
-        assert win._chrome_installed is True
-        assert win.windowFlags() & Qt.WindowType.FramelessWindowHint
-        assert win._chrome_state.title_bar is not None
+        win = _fresh_with_chrome(qapp, monkeypatch)
+        try:
+            assert chrome.is_available()
+            assert win._chrome_installed is True
+            assert win.windowFlags() & Qt.WindowType.FramelessWindowHint
+            assert win._chrome_state.title_bar is not None
+        finally:
+            win.close()
 
     def test_menus_still_native(self, qapp, monkeypatch):
         """La QMenuBar reste le menu widget natif (jamais remplacee — vecu
         31/10 : setMenuWidget faisait deleteLater sur l'ancienne barre, qui
         tuait les QMenu des que une boucle d'evenements pompait)."""
-        win = _make_window(qapp, monkeypatch, None)
-        assert win.action_tech_tree in _all_actions(win.menu_tools)
-        # la marge haute reserve la place de la barre custom
-        assert win.contentsMargins().top() >= 42
+        win = _fresh_with_chrome(qapp, monkeypatch)
+        try:
+            assert win.action_tech_tree in _all_actions(win.menu_tools)
+            # la marge haute reserve la place de la barre custom
+            assert win.contentsMargins().top() >= 42
+        finally:
+            win.close()
 
     def test_breadcrumb_follows_project(self, qapp, monkeypatch):
         from gui import chrome
-        win = _make_window(qapp, monkeypatch, None)
-        bar = win._chrome_state.title_bar
-        chrome.set_project(win, "RE2-ATL-PRO")
-        assert any(lab.text() == "RE2-ATL-PRO"
-                   for lab in bar.findChildren(type(bar._project_label)))
-        chrome.set_project(win, "")
-        assert all(not lab.isVisible()
-                   for lab in bar.findChildren(type(bar._project_label)))
+        win = _fresh_with_chrome(qapp, monkeypatch)
+        try:
+            bar = win._chrome_state.title_bar
+            chrome.set_project(win, "RE2-ATL-PRO")
+            assert any(lab.text() == "RE2-ATL-PRO"
+                       for lab in bar.findChildren(type(bar._project_label)))
+            chrome.set_project(win, "")
+            assert all(not lab.isVisible()
+                       for lab in bar.findChildren(type(bar._project_label)))
+        finally:
+            win.close()
 
     def test_disabled_setting_keeps_native_bar(self, qapp, monkeypatch):
         from core import settings
@@ -218,7 +254,7 @@ class TestChrome:
 def test_nav_rail_wraps_central_and_launches(qapp, monkeypatch):
     """Le rail enveloppe le central widget, 8 lanceurs, et un clic appelle
     bien la methode MainWindow correspondante."""
-    win = _make_window(qapp, monkeypatch, None, fresh=True)
+    win = _fresh_with_chrome(qapp, monkeypatch)
     try:
         rail = win._chrome_state.nav_rail
         assert rail is not None and len(rail._buttons) == 8
