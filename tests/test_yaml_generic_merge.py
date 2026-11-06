@@ -604,14 +604,27 @@ def test_yaml_review_dialog_shows_subkey_kind(qapp, tmp_path):
     assert "Sous-clé ajoutée" in labels
 
 
-def test_render_guard_rejects_unreadable_yaml():
+def test_render_guard_rejects_unreadable_yaml(monkeypatch):
     """Vecu 04/11 : la fusion generique a casse 88 playfield_static.yaml
     (fichiers valides chez A et B, « did not find expected key » apres
     insertion). apply_yaml_units n'ecrit plus un rendu que le YAML du jeu
-    ne peut pas relire — ici on teste le garde-fou lui-meme."""
+    ne peut pas relire — ici on teste le garde-fou lui-meme.
+
+    Le garde-fou interroge le verificateur YamlDotNet (binaire LOCAL, non
+    versionne) : ses deux reponses sont simulees, sinon le test dependrait du
+    poste (vert chez le dev, rouge en CI, vecu 06/11)."""
+    from core import yaml_game_check
     from core.yaml_merge import _render_parses
 
-    assert _render_parses("SolarSystems:\n  - Name: A\n    Sectors: []\n")
-    # indentation cassee : le moteur refuse ce fichier
+    # 1) verificateur present : il refuse l'indentation cassee
+    monkeypatch.setattr(yaml_game_check, "locate_checker", lambda: "yamlcheck")
+    monkeypatch.setattr(
+        yaml_game_check, "run_yaml_check",
+        lambda checker, roots: ([("rendu.yaml", 3, "did not find expected key")], ""))
     assert not _render_parses(
         "SolarSystems:\n  - Name: A\n      NoShieldReload: True\n    - x: 1\n")
+
+    # 2) verificateur absent : le garde-fou ne bloque JAMAIS une fusion
+    monkeypatch.setattr(yaml_game_check, "locate_checker", lambda: None)
+    assert _render_parses("n'importe quoi: [")
+
