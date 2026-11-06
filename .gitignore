@@ -45,3 +45,6 @@ tools/yamlcheck/publish/
 /_*
 !/__init__.py
 inventaire_cles_items.md
+
+# Plans et etat locaux de l'agent (jamais a versionner)
+.zcode/
