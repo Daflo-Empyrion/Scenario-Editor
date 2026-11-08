@@ -3,6 +3,106 @@
     "fr": "&Fichier",
     "en": "&File"
   },
+  "menu.tools.ai_audit": {
+    "fr": "Audit IA des PNJ...",
+    "en": "NPC AI audit..."
+  },
+  "aiaudit.title": {
+    "fr": "Audit IA des PNJ",
+    "en": "NPC AI audit"
+  },
+  "aiaudit.info": {
+    "fr": "Analyse l'IA des PNJ du scénario (vaisseaux sans blueprint, pools de comportements BAI, pression drone par tier, re-pops) et applique les correctifs de réalisme. Toute écriture est sauvegardée dans un dossier de backups avant modification.",
+    "en": "Analyses the scenario's NPC AI (vessels without blueprint, BAI behavior pools, per-tier drone pressure, re-spawns) and applies realism fixes. Every write is backed up before modification."
+  },
+  "aiaudit.col_id": {
+    "fr": "Constat",
+    "en": "Finding"
+  },
+  "aiaudit.col_severity": {
+    "fr": "Gravité",
+    "en": "Severity"
+  },
+  "aiaudit.col_count": {
+    "fr": "Nombre",
+    "en": "Count"
+  },
+  "aiaudit.col_message": {
+    "fr": "Détail",
+    "en": "Detail"
+  },
+  "aiaudit.sev_critical": {
+    "fr": "critique",
+    "en": "critical"
+  },
+  "aiaudit.sev_warn": {
+    "fr": "avertissement",
+    "en": "warning"
+  },
+  "aiaudit.sev_info": {
+    "fr": "info",
+    "en": "info"
+  },
+  "aiaudit.btn_audit": {
+    "fr": "Auditer",
+    "en": "Audit"
+  },
+  "aiaudit.btn_dry": {
+    "fr": "Simulation des correctifs",
+    "en": "Simulate fixes"
+  },
+  "aiaudit.btn_apply": {
+    "fr": "Appliquer les correctifs",
+    "en": "Apply fixes"
+  },
+  "aiaudit.no_findings": {
+    "fr": "Aucun constat — l'IA du scénario passe l'audit.",
+    "en": "No findings — the scenario AI passes the audit."
+  },
+  "aiaudit.log_placeholder": {
+    "fr": "Journal des opérations...",
+    "en": "Operation log..."
+  },
+  "aiaudit.running_audit": {
+    "fr": "Audit de l'IA du scénario...",
+    "en": "Auditing scenario AI..."
+  },
+  "aiaudit.running_dry": {
+    "fr": "Simulation des correctifs IA...",
+    "en": "Simulating AI fixes..."
+  },
+  "aiaudit.running_apply": {
+    "fr": "Application des correctifs IA (backups automatiques)...",
+    "en": "Applying AI fixes (automatic backups)..."
+  },
+  "aiaudit.confirm_title": {
+    "fr": "Appliquer les correctifs IA ?",
+    "en": "Apply AI fixes?"
+  },
+  "aiaudit.confirm_text": {
+    "fr": "Les passes de réalisme (vaisseaux, BAIConfig, Animations, courbes par tier, re-pops, archétypes sensoriels, groupes, réputation) vont modifier le scénario. Chaque fichier modifié est sauvegardé avant écriture (révert possible). Continuer ?",
+    "en": "The realism passes (vessels, BAIConfig, Animations, per-tier curves, re-spawns, sensory archetypes, groups, reputation) will modify the scenario. Every modified file is backed up before writing (revert possible). Continue?"
+  },
+  "aiaudit.apply_error": {
+    "fr": "Erreur pendant l'application : {error}",
+    "en": "Error while applying: {error}"
+  },
+  "aiaudit.log_header_dry": {
+    "fr": "SIMULATION (rien n'a été écrit) :",
+    "en": "SIMULATION (nothing written):"
+  },
+  "aiaudit.log_header_apply": {
+    "fr": "APPLICATION terminée :",
+    "en": "APPLICATION finished:"
+  },
+  "aiaudit.log_total": {
+    "fr": "Total : {n} modification(s)",
+    "en": "Total: {n} modification(s)"
+  },
+  "aiaudit.log_audited": {
+    "fr": "Audit terminé : {n} constat(s).",
+    "en": "Audit finished: {n} finding(s)."
+  },
   "menu.tools": {
     "fr": "&Outils",
     "en": "&Tools"

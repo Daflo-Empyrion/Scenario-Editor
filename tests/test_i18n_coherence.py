@@ -42,6 +42,7 @@ OWNERS = {
     "codex": ("codex_",),
     "starters": ("starters_dialog",),
     "epb": ("epb_check_dialog", "epb_3d_window"),
+    "aiaudit": ("ai_audit_dialog",),
     "epb3d": ("epb_3d_window",),
     "coh": ("coherence_dialog",),
     "launchcheck": ("launch_check_dialog",),

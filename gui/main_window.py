@@ -265,6 +265,8 @@ class MainWindow(QMainWindow):
         self.action_galaxy_viewer = self.menu_tools.addAction(t("menu.tools.galaxy_viewer"))
         self.action_galaxy_viewer.setShortcut("Ctrl+G")
         self.action_galaxy_viewer.triggered.connect(self._open_galaxy_viewer)
+        self.action_ai_audit = self.menu_tools.addAction(t("menu.tools.ai_audit"))
+        self.action_ai_audit.triggered.connect(self._open_ai_audit)
         self.menu_tools.addSeparator()
 
         # -- PDA ---------------------------------------------------------------
@@ -939,6 +941,7 @@ class MainWindow(QMainWindow):
         self.action_repair_permissions.setText(t("menu.file.repair_permissions"))
         self.action_extract_properties.setText(t("menu.file.extract_properties"))
         self.action_galaxy_viewer.setText(t("menu.tools.galaxy_viewer"))
+        self.action_ai_audit.setText(t("menu.tools.ai_audit"))
         self.action_tech_tree.setText(t("menu.tools.tech_tree"))
         self.action_search_scenario.setText(t("menu.file.search_scenario"))
         self.action_pda_mission.setText(t("menu.tools.pda_mission"))
@@ -1445,6 +1448,15 @@ class MainWindow(QMainWindow):
             index = self.tabs.addTab(widget, "✎ " + dest.name)
             self.tabs.setTabToolTip(index, str(dest))
             self.tabs.setCurrentIndex(index)
+
+    def _open_ai_audit(self):
+        """Audit IA des PNJ + passes de réalisme (core/ai_realism.py) sur la
+        copie de travail ; dialogue modal (les passes écrivent avec backups)."""
+        if not self.workspace:
+            QMessageBox.information(self, t("err.no_project_title"), t("err.no_project_msg"))
+            return
+        from gui.ai_audit_dialog import AiAuditDialog
+        AiAuditDialog(self, self.workspace.working_root).exec()
 
     def _open_galaxy_viewer(self):
         """Carte 2D des systemes solaires de Sectors/Sectors.yaml -- voir
