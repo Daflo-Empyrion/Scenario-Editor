@@ -26,4 +26,4 @@ UnityPy>=1.25,<2.0
 # deep-translator, explicite ici) ; paramiko le deploiement SFTP du
 # scenario — repli gracieux si absent (message + pip, comme UnityPy).
 requests>=2.31,<3.0
-paramiko>=3.4,<5.0
+paramiko>=5.0,<6.0
