@@ -44,6 +44,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from core.propriete_glossary import find_explanation as find_glossary_explanation
 
 
 class TemplateRecipeEditor(QWidget):
@@ -195,6 +196,9 @@ class TemplateRecipeEditor(QWidget):
         self.scalar_table.insertRow(row)
         name_item = QTableWidgetItem(key)
         name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        explanation = find_glossary_explanation(key, file="Templates.ecf", scope="ecf")
+        if explanation:
+            name_item.setToolTip(f"<b>{key}</b><br>{explanation}")
         self.scalar_table.setItem(row, 0, name_item)
         self.scalar_table.setCellWidget(row, 1, self._make_value_combo(key, value))
 

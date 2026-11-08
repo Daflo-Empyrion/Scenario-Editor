@@ -44,6 +44,10 @@ from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from core.i18n import t
+from core.propriete_glossary import (
+    find_explanation as find_glossary_explanation,
+    scope_for_file,
+)
 from core.yamllite.model import YamlEntry
 from gui.msgboxes import ask_yes_no
 from core.playfield_editor import (
@@ -241,6 +245,17 @@ class PlayfieldSectionTable(QWidget):
         headers = [self._name_column_label] + [c.label for c in self.synthetic_columns] + self._columns
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
+        # Infobulles d'en-tete : glossaire general des proprietes (scope
+        # YAML playfield) -- colonnes = cles de parametres observees
+        scope = scope_for_file(getattr(self, "path", None) and self.path.name or "playfield.yaml")
+        for col, header in enumerate(headers):
+            if col == 0:
+                continue
+            label = header if isinstance(header, str) else str(header)
+            explanation = find_glossary_explanation(label, scope=scope)
+            if explanation:
+                self.table.horizontalHeaderItem(col).setToolTip(
+                    f"<b>{label}</b><br>{explanation}")
         self.table.setRowCount(len(self._items_by_row))
 
         # YAML-010 : liste deroulante EDITABLE sur les colonnes synthetiques

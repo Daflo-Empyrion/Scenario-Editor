@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from core.propriete_glossary import find_explanation as find_glossary_explanation
 from gui.module_info import add_info_button
 from core.ecf.block_creation import scan_kind_frequency, scan_properties_for_kind, find_file_by_name
 from core.ecf.validation import MAX_BLOCK_ID
@@ -305,6 +306,9 @@ class PropertyTableDialog(QDialog):
 
             key_item = QTableWidgetItem(key)
             key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            explanation = find_glossary_explanation(key, scope="ecf")
+            if explanation:
+                key_item.setToolTip(f"<b>{key}</b><br>{explanation}")
             self.table.setItem(row, 1, key_item)
 
             # Menu deroulant EDITABLE (pas juste la valeur la plus frequente en

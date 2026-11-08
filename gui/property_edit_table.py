@@ -43,6 +43,7 @@ from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QComboB
 from PyQt6.QtCore import Qt
 
 from core.i18n import t
+from core.propriete_glossary import find_explanation as find_glossary_explanation
 
 
 class PropertyEditTable(QTableWidget):
@@ -60,6 +61,9 @@ class PropertyEditTable(QTableWidget):
         for row, (key, value) in enumerate(fields):
             key_item = QTableWidgetItem(key)
             key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            explanation = find_glossary_explanation(key, scope="ecf")
+            if explanation:
+                key_item.setToolTip(f"<b>{key}</b><br>{explanation}")
             self.setItem(row, 0, key_item)
             observed = self._values_by_key.get(key)
             if observed:

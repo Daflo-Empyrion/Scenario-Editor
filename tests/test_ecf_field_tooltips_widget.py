@@ -150,3 +150,29 @@ def test_header_pairs_styled_bold_italic(qapp, tmp_path):
     assert hdr.font().bold() and hdr.font().italic()
     assert not (body.font().bold() or body.font().italic())
     assert "n'est PAS un doublon" in hdr.toolTip()
+
+
+def test_fallback_to_general_glossary(tmp_path, qapp):
+    """Propriete absente du glossaire manuel mais presente dans le glossaire
+    general des proprietes (core/propriete_glossary.py) : l'infobulle est
+    posee quand meme (ADBMaxReserve = Advanced Drone Bay)."""
+    from gui.ecf_edit_widget import EcfEditWidget
+    path = tmp_path / "BlocksConfig.ecf"
+    lines = [
+        "{ Block Id: 9001, Name: TestADB",
+        "  Class: Device",
+        "  ADBMaxReserve: 5",
+        "}",
+    ]
+    path.write_text(chr(10).join(lines) + chr(10), encoding="utf-8")
+    widget = EcfEditWidget(path)
+    _select_block_by_name(widget, "TestADB")
+    table = widget.props_table
+    for row in range(table.rowCount()):
+        key_item = table.item(row, 0)
+        if key_item and key_item.text() == "ADBMaxReserve":
+            tip = key_item.toolTip()
+            assert tip, "pas d'infobulle depuis le glossaire general"
+            assert "ADBMaxReserve" in tip
+            return
+    raise AssertionError("ligne 'ADBMaxReserve' non trouvee")

@@ -44,6 +44,11 @@ from core.ecf.model import (
 )
 from core.yamllite.parser import parse_yaml_file
 from core.yamllite.model import YamlDocument, YamlEntry
+from core.propriete_glossary import (
+    file_description as glossary_file_description,
+    find_explanation as find_glossary_explanation,
+    scope_for_file,
+)
 from gui.ecf_edit_widget import (
     PropertyFilterDialog, _block_own_keys, EcfHeaderExplanationPanel,
 )
@@ -86,6 +91,13 @@ class EcfViewWidget(QWidget):
 
         self.header_panel = EcfHeaderExplanationPanel(self.doc, path.name)
         layout.addWidget(self.header_panel, 0)
+        file_desc = glossary_file_description(path.name)
+        if file_desc:
+            desc_label = QLabel(t("yaml.file_explanation", text=file_desc))
+            desc_label.setObjectName("secondaryLabel")
+            desc_label.setWordWrap(True)
+            desc_label.setToolTip(file_desc)
+            layout.addWidget(desc_label, 0)
 
         # -- Barre de recherche : indispensable des que le fichier a beaucoup de blocs
         # (certains ECF reels en ont plus de 5000 au niveau racine, impossible a
@@ -280,6 +292,12 @@ class EcfViewWidget(QWidget):
         for i, (k, v) in enumerate(rows):
             item_k = QTableWidgetItem(k)
             item_v = QTableWidgetItem(v)
+            explanation = find_glossary_explanation(
+                k, file=self.path.name, scope=scope_for_file(self.path.name))
+            if explanation:
+                tip = f"<b>{k}</b><br>{explanation}"
+                item_k.setToolTip(tip)
+                item_v.setToolTip(tip)
             if k in added_keys:
                 item_k.setBackground(COLOR_NEW_PROPERTY)
                 item_v.setBackground(COLOR_NEW_PROPERTY)
@@ -309,10 +327,18 @@ class YamlViewWidget(QWidget):
             if isinstance(node, YamlEntry):
                 self.tree.addTopLevelItem(self._make_entry_item(node))
 
-    def _make_entry_item(self, entry: YamlEntry) -> QTreeWidgetItem:
+    def _make_entry_item(self, entry: YamlEntry, top_key: "str | None" = None) -> QTreeWidgetItem:
         label = entry.key if entry.key is not None else "-"
         item = QTreeWidgetItem([label, entry.value])
+        if entry.key:
+            explanation = find_glossary_explanation(
+                entry.key, file=self.path.name,
+                scope=scope_for_file(self.path.name), context=top_key)
+            if explanation:
+                tip = f"<b>{entry.key}</b><br>{explanation}"
+                item.setToolTip(0, tip)
+                item.setToolTip(1, tip)
         for child in entry.children:
             if isinstance(child, YamlEntry):
-                item.addChild(self._make_entry_item(child))
+                item.addChild(self._make_entry_item(child, top_key or entry.key))
         return item

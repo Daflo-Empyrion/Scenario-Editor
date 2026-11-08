@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox,
 
 from core.codex import KIND_BLOCK, KIND_ITEM, KIND_TOKEN, CodexEntry
 from core.i18n import t
+from core.propriete_glossary import find_explanation as find_glossary_explanation
 from gui.codex_export import headers_of, table_rows
 
 MAX_PINNED = 4
@@ -486,7 +487,11 @@ class CompareTab(QWidget):
         self.table.setHorizontalHeaderLabels([t("codex.compare.property")] + cols)
         self.table.setRowCount(len(rows))
         for row, (key, vals, diff) in enumerate(rows):
-            self.table.setItem(row, 0, _cell(key))
+            first_cell = _cell(key)
+            explanation = find_glossary_explanation(key, scope="ecf")
+            if explanation:
+                first_cell.setToolTip(f"<b>{key}</b><br>{explanation}")
+            self.table.setItem(row, 0, first_cell)
             for col, value in enumerate(vals, start=1):
                 item = _cell(value)
                 if diff:

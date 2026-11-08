@@ -139,8 +139,15 @@ planetes...), **.csv** (traductions, tables), **.txt** (texte brut).
   GlobalDefsConfig.ecf, LootGroups.ecf, MaterialConfig.ecf, StatusEffects.ecf,
   TokenConfig.ecf, TraderNPCConfig.ecf, BlockGroupsConfig.ecf, Containers.ecf,
   DamageMultiplierConfig.ecf, DefReputation.ecf, EGroupsConfig.ecf, Factions.ecf,
-  FactionWarfare.ecf) ; pour les autres, un bouton traduit automatiquement le
-  texte original
+  FactionWarfare.ecf) ; pour les autres fichiers connus du **glossaire general des
+  proprietes** (EClassConfig.ecf, Dialogues.ecf, terrain.ecf, playfield.yaml...),
+  le panneau affiche la description du fichier + ses proprietes expliquees
+  (~1500 entrees, issues du reverse du moteur), sinon un bouton traduit
+  automatiquement le texte original
+- **Infobulles de proprietes** — survoler une cle (editeur ECF, editeur/vues YAML,
+  tables de propriete, comparateur codex, colonnes dynamiques playfield, metas EPB)
+  affiche son explication : glossaire manuel du fichier, puis glossaire general
+  (FR/EN selon la langue), puis commentaire inline du fichier — jamais d'invention
 
 ### La fiche d'information, complete et editable
 Un **double-clic sur un bloc** dans l'editeur ECF, ou un **clic simple (ou
@@ -492,6 +499,27 @@ ou rouge/nombre de problemes par categorie), avec un bouton "Voir le
 detail" qui ouvre la vraie fenetre complete correspondante. Ne reimplemente
 aucun affichage — un simple point d'entree unique quand on veut un etat des
 lieux rapide sans ouvrir les 4 fenetres une par une.
+
+### Blueprints (.epb) — blocs inconnus
+**Verification > Blueprints (.epb) — blocs inconnus...** — ouvre un ou tous
+les `.epb` du scenario (13 103 des 13 112 prefabs de RE2-FR se chargent) :
+liste complete des blocs par fichier, blocs **inconnus** du catalogue en
+rouge (absents de la vanille ET du scenario : supprimes au chargement du
+blueprint — remplaçables par un equivalent via le menu contextuel ou le
+panneau de remplacement), blocs **interdits** en orange
+(`AllowedInBlueprint: false` — refuses au spawn d'un blueprint **joueur** ;
+le surlignage orange se desactive par la case « Surligner les blocs
+interdits » : un prefab de POI embarque voulu des blocs interdits au
+joueur, ce n'est pas une corruption). Chaque blueprint affiche ses infos
+d'entete : **Groupe** (`Header.GroupName`, la cle d'indexation des POI dans
+le moteur), tags, nom d'affichage, version et taille. Un panneau **meta**
+permet de corriger le prefab a la source : **Reinitialiser le pivot (0)** —
+le remblai du terrain suit le pivot, un pivot corrompu ensevelit le POI
+dans un prisme de terre (vecu : Citadel of Zirax, 2/3 sous le sol) — et la
+case **AddDigoutBox** (creuser une boite autour du POI). Apres sauvegarde
+(backup .bak), faites en jeu console `regenerate <nom du POI>` ou
+detruisez/respawnez-le. Vue 3D, export CSV, suppression des inconnus avec
+backup.
 
 ---
 
@@ -891,7 +919,7 @@ jusqu'à x3.
 
 ## 19quater. Équilibrage du scénario et prix marché
 
-Deux outils complémentaires, dans **Outils**.
+Trois outils complémentaires, dans **Outils**.
 
 **Équilibrage du scénario...** — applique des règles par propriété (`MaxCount`,
 `CPUIn`, `HitPoints`, `Damage`, `ShieldCapacity`, `MarketPrice`...) sur tous les
@@ -930,6 +958,22 @@ nom, hors bornes pour une sélection ciblée). L'application écrit des prix
 ajoute la ligne `MarketPrice` si l'objet n'en avait pas (prix hérité d'un
 `REF`), sauvegarde dans le backup central, puis **re-scanne automatiquement**
 pour converger les cascades. Export CSV pour auditer.
+
+**Recettes réalistes...** — compare les recettes de `Templates.ecf` au
+scénario de **base** (RE2 Beta, champ « Base RE2 » du dialogue). Toute recette
+présente dans la base est **gouvernée par celle-ci** : l'outil la signale et ne
+propose rien tant que le scénario est aligné (`sync_to_base` remet la base
+verbatim en un geste). Les recettes absentes de la base (ajouts propres au
+scénario) peuvent être composées par classe réelle, quantités calées sur la
+masse de l'objet — rien n'est précoché, backup central, idempotent.
+
+Les **templates de déconstruction** (objets non craftables mais présents en
+inventaire) sont générés par
+`tools/generate_missing_templates.py <scenario> --only-obtainable --apply` :
+chaque template est **extrapolé du template existant le plus proche** (même
+groupe, même matériau, quantités ramenées à une unité et bornées), écrit avec
+`Target: ""` — visible du Déconstructeur, absent de tous les constructeurs.
+Idempotent, section ajoutée en fin de fichier, backup avant écriture.
 
 ## 19quinquies. Copier vers le scénario en production
 

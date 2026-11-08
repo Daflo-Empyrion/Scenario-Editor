@@ -99,6 +99,9 @@ def extract_properties(scenario_root: Path) -> List[PropertyUsage]:
     return sorted(usages.values(), key=lambda u: u.count, reverse=True)
 
 
+AMBIGUOUS_TERMS = {"Name", "Id", "Class", "Type", "Value", "Description", "Model", "Place"}
+
+
 def _flat_glossary() -> Dict[str, str]:
     """Aplati les glossaires ECF (core/ecf_header_glossary.py) en un dictionnaire
     terme -> explication, pour pre-remplir automatiquement la colonne Description de
@@ -113,7 +116,6 @@ def _flat_glossary() -> Dict[str, str]:
       faction ?) -- jamais auto-rempli meme si un terme identique existe par ailleurs
       dans un glossaire pour un contexte precis."""
     from .ecf_header_glossary import GLOSSARY_BY_FILE
-    AMBIGUOUS_TERMS = {"Name", "Id", "Class", "Type", "Value", "Description", "Model", "Place"}
     flat: Dict[str, str] = {}
     for sections in GLOSSARY_BY_FILE.values():
         for _title, entries in sections:
@@ -130,9 +132,16 @@ def build_property_rows(usages: List[PropertyUsage]) -> List[List[str]]:
     core.csv_handler ou tout autre export. Colonnes :
     Propriete, Nb occurrences, Fichier(s), Exemples de valeurs, Description, Valeur cible."""
     glossary = _flat_glossary()
+    # Complement : glossaire general des proprietes (genere depuis
+    # docs/glossaire_proprietes.md) pour les cles absentes du glossaire ECF
+    # manuel -- meme garde AMBIGUOUS_TERMS (contrat : jamais de description
+    # generique trompeuse auto-remplie).
+    from .propriete_glossary import find_explanation
     rows = []
     for u in usages:
         description = glossary.get(u.name, "")
+        if not description and u.name not in AMBIGUOUS_TERMS:
+            description = find_explanation(u.name, scope="ecf") or ""
         rows.append([
             u.name,
             str(u.count),

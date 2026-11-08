@@ -51,6 +51,8 @@ from core.ecf.model import (
     insert_property_after, move_property,
 )
 from core.ecf_header_glossary import find_term_explanation
+from core.propriete_glossary import find_explanation as find_glossary_explanation
+from core.propriete_glossary import file_description as glossary_file_description
 from core.ecf.pending_conflicts import suggest_free_ids
 from core.dialogue_items import script_value_key
 from core import settings
@@ -996,11 +998,20 @@ class EcfHeaderExplanationPanel(QWidget):
     def __init__(self, doc: EcfDocument, filename: str, parent=None):
         super().__init__(parent)
         from core.ecf_header_glossary import glossary_by_file_for_current_language
+        from core.propriete_glossary import entries_for_file, file_description
         self._header_text = doc.extract_header_comment()
         # OPT-006 : glossaire dans la langue de l'interface (EN si le fichier
         # traduit existe, repli transparent FR sinon)
         self._glossary = glossary_by_file_for_current_language().get(filename)
         self._has_glossary = self._glossary is not None
+        # Complement : glossaire general des proprietes (genere depuis
+        # docs/glossaire_proprietes.md) -- pour les fichiers SANS glossaire
+        # manuel (EClassConfig, Dialogues, terrain.ecf...), le panneau
+        # affiche alors la description du fichier + ses proprietes expliquees
+        # au lieu du brut non traduit.
+        self._props_entries = entries_for_file(filename)
+        self._props_desc = file_description(filename)
+        self._has_props = bool(self._props_entries or self._props_desc)
         self._showing_raw = False
         self._translated_cache: Optional[str] = None
 
@@ -1042,18 +1053,41 @@ class EcfHeaderExplanationPanel(QWidget):
         expanded = not self.content.isVisible()
         self.content.setVisible(expanded)
         self.toggle_btn.setText(t("ecf.header_toggle_hide") if expanded else t("ecf.header_toggle_show"))
-        self.btn_raw_toggle.setVisible(expanded and self._has_glossary)
-        self.btn_translate.setVisible(expanded and not self._has_glossary)
+        self.btn_raw_toggle.setVisible(expanded and (self._has_glossary or self._has_props))
+        self.btn_translate.setVisible(expanded and not self._has_glossary and not self._has_props)
         if expanded:
             self._render_content()
 
     def _render_content(self):
         if self._has_glossary and not self._showing_raw:
             self._render_glossary()
+        elif self._has_props and not self._showing_raw:
+            self._render_props_glossary()
         elif self._translated_cache:
             self.content.setPlainText(self._translated_cache)
         else:
             self.content.setPlainText(self._header_text)
+
+    _PROPS_RENDER_LIMIT = 80
+
+    def _render_props_glossary(self):
+        parts = [f"<p><i>{t('ecf.header_glossary_props_intro')}</i></p>"]
+        if self._props_desc:
+            parts.append(f"<p>{self._props_desc}</p>")
+        if self._props_entries:
+            shown = self._props_entries[:self._PROPS_RENDER_LIMIT]
+            parts.append("<ul style='margin-top:0'>")
+            for entry in shown:
+                exp = entry["exp"]
+                if entry.get("detail"):
+                    exp += f" ({entry['detail']})"
+                parts.append(f"<li><b>{entry['name']}</b> : {exp}</li>")
+            parts.append("</ul>")
+            hidden = len(self._props_entries) - len(shown)
+            if hidden > 0:
+                parts.append(
+                    f"<p><i>{t('ecf.header_glossary_props_more', count=hidden)}</i></p>")
+        self.content.setHtml("".join(parts))
 
     def _render_glossary(self):
         parts = [f"<p><i>{t('ecf.header_glossary_intro')}</i></p>"]
@@ -2226,15 +2260,20 @@ class EcfEditWidget(QWidget):
         1. Glossaire manuel dedie a ce fichier (core/ecf_header_glossary.py)
            si une entree correspond exactement a cette cle -- explication
            claire et verifiee.
-        2. Sinon, premier commentaire de fin de ligne trouve dans LE
+        2. Sinon, glossaire general des proprietes du scenario
+           (core/propriete_glossary.py, scope ECF + fichier ouvert).
+        3. Sinon, premier commentaire de fin de ligne trouve dans LE
            FICHIER LUI-MEME pour cette cle (jamais invente).
-        3. Sinon, chaine vide (Qt n'affiche alors aucune infobulle) --
+        4. Sinon, chaine vide (Qt n'affiche alors aucune infobulle) --
            mieux vaut rien qu'une explication inventee."""
         if not key:
             return ""
         explanation = find_term_explanation(self.path.name, key)
         if explanation:
             return f"<b>{key}</b><br>{explanation}"
+        general = find_glossary_explanation(key, file=self.path.name, scope="ecf")
+        if general:
+            return f"<b>{key}</b><br>{general}"
         inline = find_first_inline_comment_for_key(self.doc, key)
         if inline:
             # Le commentaire vient du fichier (souvent en anglais) : on le

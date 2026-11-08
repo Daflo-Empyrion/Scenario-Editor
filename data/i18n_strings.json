@@ -3103,7 +3103,19 @@
     "fr": "Ce fichier ne contient pas de commentaires d'en-tete.",
     "en": "This file has no header comments."
   },
-  "ecf.header_glossary_intro": {
+    "ecf.header_glossary_props_intro": {
+    "fr": "Explications generees depuis le glossaire des proprietes du scenario (docs/glossaire_proprietes.md) :",
+    "en": "Explanations generated from the scenario property glossary (docs/glossaire_proprietes.md):"
+  },
+  "ecf.header_glossary_props_more": {
+    "fr": "+{count} autres proprietes expliquees dans docs/glossaire_proprietes.md",
+    "en": "+{count} more properties explained in docs/glossaire_proprietes.md"
+  },
+  "yaml.file_explanation": {
+    "fr": "Ce fichier : {text}",
+    "en": "This file: {text}"
+  },
+"ecf.header_glossary_intro": {
     "fr": "Explication clarifiee (pas une traduction mot a mot) des commentaires techniques presents en tete de ce fichier :",
     "en": "Clarified explanation (not a word-for-word translation) of the technical comments found at the top of this file:"
   },
@@ -7496,8 +7508,8 @@
     "en": "Block not found in the catalog: {text}"
   },
   "epb.forbidden_tag": {
-    "fr": "interdit",
-    "en": "forbidden"
+    "fr": "interdit (spawn joueur)",
+    "en": "forbidden (player spawn)"
   },
   "epb.forbidden_total": {
     "fr": "{n} bloc(s) interdit(s) dans {f} fichier(s).",
@@ -11811,6 +11823,146 @@
     "fr": "Coûts de déblocage",
     "en": "Unlock costs"
   },
+  "realism.base": {
+    "fr": "Base RE2 (scénario d'origine) :",
+    "en": "RE2 base (original scenario):"
+  },
+  "realism.base_hint": {
+    "fr": "Facultatif — les recettes présentes dans la base suivent sa doctrine",
+    "en": "Optional — recipes present in the base follow its doctrine"
+  },
+  "menu.tools.recipe_realism": {
+    "fr": "Recettes réalistes…",
+    "en": "Realistic recipes…"
+  },
+  "realism.title": {
+    "fr": "Recettes réalistes (masse du jeu)",
+    "en": "Realistic recipes (game mass)"
+  },
+  "realism.analyze": {
+    "fr": "Analyser",
+    "en": "Analyze"
+  },
+  "realism.running": {
+    "fr": "Analyse des recettes en cours…",
+    "en": "Analyzing recipes…"
+  },
+  "realism.done": {
+    "fr": "{n} recettes proposées, {c} à écrire, {s} écartées (motif en info-bulle).",
+    "en": "{n} recipes proposed, {c} to write, {s} skipped (reason in tooltip)."
+  },
+  "realism.only_changed": {
+    "fr": "Modifications seulement",
+    "en": "Changes only"
+  },
+  "realism.filter_class": {
+    "fr": "Classe réelle :",
+    "en": "Real class:"
+  },
+  "realism.class_all": {
+    "fr": "Toutes",
+    "en": "All"
+  },
+  "realism.filter_name": {
+    "fr": "Filtrer par nom",
+    "en": "Filter by name"
+  },
+  "realism.col_template": {
+    "fr": "Template",
+    "en": "Template"
+  },
+  "realism.col_class": {
+    "fr": "Classe",
+    "en": "Class"
+  },
+  "realism.col_source": {
+    "fr": "Réalisme",
+    "en": "Realism"
+  },
+  "realism.col_obj_mass": {
+    "fr": "Masse objet (kg)",
+    "en": "Object mass (kg)"
+  },
+  "realism.col_target_mass": {
+    "fr": "Masse cible (kg)",
+    "en": "Target mass (kg)"
+  },
+  "realism.col_coverage": {
+    "fr": "Couverture %",
+    "en": "Coverage %"
+  },
+  "realism.col_inputs": {
+    "fr": "Ingrédients avant → après",
+    "en": "Ingredients before → after"
+  },
+  "realism.col_craft": {
+    "fr": "CraftTime",
+    "en": "CraftTime"
+  },
+  "realism.col_notes": {
+    "fr": "Notes",
+    "en": "Notes"
+  },
+  "realism.check_all": {
+    "fr": "Tout cocher",
+    "en": "Check all"
+  },
+  "realism.uncheck_all": {
+    "fr": "Tout décocher",
+    "en": "Uncheck all"
+  },
+  "realism.export": {
+    "fr": "Exporter CSV",
+    "en": "Export CSV"
+  },
+  "realism.apply": {
+    "fr": "Appliquer les lignes cochées",
+    "en": "Apply checked rows"
+  },
+  "realism.apply_none": {
+    "fr": "Aucune recette cochée.",
+    "en": "No recipe checked."
+  },
+  "realism.apply_confirm": {
+    "fr": "Écrire {n} recettes dans Templates.ecf ? (backup central automatique)",
+    "en": "Write {n} recipes into Templates.ecf? (central backup is automatic)"
+  },
+  "realism.applied": {
+    "fr": "{n} recettes écrites.",
+    "en": "{n} recipes written."
+  },
+  "realism.visible": {
+    "fr": "{n} lignes affichées",
+    "en": "{n} rows shown"
+  },
+  "realism.checked_all": {
+    "fr": "{n} lignes cochées",
+    "en": "{n} rows checked"
+  },
+  "realism.csv_headers": {
+    "fr": "Template;Classe;Réalisme;Masse cible (kg);Ingrédients avant;Ingrédients après;Couverture;CraftTime avant;CraftTime après;Notes",
+    "en": "Template;Class;Realism;Target mass (kg);Ingredients before;Ingredients after;Coverage;CraftTime before;CraftTime after;Notes"
+  },
+  "realism.csv_done": {
+    "fr": "CSV écrit : {path}",
+    "en": "CSV written: {path}"
+  },
+  "realism.src_source": {
+    "fr": "sourcé",
+    "en": "sourced"
+  },
+  "realism.src_estimation": {
+    "fr": "estimation",
+    "en": "estimate"
+  },
+  "realism.src_extrapole": {
+    "fr": "extrapolé",
+    "en": "extrapolated"
+  },
+  "realism.info_html": {
+    "fr": "<b>Recettes réalistes</b><br>La composition vient du réel (acier, cuivre, verre, électronique…) et les quantités de la <b>masse de l'objet</b> dans le jeu, pas de son coût actuel.<br><br>Le coût total <b>dérive</b> : c'est voulu. Les composants trop fins sont plafonnés à 2 % de la masse pour rester lisibles en jeu.<br><br>Rien n'est coché : coche, vérifie la colonne « Ingrédients avant → après », puis applique. Une seconde analyse ne repropose jamais ce qui est déjà écrit.",
+    "en": "<b>Realistic recipes</b><br>Composition comes from the real world (steel, copper, glass, electronics…) and quantities come from the object's <b>game mass</b>, not from its current cost.<br><br>Total cost <b>drifts</b>: that is intended. Components that are too fine are capped at 2 % of the mass to stay readable in game.<br><br>Nothing is checked: check, review the “Ingredients before → after” column, then apply. A second analysis never re-proposes what is already written."
+  },
   "unlock.title": {
     "fr": "Coûts de déblocage",
     "en": "Unlock costs"
@@ -14814,5 +14966,93 @@
   "report.window_title": {
     "fr": "Signaler un problème",
     "en": "Report an issue"
+  },
+  "epb.col_group": {
+    "fr": "Groupe (Header.GroupName)",
+    "en": "Group (Header.GroupName)"
+  },
+  "epb.highlight_forbidden": {
+    "fr": "Surligner les blocs interdits",
+    "en": "Highlight forbidden blocks"
+  },
+  "epb.forbidden_hint": {
+    "fr": "« interdit » = refusé au spawn d'un blueprint joueur (AllowedInBlueprint: false) ; sans effet sur un POI ou un playfield.",
+    "en": "\"forbidden\" = refused when a player blueprint spawns (AllowedInBlueprint: false); no effect on a POI or playfield."
+  },
+  "epb.info_none": {
+    "fr": "Sélectionnez un blueprint pour afficher son groupe, son nom interne et son nom d'affichage.",
+    "en": "Select a blueprint to show its group, internal name and display name."
+  },
+  "epb.info_line": {
+    "fr": "Groupe : {group} — Tags : {tags} — Affichage : {display} — v{ver} — {size}",
+    "en": "Group: {group} — Tags: {tags} — Display: {display} — v{ver} — {size}"
+  },
+  "epb.unknown_tooltip": {
+    "fr": "id absent du catalogue (vanille + scénario) : le bloc est supprimé au chargement du blueprint. Remplacez-le par un équivalent (menu contextuel ou panneau de remplacement).",
+    "en": "id missing from the catalog (vanilla + scenario): the block is dropped when the blueprint loads. Replace it with an equivalent (context menu or replace panel)."
+  },
+  "epb.workshop_names": {
+    "fr": "Noms de blocs enrichis depuis {n} scénario(s) du workshop.",
+    "en": "Block names enriched from {n} workshop scenario(s)."
+  },
+  "epb.pivot_none": {
+    "fr": "Aucun blueprint sélectionné.",
+    "en": "No blueprint selected."
+  },
+  "epb.pivot_label": {
+    "fr": "Pivot du prefab : {value}",
+    "en": "Prefab pivot: {value}"
+  },
+  "epb.pivot_reset": {
+    "fr": "Réinitialiser le pivot (0)",
+    "en": "Reset pivot (0)"
+  },
+  "epb.pivot_confirm": {
+    "fr": "Remettre le pivot de ce prefab à 0 ?\nLe remblai du terrain suit le pivot : un pivot corrompu ensevelit le POI (backup .bak créé à la sauvegarde).",
+    "en": "Reset this prefab's pivot to 0?\nTerrain fill follows the pivot: a corrupted pivot buries the POI (a .bak backup is created on save)."
+  },
+  "epb.pivot_done": {
+    "fr": "Pivot réinitialisé à 0 — sauvegardez le .epb puis faites « regenerate <POI> » en jeu (ou détruisez/respawnez-le).",
+    "en": "Pivot reset to 0 — save the .epb then run \"regenerate <POI>\" in game (or delete and re-place it)."
+  },
+  "epb.digout_label": {
+    "fr": "AddDigoutBox (creuser une boîte)",
+    "en": "AddDigoutBox (dig a box)"
+  },
+  "epb.digout_hint": {
+    "fr": "Creuse une boîte de terrain autour du POI — combiné à un mauvais pivot, cela exagère le prisme de terre.",
+    "en": "Digs a terrain box around the POI — combined with a bad pivot it exaggerates the dirt prism."
+  },
+  "epb.digout_done": {
+    "fr": "AddDigoutBox : {state} — sauvegardez le .epb pour appliquer.",
+    "en": "AddDigoutBox: {state} — save the .epb to apply."
+  },
+  "epb.digout_on": {
+    "fr": "activé",
+    "en": "on"
+  },
+  "epb.digout_off": {
+    "fr": "désactivé",
+    "en": "off"
+  },
+  "epb.import_blocks": {
+    "fr": "Importer les blocs manquants (vanille + workshop)",
+    "en": "Import missing blocks (vanilla + workshop)"
+  },
+  "epb.import_hint": {
+    "fr": "Cherche les définitions des blocs inconnus dans la vanille et les autres scénarios du workshop, puis les ajoute au BlocksConfig du scénario (backup .bak).",
+    "en": "Searches the vanilla and other workshop scenarios for the unknown blocks' definitions, then adds them to the scenario's BlocksConfig (.bak backup)."
+  },
+  "epb.import_none": {
+    "fr": "Aucun bloc manquant importable dans les blueprints analysés.",
+    "en": "No importable missing blocks in the analyzed blueprints."
+  },
+  "epb.import_done": {
+    "fr": "{n} définition(s) de blocs importée(s) : {names}. Re-générez les POI en jeu (regenerate ou re-placement).",
+    "en": "{n} block definition(s) imported: {names}. Re-generate the POIs in game (regenerate or re-place)."
+  },
+  "epb.import_not_found": {
+    "fr": "{n} bloc(s) introuvable(s) dans les sources (définitions absentes).",
+    "en": "{n} block(s) not found in the sources (definitions missing)."
   }
 }

@@ -37,6 +37,11 @@ from core.yamllite.model import YamlDocument, YamlEntry, create_entry, remove_en
 from gui.msgboxes import ask_yes_no
 from core import translation, settings
 from core.i18n import t
+from core.propriete_glossary import (
+    file_description as glossary_file_description,
+    find_explanation as find_glossary_explanation,
+    scope_for_file,
+)
 from gui.theme import icon, icon_size
 from gui.csv_edit_widget import TranslationResultDialog
 from gui.text_tools import open_bbcode_tool
@@ -81,6 +86,17 @@ class YamlEditWidget(QWidget):
         self.search_status = QLabel("")
         search_row.addWidget(self.search_status)
         layout.addLayout(search_row, 0)
+
+        # Explication du fichier (glossaire general des proprietes) :
+        # une seule ligne, ellipsee, pour playfield.yaml, Sectors.yaml,
+        # gameoptions.yaml, PDA.yaml, terrain.ecf... connus du glossaire.
+        file_desc = glossary_file_description(self.path.name) if getattr(self, "path", None) else None
+        if file_desc:
+            desc_label = QLabel(t("yaml.file_explanation", text=file_desc))
+            desc_label.setObjectName("secondaryLabel")
+            desc_label.setWordWrap(True)
+            desc_label.setToolTip(file_desc)
+            layout.addWidget(desc_label)
 
         if editable:
             toolbar = QHBoxLayout()
@@ -259,7 +275,7 @@ class YamlEditWidget(QWidget):
             if isinstance(node, YamlEntry):
                 self.tree.addTopLevelItem(self._make_item(node))
 
-    def _make_item(self, entry: YamlEntry) -> QTreeWidgetItem:
+    def _make_item(self, entry: YamlEntry, top_key: "str | None" = None) -> QTreeWidgetItem:
         label = entry.key if entry.key is not None else ("- " + (entry.value[:30] if entry.value else ""))
         preview = entry.value[:60] if entry.value else ""
         item = QTreeWidgetItem([label or "", preview])
@@ -268,19 +284,33 @@ class YamlEditWidget(QWidget):
         # un commentaire de fin ('# ...') dans le fichier source, on
         # l'affiche tel quel -- jamais une explication inventee. Beaucoup
         # de fichiers YAML de playfields documentent leurs champs ainsi
-        # (ex: 'Difficulty: 2  # 1=facile ... 5=extreme').
+        # (ex: 'Difficulty: 2  # 1=facile ... 5=extreme'). Complement :
+        # glossaire general des proprietes (scope YAML, contexte = section
+        # racine du fichier pour desambiguiser les cles homonymes).
+        comment_tip = ""
         if entry.comment:
             cleaned = entry.comment.lstrip('#').strip()
             if cleaned:
                 # Source du fichier : etiquetee, pour ne pas la confondre
                 # avec un texte d'interface (le fichier peut etre en anglais).
-                tip = (f"<b>{label}</b><br>"
-                       + t("yaml.tooltip_file_comment", text=cleaned))
-                item.setToolTip(0, tip)
-                item.setToolTip(1, tip)
+                comment_tip = (f"<b>{label}</b><br>"
+                               + t("yaml.tooltip_file_comment", text=cleaned))
+        glossary_tip = ""
+        if entry.key:
+            explanation = find_glossary_explanation(
+                entry.key, file=self.path.name,
+                scope=scope_for_file(self.path.name), context=top_key)
+            if explanation:
+                glossary_tip = f"<b>{entry.key}</b><br>{explanation}"
+        tip = glossary_tip
+        if comment_tip:
+            tip = (comment_tip + "<br>" + glossary_tip) if glossary_tip else comment_tip
+        if tip:
+            item.setToolTip(0, tip)
+            item.setToolTip(1, tip)
         for child in entry.children:
             if isinstance(child, YamlEntry):
-                item.addChild(self._make_item(child))
+                item.addChild(self._make_item(child, top_key or entry.key))
         return item
 
     def _on_entry_selected(self, item: QTreeWidgetItem, column: int):

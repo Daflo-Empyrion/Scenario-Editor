@@ -40,6 +40,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import t
+from core.propriete_glossary import find_explanation as find_glossary_explanation
 from core.poi_add import (field_pool, list_pois, poi_units,
                           scan_playfield_statics, scan_prefab_names)
 from core.settings import get_vanilla_content_path
@@ -179,6 +180,17 @@ class PoiAddDialog(QDialog):
         self.props = QTableWidget(0, 2)
         self.props.setHorizontalHeaderLabels([t("poi.prop_key"),
                                               t("poi.prop_value")])
+        # Infobulle d'en-tete : catalogue des cles de propriete POI connues
+        # du glossaire (Discovery, MapMarker, HudDistance...)
+        known = [k for k in ("Discovery", "MapMarker", "MapDistance",
+                             "HudDistance", "Music", "JumpGate")
+                 if find_glossary_explanation(k, scope="yaml", context="POIs")]
+        if known:
+            tip = "<br>".join(
+                f"<b>{k}</b> : {find_glossary_explanation(k, scope='yaml', context='POIs')}"
+                for k in known)
+            self.props.horizontalHeaderItem(0).setToolTip(tip)
+            self.props.horizontalHeaderItem(1).setToolTip(tip)
         self.props.horizontalHeader().setStretchLastSection(True)
         self.props.setMaximumHeight(120)
         lay.addWidget(self.props, 1)
