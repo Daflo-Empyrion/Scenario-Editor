@@ -863,6 +863,11 @@ def _rewrite(proposal: Proposal) -> None:
                                           str(int(proposal.new_craft))):
             add_property_line(proposal.node,
                               [("CraftTime", str(int(proposal.new_craft)))])
+    out_count = getattr(proposal, "output_count", None)
+    if out_count is not None:
+        if not proposal.node.set_property("OutputCount", str(int(out_count))):
+            add_property_line(proposal.node,
+                              [("OutputCount", str(int(out_count)))])
 
 
 def apply_proposals(proposals: Sequence[Proposal]) -> Dict[Path, int]:

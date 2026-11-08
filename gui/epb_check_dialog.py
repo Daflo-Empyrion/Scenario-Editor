@@ -20,6 +20,7 @@ suppression, export CSV -- core/epb_blueprint.py."""
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt
@@ -29,9 +30,14 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog,
                              QListWidgetItem, QMenu, QStyledItemDelegate, QPushButton,
                              QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
-from core.epb_blueprint import (EpbBlueprint, load_block_catalog,
+from core.epb_blueprint import (EpbBlueprint, extract_block_definition,
+                                block_id_from_definition, load_block_catalog,
+                                load_workshop_block_names, read_meta_info,
                                 scan_epb_files)
+from core.fsutil import central_backup
 from core.i18n import t
+from core.propriete_glossary import find_explanation as find_glossary_explanation
+from core.settings import get_vanilla_content_path
 from gui.module_info import add_info_button
 from gui.epb_view_3d import EpbView3D, block_color
 from gui.msgboxes import ask_yes_no
@@ -64,9 +70,21 @@ class _TagDelegate(QStyledItemDelegate):
     """Peint LUI-MEME fond + texte des lignes tagguees : sous une feuille
     de style globale (theme fluent), les roles Background/Foreground du
     modele ne rendent RIEN (vecu 23/09 : lignes inconnu/interdit blanches
-    dans l'appli alors que les tests hors ecran voyaient le rouge)."""
+    dans l'appli alors que les tests hors ecran voyaient le rouge).
+    `show_forbidden = False` desactive le surlignage des seuls blocs
+    interdits (retour utilisateur 07/11)."""
+
+    show_forbidden = True
 
     def paint(self, painter, option, index):
+        # retour utilisateur 07/11 : le surlignage des blocs interdits doit
+        # pouvoir se desactiver — « interdit » ne veut pas dire corrompu
+        # (un prefab de POI embarque des blocs refuses au joueur, et c'est
+        # voulu). Le statut est porte en UserRole par _fill_block_children.
+        if (index.data(Qt.ItemDataRole.UserRole) == "forbidden"
+                and not self.show_forbidden):
+            super().paint(painter, option, index)
+            return
         bg = index.data(Qt.ItemDataRole.BackgroundRole)
         if bg is None:
             super().paint(painter, option, index)
@@ -97,8 +115,11 @@ class EpbCheckDialog(QDialog):
         self.setWindowTitle(t("epb.title"))
         self.catalog_paths = list(catalog_paths or [])
         self.catalog = None                # BlockCatalog (ids + names)
+        self._extra_names = {}             # {id: nom} des autres scenarios
         self._targets = []               # [{"path", "bp", "unknown", "item", "dirty"}]
         self._current_target = None
+        self._extra_names = {}
+        self._source_cache = None        # textes des BlocksConfig sources
         self._suppress_tree_select = False
 
         lay = QVBoxLayout(self)
@@ -120,6 +141,11 @@ class EpbCheckDialog(QDialog):
         self.chk_problems.setChecked(True)
         self.chk_problems.toggled.connect(self._apply_filter)
         row_filter.addWidget(self.chk_problems)
+        self.chk_forbidden = QCheckBox(t("epb.highlight_forbidden"))
+        self.chk_forbidden.setChecked(True)
+        self.chk_forbidden.setToolTip(t("epb.forbidden_hint"))
+        self.chk_forbidden.toggled.connect(self._toggle_forbidden)
+        row_filter.addWidget(self.chk_forbidden)
         add_info_button(row_filter, "epbcheck.info_html")
         row_filter.addStretch(1)
         lay.addLayout(row_filter)
@@ -127,20 +153,65 @@ class EpbCheckDialog(QDialog):
         self.btn_analyze.clicked.connect(self._analyze)
         lay.addWidget(self.btn_analyze)
 
+        # infos d'entete du blueprint affiche (retour utilisateur 07/11 :
+        # le GroupName indexe les POI dans le moteur, il doit etre visible)
+        self.lbl_info = QLabel(t("epb.info_none"))
+        self.lbl_info.setWordWrap(True)
+        self.lbl_info.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Infobulle : definitions EPB des champs du bandeau (GroupName, Tags,
+        # DisplayName) depuis le glossaire general
+        header_exp = [f"<b>{k}</b> : {find_glossary_explanation(k, scope='epb')}"
+                      for k in ("GroupName", "Tags", "DisplayName")
+                      if find_glossary_explanation(k, scope="epb")]
+        if header_exp:
+            self.lbl_info.setToolTip("<br>".join(header_exp))
+        lay.addWidget(self.lbl_info)
+
+        # metas du prefab affiche : pivot (le remblai du terrain suit le
+        # pivot — vecu 07/11 : pivot corrompu = POI enseveli dans un prisme
+        # de terre) et AddDigoutBox (creuse une boite autour du POI)
+        meta_row = QHBoxLayout()
+        self.lbl_pivot = QLabel(t("epb.pivot_none"))
+        # Infobulles : glossaire general (section EPB -- PivotPoint,
+        # AddDigoutBox) en complement des textes i18n existants
+        pivot_exp = find_glossary_explanation("PivotPoint", scope="epb")
+        if pivot_exp:
+            self.lbl_pivot.setToolTip(f"<b>PivotPoint</b><br>{pivot_exp}")
+        meta_row.addWidget(self.lbl_pivot, 1)
+        self.btn_pivot = QPushButton(t("epb.pivot_reset"))
+        self.btn_pivot.setEnabled(False)
+        self.btn_pivot.clicked.connect(self._reset_pivot)
+        if pivot_exp:
+            self.btn_pivot.setToolTip(f"<b>PivotPoint</b><br>{pivot_exp}")
+        meta_row.addWidget(self.btn_pivot)
+        self.chk_digout = QCheckBox(t("epb.digout_label"))
+        self.chk_digout.setEnabled(False)
+        digout_exp = find_glossary_explanation("AddDigoutBox", scope="epb")
+        self.chk_digout.setToolTip(
+            t("epb.digout_hint")
+            + (f"<br><b>AddDigoutBox</b><br>{digout_exp}" if digout_exp else ""))
+        self.chk_digout.toggled.connect(self._toggle_digout)
+        meta_row.addWidget(self.chk_digout)
+        lay.addLayout(meta_row)
+
         middle = QHBoxLayout()
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels([t("epb.col_file"), t("epb.col_blocks"),
                                    t("epb.col_unknown"), t("epb.col_id"),
-                                   t("epb.col_name"), t("epb.col_count")])
+                                   t("epb.col_name"), t("epb.col_count"),
+                                   t("epb.col_group")])
         self.tree.setColumnWidth(0, 340)
         self.tree.setColumnWidth(1, 70)
         self.tree.setColumnWidth(2, 110)
         self.tree.setColumnWidth(3, 90)
         self.tree.setColumnWidth(4, 230)
+        self.tree.setColumnWidth(6, 160)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._tree_context_menu)
         self.tree.currentItemChanged.connect(self._on_tree_select)
-        self.tree.setItemDelegate(_TagDelegate(self.tree))
+        self._tag_delegate = _TagDelegate(self.tree)
+        self.tree.setItemDelegate(self._tag_delegate)
         middle.addWidget(self.tree, 5)
 
         right = QVBoxLayout()
@@ -196,6 +267,11 @@ class EpbCheckDialog(QDialog):
         self.btn_remove.setEnabled(False)
         self.btn_remove.clicked.connect(self._remove_unknown)
         bottom.addWidget(self.btn_remove)
+        self.btn_import = QPushButton(t("epb.import_blocks"))
+        self.btn_import.setEnabled(False)
+        self.btn_import.setToolTip(t("epb.import_hint"))
+        self.btn_import.clicked.connect(self._import_missing)
+        bottom.addWidget(self.btn_import)
         bottom.addStretch(1)
         self.btn_close = QPushButton(t("btn.close"))
         self.btn_close.clicked.connect(self.accept)
@@ -236,6 +312,9 @@ class EpbCheckDialog(QDialog):
         self.btn_remove.setEnabled(False)
         self.btn_export.setEnabled(False)
         self.btn_save.setEnabled(False)
+        self.btn_pivot.setEnabled(False)
+        self.chk_digout.setEnabled(False)
+        self.lbl_pivot.setText(t("epb.pivot_none"))
         self.view3d.set_data((0, 0, 0), [])
         self.lbl_block.setText(t("epb.no_selection"))
 
@@ -244,6 +323,7 @@ class EpbCheckDialog(QDialog):
             self.status_label.setText(t("epb.no_epb"))
             return
         self.catalog = load_block_catalog(self.catalog_paths)
+        _ws_root, self._extra_names, ws_scen = self._load_extra_names()
 
         unknown_total = 0
         forbidden_total = 0
@@ -252,10 +332,12 @@ class EpbCheckDialog(QDialog):
             try:
                 bp = EpbBlueprint(p, ecf_paths=self.catalog_paths).parse()
             except Exception as e:  # noqa: BLE001 - rapport d'erreur par fichier
-                item = QTreeWidgetItem([str(p), "?", t("err.title")])
+                item = QTreeWidgetItem([str(p), "?", t("err.title"), "", "",
+                                        "", ""])
                 item.setToolTip(0, str(e))
                 self.tree.addTopLevelItem(item)
                 continue
+            meta = read_meta_info(p)
             unknown = bp.unknown_counts(set(self.catalog.ids),
                                         self.catalog.names)
             forb = bp.forbidden_counts(self.catalog.forbidden,
@@ -266,11 +348,18 @@ class EpbCheckDialog(QDialog):
                 files_with_unknown += 1
             unknown_txt = (t("epb.unknown_count", n=sum(unknown.values()))
                            if unknown else t("epb.file_ok"))
-            item = QTreeWidgetItem([str(p), str(len(bp.blocks)), unknown_txt])
+            item = QTreeWidgetItem([str(p), str(len(bp.blocks)), unknown_txt,
+                                    "", "", "", meta["group"]])
+            item.setToolTip(0, t("epb.info_line", group=meta["group"] or "—",
+                                 tags=meta["tags"] or "—",
+                                 display=meta["display"] or "—",
+                                 ver=bp.version,
+                                 size="x".join(map(str, bp.size))))
             self._fill_block_children(item, bp, unknown, forb)
             self.tree.addTopLevelItem(item)
             self._targets.append({"path": p, "bp": bp, "unknown": unknown,
-                                  "forb": forb, "item": item, "dirty": False})
+                                  "forb": forb, "item": item, "dirty": False,
+                                  "meta": meta})
 
         self.tree.expandAll()
         self.btn_export.setEnabled(bool(self._targets))
@@ -282,6 +371,7 @@ class EpbCheckDialog(QDialog):
                 t("epb.unknown_total", n=unknown_total,
                   f=files_with_unknown) if unknown_total else t("epb.all_ok"))
             self.btn_remove.setEnabled(bool(unknown_total))
+            self.btn_import.setEnabled(bool(self._missing_names()))
         else:
             self.status_label.setText(t("epb.all_ok"))
         if forbidden_total:
@@ -293,6 +383,9 @@ class EpbCheckDialog(QDialog):
                 self.status_label.text() + " " +
                 t("epb.forbidden_total", n=forbidden_total,
                   f=files_with_forbidden))
+            # retour utilisateur 07/11 : distinguer bloquant / non bloquant
+            self.status_label.setText(
+                self.status_label.text() + " " + t("epb.forbidden_hint"))
         # Preuve textuelle de la detection (vecu : l'utilisateur ne savait
         # pas si l'analyse trouvait quelque chose) : detail des problemes.
         details = self._problems_detail_text()
@@ -306,6 +399,8 @@ class EpbCheckDialog(QDialog):
         head = t("epb.catalog_sources", n=len(self.catalog.ids))
         if n_sources < 2:
             head += " " + t("epb.catalog_vanilla_only")
+        if ws_scen:
+            head += "  " + t("epb.workshop_names", n=ws_scen)
         self.status_label.setText(head + "  " + self.status_label.text())
         # RETOUR UTILISATEUR 23/09 (v2) : les lignes colorees etaient
         # RENDERED mais INVISIBLES — enterrees en bas de centaines de
@@ -321,6 +416,122 @@ class EpbCheckDialog(QDialog):
         if first is not None:
             self.tree.setCurrentItem(first)
 
+    def _display_name(self, bid: int, bp: EpbBlueprint) -> str:
+        """Nom affiche d'un id : mapping embarque du blueprint, catalogue
+        (vanille + scenario), puis annuaire des AUTRES scenarios du
+        workshop (retour utilisateur 07/11 : un id absent d'ici existe
+        souvent ailleurs — le nom permet de choisir un equivalent)."""
+        return (bp.id_mapping.get(bid) or self.catalog.ids.get(bid)
+                or self._extra_names.get(bid) or f"ID_Bloc_{bid}")
+
+    def _missing_names(self) -> set:
+        """Noms references par les blueprints analyses mais absents du
+        catalogue (vanille + scenario) — les blocs que le jeu supprime
+        au chargement."""
+        missing = set()
+        for tg in self._targets:
+            bp = tg["bp"]
+            for bid in tg["unknown"]:
+                name = bp.id_mapping.get(bid)
+                if name:
+                    missing.add(name)
+        return {n for n in missing if n not in self.catalog.names}
+
+    def _source_texts(self) -> list:
+        """Textes des BlocksConfig sources pour l'import : vanille puis
+        scenarios du workshop."""
+        if self._source_cache is None:
+            texts = []
+            vanilla = get_vanilla_content_path() or ""
+            if vanilla:
+                vf = Path(vanilla) / "BlocksConfig.ecf"
+                if vf.is_file():
+                    texts.append(vf.read_text(encoding="utf-8",
+                                              errors="replace"))
+            root, _names, _n = load_workshop_block_names(
+                get_vanilla_content_path() or "")
+            if root:
+                for sc in sorted(Path(root).iterdir()):
+                    vf = sc / "Content" / "Configuration" / "BlocksConfig.ecf"
+                    if vf.is_file():
+                        texts.append(vf.read_text(encoding="utf-8",
+                                                  errors="replace"))
+            self._source_cache = texts
+        return self._source_cache
+
+    def _scenario_blocks_ecf(self) -> Path:
+        """BlocksConfig.ecf du scenario (dernier chemin de catalogue)."""
+        last = Path(self.catalog_paths[-1])
+        return last / "BlocksConfig.ecf" if last.is_dir() else last
+
+    def _import_missing(self):
+        """Importe les definitions de blocs manquants depuis la vanille et
+        les autres scenarios du workshop : le POI se recharge complet
+        (retour utilisateur 07/11 — Citadel of Zirax incompleta)."""
+        if not self._targets:
+            return
+        missing = self._missing_names()
+        if not missing:
+            self.status_label.setText(t("epb.import_none"))
+            return
+        texts = self._source_texts()
+        scen_ecf = self._scenario_blocks_ecf()
+        scen_text = scen_ecf.read_text(encoding="utf-8", errors="replace")
+        imported, not_found = [], list(missing)
+        # deux passes : les Ref des blocs importes peuvent referencer
+        # d'autres manquants
+        for _round in range(3):
+            round_imported = []
+            rest = []
+            for name in not_found:
+                text = None
+                for src in texts:
+                    text = extract_block_definition(src, name)
+                    if text:
+                        break
+                if not text:
+                    rest.append(name)
+                    continue
+                # collision d'Id dans le scenario : on importe SANS Id
+                # (le jeu attribue un id runtime et le mapping resout
+                # par nom)
+                bid = block_id_from_definition(text)
+                if bid is not None and bid in self.catalog.ids:
+                    text = re.sub(r'^\s*Id:\s*\d+,?\s*$', '', text,
+                                  flags=re.MULTILINE)
+                scen_text += text + "\r\n"
+                imported.append(name)
+                round_imported.append(name)
+            not_found = rest
+            if not round_imported:
+                break
+            # les blocs importes peuvent referencer d'autres manquants :
+            # les resolution de Ref se fait sur le texte du scenario
+            for name in round_imported:
+                pass
+        if imported:
+            central_backup(scen_ecf, "epb_import")
+            scen_ecf.write_text(scen_text, encoding="utf-8")
+            self._source_cache = None
+            self.catalog = load_block_catalog(self.catalog_paths)
+            self._analyze()
+            self.status_label.setText(
+                t("epb.import_done", n=len(imported),
+                  names=", ".join(sorted(imported)[:6]))
+                + ("" if not not_found else "  "
+                   + t("epb.import_not_found", n=len(not_found))))
+        else:
+            self.status_label.setText(
+                t("epb.import_not_found", n=len(not_found)))
+
+    def _load_extra_names(self):
+        """Annuaire {id: nom} des autres scenarios du workshop (cache) ;
+        ne change JAMAIS le statut connu/inconnu, uniquement le nom."""
+        root, names, scenarios = load_workshop_block_names(
+            get_vanilla_content_path() or "")
+        self._extra_names = names
+        return root, names, scenarios
+
     def _problems_detail_text(self) -> str:
         """Liste texte des problemes detectes (max 4) : « Nom x4 (inconnu) »
         — preuve en clair de ce que l'analyse a trouve."""
@@ -328,12 +539,10 @@ class EpbCheckDialog(QDialog):
         for tg in self._targets:
             bp = tg["bp"]
             for bid, cnt in list(tg["unknown"].items())[:2]:
-                name = (bp.id_mapping.get(bid)
-                        or self.catalog.ids.get(bid) or f"ID_Bloc_{bid}")
+                name = self._display_name(bid, bp)
                 entries.append(f"{name} x{cnt} ({t('epb.unknown_tag')})")
             for bid, cnt in list(tg["forb"].items())[:2]:
-                name = (bp.id_mapping.get(bid)
-                        or self.catalog.ids.get(bid) or f"ID_Bloc_{bid}")
+                name = self._display_name(bid, bp)
                 entries.append(f"{name} x{cnt} ({t('epb.forbidden_tag')})")
         if not entries:
             return ""
@@ -345,23 +554,28 @@ class EpbCheckDialog(QDialog):
     def _fill_block_children(self, item, bp, unknown, forbidden=None):
         """Enfants du fichier : TOUS les ids distincts (tries par quantite).
         Statuts : inconnu (rouge) = absent du catalogue ; interdit (orange) =
-        AllowedInBlueprint: false dans les ECF (resolu PAR NOM si le
-        blueprint embarque un mapping)."""
+        AllowedInBlueprint: false dans les ECF — refuse au spawn d'un
+        blueprint JOUEUR, sans effet sur un POI/playfield (retour 07/11 :
+        le surlignage orange se desactive, il ne signale pas une
+        corruption). Le UserRole porte le statut pour le delegate et le
+        filtre."""
         forbidden = forbidden or {}
         counts: dict = {}
         for b in bp.blocks:
             counts[b.block_id] = counts.get(b.block_id, 0) + 1
         for bid, cnt in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
-            name = (bp.id_mapping.get(bid) or self.catalog.ids.get(bid)
-                    or f"ID_Bloc_{bid}")
+            name = self._display_name(bid, bp)
             child = QTreeWidgetItem(["", "", "", str(bid), name,
-                                     t("epb.unknown_count", n=cnt)])
+                                     t("epb.unknown_count", n=cnt), ""])
             if bid in forbidden:
                 child.setText(2, t("epb.forbidden_tag"))
+                child.setData(0, Qt.ItemDataRole.UserRole, "forbidden")
                 _tag_row(child, _FORBIDDEN_FG, _FORBIDDEN_BG)
             elif bid in unknown:
                 child.setText(2, t("epb.unknown_tag"))
+                child.setData(0, Qt.ItemDataRole.UserRole, "unknown")
                 _tag_row(child, _UNKNOWN_FG, _UNKNOWN_BG)
+                child.setToolTip(4, t("epb.unknown_tooltip"))
             item.addChild(child)
 
     def _refresh_item(self, target):
@@ -379,17 +593,78 @@ class EpbCheckDialog(QDialog):
         self._fill_block_children(item, target["bp"], unknown, forb)
         self._apply_filter()
 
+    def _toggle_forbidden(self, checked: bool):
+        """Surlignage des blocs interdits on/off (retour utilisateur 07/11) :
+        le delegate saute la peinture orange, le filtre les compte comme
+        des lignes normales."""
+        self._tag_delegate.show_forbidden = checked
+        self.tree.viewport().update()
+        self._apply_filter()
+
+    # ------------------------------------------------------------- metas
+
+    def _refresh_meta_panel(self, target):
+        """Pivot et AddDigoutBox du blueprint affiche (metas de l'entete)."""
+        bp = target["bp"]
+        try:
+            values = bp.meta_values()
+        except Exception:  # noqa: BLE001 - prefab exotique : panneau inerte
+            values = {}
+        pivot = values.get(18)
+        digout = values.get(1)
+        has = bool(bp._props_span)
+        self.lbl_pivot.setText(t("epb.pivot_label",
+                                 value=str(pivot) if pivot is not None
+                                 else "—"))
+        self.btn_pivot.setEnabled(has and pivot not in (None, 0))
+        self.chk_digout.setEnabled(has and digout is not None)
+        self.chk_digout.blockSignals(True)
+        self.chk_digout.setChecked(bool(digout))
+        self.chk_digout.blockSignals(False)
+
+    def _reset_pivot(self):
+        """Remet le pivot a 0 : le remblai du terrain suit le pivot — un
+        pivot corrompu ensevelit le POI (vecu : ATL_Citadel, pivot
+        140640852475882, 2/3 du POI sous un prisme de terre)."""
+        target = self._current_target
+        if target is None:
+            return
+        if not ask_yes_no(self, t("epb.confirm_title"),
+                          t("epb.pivot_confirm")):
+            return
+        target["bp"].set_meta_values({18: 0})
+        target["dirty"] = True
+        self.btn_save.setEnabled(any(tg["dirty"] for tg in self._targets))
+        self._refresh_meta_panel(target)
+        self.status_label.setText(t("epb.pivot_done"))
+
+    def _toggle_digout(self, checked: bool):
+        target = self._current_target
+        if target is None:
+            return
+        target["bp"].set_meta_values({1: bool(checked)})
+        target["dirty"] = True
+        self.btn_save.setEnabled(any(tg["dirty"] for tg in self._targets))
+        self.status_label.setText(t("epb.digout_done",
+                                   state=t("epb.digout_on" if checked
+                                           else "epb.digout_off")))
+
     def _apply_filter(self):
         """Filtre 'problemes uniquement' : masque les lignes de blocs connus
-        (et les fichiers sans aucun probleme) quand la case est cochee."""
+        (et les fichiers sans aucun probleme) quand la case est cochee.
+        Les blocs interdits ne comptent comme problemes que si leur
+        surlignage est actif (retour 07/11 : interdit n'est pas bloquant
+        pour un POI)."""
         only = self.chk_problems.isChecked()
+        show_forb = self.chk_forbidden.isChecked()
         for tg in self._targets:
             item = tg["item"]
             forb = tg.get("forb") or {}
             for i in range(item.childCount()):
                 child = item.child(i)
                 bid = self._id_of_item(child)
-                has_issue = (bid in tg["unknown"]) or (bid in forb)
+                has_issue = (bid in tg["unknown"]) or (
+                    bid in forb and show_forb)
                 child.setHidden(only and not has_issue)
             visible = any(not item.child(i).isHidden()
                           for i in range(item.childCount()))
@@ -437,6 +712,14 @@ class EpbCheckDialog(QDialog):
             self.view3d.set_data(target["bp"].size, target["bp"].blocks,
                                  self._effective_known_ids(target))
             self._current_target = target
+        meta = target.get("meta") or {}
+        bp = target["bp"]
+        self.lbl_info.setText(t(
+            "epb.info_line", group=meta.get("group") or "—",
+            tags=meta.get("tags") or "—",
+            display=meta.get("display") or "—", ver=bp.version,
+            size="x".join(map(str, bp.size))))
+        self._refresh_meta_panel(target)
         self.btn_export.setEnabled(True)
         self.btn_view3d.setEnabled(True)
 
@@ -492,8 +775,7 @@ class EpbCheckDialog(QDialog):
             self.lbl_block.setText(t("epb.no_selection"))
             return
         bid = info["id"]
-        name = (self._mapping_name(bid) or self.catalog.ids.get(bid)
-                or f"ID_Bloc_{bid}")
+        name = self._display_name(bid, self._current_target["bp"])
         self.lbl_block.setText(t("epb.block_info", id=bid, name=name))
         self._select_block_in_tree(bid)
 
@@ -633,9 +915,7 @@ class EpbCheckDialog(QDialog):
         if not out:
             return
         bp.export_csv(out, headers=t("epb.csv_headers").split(";"),
-                      name_of=lambda bid: (bp.id_mapping.get(bid)
-                                           or self.catalog.ids.get(bid)
-                                           or f"ID_Bloc_{bid}"))
+                      name_of=lambda bid: self._display_name(bid, bp))
         self.status_label.setText(t("epb.csv_done", path=out))
 
     # ---------------------------------------------------------- index couleurs
@@ -661,8 +941,7 @@ class EpbCheckDialog(QDialog):
         lay = QVBoxLayout(dlg)
         lst = QListWidget(dlg)
         for bid, cnt in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
-            name = (bp.id_mapping.get(bid) or self.catalog.ids.get(bid)
-                    or f"ID_Bloc_{bid}")
+            name = self._display_name(bid, bp)
             item = QListWidgetItem(
                 t("epb.color_entry", n=cnt, name=name, id=bid), lst)
             pm = QPixmap(12, 12)

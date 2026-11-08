@@ -63,6 +63,9 @@ def main(argv=None) -> int:
     parser.add_argument("--report", default="", help="export CSV du plan")
     parser.add_argument("--include-empty", action="store_true",
                         help="ecrire aussi les entrees sans modele (recette vide)")
+    parser.add_argument("--only-obtainable", action="store_true",
+                        help="seulement les objets pouvant entrer dans un "
+                             "inventaire (terrain et textures exclus)")
     args = parser.parse_args(argv)
     if not args.vanilla:
         try:
@@ -72,7 +75,8 @@ def main(argv=None) -> int:
             args.vanilla = ""
 
     root = Path(args.scenario)
-    result = plan(root, args.vanilla, include_empty=args.include_empty)
+    result = plan(root, args.vanilla, include_empty=args.include_empty,
+         only_obtainable=args.only_obtainable)
     counts = result.counts
     methods = Counter(entry.method for entry in result.entries)
     print(f"Scenario : {root}")
@@ -90,7 +94,8 @@ def main(argv=None) -> int:
     if not args.apply:
         print("Dry-run : aucun fichier modifie (ajouter --apply pour ecrire).")
         return 0
-    result, written = apply(root, args.vanilla, include_empty=args.include_empty)
+    result, written = apply(root, args.vanilla, include_empty=args.include_empty,
+                      only_obtainable=args.only_obtainable)
     print(f"Ecrit : {written} Templates ajoutes dans Content/Configuration/Templates.ecf")
     print("Relancer le plan apres coup doit afficher 0 (idempotence).")
     return 0

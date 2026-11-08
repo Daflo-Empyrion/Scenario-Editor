@@ -465,3 +465,149 @@ def test_working_tree_context_menu_epb(qapp, bp_file, monkeypatch):
     finally:
         win.close()
         fluent_pilot.set_enabled(False)
+
+
+def test_group_column_and_info_line(qapp, bp_file, ecf):
+    """Retour utilisateur 07/11 : les infos du blueprint (GroupName, nom
+    interne, nom d'affichage) doivent etre visibles — colonne dediee +
+    bandeau d'infos sur le blueprint affiche."""
+    dlg = EpbCheckDialog(None, catalog_paths=[str(ecf)])
+    dlg.path_edit.setText(str(bp_file))
+    dlg._analyze()
+    assert dlg.tree.columnCount() == 7
+    assert dlg.tree.headerItem().text(6) == t("epb.col_group")
+    # avant toute analyse : bandeau d'invitation
+    dlg2 = EpbCheckDialog(None, catalog_paths=[str(ecf)])
+    assert dlg2.lbl_info.text() == t("epb.info_none")
+    item = dlg.tree.topLevelItem(0)
+    # gabarit sans meta : colonne Groupe vide mais presente, tooltip d'info
+    # avec la version et la taille ; l'analyse selectionne le premier
+    # probleme -> le bandeau affiche les infos du blueprint
+    assert item.text(6) == ""
+    assert "v31" in item.toolTip(0)
+    assert "v31" in dlg.lbl_info.text()
+
+
+def test_forbidden_highlight_toggle(qapp, tmp_path):
+    """Retour utilisateur 07/11 : « interdit » n'est pas une corruption —
+    le surlignage orange doit pouvoir se desactiver, et les blocs interdits
+    ne comptent alors plus comme problemes dans le filtre."""
+    ecf = tmp_path / "BlocksConfig.ecf"
+    ecf.write_text("{ Block Id: 412, Name: HullTest\n}\n"
+                   "{ Block Name: CoreNoCPU, AllowedInBlueprint: false\n}\n",
+                   encoding="utf-8")
+    bp = build_epb(tmp_path / "poi.epb",
+                   cells={0: 7, 5: 999},
+                   mapping={7: "HullTest", 999: "CoreNoCPU"})
+    dlg = EpbCheckDialog(None, catalog_paths=[str(ecf)])
+    dlg.path_edit.setText(str(bp))
+    dlg._analyze()
+    item = dlg.tree.topLevelItem(0)
+    child = next(item.child(i) for i in range(item.childCount())
+                 if item.child(i).text(3) == "999")
+    from PyQt6.QtCore import Qt
+    assert child.data(0, Qt.ItemDataRole.UserRole) == "forbidden"
+    assert dlg._tag_delegate.show_forbidden is True
+    dlg.chk_forbidden.setChecked(False)
+    assert dlg._tag_delegate.show_forbidden is False
+    # filtre problemes actif : l'interdit non surligne n'est plus un probleme
+    dlg.chk_problems.setChecked(True)
+    assert child.isHidden()
+    # remise du surlignage : redevient un probleme visible
+    dlg.chk_forbidden.setChecked(True)
+    assert not child.isHidden()
+
+
+def test_unknown_row_tooltip(qapp, bp_file, ecf):
+    """Les blocs inconnus portent une info d'aide : supprimes au chargement,
+    remplaçables par un equivalent."""
+    dlg = EpbCheckDialog(None, catalog_paths=[str(ecf)])
+    dlg.path_edit.setText(str(bp_file))
+    dlg._analyze()
+    item = dlg.tree.topLevelItem(0)
+    unknown = next(item.child(i) for i in range(item.childCount())
+                   if item.child(i).text(2) == t("epb.unknown_tag"))
+    assert t("epb.unknown_tooltip")[:30] in unknown.toolTip(4)
+
+
+def test_meta_panel_pivot_and_digout(qapp, tmp_path, monkeypatch):
+    """Retour utilisateur 07/11 : pivot corrompu ensevelit le POI — le
+    panneau meta affiche le pivot, permet de le reinitialiser et de
+    basculer AddDigoutBox ; la sauvegarde applique les deux."""
+    from PyQt6.QtCore import Qt
+    ecf = tmp_path / "BlocksConfig.ecf"
+    ecf.write_text("{ Block Id: 412, Name: HullTest\n}\n", encoding="utf-8")
+    bp = build_epb(tmp_path / "citadel.epb", cells={0: 412},
+                   props=[(18, 5, 140640852475882), (1, 1, True)])
+    dlg = EpbCheckDialog(None, catalog_paths=[str(ecf)])
+    dlg.path_edit.setText(str(bp))
+    # confirmation des metas : boite patchee (regle des tests de dialogue)
+    monkeypatch.setattr("gui.epb_check_dialog.ask_yes_no",
+                        lambda *a, **k: True)
+    dlg.path_edit.setText(str(bp))
+    dlg._analyze()
+    # gabarit sans probleme : pas de selection auto -> selection manuelle
+    dlg.tree.setCurrentItem(dlg.tree.topLevelItem(0))
+    assert "140640852475882" in dlg.lbl_pivot.text()
+    assert dlg.btn_pivot.isEnabled()
+    assert dlg.chk_digout.isChecked()
+    dlg.btn_pivot.click()
+    assert "0" in dlg.lbl_pivot.text()
+    assert not dlg.btn_pivot.isEnabled()      # pivot sain : bouton coupe
+    dlg.chk_digout.setChecked(False)
+    assert dlg.btn_save.isEnabled()
+    dlg._save_modified()
+    from core.epb_blueprint import EpbBlueprint
+    bp2 = EpbBlueprint(bp).parse()
+    assert bp2.meta_values()[18] == 0
+    assert bp2.meta_values()[1] is False
+    # UserRole: aucun bloc interdit ici, le statut reste vide
+    child = dlg.tree.topLevelItem(0).child(0)
+    assert child.data(0, Qt.ItemDataRole.UserRole) in ("", None)
+
+
+def test_import_missing_blocks_from_sources(qapp, tmp_path, monkeypatch):
+    """Retour utilisateur 07/11 : Citadel of Zirax incomplete — les blocs
+    manquants du mapping existent dans la vanille ou un autre scenario du
+    workshop. L'import doit les ajouter au BlocksConfig du scenario et
+    l'analyse suivante doit les connaitre."""
+    from core.epb_blueprint import EpbBlueprint
+    # scenario : bloc de base seulement
+    scen = tmp_path / "scen" / "Content" / "Configuration"
+    scen.mkdir(parents=True)
+    (scen / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 412, Name: HullTest\n}\n", encoding="utf-8")
+    # vanille SANS le bloc manquant...
+    van = tmp_path / "steamapps" / "common" / "Empyrion - Galactic Survival" / "Content"
+    (van / "Configuration").mkdir(parents=True)
+    (van / "Configuration" / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 1, Name: GroundBlock\n}\n", encoding="utf-8")
+    # ... mais present dans un AUTRE scenario du workshop (derive de la
+    # vanille : tmp/steamapps/workshop/content/383120/<scenario>)
+    ws = (tmp_path / "steamapps" / "workshop" / "content" / "383120"
+          / "999" / "Content" / "Configuration")
+    ws.mkdir(parents=True)
+    (ws / "BlocksConfig.ecf").write_text(
+        "{ Block Id: 901, Name: ZiraxWallSpecial\n  Mass: 10\n}\n",
+        encoding="utf-8")
+    # le dialogue detient sa propre reference (from-import) : patcher SON
+    # nom, sinon il scanne le VRAI workshop (plusieurs minutes)
+    monkeypatch.setattr("gui.epb_check_dialog.get_vanilla_content_path",
+                        lambda: str(van))
+    bp = build_epb(tmp_path / "citadel.epb",
+                   cells={0: 412, 1: 901},
+                   mapping={412: "HullTest", 901: "ZiraxWallSpecial"})
+    dlg = EpbCheckDialog(None, catalog_paths=[str(van), str(scen)])
+    dlg.path_edit.setText(str(bp))
+    dlg._analyze()
+    assert dlg.btn_import.isEnabled()          # 901 manquant et importable
+    unknown_before = dict(dlg._targets[0]["unknown"])
+    assert 901 in unknown_before
+    dlg.btn_import.click()
+    # le BlocksConfig du scenario contient maintenant la definition
+    text = (scen / "BlocksConfig.ecf").read_text(encoding="utf-8")
+    assert "Name: ZiraxWallSpecial" in text
+    # re-analyse : 901 est connu, plus rien d'inconnu
+    dlg._analyze()
+    assert dlg._targets[0]["unknown"] == {}
+    assert dlg.btn_import.isEnabled() is False or dlg._missing_names() == set()

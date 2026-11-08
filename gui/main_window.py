@@ -313,6 +313,10 @@ class MainWindow(QMainWindow):
             t("menu.tools.recipe_balance"))
         self.action_recipe_balance.triggered.connect(
             self._open_recipe_balance_dialog)
+        self.action_recipe_realism = menu_balance.addAction(
+            t("menu.tools.recipe_realism"))
+        self.action_recipe_realism.triggered.connect(
+            self._open_recipe_realism_dialog)
         self.action_market_price = menu_balance.addAction(t("menu.tools.market_price"))
         self.action_market_price.triggered.connect(self._open_market_price_dialog)
         self.action_correlation = menu_balance.addAction(t("menu.tools.correlation"))
@@ -2318,6 +2322,18 @@ class MainWindow(QMainWindow):
         if ws is not None and getattr(ws, "working_root", ""):
             working = str(ws.working_root)
         dlg = RecipeBalanceDialog(self, working)
+        dlg.exec()
+
+    def _open_recipe_realism_dialog(self):
+        """Recettes realistes : composition du reel, quantites a la masse de
+        l'objet (core/recipe_realism.py) — le cout derive, lot cochable,
+        backup central, seconde passe sans effet (idempotence)."""
+        from gui.recipe_realism_dialog import RecipeRealismDialog
+        working = ""
+        ws = getattr(self, "workspace", None)
+        if ws is not None and getattr(ws, "working_root", ""):
+            working = str(ws.working_root)
+        dlg = RecipeRealismDialog(self, working)
         dlg.exec()
 
     def _open_unlock_cost_dialog(self):

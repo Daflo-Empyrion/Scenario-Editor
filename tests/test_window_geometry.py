@@ -63,7 +63,12 @@ def test_geometry_saved_on_accept_and_restored(qapp):
 
     dlg2 = QDialog()
     track(dlg2, "test_win")
-    assert dlg2.size().width() == 980 and dlg2.size().height() == 640
+    # restauree a l'identique SAUF si l'ecran de test est plus petit
+    # (bornage a l'ecran d'accueil, retour utilisateur 07/11)
+    from PyQt6.QtGui import QGuiApplication
+    avail = QGuiApplication.primaryScreen().availableGeometry()
+    assert dlg2.size().width() == min(980, avail.width())
+    assert dlg2.size().height() == min(640, avail.height())
     dlg2.deleteLater()
 
 
@@ -120,3 +125,26 @@ def test_offscreen_position_not_restored_outside_screens(qapp):
     assert dlg.size().width() == 800
     assert not dlg.geometry().contains(QPoint(far_x, 10))
     dlg.deleteLater()
+
+
+def test_restored_size_clamped_to_screen(qapp):
+    """Retour utilisateur 07/11 : geometrie sauvegardee sur un ecran de
+    2560 px, restoree sur un ecran de 1920 -> QWindowsWindow::setGeometry
+    alerte et la fenetre arrive tronquee. La restauration doit borner la
+    taille a l'ecran d'accueil."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = QGuiApplication.primaryScreen()
+    avail = screen.availableGeometry()
+    dlg = QDialog()
+    track(dlg, "test_clamp", default_size=(600, 400))
+    # simule une geometrie sauvegardee plus large que l'ecran
+    settings.set_window_geometry(
+        "test_clamp", [avail.left() + 10, avail.top() + 10,
+                       avail.width() + 800, avail.height() + 400, 0])
+    dlg2 = QDialog()
+    track(dlg2, "test_clamp", default_size=(600, 400))
+    assert dlg2.width() <= avail.width()
+    assert dlg2.height() <= avail.height()
+    # fenetre encore atteignable : pas envoyee hors ecran
+    assert dlg2.x() >= avail.left()
+    dlg2.deleteLater()

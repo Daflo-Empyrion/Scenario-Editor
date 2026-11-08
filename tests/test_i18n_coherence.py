@@ -47,6 +47,7 @@ OWNERS = {
     "launchcheck": ("launch_check_dialog",),
     "corr": ("correlation_dialog",),
     "recipe": ("recipe_balance_dialog",),
+    "realism": ("recipe_realism_dialog",),
     "unlockcost": ("unlock_cost_dialog",),
     "diff": ("difficulty_dialog",),
     "tokens": ("token_config_dialog",),

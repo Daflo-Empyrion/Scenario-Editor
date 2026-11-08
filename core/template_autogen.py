@@ -705,15 +705,61 @@ def _make_plan(name: str, kind: str, model, method: str,
     )
 
 
-def plan(root: Path, vanilla_root: str = "", include_empty: bool = False) -> AutogenResult:
+def _is_true(raw: str) -> bool:
+    return (raw or "").strip().lower() in ("true", "yes", "1")
+
+
+def obtainable_names(blocks: Dict[str, Obj], items: Dict[str, Obj]) -> set:
+    """Noms qui peuvent se retrouver dans un inventaire ou un conteneur.
+
+    Mesures du 06/11 sur RE2-FR : `CanPickup` (15 blocs) est le drapeau
+    explicite ; `PickupTarget` (355) designe l'item recu en ramassant un
+    AUTRE bloc (tourelle repliee -> bloc tourelle, plante -> ressource) ;
+    `IsDeco` sans `IsTerrainDecoration` couvre la deco ramassable. Les items
+    sont en inventaire par nature ; le terrain et les textures ne le sont
+    jamais, donc ils ne coutent pas un template de deconstruction.
+    """
+    targets = {(obj.props.get("PickupTarget") or "").strip()
+               for obj in blocks.values()}
+    keep = set(items)
+    for name, obj in blocks.items():
+        if _is_true(obj.props.get("CanPickup")):
+            keep.add(name)
+        elif name in targets:
+            keep.add(name)
+        elif (_is_true(obj.props.get("IsDeco"))
+              and not _is_true(obj.props.get("IsTerrainDecoration"))):
+            keep.add(name)
+    return keep
+
+
+def plan(root: Path, vanilla_root: str = "", include_empty: bool = False,
+         only_obtainable: bool = False,
+         use_realism: bool = True) -> AutogenResult:
     """Construit la liste des Templates a ajouter (aucune ecriture).
 
     `include_empty=True` ecrit aussi les entrees sans modele (recette vide,
     DeconOverride Stop) : elles rendent le nom present mais le Deconstructor
     ne produit rien. Par defaut elles sont seulement listees dans `skipped`.
+    `only_obtainable=True` restreint aux objets qui peuvent entrer dans un
+    inventaire (`obtainable_names`), terrain et textures exclus.
+    `use_realism=False` : pas de composition par classe — chaque template
+    est extrapole du modele connu le plus proche (doctrine RE2 Beta).
     """
     blocks, items, templates, sources = load(root, vanilla_root)
     miss_blocks, miss_items = missing(blocks, items, templates)
+    if only_obtainable:
+        keep = obtainable_names(blocks, items)
+        miss_blocks = [name for name in miss_blocks if name in keep]
+        miss_items = [name for name in miss_items if name in keep]
+    # Composition reelle quand la classe de l'objet est connue
+    # (core/recipe_realism.py) : un generateur demonte rend son acier, son
+    # cuivre et son electronique, pas la recette d'un modele voisin.
+    from .recipe_balance import load_recipe_index
+    from .recipe_realism import composition_for, template_groups, unit_masses
+    idx, _vanilla = load_recipe_index(root, vanilla_root)
+    groups = template_groups(idx)
+    masses = unit_masses(idx)
     picker = _Picker(blocks, items, templates, sources)
     result = AutogenResult()
 
@@ -723,7 +769,20 @@ def plan(root: Path, vanilla_root: str = "", include_empty: bool = False) -> Aut
             if not SAFE_NAME.match(name):
                 result.skipped.append((name, kind, "nom ECF non sur"))
                 continue
+            if name in NOT_DECONSTRUCTIBLE:
+                result.skipped.append((name, kind, "devise (ATM, pas de demolition)"))
+                continue
             obj = source_map[name]
+            real = (composition_for(idx, name, groups, masses)
+                    if use_realism and kind == "item" else None)
+            if real is not None:
+                rows, craft = real
+                result.entries.append(TemplatePlan(
+                    name=name, kind=kind, inputs=rows, source="realisme",
+                    method="realism", craft_time=craft, decon="Continue",
+                    show_user=(obj.props.get("ShowUser")
+                               or "(default=Yes)").strip()))
+                continue
             model, method = picker.pick(obj)
             if method == "skipped":
                 result.skipped.append((name, kind, "entree technique"))
@@ -745,9 +804,20 @@ def plan(root: Path, vanilla_root: str = "", include_empty: bool = False) -> Aut
         root_name = (block_obj.own.get("TemplateRoot") or "").strip()
         if root_name and root_name in templates:
             covered.add(block_name)
-    pending = {name for entry in result.entries for name, _qty in entry.inputs}
+    # Demontage casse si un ingredient n'a AUCUN template, y compris pour les
+    # recettes de l'auteur : vecu 06/11, ErestrumOre (ingredient d'ErestrumIngot
+    # et de ZascosiumIngot) n'en avait aucun, donc 40 recettes fabricables
+    # n'etaient pas demontables sur cet ingradient. On couvre donc TOUT
+    # ingredient cite par une recette, pas seulement ceux des entrees generees.
+    pending = {name for recipe in templates.values()
+               for name, qty in recipe.inputs if qty > 0}
+    pending |= {name for entry in result.entries
+                for name, _qty in entry.inputs}
     terminal_names = set()
     for name in sorted(pending - covered):
+        if name in NOT_DECONSTRUCTIBLE:
+            # deja signale par la passe des manquants : une seule ligne
+            continue
         target = blocks.get(name) or items.get(name)
         if target is None:
             continue
@@ -781,6 +851,32 @@ def plan(root: Path, vanilla_root: str = "", include_empty: bool = False) -> Aut
 # ---------------------------------------------------------------------------
 
 GENERATED_MARKER = "# Templates de deconstruction generes automatiquement"
+
+# Devises : jamais de template. Une `MoneyCard` se depose dans un ATM qui
+# credite le compte du joueur (mesure du 06/11 : elle etait citee comme
+# ingredient, donc l'outil lui avait fabrique une feuille — sans objet).
+NOT_DECONSTRUCTIBLE = {"MoneyCard", "Credits", "GoldCoins"}
+
+
+def generated_names(path: Path) -> set:
+    """Noms des Templates de la section generee (marqueur en fin de fichier).
+
+    Permet de rafraichir UNIQUEMENT ce que l'outil a ecrit : les recettes
+    cachees de l'auteur (`HullDestroyed`, `DecoStoneBlocks`...) portent le
+    meme `Target: ""` et ne doivent jamais etre retouchees.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    pos = text.find(GENERATED_MARKER)
+    if pos < 0:
+        return set()
+    names = set()
+    for match in re.finditer(r"^\{\s*\+?Template Name:\s*(\S+)", text[pos:],
+                             re.MULTILINE):
+        names.add(match.group(1))
+    return names
 
 SECTION_HEADER = (
     "# =============================================================================\r\n"
@@ -819,11 +915,14 @@ def render(entries: Sequence[TemplatePlan], eol: str = "\r\n") -> str:
     return eol.join(lines)
 
 
-def apply(root: Path, vanilla_root: str = "", include_empty: bool = False) -> Tuple[AutogenResult, int]:
+def apply(root: Path, vanilla_root: str = "", include_empty: bool = False,
+          only_obtainable: bool = False,
+          use_realism: bool = True) -> Tuple[AutogenResult, int]:
     """Ajoute les Templates manquants a Templates.ecf (backup + ecriture atomique)."""
     conf, _ = _config_paths(root, vanilla_root)
     path = conf / "Templates.ecf"
-    result = plan(root, vanilla_root, include_empty=include_empty)
+    result = plan(root, vanilla_root, include_empty=include_empty,
+                  only_obtainable=only_obtainable, use_realism=use_realism)
     if not result.entries:
         return result, 0
     existing = path.read_bytes() if path.exists() else b""

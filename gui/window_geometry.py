@@ -86,11 +86,21 @@ def track(dialog, key: str, default_size: tuple = None) -> None:
         except (TypeError, ValueError):
             x = y = w = h = 0
         if w > 0 and h > 0:
-            dialog.resize(w, h)
             # Ne deplacer que si l'ecran d'origine existe toujours
             # (debranchement d'un second ecran, changement de layout).
-            if QGuiApplication.screenAt(QPoint(x, y)) is not None:
+            screen = QGuiApplication.screenAt(QPoint(x, y))
+            if screen is not None:
                 dialog.move(x, y)
+            else:
+                screen = dialog.screen()
+            # Geometrie sauvegardee sur un ecran plus grand : bornee a
+            # l'ecran d'accueil, sinon QWindowsWindow::setGeometry alerte
+            # et la fenetre arrive tronquee (vecu 07/11 : dialogue restore
+            # en 2235 px sur un ecran de 1920).
+            avail = screen.availableGeometry()
+            w = max(320, min(w, avail.width()))
+            h = max(240, min(h, avail.height()))
+            dialog.resize(w, h)
         if len(geo) >= 5 and geo[4]:
             # etat maximise persiste : applique a l'affichage
             dialog.setWindowState(

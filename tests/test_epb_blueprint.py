@@ -55,8 +55,28 @@ def _7bit(n: int) -> bytes:
             return out + bytes([b])
 
 
+def _props_blob(props):
+    """Section metaproprietes : version 1, N entrees, u16 final. Une entree
+    = key i32 + 3 booleens + type u8 + valeur (chaine : 7-bit + utf8)."""
+    if not props:
+        return struct.pack("<HHH", 0, 0, 0)
+    blob = struct.pack("<HH", 1, len(props))
+    for key, ptype, value in props:
+        blob += struct.pack("<i", key) + b"\x00\x00\x00"
+        blob += struct.pack("<B", ptype)
+        if ptype == 0:
+            data = value.encode("utf-8")
+            blob += _7bit(len(data)) + data
+        elif ptype == 1:
+            blob += (b"\x01" if value else b"\x00") + _7bit(0)
+        elif ptype == 5:
+            blob += struct.pack("<q", value) + _7bit(0)
+    blob += struct.pack("<H", 0)
+    return blob
+
+
 def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None,
-              colors=None):
+              colors=None, props=None):
     cells = CELLS if cells is None else cells
     sx, sy, sz = size
     volume = sx * sy * sz
@@ -97,7 +117,7 @@ def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None,
                                        len(local), 0)
     header = (struct.pack("<II", 2022986309, 31) + bytes([8])
               + struct.pack("<iii", sx, sy, sz)
-              + struct.pack("<HHH", 0, 0, 0)            # properties vides
+              + _props_blob(props)            # properties vides
               + struct.pack("<10i", *([0] * 10))        # statistiques
               + struct.pack("<H", 0)                    # distribution vide
               + struct.pack("<4f", 0, 0, 0, 0)
@@ -393,3 +413,76 @@ def test_unmapped_id_with_mapping_is_unknown(tmp_path):
                   mapping={412: "HullTest"})
     bp = EpbBlueprint(p).parse()
     assert bp.unknown_counts(set(), known_names={"HullTest"}) == {7500: 1}
+
+
+def test_read_meta_info_group_is_property_7(tmp_path):
+    """Enum moteur EnumProperties (dump deobfusque, l. 56991) : 7 = GroupName,
+    21 = Tags, 16 = DisplayName. Vecu 07/11 : LJCitadel.epb affichait
+    « Groupe : — » parce que le GroupName etait presente comme nom interne."""
+    from core.epb_blueprint import read_meta_info
+    p = build_epb(tmp_path / "meta.epb",
+                  props=[(7, 0, "LJCitadel"), (21, 0, "station,story"),
+                         (16, 0, "La Citadelle")])
+    info = read_meta_info(p)
+    assert info == {"group": "LJCitadel", "tags": "station,story",
+                    "display": "La Citadelle"}
+
+
+def test_load_workshop_block_names(tmp_path, monkeypatch):
+    """Annuaire {id: nom} deduit du workshop : <steam>/steamapps/workshop/
+    content/383120/<scenario>/Content/Configuration. Ne change pas le
+    statut connu/inconnu — uniquement le nom affiche."""
+    from core.epb_blueprint import load_workshop_block_names
+    vanilla = tmp_path / "steamapps" / "common" / "Empyrion - Galactic Survival" / "Content"
+    vanilla.mkdir(parents=True)
+    for scen, bid, name in (("111", 9001, "BlocAtelierA"),
+                            ("222", 9002, "BlocAtelierB")):
+        cfg = (tmp_path / "steamapps" / "workshop" / "content" / "383120"
+               / scen / "Content" / "Configuration")
+        cfg.mkdir(parents=True)
+        (cfg / "BlocksConfig.ecf").write_text(
+            f"{{ Block Id: {bid}, Name: {name}\n}}\n", encoding="utf-8")
+    root, names, n = load_workshop_block_names(str(vanilla))
+    assert n == 2
+    assert names == {9001: "BlocAtelierA", 9002: "BlocAtelierB"}
+    # cache : 2e appel identique
+    assert load_workshop_block_names(str(vanilla)) == (root, names, n)
+    # pas de chemin vanille : vide, jamais d'exception
+    assert load_workshop_block_names("") == ("", {}, 0)
+
+
+def test_meta_values_and_set_roundtrip(tmp_path):
+    """Retour utilisateur 07/11 : ATL_Citadel.epb avait un pivot corrompu
+    (140640852475882) et AddDigoutBox True — le remblai suit le pivot et
+    ensevelit le POI. Lecture, correction, sauvegarde, relecture."""
+    p = build_epb(tmp_path / "citadel.epb",
+                  cells={0: 7}, mapping={7: "HullTest"},
+                  props=[(18, 5, 140640852475882), (1, 1, True),
+                         (2, 1, True)])
+    bp = EpbBlueprint(p).parse()
+    vals = bp.meta_values()
+    assert vals[18] == 140640852475882
+    assert vals[1] is True and vals[2] is True
+    bp.set_meta_values({18: 0, 1: False})
+    bp.save(backup=False)
+    bp2 = EpbBlueprint(p).parse()
+    vals2 = bp2.meta_values()
+    assert vals2[18] == 0 and vals2[1] is False and vals2[2] is True
+    # le reste du fichier a survécu : blocs, mapping, mapping->blocs
+    assert len(bp2.blocks) == len(bp.blocks)
+    assert bp2.id_mapping.get(7) == "HullTest"
+
+
+def test_meta_set_adds_missing_property(tmp_path):
+    """Un prefab sans GroundYOffset (cle 3 absente) : l'upsert doit
+    l'ajouter sans casser les proprietes existantes."""
+    p = build_epb(tmp_path / "nooff.epb", cells={0: 7},
+                  mapping={7: "HullTest"})
+    bp = EpbBlueprint(p).parse()
+    assert 3 not in bp.meta_values()
+    bp.set_meta_values({3: -2.5})
+    bp.save(backup=False)
+    bp2 = EpbBlueprint(p).parse()
+    vals = bp2.meta_values()
+    assert abs(vals[3] - (-2.5)) < 0.001
+    assert bp2.id_mapping.get(7) == "HullTest"
