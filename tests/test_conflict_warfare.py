@@ -792,25 +792,37 @@ def test_random_resources_neutralized_once():
     assert neutralize_random_resources(t2)[1] == 0
 
 
-def test_rare_resources_skips_moons_and_keeps_other_sections(tmp_path):
-    """Planete appauvrie, lune epargnee (decision utilisateur) ; les autres
-    blocs du playfield survivent."""
-    from core.conflict_warfare import pass_rare_resources
-    sc = _factions_scenario(tmp_path)
-    for name, kind in (("P1", "Planet"), ("M1", "Moon")):
-        d = sc / "Playfields" / name
-        d.mkdir(parents=True)
-        (d / "playfield_static.yaml").write_text(
-            RES_MIN.replace("PlayfieldType: Planet", "PlayfieldType: " + kind),
-            encoding="utf-8")
-    rep = pass_rare_resources(sc, apply=True)
-    assert rep["files"] == 1 and rep["edits"] == 4, rep
-    assert any("lune(s) epargnee" in d for d in rep["details"])
+def test_rare_resources_zero_everywhere(tmp_path, monkeypatch):
+    """Zero gisement PARTOUT par defaut (planete ET lune) ; l'exemption des
+    lunes reste disponible par le drapeau. Les autres blocs survivent."""
+    from core import conflict_warfare as cw
+
+    def scenario(base):
+        sc = _factions_scenario(base)
+        for name, kind in (("P1", "Planet"), ("M1", "Moon")):
+            d = sc / "Playfields" / name
+            d.mkdir(parents=True)
+            (d / "playfield_static.yaml").write_text(
+                RES_MIN.replace("PlayfieldType: Planet",
+                                "PlayfieldType: " + kind), encoding="utf-8")
+        return sc
+
+    sc = scenario(tmp_path)
+    rep = cw.pass_rare_resources(sc, apply=True)
+    assert rep["files"] == 2 and rep["edits"] == 8, rep
     planete = (sc / "Playfields" / "P1" / "playfield_static.yaml").read_text("utf-8")
     lune = (sc / "Playfields" / "M1" / "playfield_static.yaml").read_text("utf-8")
     assert "#     - Name: IronResource" in planete and "DroneBaseSetup:" in planete
-    assert "    - Name: IronResource\n" in lune            # lune intacte
-    assert pass_rare_resources(sc, apply=True)["edits"] == 0
+    assert "#     - Name: IronResource" in lune
+    assert cw.pass_rare_resources(sc, apply=True)["edits"] == 0
+
+    monkeypatch.setattr(cw, "RARE_RESOURCES_KEEP_MOONS", True)
+    bis = tmp_path / "bis"
+    bis.mkdir()
+    sc2 = scenario(bis)
+    rep2 = cw.pass_rare_resources(sc2, apply=True)
+    assert rep2["files"] == 1 and rep2["edits"] == 4, rep2
+    assert any("epargnee" in d for d in rep2["details"])
 
 
 def test_mine_poi_carries_the_ore(tmp_path):

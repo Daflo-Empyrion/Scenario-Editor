@@ -160,7 +160,7 @@ _POOL_PREFABS = {
 # Repli : RARE_RESOURCES = False / MINE_POIS = False (0 edit).
 # ---------------------------------------------------------------------------
 RARE_RESOURCES = True
-RARE_RESOURCES_KEEP_MOONS = True     # lunes épargnées (choix utilisateur)
+RARE_RESOURCES_KEEP_MOONS = False    # zéro gisement PARTOUT, lunes comprises
 MINE_POIS = True
 _MINE_ORES = ("IronResource:1-3", "CopperResource:1-2", "CobaltResource:1-2")
 _MINE_ORES_HOSTILE = _MINE_ORES + ("NeodymiumResource:1-2",)
