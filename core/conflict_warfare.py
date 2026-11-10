@@ -422,12 +422,14 @@ _RETIRED_VESSELS = (
 # DroneBaseSetup du playfield. Les 4 secteurs couvrent la planete, comme
 # Desert/playfield_static (reference native).
 # ---------------------------------------------------------------------------
+# Aucune zone au centre : le joueur apparait vers (0,0). Les deux zones les
+# plus proches (2500 et 0) posaient des drones AU-DESSUS du START (vecu 11/11).
+# Le plus proche est maintenant a 6000 - 2500 = 3,5 km du point de depart.
 _DRONE_PATROLS = (
-    ("[ 6, 10 ]", 5000, 3500),
-    ("[ 6, 10 ]", -5000, 3500),
-    ("[ 5, 8 ]", 2500, 3500),
-    ("[ 5, 8 ]", -2500, 3500),
-    ("[ 4, 8 ]", 0, 4000),
+    ("[ 6, 10 ]", 6000, 2500),
+    ("[ 6, 10 ]", -6000, 2500),
+    ("[ 5, 8 ]", 9000, 2500),
+    ("[ 5, 8 ]", -9000, 2500),
 )
 
 
@@ -1827,7 +1829,7 @@ def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
         + style["item"] + "Key: MapMarker\n"
         + style["val"] + "Value: Neutral\n"
         + style["item"] + "Key: Discovery\n"
-        + style["val"] + "Value: True\n"
+        + style["val"] + "Value: False\n"
         + style["item"] + "Key: RegenAfter\n"
         + style["val"] + "Value: " + str(defense["regen"]) + "\n")
 

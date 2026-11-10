@@ -70,7 +70,7 @@ def test_conflict_apply_full(tmp_path):
     rep = pass_faction_conflict(sc, apply=True)
     # 21 pools + 12 POIs (10 entrées + 2 natives réécrites) + 5 vaisseaux
     # + 6 spawns + 1 DroneBaseSetup — roster de 8 factions (rotation)
-    assert rep["edits"] == 44, rep
+    assert rep["edits"] == 43, rep   # 4 zones de patrouille
     assert rep["files"] == 2
     pf = (sc / "Playfields" / "Starter_Dread" / "playfield_static.yaml").read_text("utf-8")
     pg = (sc / "Prefabs" / "_PoiGroupsConfig.yaml").read_text("utf-8")
@@ -105,7 +105,7 @@ def test_conflict_incremental_on_real_like_file(tmp_path):
     # + 7 spawns restent à ajouter (idempotence par élément)
     sc = _make_scenario(tmp_path, ZIRAX_ONLY)
     rep = pass_faction_conflict(sc, apply=True)
-    assert rep["edits"] == 43, rep
+    assert rep["edits"] == 42, rep   # 4 zones de patrouille (hors centre)
     pf = (sc / "Playfields" / "Starter_Dread" / "playfield_static.yaml").read_text("utf-8")
     assert pf.count("- Name: R2PV_ZiraxCutter01") == 1
     assert "- Name: ROPV_WarlordPhoenix" in pf
@@ -132,14 +132,14 @@ def test_spawn_drops_named_entries():
     assert "- Name:" not in t2                       # entrée par faction purgée
     assert "Faction: Warlord" not in t2
     assert t2.count("DronesMinMax: [ 6, 10 ]") == 2  # patrouilles génériques
-    assert "CenterX: -2500" in t2
+    assert "CenterX: -6000" in t2
 
 
 def test_conflict_repairs_stale_entries(tmp_path):
     # entrée préexistante sans IsImportant -> remplacée (auto-réparation)
     sc = _make_scenario(tmp_path)
     rep1 = pass_faction_conflict(sc, apply=True)
-    assert rep1["edits"] == 44
+    assert rep1["edits"] == 43
     pf_path = sc / "Playfields" / "Starter_Dread" / "playfield_static.yaml"
     txt = pf_path.read_text("utf-8")
     # simule une entrée périmée (CountMinMax modifié) : réécrit l'entrée Zirax
@@ -941,6 +941,8 @@ def test_mine_entries_are_visible_on_a_fogged_map():
     roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
     bloc = _mine_entries_block(roster, _poi_style(RES_MIN))
     assert bloc.count("Key: Discovery") == len(roster) + 1
-    assert bloc.count("Value: True") >= len(roster) + 1
+    # Discovery: True = « Hidden from map » (commentaire vanilla) : donc False
+    assert "Key: Discovery\n              Value: False" in bloc
+    assert "Key: Discovery\n              Value: True" not in bloc
     assert "Key: MapMarker" in bloc and "Value: Neutral" in bloc
     assert "Value: 20000" not in bloc
