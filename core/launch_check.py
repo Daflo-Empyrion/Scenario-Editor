@@ -712,8 +712,8 @@ def _index_value_shapes(conf_dir: Path) -> dict:
     for f in conf_dir.glob("*.ecf"):
         try:
             doc = parse_ecf_file(f)
-        except Exception:
-            continue
+        except Exception:  # noqa: S112 - ECF illisible : ce check
+            continue       # ne juge que les fichiers parsables
         for fn, kind, key, v in _iter_ecf_pairs(doc, f.name):
             shapes.setdefault((f.name, kind, key), set()).add(
                 _value_family(v))
@@ -761,8 +761,8 @@ def _check_values(root: Path, vanilla_conf: Path | None,
     for f in sorted(conf_dir.glob("*.ecf")) if conf_dir.is_dir() else []:
         try:
             doc = parse_ecf_file(f)
-        except Exception:
-            continue
+        except Exception:  # noqa: S112 - ECF illisible : ce check
+            continue       # ne juge que les fichiers parsables
         for fn, kind, key, v in _iter_ecf_pairs(doc, f.name):
             fams = shapes_van.get((f.name, kind, key)) \
                 or fallback.get((f.name, key))
@@ -821,8 +821,8 @@ def _check_numeric_types(root: Path) -> list[LaunchIssue]:
     for f in sorted(conf_dir.glob("*.ecf")):
         try:
             doc = parse_ecf_file(f)
-        except Exception:
-            continue
+        except Exception:  # noqa: S112 - ECF illisible : ce check
+            continue       # ne juge que les fichiers parsables
 
         def _collect(block: EcfBlock, acc: list) -> None:
             acc.append(block)
