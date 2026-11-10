@@ -826,15 +826,19 @@ def test_rare_resources_zero_everywhere(tmp_path, monkeypatch):
 
 
 def test_mine_poi_carries_the_ore(tmp_path):
-    """Une mine par faction du roster, avec le minerai DANS l'entree POI
-    (`SpawnResource`), `IsImportant` et des drones ; idempotent."""
+    """Mine starter + une mine par faction du roster, minerai DANS l'entree
+    POI (`SpawnResource`), `IsImportant`, drones differencies par hostilite."""
     from core.conflict_warfare import (_entry_groups, _mine_entries_block,
                                        _mine_pool, _poi_style)
     roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
     bloc = _mine_entries_block(roster, _poi_style(RES_MIN))
-    assert bloc.count("IsImportant: True") == len(roster)
-    assert bloc.count("SpawnResource: [") == len(roster)
+    assert bloc.count("IsImportant: True") == len(roster) + 1
+    assert bloc.count("SpawnResource: [") == len(roster) + 1
     assert "SpawnResourceRange: [100, 600]" in bloc
-    assert "DroneProb: 0.5" in bloc
     for faction, _hostile in roster:
         assert "GroupName: " + _mine_pool(faction) in bloc
+    starter = bloc.split("GroupName: ConflictStarterMine")[1].split("- GroupName:")[0]
+    assert "Faction: None" in starter and "DroneProb: 0.0" in starter
+    assert "SpawnPOIAvoidDistance: 1200" in starter and "Value: 1440" in starter
+    assert "DroneProb: 0.6" in bloc and "DroneProb: 0.4" in bloc
+    assert "NeodymiumResource" in bloc and "Value: 480" in bloc

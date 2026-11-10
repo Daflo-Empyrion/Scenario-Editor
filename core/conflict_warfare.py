@@ -164,6 +164,18 @@ RARE_RESOURCES_KEEP_MOONS = False    # zéro gisement PARTOUT, lunes comprises
 MINE_POIS = True
 _MINE_ORES = ("IronResource:1-3", "CopperResource:1-2", "CobaltResource:1-2")
 _MINE_ORES_HOSTILE = _MINE_ORES + ("NeodymiumResource:1-2",)
+# Mine « starter » : garantie, proche du START et sans drones. Sans elle, un
+# playfield sans gisement est un mur pour la premiere heure (le PDA de depart
+# n'explique pas que le minerai est dans les POI).
+STARTER_MINE = True
+_STARTER_MINE = ("ConflictStarterMine", "BA_AbandonedMine", "None", False)
+_STARTER_ORES = ("IronResource:1-3", "CopperResource:1-2")
+# Mines hostiles : plus de drones et regeneration plus rapide (raider doit
+# rapporter) ; alliees : plus calmes.
+_MINE_DEFENSE = {True: {"prob": 0.6, "drones": (3, 5), "reserve": 6,
+                        "regen": 480},
+                 False: {"prob": 0.4, "drones": (2, 3), "reserve": 4,
+                         "regen": 720}}
 _MINE_FALLBACK = "BA_CivilMiningHub"
 _MINE_PREFABS = {
     "Zirax": "BA_CivilMiningHub",
@@ -195,9 +207,11 @@ def _mine_pool(faction: str) -> str:
 
 
 def _mine_groups() -> tuple:
-    """(GroupName, prefab, faction, hostile) des pools « mines »."""
-    return tuple((_mine_pool(f), _MINE_PREFABS.get(f, _MINE_FALLBACK), f, h)
-                 for f, _, h in _active_factions())
+    """(GroupName, prefab, faction, hostile) des pools « mines », plus la
+    mine starter quand elle est active."""
+    out = tuple((_mine_pool(f), _MINE_PREFABS.get(f, _MINE_FALLBACK), f, h)
+                for f, _, h in _active_factions())
+    return out + ((_STARTER_MINE,) if STARTER_MINE else ())
 
 
 def _poi_groups() -> tuple:
@@ -1487,6 +1501,9 @@ SPACE_DEFENSE_ENABLED = True
 SPACE_DEFENSE_PROB = 0.35              # part des POI de faction qui defensent
 SPACE_DEFENSE_POI_PRICE = (30, 60)     # SpaceDefensePriceMinMax par POI
 SD_PROB_MINMAX = (0.30, 0.60)          # SDProbabilityMin/Max (lvl 1 -> 10)
+# Escalade : les factions hostiles defendent plus durement leurs POI (c'est
+# la que le joueur va chercher le minerai, cf. mines gardees).
+SD_PROB_MINMAX_HOSTILE = (0.50, 0.80)
 SD_PRICE_MINMAX = (30, 60)             # SDPriceMin/Max des blocs CREES
 SD_UNIT_COST = 40                      # CommandPointsLvl1 du vaisseau de defense
 # La cle du moteur est `Category + ClassName`, SANS la faction : deux factions
@@ -1525,17 +1542,24 @@ def _sd_settings_block(faction: str) -> str:
             "  Lvl10MinPrice:0\n"
             "  Lvl10MaxPrice:0\n"
             "  SDScenarioGroup: " + faction + "SpaceDefense\n"
-            "  SDProbabilityMin: " + str(SD_PROB_MINMAX[0]) + "\n"
-            "  SDProbabilityMax: " + str(SD_PROB_MINMAX[1]) + "\n"
+            "  SDProbabilityMin: " + str(_sd_prob(faction)[0]) + "\n"
+            "  SDProbabilityMax: " + str(_sd_prob(faction)[1]) + "\n"
             "  SDPriceMin: " + str(SD_PRICE_MINMAX[0]) + "\n"
             "  SDPriceMax: " + str(SD_PRICE_MINMAX[1]) + "\n"
             "}\n")
 
 
+def _sd_prob(faction: str) -> tuple:
+    """Probabilites de defense spatiale : plus elevees pour les hostiles."""
+    hostile = next((h for f, _, h in _active_factions() if f == faction), False)
+    return SD_PROB_MINMAX_HOSTILE if hostile else SD_PROB_MINMAX
+
+
 def _sd_settings_keys(faction: str) -> dict:
+    pmin, pmax = _sd_prob(faction)
     return {"SDScenarioGroup": faction + "SpaceDefense",
-            "SDProbabilityMin": str(SD_PROB_MINMAX[0]),
-            "SDProbabilityMax": str(SD_PROB_MINMAX[1]),
+            "SDProbabilityMin": str(pmin),
+            "SDProbabilityMax": str(pmax),
             "SDPriceMin": str(SD_PRICE_MINMAX[0]),
             "SDPriceMax": str(SD_PRICE_MINMAX[1])}
 
@@ -1563,8 +1587,9 @@ def _ensure_sd_settings(text: str, factions: list) -> tuple:
             if ki is None:
                 ajout.append("  " + cle + ": " + val)
             elif cle.startswith("SDProbability") and \
-                    lignes[ki].split(":", 1)[1].split("#")[0].strip() \
-                    in ("0", "0.0"):
+                    lignes[ki].split(":", 1)[1].split("#")[0].strip() != val:
+                # la passe possede ces deux cles (escalade par hostilite) :
+                # toute valeur differente est reecrite, donc idempotent
                 lignes[ki] = "  " + cle + ": " + val
                 n += 1
         if ajout:
@@ -1734,32 +1759,47 @@ def neutralize_random_resources(text: str) -> tuple:
     return "\n".join(lignes), n
 
 
-def _mine_entries_block(groups: tuple, style: dict) -> str:
-    """Une mine par faction du roster : le minerai est DANS le POI
-    (`SpawnResource`), gardé par des drones, et `IsImportant` garantit
-    qu'elle existe — c'est la seule source avec les gisements retirés."""
+def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
+                style: dict, dist: int, defense: dict) -> str:
+    """Une entree POI « mine » : le minerai est DANS le POI."""
     e, c = style["entry"], style["cont"]
-    tail = c + "Properties:\n" + style["item"] + "Key: RegenAfter\n" \
-        + style["val"] + "Value: 720\n"
+    lo, hi = defense["drones"]
+    return (
+        e + "GroupName: " + gname + "\n"
+        + c + "Faction: " + faction + "\n"
+        + c + "IsImportant: True\n"
+        + c + "CountMinMax: [ 1, 1 ]\n"
+        + c + "DroneProb: " + str(defense["prob"]) + "\n"
+        + c + "DronesMinMax: [ " + str(lo) + ", " + str(hi) + " ]\n"
+        + c + "ReserveCount: " + str(defense["reserve"]) + "\n"
+        + c + "TroopTransport: " + str(hostile).lower() + "\n"
+        + c + "SpawnPOIAvoid: [START]\n"
+        + c + "SpawnPOIAvoidDistance: " + str(dist) + "\n"
+        + c + "SpawnResource: ["
+        + ", ".join('"' + o + '"' for o in ores) + "]\n"
+        + c + "SpawnResourceRange: [100, 600]\n"
+        + c + "Properties:\n"
+        + style["item"] + "Key: RegenAfter\n"
+        + style["val"] + "Value: " + str(defense["regen"]) + "\n")
+
+
+def _mine_entries_block(groups: tuple, style: dict) -> str:
+    """Mine starter garantie + une mine par faction du roster. `IsImportant`
+    garantit qu'elles existent : c'est la seule source de minerai depuis le
+    retrait des gisements. Les mines hostiles ont plus de drones, un tier de
+    minerai en plus et une regeneration plus rapide."""
     out = []
+    if STARTER_MINE:
+        gname, _prefab, faction, hostile = _STARTER_MINE
+        out.append(_mine_entry(
+            gname, faction, hostile, _STARTER_ORES, style, 1200,
+            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 1440}))
     for faction, hostile in groups:
-        ores = _MINE_ORES_HOSTILE if hostile else _MINE_ORES
-        dist = _POI_AVOID["hostile" if hostile else "ally"]
-        out.append(
-            e + "GroupName: " + _mine_pool(faction) + "\n"
-            + c + "Faction: " + faction + "\n"
-            + c + "IsImportant: True\n"
-            + c + "CountMinMax: [ 1, 1 ]\n"
-            + c + "DroneProb: 0.5\n"
-            + c + "DronesMinMax: [ 2, 4 ]\n"
-            + c + "ReserveCount: 4\n"
-            + c + "TroopTransport: " + str(hostile).lower() + "\n"
-            + c + "SpawnPOIAvoid: [START]\n"
-            + c + "SpawnPOIAvoidDistance: " + str(dist) + "\n"
-            + c + "SpawnResource: ["
-            + ", ".join('"' + o + '"' for o in ores) + "]\n"
-            + c + "SpawnResourceRange: [100, 600]\n"
-            + tail)
+        out.append(_mine_entry(
+            _mine_pool(faction), faction, hostile,
+            _MINE_ORES_HOSTILE if hostile else _MINE_ORES, style,
+            _POI_AVOID["hostile" if hostile else "ally"],
+            _MINE_DEFENSE[hostile]))
     return "\n".join(out)
 
 

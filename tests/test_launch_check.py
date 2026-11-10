@@ -1045,3 +1045,26 @@ def test_unlock_level_above_player_cap_is_flagged(tmp_path):
     issues = [i for i in _check_hygiene(root) if "UnlockLevel" in i.message]
     assert len(issues) == 1 and issues[0].severity == "warning"
     assert "L27" in issues[0].message and "ItemsConfig.ecf:2" in issues[0].message
+
+
+def test_playfield_without_any_resource_is_error(tmp_path):
+    """Regime Starter_Dread partout : un playfield sans gisement actif ET sans
+    entree `Conflict*Mines` n'a plus aucune ressource -> erreur, corrigee par
+    pass_mine_pois."""
+    from core.launch_check import _check_conflict
+    root = _build_conflict_scenario(tmp_path)
+    pf = root / "Playfields" / "EdenSpaceA"
+    pf2 = root / "Playfields" / "PfVide"
+    pf2.mkdir(parents=True)
+    (pf2 / "playfield_static.yaml").write_text(
+        "PlayfieldType: Planet\n"
+        "RandomResources:\n"
+        "#     - Name: IronResource\n"
+        "POIs:\n"
+        "    Random:\n"
+        "        - GroupName: Native1\n"
+        "          Faction: None\n", encoding="utf-8")
+    issues = [i for i in _check_conflict(root) if "AUCUNE ressource" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+    assert "PfVide" in issues[0].message and "EdenSpaceA" not in issues[0].message
+    assert issues[0].fix == "core/conflict_warfare.py : pass_mine_pois"

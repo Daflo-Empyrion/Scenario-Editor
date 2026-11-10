@@ -1118,6 +1118,32 @@ def _check_conflict(root: Path) -> list[LaunchIssue]:
             message=f"{derive} bloc(s) de patrouille espace hors du modele "
                     f"(`AIManPatrolFactions` doit lister la faction du bloc, "
                     f"pas les adversaires)", fix=_FIX_SPACE))
+
+    # --- economie : regime Starter_Dread applique partout, donc un playfield
+    # sans gisement ET sans entree `Conflict*Mines` n'a plus AUCUNE ressource
+    # (impasse de progression ; la mine starter est censee couvrir le START) ---
+    sans_ressource = []
+    for pf in cw.planet_playfields(root):
+        try:
+            pf_txt = _read_text(Path(root) / "Playfields" / pf
+                                / "playfield_static.yaml")
+        except OSError:
+            continue
+        bloc = re.search(r"(?ms)^RandomResources:\n(.*?)(?=^[A-Za-z_])", pf_txt)
+        gisements = bool(bloc and re.search(
+            r"(?m)^\s+- Name:\s*\w+Resource", bloc.group(1)))
+        if not gisements and not re.search(
+                r"(?m)^[ \t]*-[ \t]+GroupName: Conflict\w+Mines", pf_txt):
+            sans_ressource.append(pf)
+    if sans_ressource:
+        issues.append(LaunchIssue(
+            check="conflict", path="Playfields", line=0, severity="error",
+            message=f"{len(sans_ressource)} playfield(s) sans AUCUNE ressource "
+                    f"(`RandomResources` vide ET aucune entree "
+                    f"`Conflict*Mines`) : "
+                    + ", ".join(sans_ressource[:6])
+                    + (" ..." if len(sans_ressource) > 6 else ""),
+            fix="core/conflict_warfare.py : pass_mine_pois"))
     return issues
 
 
