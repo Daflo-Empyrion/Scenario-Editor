@@ -168,3 +168,24 @@ def test_set_price_keeps_original_form(tmp_path):
 def test_missing_file(tmp_path):
     res = scan(tmp_path)
     assert not res.editable and res.factions == [] and res.issues == []
+
+
+def test_duplicate_unit_key_is_error(tmp_path):
+    """Cle du dictionnaire moteur = `Category + ClassName`, SANS la faction :
+    deux unites dessus levent au chargement
+    « ArgumentException: An item with the same key has already been added »
+    (vecu 10/11 : 15 factions sur le meme drone de repli)."""
+    sc = _scenario(tmp_path)
+    wf = sc / "Content" / "Configuration" / "FactionWarfare.ecf"
+    bloc = ("{ Element Name: Unit\n  Faction: \u00a7\n"
+            "  ClassName: Eden_SpaceDroneBanditT1\n"
+            "  Category: BaseDefenseOrbitVessel\n"
+            "  CommandPointsLvl1: 15\n}\n")
+    wf.write_text(WARFARE + bloc.replace("\u00a7", "UCH")
+                  + bloc.replace("\u00a7", "Farr"), encoding="utf-8")
+    res = scan(sc)
+    e332 = [i for i in res.issues if i.code == "E332"]
+    assert len(e332) == 1, [i.code for i in res.issues]
+    assert "BaseDefenseOrbitVesselEden_SpaceDroneBanditT1" in e332[0].message
+    assert "UCH" in e332[0].message and "Farr" in e332[0].message
+    assert e332[0].level == "error"

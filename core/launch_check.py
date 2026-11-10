@@ -77,6 +77,14 @@ _VALUES_TOLERATED = frozenset({
     ("param2", "EntityShipSV"),      # AITarget : type d'entite suivi (RE2)
 })
 
+# Module qui corrige chaque famille d'alerte (affiche dans le bilan). Les
+# checks de conflit posent leur `fix` eux-memes (plus fin qu'un check).
+_FIX_MODULES = {
+    "warfare": "core/faction_warfare.py (Outils > Defenses de faction)",
+    "types": "core/balance_audit.py (_set_or_insert_block_prop)",
+    "bin": "core/conflict_warfare.purge_playfield_cache",
+}
+
 # formes de valeurs pour le check « valeurs » (dictionnaire vanille)
 _NUM_RE = re.compile(
     r'-?(?:\d+\.?\d*|\.\d+)[fF]?(?:\s*,\s*-?(?:\d+\.?\d*|\.\d+)[fF]?)*')
@@ -114,6 +122,7 @@ class LaunchIssue:
     line: int           # 0 = non applicable
     severity: str       # "error" | "warning"
     message: str
+    fix: str = ""       # module qui corrige (ex. "core/x.py : pass_y")
 
 
 def _find_sectors_yaml(root: Path) -> Path | None:
@@ -871,6 +880,135 @@ def _check_numeric_types(root: Path) -> list[LaunchIssue]:
     return issues
 
 
+_FIX_UNITS = "core/conflict_warfare.py : pass_space_defense"
+_FIX_WAR = "core/conflict_warfare.py : pass_force_attack"
+_FIX_SPACE = "core/conflict_warfare.py : pass_space_conflict"
+
+
+def _read_text(path: Path) -> str:
+    raw = Path(path).read_bytes().decode("utf-8", errors="replace")
+    return raw.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _check_conflict(root: Path) -> list[LaunchIssue]:
+    """Conflit de factions (vecu 09-11/11) : crash des unites de defense
+    spatiale, factions sans renfort, guerre non symetrique, POI desarmes et
+    patrouilles hors modele. Chaque alerte porte le module qui la corrige
+    (`fix`) ; les compteurs sont AGREges — une ligne par playfield noierait
+    le bilan (98 fichiers spatiaux dans RE2)."""
+    from core import conflict_warfare as cw
+    conf = Path(root) / "Content" / "Configuration"
+    fw, fa = conf / "FactionWarfare.ecf", conf / "Factions.ecf"
+    if not fw.is_file() or not fa.is_file():
+        return []
+    issues: list[LaunchIssue] = []
+    rel_fw = fw.relative_to(root).as_posix()
+    actives = [f[0] for f in cw._active_factions()]
+
+    # --- unites de defense spatiale : cle moteur `Category + ClassName`,
+    # sans la faction -> ArgumentException au chargement (vecu 10/11) ---
+    txt = _read_text(fw)
+    lignes = txt.split("\n")
+    unites, svc = [], set()
+    for a, b in cw._ecf_blocks(txt, r"\{ *Element Name: *Unit"):
+        corps = lignes[a:b + 1]
+        cat = next((m.group(1) for ln in corps
+                    if (m := re.match(r"\s*Category: *(\S+)", ln))), "")
+        if not cat.startswith("BaseDefenseOrbitVessel"):
+            continue
+        cls = next((m.group(1) for ln in corps
+                    if (m := re.match(r"\s*ClassName: *(\S+)", ln))), "")
+        fac = next((m.group(1) for ln in corps
+                    if (m := re.match(r"\s*Faction: *(\w+)", ln))), "")
+        if cls:
+            unites.append((cat + cls, cls, fac, a + 1))
+        if fac:
+            svc.add(fac)
+    cles = {}
+    for cle, cls, fac, line in unites:
+        cles.setdefault(cle, []).append((fac, line))
+    for cle, lst in cles.items():
+        if len(lst) > 1:
+            issues.append(LaunchIssue(
+                check="conflict", path=rel_fw, line=lst[0][1],
+                severity="error",
+                message=f"{len(lst)} blocs Unit sur la cle moteur '{cle}' "
+                        f"({', '.join(f for f, _ in lst)}) : le moteur indexe "
+                        f"Category+ClassName SANS la faction -> "
+                        f"« ArgumentException: An item with the same key has "
+                        f"already been added » au chargement",
+                fix=_FIX_UNITS))
+
+    # --- factions sans defense spatiale complete (FactionSettings SD* ET
+    # unites BaseDefenseOrbitVessel) : SDScenarioGroup vide = zero renfort ---
+    avec_sd = set()
+    for a, b in cw._ecf_blocks(txt, r"\{ *Element Name: *FactionSettings"):
+        corps = lignes[a:b + 1]
+        fac = next((m.group(1) for ln in corps
+                    if (m := re.match(r"\s*Faction: *(\w+)", ln))), "")
+        if fac and any(re.match(r"\s*SDScenarioGroup:", ln) for ln in corps):
+            avec_sd.add(fac)
+    sans = [f for f in actives if f not in avec_sd or f not in svc]
+    if sans:
+        issues.append(LaunchIssue(
+            check="conflict", path=rel_fw, line=0, severity="warning",
+            message=f"{len(sans)} faction(s) sans defense spatiale complete "
+                    f"(FactionSettings SD* + Unit BaseDefenseOrbitVessel) : "
+                    + ", ".join(sans), fix=_FIX_UNITS))
+
+    # --- guerre non symetrique : A attaque B sans que B declare A (le
+    # moteur l'accepte ; c'est la TOTAL_WAR du projet qui exige les deux) ---
+    if cw.TOTAL_WAR_FORCE_ATTACK:
+        fa_txt = _read_text(fa)
+        fa_lignes = fa_txt.split("\n")
+        attaque = {}
+        for a, b in cw._ecf_blocks(fa_txt, r"\{ *Faction Id"):
+            nm = re.search(r'Name: *"(\w+)"', fa_lignes[a])
+            if not nm:
+                continue
+            ligne = next((ln for ln in fa_lignes[a:b + 1]
+                          if re.match(r"\s*ForceAttack[ \t]*:", ln)), "")
+            valeur = ligne.split(":", 1)[1].strip().strip('"') if ligne else ""
+            attaque[nm.group(1)] = {x.strip() for x in valeur.split(",") if x.strip()}
+        asym = [f + "->" + g for f in actives for g in sorted(attaque.get(f, ()))
+                if g in actives and g != f and f not in attaque.get(g, ())]
+        if asym:
+            issues.append(LaunchIssue(
+                check="conflict", path=fa.relative_to(root).as_posix(),
+                line=0, severity="warning",
+                message=f"{len(asym)} relation(s) d'attaque non reciproque "
+                        f"(guerre totale attendue) : "
+                        + ", ".join(asym[:8]) + (" ..." if len(asym) > 8 else ""),
+                fix=_FIX_WAR))
+
+    # --- espace : POI de faction active desarmes, et blocs de patrouille
+    # hors modele (`AIManPatrolFactions` = POI de SA faction, cf. vanilla) ---
+    actifs = set(actives)
+    sans_def = derive = 0
+    for pf in cw.space_playfields(root):
+        try:
+            space = _read_text(Path(root) / "Playfields" / pf / "space_dynamic.yaml")
+        except OSError:
+            continue
+        sans_def += cw._ensure_poi_space_defense(space, actifs)[1]
+        derive += cw._ensure_space_units(space, cw._space_roster(pf))[1]
+    if sans_def:
+        issues.append(LaunchIssue(
+            check="conflict", path="Playfields/*/space_dynamic.yaml", line=0,
+            severity="warning",
+            message=f"{sans_def} POI spatial(aux) d'une faction active "
+                    f"desarmes (`SpaceDefenseOverrideDefaults: True` + "
+                    f"`SpaceDefenseProbability: 0`)", fix=_FIX_UNITS))
+    if derive:
+        issues.append(LaunchIssue(
+            check="conflict", path="Playfields/*/space_dynamic.yaml", line=0,
+            severity="warning",
+            message=f"{derive} bloc(s) de patrouille espace hors du modele "
+                    f"(`AIManPatrolFactions` doit lister la faction du bloc, "
+                    f"pas les adversaires)", fix=_FIX_SPACE))
+    return issues
+
+
 def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     """Tous les checks structurels « avant lancement » du scenario pointe
     par `scenario_root` (copie de travail OU production)."""
@@ -1140,4 +1278,14 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
             message=f"[W350] declencheur PDA inconnu : 'Check: {value}' "
                     f"({count} occurrence(s)) — ni l'enumeration du moteur ni "
                     f"un declencheur observe"))
+
+    # --- conflit de factions : unites de defense spatiale, guerre totale,
+    # POI desarmes, patrouilles hors modele (core/conflict_warfare.py) ---
+    issues.extend(_check_conflict(root))
+
+    # module correcteur affiche a cote de l'alerte ; vide = correction
+    # manuelle (pas de passe automatisee pour cette famille)
+    for issue in issues:
+        if not issue.fix:
+            issue.fix = _FIX_MODULES.get(issue.check, "")
     return issues

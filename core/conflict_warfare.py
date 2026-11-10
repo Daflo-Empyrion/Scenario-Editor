@@ -1092,8 +1092,11 @@ def pass_faction_conflict(scenario: Path, apply: bool = False, store=None,
 # ancrés sur START ni de PlanetVessels, mais :
 #   DroneBaseSetup > FreeDrones   (drones spatiaux libres, par faction)
 #   DroneBaseSetup > SpaceVessels (patrouilleurs spatiaux, par faction)
-# Les deux acceptent `AIManPatrolFactions` : c'est ce qui fait que les
-# factions se ciblent entre elles.
+# `AIManPatrolFactions` = « quels POI de quelles FACTIONS je patrouille »
+# (commentaire vanilla GS_Ashon2Orbit/playfield.yaml) : on y met la faction
+# du bloc, comme la vanille (`UCH` -> "UCH", `Talon` -> "Talon"). Ce n'est
+# PAS une liste d'ennemis : l'hostilité NPC-vs-NPC vit dans
+# Factions.ecf `ForceAttack` (pass_force_attack).
 # ---------------------------------------------------------------------------
 _SPACE_ROSTER_SIZE = 6
 
@@ -1249,12 +1252,12 @@ def _ensure_space_units(text: str, roster: tuple) -> tuple:
             presents.add(f)
             if "# conflict:auto" not in corps:
                 continue                       # bloc natif : intact
-            want = maker(f, ", ".join(x for x in factions if x != f))
+            want = maker(f, f)      # patrouille les POI de SA faction (vanille)
             if corps.rstrip("\n") != want.rstrip("\n"):
                 repl.append((a, b, want.split("\n")))
         for f in factions:
             if f not in presents:
-                add.append(maker(f, ", ".join(x for x in factions if x != f)).split("\n"))
+                add.append(maker(f, f).split("\n"))
         if not repl and not add:
             continue
         for a, b, want in reversed(repl):
@@ -1287,10 +1290,15 @@ def pass_space_conflict(scenario: Path, apply: bool = False, store=None,
             rep["details"].append(f"{pfname} : sans DroneBaseSetup (ignore)")
             continue
         roster = _space_roster(pfname)
-        before = len(text)
+        # garde-fou : la reecriture ne doit JAMAIS perdre de bloc. Comparer la
+        # longueur interdisait une correction LEGITIME plus courte (passer
+        # AIManPatrolFactions des adversaires a la faction du bloc raccourcit
+        # chaque entree : vecu 10/11, 1062 blocs refuses) — on compte les
+        # entrees a la place.
+        avant = text.count("          - Name: [")
         text, n = _ensure_space_units(text, roster)
-        if n and len(text) < before:
-            rep["details"].append(f"{pfname} : ABANDON (texte raccourci)")
+        if n and text.count("          - Name: [") < avant:
+            rep["details"].append(f"{pfname} : ABANDON (entrees perdues)")
             continue
         if not n:
             continue

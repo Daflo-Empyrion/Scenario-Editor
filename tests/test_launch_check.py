@@ -543,7 +543,7 @@ def test_dialog_export_csv(qapp, tmp_path, monkeypatch):
 def test_dialog_construction(qapp, tmp_path):
     from gui.launch_check_dialog import LaunchCheckDialog
     dlg = LaunchCheckDialog(None, working_root=str(tmp_path))
-    assert dlg.tree.columnCount() == 4
+    assert dlg.tree.columnCount() == 5      # + colonne Correction (fix)
     assert dlg.btn_run.isEnabled()
 
 
@@ -552,12 +552,15 @@ def test_dialog_results_slot(qapp, tmp_path):
     from core.yaml_game_check import YamlFinding
     from gui.launch_check_dialog import LaunchCheckDialog
     dlg = LaunchCheckDialog(None, working_root=str(tmp_path))
-    dlg._on_done([LaunchIssue("sectors", "Sectors/Sectors.yaml.bak", 0,
-                              "error", "fichier etranger")],
+    dlg._on_done([LaunchIssue("conflict", "Content/Configuration/FactionWarfare.ecf",
+                              42, "error", "unites en double",
+                              "core/conflict_warfare.py : pass_space_defense")],
                  [YamlFinding("Playfields/X/playfield_static.yaml", 3, 12,
                               "boom")], 42, True)
     assert dlg.tree.topLevelItemCount() == 2
     assert dlg.tree.topLevelItem(0).text(1) == "Bloquant"
+    assert dlg.tree.topLevelItem(0).text(4) == \
+        "core/conflict_warfare.py : pass_space_defense"
     assert str(42) in dlg.status_label.text()
     assert dlg.btn_run.isEnabled()
     # moteur saute : mention ajoutee, arbre conserve
@@ -875,3 +878,87 @@ def test_trash_requires_confirmation_and_deletes_with_it(qapp, tmp_path,
     assert not epb.exists()
     assert not (prefabs / "Orphan.decals").exists()
     assert dlg.tree.topLevelItemCount() == 0
+
+
+CONFLICT_FACTIONS = """{ Faction Id: 2, Name: "Zirax"
+  Reputation: true
+  ForceAttack: "Pirates"
+}
+{ Faction Id: 4, Name: "Pirates"
+  Unfriendly: true
+  ForceAttack: "Zirax"
+}
+"""
+
+CONFLICT_WARFARE = """{ Element Name: GlobalSettings
+  EnableSpaceDefense: True
+}
+{ Element Name: FactionSettings
+  Faction: Zirax
+  ScenarioGroup: Zirax
+  SDScenarioGroup: ZiraxSpaceDefense
+  SDProbabilityMin: 0.3
+  SDProbabilityMax: 0.6
+"""
+CONFLICT_WARFARE += """  SDPriceMin: 30
+  SDPriceMax: 60
+}
+""" + "".join(
+    "{ Element Name: Unit\n  Faction: " + f + "\n"
+    "  ClassName: Eden_SpaceDroneBanditT1\n"
+    "  Category: BaseDefenseOrbitVessel\n"
+    "  CommandPointsLvl1: 15\n}\n" for f in ("Zirax", "Farr"))
+
+CONFLICT_SPACE = """PlayfieldType: Space
+POIs:
+    - Type: BA_Alien
+      GroupName: R2TraderSpaceTrade
+      Faction: Trader
+      SpaceDefenseOverrideDefaults: True
+      SpaceDefenseProbability: 0
+DroneBaseSetup:
+      - FreeDrones:
+          - Name: [Eden_SpaceDroneBanditT1]
+            Faction: Zirax
+            Count: [1, 2]
+            Properties:
+              - Key: AIManPatrolFactions
+                Value: "Pirates"
+            # conflict:auto
+"""
+
+
+def _build_conflict_scenario(tmp_path: Path) -> Path:
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "Factions.ecf").write_text(CONFLICT_FACTIONS, encoding="utf-8")
+    (conf / "FactionWarfare.ecf").write_text(CONFLICT_WARFARE, encoding="utf-8")
+    pf = root / "Playfields" / "EdenSpaceA"
+    pf.mkdir(parents=True)
+    (pf / "space_dynamic.yaml").write_text(CONFLICT_SPACE, encoding="utf-8")
+    return root
+
+
+def test_conflict_duplicate_units_is_error_with_fix(tmp_path):
+    """L'alerte de collision d'unites est une ERREUR et nomme le module qui
+    la corrige (bilan « avant lancement », vecu 10/11)."""
+    from core.launch_check import _check_conflict
+    issues = _check_conflict(_build_conflict_scenario(tmp_path))
+    errors = [i for i in issues if i.severity == "error"]
+    assert len(errors) == 1, [i.message for i in issues]
+    assert errors[0].check == "conflict"
+    assert "BaseDefenseOrbitVesselEden_SpaceDroneBanditT1" in errors[0].message
+    assert errors[0].fix == "core/conflict_warfare.py : pass_space_defense"
+    assert all(i.fix for i in issues)        # chaque alerte est actionnable
+
+
+def test_conflict_poi_defense_and_patrol_drift(tmp_path):
+    """POI de faction active desarme (proba 0 + override) et bloc de
+    patrouille qui cite les adversaires au lieu de sa faction : deux
+    avertissements, chacun lie a sa passe."""
+    from core.launch_check import _check_conflict
+    issues = _check_conflict(_build_conflict_scenario(tmp_path))
+    fixes = {i.fix for i in issues if "POI" in i.message or "patrouille" in i.message}
+    assert "core/conflict_warfare.py : pass_space_defense" in fixes
+    assert "core/conflict_warfare.py : pass_space_conflict" in fixes

@@ -117,10 +117,12 @@ class LaunchCheckDialog(QDialog):
         self.tree.setHeaderLabels([t("yamlcheck.col_file"),
                                    t("launchcheck.col_severity"),
                                    t("launchcheck.col_check"),
-                                   t("yamlcheck.col_error")])
+                                   t("yamlcheck.col_error"),
+                                   t("launchcheck.col_fix")])
         self.tree.setColumnWidth(0, 300)
         self.tree.setColumnWidth(1, 90)
         self.tree.setColumnWidth(2, 80)
+        self.tree.setColumnWidth(4, 220)
         lay.addWidget(self.tree, 1)
 
         self.status_label = QLabel("")
@@ -304,7 +306,8 @@ class LaunchCheckDialog(QDialog):
                   "pda": t("launchcheck.check_pda"),
                   "scripts": t("launchcheck.check_scripts"),
                   "tokens": t("launchcheck.check_tokens"),
-                  "dialogues": t("launchcheck.check_dialogues")}
+                  "dialogues": t("launchcheck.check_dialogues"),
+                  "conflict": t("launchcheck.check_conflict")}
         n_errors = 0
         for issue in issues:
             is_error = issue.severity == "error"
@@ -314,13 +317,15 @@ class LaunchCheckDialog(QDialog):
                 sev_error if is_error else sev_warning,
                 checks.get(issue.check, issue.check),
                 issue.message,
+                issue.fix,
             ])
             item.setToolTip(3, issue.message)
+            item.setToolTip(4, issue.fix)
             self.tree.addTopLevelItem(item)
         for f in findings:
             n_errors += 1
             item = QTreeWidgetItem([f.rel_path, sev_error,
-                                    t("launchcheck.check_engine"), f.message])
+                                    t("launchcheck.check_engine"), f.message, ""])
             item.setToolTip(3, f.message)
             self.tree.addTopLevelItem(item)
         total = len(issues) + len(findings)
@@ -352,7 +357,7 @@ class LaunchCheckDialog(QDialog):
             writer.writerow(t("launchcheck.csv_headers").split(";"))
             for i in range(self.tree.topLevelItemCount()):
                 item = self.tree.topLevelItem(i)
-                writer.writerow([item.text(c) for c in range(4)])
+                writer.writerow([item.text(c) for c in range(5)])
         self.status_label.setText(t("launchcheck.csv_done", path=out))
 
     def _on_fail(self, exc: Exception):

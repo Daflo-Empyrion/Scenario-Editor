@@ -333,6 +333,26 @@ def _run_checks(root: Path, result: WarScan) -> None:
     categories = {u.category for u in result.units if u.category}
     categories |= {u.class_name for u in result.units if u.class_name}
 
+    # cle du dictionnaire moteur = `Category + ClassName`, SANS la faction :
+    # deux unites qui la partagent font lever au chargement
+    # « ArgumentException: An item with the same key has already been added.
+    #   Key: BaseDefenseOrbitVesselEden_SpaceDroneBanditT1 »
+    # (FunctionLoader.FindCommand -> LoadDomain ; vecu 10/11 : 15 factions
+    #  sur le meme drone de repli). Correction : une classe par faction.
+    cles: Dict[str, List[str]] = {}
+    for unit in result.units:
+        if unit.category and unit.class_name:
+            cles.setdefault(unit.category + unit.class_name, []).append(
+                unit.faction or "?")
+    for key, factions in cles.items():
+        if len(factions) > 1:
+            result.issues.append(ValidationIssue(
+                code="E332", level="error",
+                message=f"{len(factions)} unites sur la cle moteur '{key}' "
+                        f"({', '.join(factions)}) : Category+ClassName sans la "
+                        f"faction -- ArgumentException au chargement",
+                file_path=path))
+
     for entry in result.factions:
         if known_factions and entry.faction not in known_factions:
             result.issues.append(ValidationIssue(
