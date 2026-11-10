@@ -307,7 +307,9 @@ class LaunchCheckDialog(QDialog):
                   "scripts": t("launchcheck.check_scripts"),
                   "tokens": t("launchcheck.check_tokens"),
                   "dialogues": t("launchcheck.check_dialogues"),
-                  "conflict": t("launchcheck.check_conflict")}
+                  "conflict": t("launchcheck.check_conflict"),
+                  "hygiene": t("launchcheck.check_hygiene"),
+                  "validation": t("launchcheck.check_validation")}
         n_errors = 0
         for issue in issues:
             is_error = issue.severity == "error"

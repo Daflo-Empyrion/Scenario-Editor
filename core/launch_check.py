@@ -885,6 +885,94 @@ _FIX_WAR = "core/conflict_warfare.py : pass_force_attack"
 _FIX_SPACE = "core/conflict_warfare.py : pass_space_conflict"
 
 
+def _check_hygiene(root: Path) -> list[LaunchIssue]:
+    """Configs ECF/playfield : les deux pieges qui font jeter le moteur ou
+    ignorent silencieusement une valeur (fiches cerveau
+    empyrion-ecf-bloc-mono-ligne-malformed,
+    empyrion-ecf-hitpoints-type-int-obligatoire,
+    empyrion-yaml-immobiletask-planetvessel)."""
+    from core.config_hygiene import scan_ecf_monoline, scan_hitpoints_type
+    issues: list[LaunchIssue] = []
+
+    monolignes = scan_ecf_monoline(root)
+    if monolignes:
+        par_fichier = {}
+        for name, line in monolignes:
+            par_fichier.setdefault(name, []).append(line)
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration", line=0,
+            severity="error",
+            message=f"{len(monolignes)} bloc(s) ECF ouverts ET fermes sur la "
+                    f"meme ligne ({', '.join(f'{n}:{v[0]}' for n, v in list(par_fichier.items())[:4])}"
+                    f"{' ...' if len(par_fichier) > 4 else ''}) : lecture "
+                    f"avortee « config line N is malformed » puis NRE",
+            fix="core/config_hygiene.py : fix_ecf_monoline"))
+
+    sans_type = scan_hitpoints_type(root)
+    if sans_type:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration", line=0,
+            severity="warning",
+            message=f"{len(sans_type)} HitPoints/Armor sans 'type: int' "
+                    f"({sans_type[0][0]}:{sans_type[0][1]}"
+                    f"{' ...' if len(sans_type) > 1 else ''}) : valeur stockee "
+                    f"en chaine -> « Error converting property ... to an int "
+                    f"value » et valeur IGNOREE",
+            fix="core/config_hygiene.py : fix_hitpoints_type"))
+
+    # PlanetVessel (planete) = ImmobileTask ; `Immobile` est la cle du
+    # vaisseau SPATIAL : la poser dans playfield_static.yaml fait jeter
+    # YamlDotNet et le playfield n'est jamais charge
+    playfields = Path(root) / "Playfields"
+    coupables = []
+    for path in sorted(playfields.glob("*/playfield_static.yaml")) \
+            if playfields.is_dir() else []:
+        for i, ln in enumerate(_read_text(path).split("\n"), 1):
+            if re.match(r"^[ \t]+Immobile:[ \t]*$", ln):
+                coupables.append(f"{path.parent.name}:{i}")
+    if coupables:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Playfields", line=0, severity="error",
+            message=f"{len(coupables)} PlanetVessel(s) avec 'Immobile:' "
+                    f"({', '.join(coupables[:4])}"
+                    f"{' ...' if len(coupables) > 4 else ''}) : la cle du "
+                    f"vaisseau planetaire est 'ImmobileTask' -> YamlException "
+                    f"et playfield jamais charge",
+            fix="core/ai_realism.py : pass_space_missions"))
+    return issues
+
+
+def _check_validation(root: Path) -> list[LaunchIssue]:
+    """Regles ECF du projet (core/ecf/validation.py : E005/E006/E008/Refs,
+    UnlockLevel, materiaux) — les memes que l'ecran Sante, agrégées ici pour
+    que le bilan avant lancement n'en laisse aucune de cote."""
+    conf = Path(root) / "Content" / "Configuration"
+    if not conf.is_dir():
+        return []
+    from core.ecf.validation import validate_scenario
+    try:
+        resultats = validate_scenario(Path(root))
+    except Exception as exc:                  # noqa: BLE001 - parse en echec
+        return [LaunchIssue(
+            check="validation", path="Content/Configuration", line=0,
+            severity="warning",
+            message=f"validation ECF non executee : {exc}")]
+    issues: list[LaunchIssue] = []
+    par_code: dict = {}
+    for path, brutes in resultats.items():
+        for issue in brutes:
+            par_code.setdefault((issue.code, issue.level), []).append(
+                (path.name, issue.message))
+    for (code, level), lst in par_code.items():
+        fichier, message = lst[0]
+        issues.append(LaunchIssue(
+            check="validation", path="Content/Configuration/" + fichier,
+            line=0, severity="error" if level == "error" else "warning",
+            message=f"[{code}] x{len(lst)} : {message}"
+                    + (f" (aussi : {len(lst) - 1} autre(s))" if len(lst) > 1 else "")))
+    return issues
+
+
 def _read_text(path: Path) -> str:
     raw = Path(path).read_bytes().decode("utf-8", errors="replace")
     return raw.replace("\r\n", "\n").replace("\r", "\n")
@@ -1282,6 +1370,11 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
     # --- conflit de factions : unites de defense spatiale, guerre totale,
     # POI desarmes, patrouilles hors modele (core/conflict_warfare.py) ---
     issues.extend(_check_conflict(root))
+
+    # --- hygiene des configs (ECF mono-ligne, HitPoints sans type,
+    # PlanetVessel en Immobile) + regles ECF du projet ---
+    issues.extend(_check_hygiene(root))
+    issues.extend(_check_validation(root))
 
     # module correcteur affiche a cote de l'alerte ; vide = correction
     # manuelle (pas de passe automatisee pour cette famille)

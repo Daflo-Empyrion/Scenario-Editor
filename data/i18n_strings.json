@@ -10519,6 +10519,14 @@
     "fr": "Conflit de factions",
     "en": "Faction conflict"
   },
+  "launchcheck.check_hygiene": {
+    "fr": "Hygiène des configs",
+    "en": "Config hygiene"
+  },
+  "launchcheck.check_validation": {
+    "fr": "Règles ECF",
+    "en": "ECF rules"
+  },
   "launchcheck.check_egroups": {
     "fr": "Groupes",
     "en": "Groups"

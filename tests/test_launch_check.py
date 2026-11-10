@@ -962,3 +962,70 @@ def test_conflict_poi_defense_and_patrol_drift(tmp_path):
     fixes = {i.fix for i in issues if "POI" in i.message or "patrouille" in i.message}
     assert "core/conflict_warfare.py : pass_space_defense" in fixes
     assert "core/conflict_warfare.py : pass_space_conflict" in fixes
+
+
+def _build_hygiene_scenario(tmp_path: Path) -> Path:
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "BlocksConfig.ecf").write_text(
+        "{ Block Name: Alias, Ref: TurretBase }\n"
+        "{ Block Name: Hull, Ref: TurretBase\n"
+        "  HitPoints: 500\n"
+        "}\n", encoding="utf-8")
+    pf = root / "Playfields" / "PfHyg"
+    pf.mkdir(parents=True)
+    (pf / "playfield_static.yaml").write_text(
+        "DroneBaseSetup:\n"
+        "    PlanetVessels:\n"
+        "      - Name: R2PV_ZiraxCutter01\n"
+        "        Immobile:\n"
+        "          Position3D: [0, 300, 0]\n", encoding="utf-8")
+    return root
+
+
+def test_hygiene_rules_are_flagged_with_fix(tmp_path):
+    """Trois pieges vecus : bloc ECF mono-ligne (« config line N is
+    malformed »), HitPoints sans `type: int` (valeur ignoree), PlanetVessel
+    en `Immobile` (YamlException). Chacun nomme son module de correction."""
+    from core.launch_check import _check_hygiene
+    issues = _check_hygiene(_build_hygiene_scenario(tmp_path))
+    fixes = {(i.severity, i.fix) for i in issues}
+    assert ("error", "core/config_hygiene.py : fix_ecf_monoline") in fixes
+    assert ("warning", "core/config_hygiene.py : fix_hitpoints_type") in fixes
+    assert ("error", "core/ai_realism.py : pass_space_missions") in fixes
+    assert all(i.check == "hygiene" for i in issues)
+
+
+def test_hygiene_fixers_clear_the_alerts(tmp_path):
+    """Les deux reparations mecaniques sont idempotentes et effacent
+    l'alerte correspondante."""
+    from core.config_hygiene import (fix_ecf_monoline, fix_hitpoints_type,
+                                     scan_ecf_monoline, scan_hitpoints_type)
+    root = _build_hygiene_scenario(tmp_path)
+    assert scan_ecf_monoline(root) and scan_hitpoints_type(root)
+    rep1 = fix_ecf_monoline(root, apply=True)
+    rep2 = fix_hitpoints_type(root, apply=True)
+    assert rep1["edits"] == 1 and rep2["edits"] == 1
+    assert not scan_ecf_monoline(root) and not scan_hitpoints_type(root)
+    assert fix_ecf_monoline(root, apply=True)["edits"] == 0
+    assert fix_hitpoints_type(root, apply=True)["edits"] == 0
+    txt = (root / "Content" / "Configuration" / "BlocksConfig.ecf").read_text("utf-8")
+    assert "HitPoints: 500, type: int" in txt
+    assert "{ Block Name: Alias, Ref: TurretBase\n}" in txt
+
+
+def test_ecf_rules_from_health_screen_are_in_the_bilan(tmp_path):
+    """Les regles ECF du projet (E008 ligne d'attributs orpheline, etc.)
+    tournent aussi dans le bilan avant lancement, agregees par code."""
+    from core.launch_check import _check_validation
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "ItemsConfig.ecf").write_text(
+        "{ Item Name: X, Ref: Y\n  type: int\n  Mass: 1\n}\n", encoding="utf-8")
+    issues = _check_validation(root)
+    assert issues, "aucune alerte ECF"
+    assert all(i.check == "validation" for i in issues)
+    assert any(i.severity == "error" for i in issues)
+    assert any("E008" in i.message for i in issues)
