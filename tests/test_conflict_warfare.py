@@ -842,3 +842,33 @@ def test_mine_poi_carries_the_ore(tmp_path):
     assert "SpawnPOIAvoidDistance: 1200" in starter and "Value: 1440" in starter
     assert "DroneProb: 0.6" in bloc and "DroneProb: 0.4" in bloc
     assert "NeodymiumResource" in bloc and "Value: 480" in bloc
+
+
+def test_pois_stay_idempotent_when_another_pass_appends():
+    """Nos entrees doivent suivre la derniere entree ETRANGERE ; une autre
+    de nos passes peut en ajouter apres (mines) sans provoquer de
+    reinsertion a chaque run (vecu 11/11 : 18 edits par playfield)."""
+    from core.conflict_warfare import _ensure_pois
+    txt = (
+        "POIs:\n"
+        "    Random:\n"
+        "        - GroupName: Native1\n"
+        "          Faction: None\n"
+        "        - GroupName: ConflictZiraxBases\n"
+        "          Faction: Zirax\n"
+        "        - GroupName: ConflictZiraxMines\n"
+        "          Faction: Zirax\n"
+        "    FixedPlayerStart:\n"
+    )
+    bloc = ("        - GroupName: ConflictZiraxBases\n"
+            "          Faction: Zirax\n")
+    t2, n = _ensure_pois(txt, bloc)
+    assert n == 0, n            # deja apres l'etrangere : rien a faire
+    # une entree etrangere ajoutee APRES les notres force le reclassement
+    txt2 = txt.replace("    FixedPlayerStart:\n",
+                       "        - GroupName: Native2\n"
+                       "          Faction: None\n"
+                       "    FixedPlayerStart:\n")
+    t3, n2 = _ensure_pois(txt2, bloc)
+    assert n2 > 0
+    assert t3.index("ConflictZiraxBases") > t3.index("Native2")

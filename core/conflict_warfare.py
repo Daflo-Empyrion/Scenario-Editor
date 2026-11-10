@@ -206,6 +206,13 @@ def _mine_pool(faction: str) -> str:
     return "Conflict" + faction + "Mines"
 
 
+def mine_prefabs_manquants(scenario: Path) -> list:
+    """Prefabs de mine absents du scenario (un pool sans .epb ne place RIEN)."""
+    pre = Path(scenario) / "Prefabs"
+    return sorted({p for _, p, _, _ in _mine_groups()
+                   if not (pre / (p + ".epb")).is_file()})
+
+
 def _mine_groups() -> tuple:
     """(GroupName, prefab, faction, hostile) des pools « mines », plus la
     mine starter quand elle est active."""
@@ -607,11 +614,28 @@ def _ensure_pois(text: str, block: str) -> tuple:
             n_stray += 1
     zone = text[m.end():zone_end]
     missing = [e for e in entries if e + "\n" not in text]
-    zone_last = zone.rfind(style["entry"] + "GroupName: ")
-    ours_last = zone_last >= 0 and any(
-        zone.startswith(style["entry"] + "GroupName: " + g, zone_last)
-        for g in set(gnames))
-    if not missing and ours_last:
+    # Ordre : nos entrees doivent suivre la DERNIERE entree etrangere. Se
+    # fier a « la derniere entree de la zone est a nous » rendait la passe
+    # non idempotente des qu'une AUTRE de nos passes ajoutait ses entrees
+    # apres (mines, 11/11 : 18 reinsertions par playfield a chaque run).
+    nos = set(gnames)
+
+    def _a_nous(gname: str) -> bool:
+        """Nos entrees, toutes passes confondues : pools `Conflict*Bases`,
+        `Conflict*Mines`, `ConflictStarterMine` et `R2DroneBase`. Sans ca,
+        les mines (autre passe) passaient pour etrangeres et faisaient
+        reclasser les bases a chaque run (18 edits/playfield, vecu 11/11)."""
+        return gname in nos or gname.startswith("Conflict") \
+            or gname == "R2DroneBase"
+
+    dans_zone = [(mo.start(), mo.group(1)) for mo in re.finditer(
+        r"(?m)^" + re.escape(style["entry"]) + r"GroupName: ([\w-]+)", zone)]
+    derniere_etrangere = max(
+        (p for p, g in dans_zone if not _a_nous(g)), default=-1)
+    premiere_notre = min(
+        (p for p, g in dans_zone if _a_nous(g)), default=-1)
+    ordre_ok = premiere_notre >= 0 and premiere_notre > derniere_etrangere
+    if not missing and ordre_ok:
         return text, n_stray
     if missing:
         todo = [(gn, e) for gn, e in zip(gnames, entries) if e + "\n" not in text]
@@ -1109,7 +1133,15 @@ def pass_faction_conflict(scenario: Path, apply: bool = False, store=None,
         our_pools = {_pool(f) for f, _, _ in _active_factions()}
         retired_g = tuple(sorted(our_pools - used))
         text, k_rm = _remove_pois(text, retired_g)
-        text, k_move = _ensure_pois(text, _poi_entries_block(groups, _poi_style(text)))
+        # UN SEUL bloc pour tout le tail « conflit » : bases + mines. Deux
+        # passes qui insèrent chacune leur bloc dans la même liste se
+        # reclassaient mutuellement a chaque run (vecu 11/11 : 1160 edits).
+        style = _poi_style(text)
+        bloc = _poi_entries_block(groups, style)
+        if MINE_POIS and not mine_prefabs_manquants(scenario):
+            bloc += "\n" + _mine_entries_block(
+                [(f, h) for _, f, h in groups], style)
+        text, k_move = _ensure_pois(text, bloc)
         roster = {f for _, f, _ in groups}
         retired_v = tuple(n for n in _RETIRED_VESSELS
                           if n not in {v[0] for v in _active_vessels()}) \
@@ -1847,11 +1879,10 @@ def pass_mine_pois(scenario: Path, apply: bool = False, store=None,
     if not MINE_POIS:
         rep["details"].append("POI mines desactives")
         return rep
-    manquants = [p for _, p, f, _ in _mine_groups()
-                 if not (scenario / "Prefabs" / (p + ".epb")).is_file()]
+    manquants = mine_prefabs_manquants(scenario)
     if manquants:
         rep["details"].append("Prefabs de mine manquants : "
-                              + ", ".join(sorted(set(manquants))))
+                              + ", ".join(manquants))
         return rep
     pgroups_path = scenario / "Prefabs" / "_PoiGroupsConfig.yaml"
     if pgroups_path.is_file():
@@ -1871,11 +1902,13 @@ def pass_mine_pois(scenario: Path, apply: bool = False, store=None,
             continue
         roster = [(f, h) for _, f, h in _entry_groups(text, pfname)]
         gardes = {f for f, _ in roster}
+        # Les ENTREES sont ecrites par pass_faction_conflict (un seul bloc
+        # pour tout le tail « conflit » : deux passes qui inserrent dans la
+        # meme liste se reclassaient mutuellement). Ici : les pools et le
+        # retrait des mines de factions sorties du roster.
         text, k_rm = _remove_pois(
             text, tuple(_mine_pool(f) for f in tous if f not in gardes))
-        text, k_add = _ensure_pois(
-            text, _mine_entries_block(roster, _poi_style(text)))
-        n = k_rm + k_add
+        n = k_rm
         if not n:
             continue
         if apply:
