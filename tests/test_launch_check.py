@@ -1029,3 +1029,19 @@ def test_ecf_rules_from_health_screen_are_in_the_bilan(tmp_path):
     assert all(i.check == "validation" for i in issues)
     assert any(i.severity == "error" for i in issues)
     assert any("E008" in i.message for i in issues)
+
+
+def test_unlock_level_above_player_cap_is_flagged(tmp_path):
+    """UnlockLevel > 25 n'est jamais debloquable : cap joueur 25 (XP clampee
+    a 500000 dans le client, aucune table de niveaux en config). Vecu ATL :
+    23 items morts."""
+    from core.launch_check import _check_hygiene
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "ItemsConfig.ecf").write_text(
+        "{ Item Name: Mort, Ref: X\n  UnlockLevel: 27\n}\n"
+        "{ Item Name: Vivant, Ref: X\n  UnlockLevel: 25\n}\n", encoding="utf-8")
+    issues = [i for i in _check_hygiene(root) if "UnlockLevel" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "warning"
+    assert "L27" in issues[0].message and "ItemsConfig.ecf:2" in issues[0].message

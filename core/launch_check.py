@@ -920,6 +920,30 @@ def _check_hygiene(root: Path) -> list[LaunchIssue]:
                     f"value » et valeur IGNOREE",
             fix="core/config_hygiene.py : fix_hitpoints_type"))
 
+    # UnlockLevel > 25 : le cap joueur est 25 (XP clampee a 500000 dans le
+    # client, aucune table de niveaux en config) -> l'objet n'est JAMAIS
+    # debloquable par montee de niveau (fiche cerveau
+    # unlocklevel-cap-joueur-25, vecu ATL 30/10 : 23 items morts).
+    niveau_max = 25
+    trop = []
+    for name in ("BlocksConfig.ecf", "ItemsConfig.ecf"):
+        path = Path(root) / "Content" / "Configuration" / name
+        if not path.is_file():
+            continue
+        for i, ln in enumerate(_read_text(path).split("\n"), 1):
+            m = re.match(r"\s*UnlockLevel:[ \t]*(\d+)", ln)
+            if m and int(m.group(1)) > niveau_max:
+                trop.append(f"{name}:{i} (L{m.group(1)})")
+    if trop:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration", line=0,
+            severity="warning",
+            message=f"{len(trop)} UnlockLevel au-dela de {niveau_max} "
+                    f"({', '.join(trop[:4])}{' ...' if len(trop) > 4 else ''}) : "
+                    f"cap joueur = {niveau_max} (XP clampee a 500000), l'objet "
+                    f"n'est jamais debloquable par niveau — aligner sur "
+                    f"<= {niveau_max}"))
+
     # PlanetVessel (planete) = ImmobileTask ; `Immobile` est la cle du
     # vaisseau SPATIAL : la poser dans playfield_static.yaml fait jeter
     # YamlDotNet et le playfield n'est jamais charge
