@@ -929,3 +929,18 @@ def test_tech_milestones_refuses_existing_keys(tmp_path):
     rep = pass_tech_milestones(sc, apply=True)
     assert rep["edits"] == 0 and "deja presente" in " ".join(rep["details"])
     assert "pda_Jal1Title" not in (sc / "Extras" / "PDA" / "PDA.yaml").read_text("utf-8")
+
+
+def test_mine_entries_carry_map_markers():
+    """Sans marqueur, le joueur ne sait pas ou aller chercher le minerai :
+    `MapDistance`/`HudDistance` rendent les mines visibles de loin (memes
+    cles que nos patrouilleurs spatiaux, verifiees en jeu)."""
+    from core.conflict_warfare import (_entry_groups, _mine_entries_block,
+                                       _poi_style)
+    roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
+    bloc = _mine_entries_block(roster, _poi_style(RES_MIN))
+    assert "Key: MapDistance" in bloc and "Key: HudDistance" in bloc
+    assert bloc.count("Value: 20000") >= len(roster) + 1      # 1 par mine
+    starter = bloc.split("GroupName: ConflictStarterMine")[1].split("- GroupName:")[0]
+    assert "HudDistance\n" + "              Value: 20000" in starter
+    assert "Value: 5000" in bloc                              # mines de faction
