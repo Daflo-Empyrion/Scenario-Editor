@@ -754,3 +754,75 @@ def test_space_defense_unit_class_repaired():
     assert n == 1 and noms == ["Xenu=OPV_Cyrano", "Rados=OPV_Hunter"], (n, noms)
     assert t2.count("ClassName: OPV_Cyrano") == 1
     assert _ensure_sd_units(t2, ["Xenu", "Rados"])[1] == 0        # idempotent
+
+
+# ---------------------------------------------------------------------------
+# Ressources rares (regime Starter_Dread) et POI mines
+# ---------------------------------------------------------------------------
+RES_MIN = (
+    "PlayfieldType: Planet\n"
+    "RandomResources:\n"
+    "    - Name: IronResource\n"
+    "      CountMinMax: [ 2, 3 ]\n"
+    "    - Name: CobaltResource\n"
+    "      CountMinMax: [ 1, 2 ]\n"
+    "AsteroidResources:\n"
+    "     # - Name: IronResource\n"
+    "POIs:\n"
+    "    Random:\n"
+    "        - GroupName: Native1\n"
+    "          Faction: None\n"
+    "DroneBaseSetup:\n"
+    "    Random:\n"
+    "        - GroupName: DroneBaseSetup\n"
+    "          Difficulty: 6\n"
+)
+
+
+def test_random_resources_neutralized_once():
+    """Dread = zero gisement : toute ligne active de `RandomResources` est
+    commentee, le reste du fichier (AsteroidResources, POIs) est intact, et
+    un 2e passage ne compte 0."""
+    from core.conflict_warfare import neutralize_random_resources
+    t2, n = neutralize_random_resources(RES_MIN)
+    assert n == 4, n                       # 2 entrees x 2 lignes
+    assert "#     - Name: IronResource" in t2
+    assert "#       CountMinMax: [ 2, 3 ]" in t2
+    assert "AsteroidResources:" in t2 and "POIs:" in t2
+    assert neutralize_random_resources(t2)[1] == 0
+
+
+def test_rare_resources_skips_moons_and_keeps_other_sections(tmp_path):
+    """Planete appauvrie, lune epargnee (decision utilisateur) ; les autres
+    blocs du playfield survivent."""
+    from core.conflict_warfare import pass_rare_resources
+    sc = _factions_scenario(tmp_path)
+    for name, kind in (("P1", "Planet"), ("M1", "Moon")):
+        d = sc / "Playfields" / name
+        d.mkdir(parents=True)
+        (d / "playfield_static.yaml").write_text(
+            RES_MIN.replace("PlayfieldType: Planet", "PlayfieldType: " + kind),
+            encoding="utf-8")
+    rep = pass_rare_resources(sc, apply=True)
+    assert rep["files"] == 1 and rep["edits"] == 4, rep
+    assert any("lune(s) epargnee" in d for d in rep["details"])
+    planete = (sc / "Playfields" / "P1" / "playfield_static.yaml").read_text("utf-8")
+    lune = (sc / "Playfields" / "M1" / "playfield_static.yaml").read_text("utf-8")
+    assert "#     - Name: IronResource" in planete and "DroneBaseSetup:" in planete
+    assert "    - Name: IronResource\n" in lune            # lune intacte
+    assert pass_rare_resources(sc, apply=True)["edits"] == 0
+
+
+def test_mine_poi_carries_the_ore(tmp_path):
+    """Une mine par faction du roster, avec le minerai DANS l'entree POI
+    (`SpawnResource`), `IsImportant` et des drones ; idempotent."""
+    from core.conflict_warfare import (_entry_groups, _mine_entries_block,
+                                       _mine_pool, _poi_style)
+    roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
+    bloc = _mine_entries_block(roster, _poi_style(RES_MIN))
+    assert bloc.count("IsImportant: True") == len(roster)
+    assert bloc.count("SpawnResource: [") == len(roster)
+    assert "SpawnResourceRange: [100, 600]" in bloc
+    assert "DroneProb: 0.5" in bloc
+    for faction, _hostile in roster:
+        assert "GroupName: " + _mine_pool(faction) in bloc

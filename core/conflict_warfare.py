@@ -149,10 +149,66 @@ _POOL_PREFABS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# RESSOURCES RARES : régime de Starter_Dread (RandomResources entièrement
+# commenté) appliqué au sol, la ressource passant dans des POI « mines »
+# gardés (`SpawnResource` autour du POI, `IsImportant` pour qu'ils existent
+# toujours). Analyse des 4 interrupteurs de Dread : RandomResources vide,
+# AsteroidResources vide (espace), 0 `SpawnResource` actif sur ses POI ;
+# `terrain.ecf` sans matériaux `*Resource` = cosmétique seulement (7
+# playfields RE2 ont des gisements sans ce matériau).
+# Repli : RARE_RESOURCES = False / MINE_POIS = False (0 edit).
+# ---------------------------------------------------------------------------
+RARE_RESOURCES = True
+RARE_RESOURCES_KEEP_MOONS = True     # lunes épargnées (choix utilisateur)
+MINE_POIS = True
+_MINE_ORES = ("IronResource:1-3", "CopperResource:1-2", "CobaltResource:1-2")
+_MINE_ORES_HOSTILE = _MINE_ORES + ("NeodymiumResource:1-2",)
+_MINE_FALLBACK = "BA_CivilMiningHub"
+_MINE_PREFABS = {
+    "Zirax": "BA_CivilMiningHub",
+    "Kriel": "BA_CivilExcavationSite",
+    "Warlord": "BAO_WarlordPentaxidMine",
+    "Pirates": "BA_AbandonedMine",
+    "TheLegacy": "BAJ_DestroyedMiningTower",
+    "Polaris": "BAO_PolarisAsteroidMining",
+    "Talon": "BA_TalonMiningCamp02",
+    "Farr": "BA_CivilMiningHub",
+    "UCH": "BA_CivilExcavationSite",
+    "Wastelanders": "BA_AbandonedExcavationSite",
+    "Colonists": "R2BA_ColonistDecoMine01",
+    "ARC": "BAO_ARCMiningOutpost",
+    "Xenu": "BA_CivilMiningHub",
+    "Rados": "RE2_BAO_RadosMineT1_1",
+    "Epsilon": "BA_CivilExcavationSite",
+    "Ghyst": "BA_GhystCoreMining",
+    "Serdu": "BA_CivilMiningHub",
+    "Abyssal": "BA_CivilExcavationSite",
+    "Alien": "BA_AbandonedMine",
+    "Tesch": "BA_CivilMiningHub",
+    "Trader": "BA_CivilMiningHub",
+}
+
+
+def _mine_pool(faction: str) -> str:
+    return "Conflict" + faction + "Mines"
+
+
+def _mine_groups() -> tuple:
+    """(GroupName, prefab, faction, hostile) des pools « mines »."""
+    return tuple((_mine_pool(f), _MINE_PREFABS.get(f, _MINE_FALLBACK), f, h)
+                 for f, _, h in _active_factions())
+
+
 def _poi_groups() -> tuple:
     """(GroupName, prefab, faction, hostile) des factions actives."""
     return tuple((_pool(f), _POOL_PREFABS[f], f, h)
                  for f, _, h in _active_factions())
+
+
+def _all_groups() -> tuple:
+    """Bases + mines : ce que `_PoiGroupsConfig.yaml` doit déclarer."""
+    return _poi_groups() + (_mine_groups() if MINE_POIS else ())
 
 
 def missing_pool_prefabs(scenario: Path) -> list:
@@ -419,13 +475,14 @@ _DRONE_ECLASSES = (
 # write_text_raw convertit vers l'EOL du fichier)
 # ---------------------------------------------------------------------------
 
-def _ensure_poi_groups(pgroups_path: Path, apply: bool, store) -> int:
+def _ensure_poi_groups(pgroups_path: Path, apply: bool, store,
+                       groups: tuple = None) -> int:
     """Crée / met à jour CHAQUE pool de faction, individuellement : un pool
     étranger ajouté après les nôtres n'est plus détruit (comportement
     d'avant : la queue du fichier était remplacée en bloc)."""
     text, eol = read_text_raw(pgroups_path)
     n = 0
-    for g in _poi_groups():
+    for g in (groups if groups is not None else _poi_groups()):
         blk = _poi_group_block(*g)
         pat = re.compile(r"(?m)^ {4}- GroupName: " + re.escape(g[0]) + r"[ \t]*$"
                          r".*?(?=^ {4}- GroupName:|\Z)", re.S)
@@ -1652,4 +1709,143 @@ def pass_space_defense(scenario: Path, apply: bool = False, store=None,
         rep["files"] += 1
         rep["edits"] += n
         rep["details"].append(pfname + " : " + str(n) + " POI defens")
+    return rep
+
+
+# ---------------------------------------------------------------------------
+# CF.6 : ressources rares (régime Starter_Dread) + POI « mines » gardés
+# ---------------------------------------------------------------------------
+def neutralize_random_resources(text: str) -> tuple:
+    """Commente TOUTES les lignes actives de la section `RandomResources:`
+    (zéro gisement, comme Dread). Idempotent : un 2e passage ne compte 0."""
+    lignes = text.split("\n")
+    debut = next((i for i, ln in enumerate(lignes)
+                  if re.match(r"^RandomResources:", ln)), None)
+    if debut is None:
+        return text, 0
+    n = 0
+    for i in range(debut + 1, len(lignes)):
+        ln = lignes[i]
+        if re.match(r"^[A-Za-z_]", ln):        # clé de niveau 0 : fin de section
+            break
+        if ln.strip() and not ln.lstrip().startswith("#"):
+            lignes[i] = "# " + ln
+            n += 1
+    return "\n".join(lignes), n
+
+
+def _mine_entries_block(groups: tuple, style: dict) -> str:
+    """Une mine par faction du roster : le minerai est DANS le POI
+    (`SpawnResource`), gardé par des drones, et `IsImportant` garantit
+    qu'elle existe — c'est la seule source avec les gisements retirés."""
+    e, c = style["entry"], style["cont"]
+    tail = c + "Properties:\n" + style["item"] + "Key: RegenAfter\n" \
+        + style["val"] + "Value: 720\n"
+    out = []
+    for faction, hostile in groups:
+        ores = _MINE_ORES_HOSTILE if hostile else _MINE_ORES
+        dist = _POI_AVOID["hostile" if hostile else "ally"]
+        out.append(
+            e + "GroupName: " + _mine_pool(faction) + "\n"
+            + c + "Faction: " + faction + "\n"
+            + c + "IsImportant: True\n"
+            + c + "CountMinMax: [ 1, 1 ]\n"
+            + c + "DroneProb: 0.5\n"
+            + c + "DronesMinMax: [ 2, 4 ]\n"
+            + c + "ReserveCount: 4\n"
+            + c + "TroopTransport: " + str(hostile).lower() + "\n"
+            + c + "SpawnPOIAvoid: [START]\n"
+            + c + "SpawnPOIAvoidDistance: " + str(dist) + "\n"
+            + c + "SpawnResource: ["
+            + ", ".join('"' + o + '"' for o in ores) + "]\n"
+            + c + "SpawnResourceRange: [100, 600]\n"
+            + tail)
+    return "\n".join(out)
+
+
+def pass_rare_resources(scenario: Path, apply: bool = False, store=None,
+                        playfields=None) -> dict:
+    """CF.6a : retire les gisements `RandomResources` des playfields sol et
+    lune (lunes épargnées si RARE_RESOURCES_KEEP_MOONS)."""
+    rep = {"id": "rare_resources", "edits": 0, "files": 0, "details": []}
+    if not RARE_RESOURCES:
+        rep["details"].append("ressources rares desactivees")
+        return rep
+    epargnees = 0
+    for pfname in (playfields if playfields is not None
+                   else planet_playfields(scenario)):
+        path = scenario / "Playfields" / pfname / "playfield_static.yaml"
+        if not path.is_file():
+            continue
+        text, eol = read_text_raw(path)
+        if RARE_RESOURCES_KEEP_MOONS and _playfield_kind(text) == "moon":
+            epargnees += 1
+            continue
+        before = len(text)
+        text, n = neutralize_random_resources(text)
+        if not n:
+            continue
+        if apply:
+            if store:
+                store.snapshot(path)
+            write_text_raw(path, text, eol)
+            purge_playfield_cache(path)
+        rep["files"] += 1
+        rep["edits"] += n
+        rep["details"].append(f"{pfname} : {n} ligne(s) de gisement retirees")
+    if epargnees:
+        rep["details"].append(f"{epargnees} lune(s) epargnee(s)")
+    return rep
+
+
+def pass_mine_pois(scenario: Path, apply: bool = False, store=None,
+                   playfields=None) -> dict:
+    """CF.6b : une mine gardée par faction du roster, sur chaque playfield
+    sol/lune (pool `Conflict<Faction>Mines` + entrée POI porteuse de
+    `SpawnResource`)."""
+    rep = {"id": "mine_pois", "edits": 0, "files": 0, "details": []}
+    if not MINE_POIS:
+        rep["details"].append("POI mines desactives")
+        return rep
+    manquants = [p for _, p, f, _ in _mine_groups()
+                 if not (scenario / "Prefabs" / (p + ".epb")).is_file()]
+    if manquants:
+        rep["details"].append("Prefabs de mine manquants : "
+                              + ", ".join(sorted(set(manquants))))
+        return rep
+    pgroups_path = scenario / "Prefabs" / "_PoiGroupsConfig.yaml"
+    if pgroups_path.is_file():
+        k = _ensure_poi_groups(pgroups_path, apply, store, _mine_groups())
+        if k:
+            rep["files"] += 1
+            rep["edits"] += k
+            rep["details"].append(f"PoiGroups : {k} pool(s) mine")
+    tous = [f for f, _, _ in _active_factions()]
+    for pfname in (playfields if playfields is not None
+                   else planet_playfields(scenario)):
+        path = scenario / "Playfields" / pfname / "playfield_static.yaml"
+        if not path.is_file():
+            continue
+        text, eol = read_text_raw(path)
+        if not re.search(r"(?m)^POIs:", text):
+            continue
+        roster = [(f, h) for _, f, h in _entry_groups(text, pfname)]
+        gardes = {f for f, _ in roster}
+        text, k_rm = _remove_pois(
+            text, tuple(_mine_pool(f) for f in tous if f not in gardes))
+        text, k_add = _ensure_pois(
+            text, _mine_entries_block(roster, _poi_style(text)))
+        n = k_rm + k_add
+        if not n:
+            continue
+        if apply:
+            if store:
+                store.snapshot(path)
+            write_text_raw(path, text, eol)
+            purge_playfield_cache(path)
+        rep["files"] += 1
+        rep["edits"] += n
+        rep["details"].append(
+            f"{pfname} : {len(roster)} mine(s)"
+            + (f", {k_rm} retiree(s)" if k_rm else ""))
     return rep

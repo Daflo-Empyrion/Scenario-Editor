@@ -35,7 +35,8 @@ from core.ai_realism import BackupStore  # noqa: E402
 from core.conflict_warfare import (  # noqa: E402
     conflict_playfields, missing_pool_prefabs, pass_drone_aggression,
     pass_faction_conflict, pass_force_attack, pass_hostile_reputation,
-    pass_scale_pois, pass_space_conflict, pass_space_defense,
+    pass_mine_pois, pass_rare_resources, pass_scale_pois,
+    pass_space_conflict, pass_space_defense,
     purge_playfield_cache, space_playfields,
 )
 
@@ -109,6 +110,10 @@ def main() -> int:
         scenario, apply=args.apply, store=store)
     rep["force_attack"] = pass_force_attack(
         scenario, apply=args.apply, store=store)
+    rep["rare_resources"] = pass_rare_resources(
+        scenario, apply=args.apply, store=store, playfields=playfields)
+    rep["mine_pois"] = pass_mine_pois(
+        scenario, apply=args.apply, store=store, playfields=playfields)
     if args.scale_pois:
         rep["scale_pois"] = pass_scale_pois(
             scenario, args.scale_pois, apply=args.apply, store=store,
