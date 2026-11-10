@@ -290,12 +290,16 @@ class BackupStore:
 def read_text_raw(path: Path) -> tuple:
     raw = Path(path).read_bytes()
     eol = "\r\n" if b"\r\n" in raw else "\n"
-    return raw.decode("utf-8", errors="replace").replace("\r\n", "\n"), eol
+    # normalise aussi les \r\r\n (dégâts de double conversion) et les \r isolés
+    text = raw.decode("utf-8", errors="replace")
+    text = re.sub(r"\r+\n", "\n", text).replace("\r", "\n")
+    return text, eol
 
 
 def write_text_raw(path: Path, text: str, eol: str) -> None:
     if eol == "\r\n":
-        text = text.replace("\n", "\r\n")
+        # idempotent : répare \r\r\n et LF seuls au passage
+        text = re.sub(r"\r*\n", "\r\n", text)
     Path(path).write_bytes(text.encode("utf-8"))
 
 
@@ -869,7 +873,7 @@ def pass_faction_groups(scenario: Path, apply: bool = False, store=None) -> dict
 
 
 def pass_space_missions(scenario: Path, apply: bool = False, store=None) -> dict:
-    """P3.3 : 1er PlanetVessel de certains playfields -> Immobile (dérive)."""
+    """P3.3 : 1er PlanetVessel de certains playfields -> ImmobileTask (dérive)."""
     rep = {"pass": "space_missions", "files": 0, "edits": 0, "details": []}
 
     def mut(doc) -> int:
@@ -888,14 +892,17 @@ def pass_space_missions(scenario: Path, apply: bool = False, store=None) -> dict
             if not subs:
                 return 0
             first = subs[0]
-        if find_child(first, "Immobile") is not None:
+        # NewPlanetVessel.Immobile n'existe pas -> YamlException au chargement
+        # du playfield ; la propriété moteur est ImmobileTask (FixedSpaceVessel
+        # spatiale garde Immobile).
+        if find_child(first, "ImmobileTask") is not None:
             return 0
         patrol = find_child(first, "RangePatrolTask")
         if patrol is None:
             return 0
         ref = find_child(patrol, "POINameAsPositionRef")
         patrol.dirty = True
-        patrol.key = "Immobile"
+        patrol.key = "ImmobileTask"
         patrol.value = ""
         patrol.children = [c for c in patrol.children
                            if not (isinstance(c, YamlEntry) and c.key in

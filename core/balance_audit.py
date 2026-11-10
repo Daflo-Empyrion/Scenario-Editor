@@ -781,7 +781,10 @@ def _set_or_insert_block_prop(text: str, name: str, prop: str, new_value: str):
     new_text, k = set_block_prop(text, "Block", name, prop, new_value)
     if k:
         return new_text, k
-    return _insert_block_line(new_text, name, f"{prop}: {new_value}")
+    # HitPoints/Armor sont lus en int par le moteur : sans 'type: int',
+    # la valeur reste DataItem<string> -> 'Error converting' + valeur ignorée.
+    suffix = ", type: int" if prop in ("HitPoints", "Armor") else ""
+    return _insert_block_line(new_text, name, f"{prop}: {new_value}{suffix}")
 
 
 def fix_t_raider_ladder(scenario, apply=False, store=None) -> dict:
@@ -940,7 +943,8 @@ def fix_t_turret_aliases(scenario, apply=False, store=None) -> dict:
         if target not in existing:
             rep["details"].append(f"{alias} : cible {target} absente — sauté")
             continue
-        text += f"{{ Block Name: {alias}, Ref: {target} }}\n\n"
+        # ECF : '{' et '}' sur une même ligne = ligne malformée (EcfFile.cs)
+        text += f"{{ Block Name: {alias}, Ref: {target}{eol}}}{eol}{eol}"
         added.append(alias)
     rep["edits"] = len(added)
     if added:
@@ -949,7 +953,7 @@ def fix_t_turret_aliases(scenario, apply=False, store=None) -> dict:
         if apply:
             if store:
                 store.snapshot(path)
-            path.write_bytes(text.encode("utf-8"))
+            write_text_raw(path, text, eol)
     return rep
 
 
