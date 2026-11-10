@@ -48,6 +48,7 @@ _SYNC_FILES = (
     "Content/Configuration/BAIConfig.ecf",
     "Content/Configuration/Factions.ecf",
     "Content/Configuration/FactionWarfare.ecf",
+    "gameoptions.yaml",
     "Extras/PDA/PDA.yaml",
     "Extras/PDA/PDA.csv",
 )
