@@ -839,9 +839,9 @@ def test_mine_poi_carries_the_ore(tmp_path):
         assert "GroupName: " + _mine_pool(faction) in bloc
     starter = bloc.split("GroupName: ConflictStarterMine")[1].split("- GroupName:")[0]
     assert "Faction: None" in starter and "DroneProb: 0.0" in starter
-    assert "SpawnPOIAvoidDistance: 1200" in starter and "Value: 1440" in starter
+    assert "SpawnPOIAvoidDistance: 1200" in starter and "Value: 120" in starter
     assert "DroneProb: 0.6" in bloc and "DroneProb: 0.4" in bloc
-    assert "NeodymiumResource" in bloc and "Value: 480" in bloc
+    assert "NeodymiumResource" in bloc and "Value: 150" in bloc
 
 
 def test_pois_stay_idempotent_when_another_pass_appends():

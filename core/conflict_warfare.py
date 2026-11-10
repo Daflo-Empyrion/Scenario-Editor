@@ -172,10 +172,12 @@ _STARTER_MINE = ("ConflictStarterMine", "BA_AbandonedMine", "None", False)
 _STARTER_ORES = ("IronResource:1-3", "CopperResource:1-2")
 # Mines hostiles : plus de drones et regeneration plus rapide (raider doit
 # rapporter) ; alliees : plus calmes.
+# RegenAfter est en MINUTES (valeurs du jeu : 180 = 3 h, 720 = 12 h,
+# 4320 = 72 h). Logique de boucle : le risque paie plus vite.
 _MINE_DEFENSE = {True: {"prob": 0.6, "drones": (3, 5), "reserve": 6,
-                        "regen": 480},
+                        "regen": 150},      # hostile : 2 h 30
                  False: {"prob": 0.4, "drones": (2, 3), "reserve": 4,
-                         "regen": 720}}
+                         "regen": 360}}     # alliee : 6 h
 _MINE_FALLBACK = "BA_CivilMiningHub"
 _MINE_PREFABS = {
     "Zirax": "BA_CivilMiningHub",
@@ -1838,7 +1840,7 @@ def _mine_entries_block(groups: tuple, style: dict) -> str:
         gname, _prefab, faction, hostile = _STARTER_MINE
         out.append(_mine_entry(
             gname, faction, hostile, _STARTER_ORES, style, 1200,
-            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 1440}))
+            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 120}))
     for faction, hostile in groups:
         out.append(_mine_entry(
             _mine_pool(faction), faction, hostile,
