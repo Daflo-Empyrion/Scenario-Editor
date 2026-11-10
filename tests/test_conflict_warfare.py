@@ -872,3 +872,60 @@ def test_pois_stay_idempotent_when_another_pass_appends():
     t3, n2 = _ensure_pois(txt2, bloc)
     assert n2 > 0
     assert t3.index("ConflictZiraxBases") > t3.index("Native2")
+
+
+# ---------------------------------------------------------------------------
+# Jalons technologiques par POI (PDA + CSV)
+# ---------------------------------------------------------------------------
+PDA_MIN = (
+    "Chapters:\n"
+    "  - ChapterTitle: pda_old01\n"
+    "    Category: FAQ\n"
+    "    Description: pda_old02\n"
+    "Creator: \"Test\"\n"
+)
+PDA_CSV_MIN = (
+    "KEY,English,Deutsch,Fran\u00e7ais\n"
+    "pda_old01,Old title,,\n"
+    "pda_old02,Old text,,\n"
+)
+
+
+def _pda_scenario(tmp_path):
+    sc = _factions_scenario(tmp_path)
+    pda = sc / "Extras" / "PDA"
+    pda.mkdir(parents=True)
+    (pda / "PDA.yaml").write_text(PDA_MIN, encoding="utf-8")
+    (pda / "PDA.csv").write_text(PDA_CSV_MIN, encoding="utf-8")
+    return sc
+
+
+def test_tech_milestones_added_once(tmp_path):
+    """Trois jalons ajoutes AVANT `Creator:` (donc dans Chapters:), textes
+    EN+FR dans le CSV, et un 2e passage ne fait rien."""
+    from core.tech_milestones import pass_tech_milestones
+    sc = _pda_scenario(tmp_path)
+    rep = pass_tech_milestones(sc, apply=True)
+    assert rep["edits"] == 18 and rep["files"] == 2, rep
+    yaml_txt = (sc / "Extras" / "PDA" / "PDA.yaml").read_text("utf-8")
+    csv_txt = (sc / "Extras" / "PDA" / "PDA.csv").read_text("utf-8")
+    assert yaml_txt.count("  - ChapterTitle: ") == 4      # 1 existant + 3
+    assert yaml_txt.index("pda_Jal3Title") < yaml_txt.index("Creator:")
+    assert "Check: ItemsPickedUp" in yaml_txt
+    assert "Types:\n              - NeodymiumOre" in yaml_txt
+    assert "Type: UP" in yaml_txt and "Type: XP" in yaml_txt
+    assert "Jalon III - L'ere du neodyme" in csv_txt
+    assert "Milestone III - The neodymium age" in csv_txt
+    assert pass_tech_milestones(sc, apply=True)["edits"] == 0        # idempotent
+
+
+def test_tech_milestones_refuses_existing_keys(tmp_path):
+    """Une cle deja presente (meme dans le CSV seul) arrete la passe : on ne
+    duplique jamais un jeton de localisation."""
+    from core.tech_milestones import pass_tech_milestones
+    sc = _pda_scenario(tmp_path)
+    csv = sc / "Extras" / "PDA" / "PDA.csv"
+    csv.write_text(PDA_CSV_MIN + "pda_Jal2Text,deja pris,,\n", encoding="utf-8")
+    rep = pass_tech_milestones(sc, apply=True)
+    assert rep["edits"] == 0 and "deja presente" in " ".join(rep["details"])
+    assert "pda_Jal1Title" not in (sc / "Extras" / "PDA" / "PDA.yaml").read_text("utf-8")
