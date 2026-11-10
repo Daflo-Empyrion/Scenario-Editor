@@ -1792,11 +1792,13 @@ def neutralize_random_resources(text: str) -> tuple:
 
 
 def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
-                style: dict, dist: int, defense: dict, hud: int) -> str:
-    """Une entree POI « mine » : le minerai est DANS le POI, et `MapDistance`/
-    `HudDistance` la rendent VISIBLE de loin (sans marqueur, le joueur ne sait
-    pas ou aller chercher le minerai au demarrage). Memes cles que nos
-    patrouilleurs spatiaux, verifiees en jeu."""
+                style: dict, dist: int, defense: dict) -> str:
+    """Une entree POI « mine » : le minerai est DANS le POI, et la mine est
+    VISIBLE sur la carte meme non decouverte (carte voilee = le joueur ne sait
+    pas ou aller). Combinaison relevee dans l'exemple vanilla
+    (GS_Beech/GS_Ashon2Orbit) : MapDistance 0 + HudDistance 0 + MapMarker
+    Neutral + Discovery True. `Discovery` seul ne suffisait pas : les valeurs
+    20000 employees pour les vaisseaux spatiaux ne revelent rien pour un POI."""
     e, c = style["entry"], style["cont"]
     lo, hi = defense["drones"]
     return (
@@ -1815,9 +1817,13 @@ def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
         + c + "SpawnResourceRange: [100, 600]\n"
         + c + "Properties:\n"
         + style["item"] + "Key: MapDistance\n"
-        + style["val"] + "Value: 20000\n"
+        + style["val"] + "Value: 0\n"
         + style["item"] + "Key: HudDistance\n"
-        + style["val"] + "Value: " + str(hud) + "\n"
+        + style["val"] + "Value: 0\n"
+        + style["item"] + "Key: MapMarker\n"
+        + style["val"] + "Value: Neutral\n"
+        + style["item"] + "Key: Discovery\n"
+        + style["val"] + "Value: True\n"
         + style["item"] + "Key: RegenAfter\n"
         + style["val"] + "Value: " + str(defense["regen"]) + "\n")
 
@@ -1832,14 +1838,13 @@ def _mine_entries_block(groups: tuple, style: dict) -> str:
         gname, _prefab, faction, hostile = _STARTER_MINE
         out.append(_mine_entry(
             gname, faction, hostile, _STARTER_ORES, style, 1200,
-            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 1440},
-            hud=20000))        # reperable des l'arrivee : c'est le tutoriel
+            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 1440}))
     for faction, hostile in groups:
         out.append(_mine_entry(
             _mine_pool(faction), faction, hostile,
             _MINE_ORES_HOSTILE if hostile else _MINE_ORES, style,
             _POI_AVOID["hostile" if hostile else "ally"],
-            _MINE_DEFENSE[hostile], hud=5000))
+            _MINE_DEFENSE[hostile]))
     return "\n".join(out)
 
 

@@ -931,16 +931,16 @@ def test_tech_milestones_refuses_existing_keys(tmp_path):
     assert "pda_Jal1Title" not in (sc / "Extras" / "PDA" / "PDA.yaml").read_text("utf-8")
 
 
-def test_mine_entries_carry_map_markers():
-    """Sans marqueur, le joueur ne sait pas ou aller chercher le minerai :
-    `MapDistance`/`HudDistance` rendent les mines visibles de loin (memes
-    cles que nos patrouilleurs spatiaux, verifiees en jeu)."""
+def test_mine_entries_are_visible_on_a_fogged_map():
+    """Carte voilee au demarrage : sans `Discovery: True` (combinaison de
+    l'exemple vanilla : MapDistance 0, HudDistance 0, MapMarker Neutral), le
+    joueur ne voit aucune mine. Les valeurs 20000 des vaisseaux spatiaux ne
+    revelent rien pour un POI (vecu 11/11)."""
     from core.conflict_warfare import (_entry_groups, _mine_entries_block,
                                        _poi_style)
     roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
     bloc = _mine_entries_block(roster, _poi_style(RES_MIN))
-    assert "Key: MapDistance" in bloc and "Key: HudDistance" in bloc
-    assert bloc.count("Value: 20000") >= len(roster) + 1      # 1 par mine
-    starter = bloc.split("GroupName: ConflictStarterMine")[1].split("- GroupName:")[0]
-    assert "HudDistance\n" + "              Value: 20000" in starter
-    assert "Value: 5000" in bloc                              # mines de faction
+    assert bloc.count("Key: Discovery") == len(roster) + 1
+    assert bloc.count("Value: True") >= len(roster) + 1
+    assert "Key: MapMarker" in bloc and "Value: Neutral" in bloc
+    assert "Value: 20000" not in bloc
