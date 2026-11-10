@@ -663,15 +663,33 @@ def test_space_defense_settings_completed_and_created():
 
 def test_space_defense_units_created():
     """Les vagues viennent des blocs Unit `BaseDefenseOrbitVessel` regroupes
-    par `IsInGroups: <Faction>SpaceDefense`."""
+    par `IsInGroups: <Faction>SpaceDefense`. La cle du dictionnaire moteur
+    etant `Category + ClassName` (sans la faction), une classe par faction :
+    deux factions sur le meme vaisseau = ArgumentException au chargement."""
     from core.conflict_warfare import _ensure_sd_units
-    t2, n, manque = _ensure_sd_units(FW_MIN, ["Zirax", "UCH"])
-    assert n == 4 and manque == ["Zirax", "UCH"], (n, manque)  # 2 unites x 2
-    assert t2.count("Category: BaseDefenseOrbitVessel") == 4
+    t2, n, noms = _ensure_sd_units(FW_MIN, ["Zirax", "UCH"])
+    assert n == 2 and noms == ["Zirax=R2PV_ZiraxCutter01", "UCH=OPV_UCHDestroyer"], noms
+    assert t2.count("Category: BaseDefenseOrbitVessel") == 2
     assert 'IsInGroups: "UCHSpaceDefense"' in t2
-    assert "OPV_UCHDestroyer" in t2          # vaisseau de la faction
-    assert "Eden_SpaceDroneBanditT1" in t2   # drone de repli
-    assert _ensure_sd_units(t2, ["Zirax", "UCH"])[1] == 0         # idempotent
+    assert "# conflict:auto" in t2
+    assert _ensure_sd_units(t2, ["Zirax", "UCH"])[1] == 0          # idempotent
+
+
+def test_space_defense_unit_class_is_never_shared():
+    """Vecu 10/11 : 15 factions sur `Eden_SpaceDroneBanditT1` =>
+    `Key: BaseDefenseOrbitVesselEden_SpaceDroneBanditT1` en double, exception
+    au chargement. Une faction sans patrouilleur propre emprunte un OPV du
+    pool, jamais celui deja pris."""
+    from core.conflict_warfare import _ensure_sd_units
+    txt = ("{ Element Name: Unit\n"
+           "  Faction: Pirates\n"
+           "  ClassName: OPV_Cyrano\n"
+           "  Category: BaseDefenseOrbitVessel\n"
+           '  IsInGroups: "PiratesSpaceDefense"\n'
+           "}\n")
+    t2, n, noms = _ensure_sd_units(txt, ["Xenu"])
+    assert n == 1 and noms == ["Xenu=OPV_Hunter"], noms
+    assert t2.count("ClassName: OPV_Cyrano") == 1                 # pas de doublon
 
 
 SPACE_DEF = (
@@ -714,3 +732,25 @@ def test_poi_space_defense_only_for_active_factions():
     assert t2.count("SpaceDefenseProbability: 0\n") == 2         # wreck + sans override
     assert "SpaceDefenseProbability: 0.25" in t2                 # deja arme
     assert _ensure_poi_space_defense(t2, {"Zirax", "Trader"})[1] == 0
+
+
+def test_space_defense_unit_class_repaired():
+    """Nos blocs deja ecrits sont repares : deux factions sur la meme classe
+    (Xenu et Rados avaient tous deux `OPV_Cyrano`) rejouent l'exception du
+    10/11, la passe doit reassigner la seconde et rester idempotente."""
+    from core.conflict_warfare import _ensure_sd_units
+
+    def bloc(f):
+        return ("{ Element Name: Unit\n"
+                "  Faction: " + f + "\n"
+                "  ClassName: OPV_Cyrano\n"
+                "  Category: BaseDefenseOrbitVessel\n"
+                '  IsInGroups: "' + f + 'SpaceDefense"\n'
+                "  CommandPointsLvl1: 40\n  CommandPointsPerLevel: 1\n"
+                "  # conflict:auto\n}\n")
+
+    txt = bloc("Xenu") + bloc("Rados")
+    t2, n, noms = _ensure_sd_units(txt, ["Xenu", "Rados"])
+    assert n == 1 and noms == ["Xenu=OPV_Cyrano", "Rados=OPV_Hunter"], (n, noms)
+    assert t2.count("ClassName: OPV_Cyrano") == 1
+    assert _ensure_sd_units(t2, ["Xenu", "Rados"])[1] == 0        # idempotent

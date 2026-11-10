@@ -1423,17 +1423,26 @@ SPACE_DEFENSE_PROB = 0.35              # part des POI de faction qui defensent
 SPACE_DEFENSE_POI_PRICE = (30, 60)     # SpaceDefensePriceMinMax par POI
 SD_PROB_MINMAX = (0.30, 0.60)          # SDProbabilityMin/Max (lvl 1 -> 10)
 SD_PRICE_MINMAX = (30, 60)             # SDPriceMin/Max des blocs CREES
-SD_UNITS = (("drone", 15), ("vessel", 40))   # (type, CommandPointsLvl1)
+SD_UNIT_COST = 40                      # CommandPointsLvl1 du vaisseau de defense
+# La cle du moteur est `Category + ClassName`, SANS la faction : deux factions
+# sur le meme vaisseau => ArgumentException "An item with the same key has
+# already been added" au chargement (vecu 10/11 sur le repli drone commun).
+# Ces OPV servent aux factions sans patrouilleur propre.
+_SD_SHIP_POOL = ("OPV_Cyrano", "OPV_Hunter", "OPV_Kedge", "OPV_Zeus",
+                 "OPV_GALThunderstrike", "OPV_Ragnarok", "OPV_Yggdrasil")
 
 
-def _sd_unit_block(faction: str, classe: str, cout: int) -> str:
+def _sd_unit_block(faction: str, classe: str) -> str:
+    """Un vaisseau de defense par faction. `# conflict:auto` : marque nos
+    blocs (les natifs des 6 factions d'origine n'en ont pas)."""
     return ("{ Element Name: Unit\n"
             "  Faction: " + faction + "\n"
             "  ClassName: " + classe + "\n"
             "  Category: BaseDefenseOrbitVessel\n"
             '  IsInGroups: "' + faction + 'SpaceDefense"\n'
-            "  CommandPointsLvl1: " + str(cout) + "\n"
+            "  CommandPointsLvl1: " + str(SD_UNIT_COST) + "\n"
             "  CommandPointsPerLevel: 1\n"
+            "  # conflict:auto\n"
             "}\n")
 
 
@@ -1507,27 +1516,55 @@ def _ensure_sd_settings(text: str, factions: list) -> tuple:
 
 
 def _ensure_sd_units(text: str, factions: list) -> tuple:
-    """Un drone + un vaisseau `BaseDefenseOrbitVessel` par faction sans
-    renfort spatial. Le moteur choisit selon le prix demande (SDPrice)."""
+    """Un vaisseau `BaseDefenseOrbitVessel` par faction sans renfort spatial
+    (le moteur choisit selon le prix demande, SDPrice). Une classe par
+    faction, unique dans TOUT le fichier : la cle du dictionnaire moteur est
+    `Category + ClassName`, sans la faction."""
     lignes = text.split("\n")
-    ont = set()
+    used, servies, notre = set(), set(), {}
     for a, b in _ecf_blocks(text, r"\{ *Element Name: *Unit"):
-        corps = "\n".join(lignes[a:b + 1])
-        if "BaseDefenseOrbitVessel" not in corps:
+        corps = lignes[a:b + 1]
+        if not any("BaseDefenseOrbitVessel" in ln for ln in corps):
             continue
-        m = re.search(r"(?m)^\s+Faction: *(\w+)", corps)
-        if m:
-            ont.add(m.group(1))
-    manque = [f for f in factions if f not in ont]
-    if not manque:
-        return text, 0, []
-    add = ""
-    for f in manque:
-        classes = {"drone": _SPACE_DRONES.get(f, (_SPACE_DRONE_FALLBACK,))[0],
-                   "vessel": _space_ship(f)}
-        for quoi, cout in SD_UNITS:
-            add += _sd_unit_block(f, classes[quoi], cout)
-    return text.rstrip("\n") + "\n" + add, len(manque) * len(SD_UNITS), manque
+        classe = next((m.group(1) for ln in corps
+                       if (m := re.match(r"\s*ClassName: *(\S+)", ln))), "")
+        fac = next((m.group(1) for ln in corps
+                    if (m := re.match(r"\s*Faction: *(\w+)", ln))), "")
+        if any("# conflict:auto" in ln for ln in corps):
+            if fac and classe:
+                notre[fac] = (next(a + k for k, ln in enumerate(corps)
+                                   if re.match(r"\s*ClassName:", ln)), classe)
+        else:
+            if classe:
+                used.add(classe)          # classe native : intouchable
+            if fac:
+                servies.add(fac)
+    add, noms, n = "", [], 0
+    for f in factions:
+        if f in servies:
+            continue
+        classe = _space_ship(f)
+        if classe in used:
+            # shortcut: une faction sans patrouilleur propre emprunte un OPV
+            # du pool (cosmetique), a specialiser si le rendu gene
+            classe = next((c for c in _SD_SHIP_POOL if c not in used), "")
+        if not classe:
+            continue
+        used.add(classe)
+        noms.append(f + "=" + classe)
+        if f not in notre:
+            add += _sd_unit_block(f, classe)
+        elif notre[f][1] != classe:
+            lignes[notre[f][0]] = "  ClassName: " + classe   # reparation
+        else:
+            continue
+        n += 1
+    if not n:
+        return text, 0, noms
+    texte = "\n".join(lignes)
+    if add:
+        texte = texte.rstrip("\n") + "\n" + add
+    return texte, n, noms
 
 
 def _ensure_poi_space_defense(text: str, factions: set) -> tuple:
