@@ -1016,6 +1016,24 @@ def _check_hygiene(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
                     "'SpawnZones:' commente par erreur)",
             fix="restaurer l'en-tete 'SpawnZones:' de ces items (ou supprimer "
                 "le bloc entier, jamais commenter une seule ligne d'en-tete)"))
+    # Materiau d'entite absent du MaterialConfig du scenario : le moteur ne
+    # trouve aucune definition et retombe sur un comportement par defaut, sans
+    # rien ecrire au log (vecu 12/11 : 24 entites en 'Mechanical').
+    from core.config_hygiene import scan_entity_materials
+    inconnus = scan_entity_materials(root)
+    if inconnus:
+        mats = sorted({m for _f, _l, _e, m in inconnus})
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/EClassConfig.ecf", line=0,
+            severity="warning",
+            message=f"{len(inconnus)} entite(s) utilisent un materiau absent du "
+                    f"MaterialConfig ({', '.join(mats[:6])}"
+                    f"{' ...' if len(mats) > 6 else ''}) : le moteur ne trouve "
+                    f"aucune definition, aucune erreur au log, et la resistance "
+                    f"aux degats retombe sur le defaut — vecu 12/11",
+            fix="declarer ces materiaux dans MaterialConfig.ecf ou pointer une "
+                "entite existante (ex. metal), voir docs/limites_moteur.md"))
+
     for fichier, ligne in scan_ecf_openline(root):
         issues.append(LaunchIssue(
             check="hygiene", path=f"Content/Configuration/{fichier}", line=ligne,

@@ -1294,3 +1294,37 @@ def test_regen_mining_mine_goes_to_72h(tmp_path):
     assert len(ligne) == 1
     row, change = ligne[0]
     assert change[3] == MINE_CYCLE
+
+
+def _build_material_scenario(tmp_path: Path, materiau: str) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "MaterialConfig.ecf").write_text(
+        "{ Material Name: metal\n  damage_category: metal\n}\n"
+        "{ +Material Name: Mechanical\n  damage_category: metal\n}\n",
+        encoding="utf-8")
+    (conf / "EClassConfig.ecf").write_text(
+        "{ +Entity Name: Mechanoid, Ref: AlienTemplateBAI\n"
+        "  Mesh: Enemies/Mechanoid/MechanoidPrefab\n"
+        f"  Material: {materiau}\n"
+        "}\n", encoding="utf-8")
+    return root
+
+
+def test_entity_material_absent_from_materialconfig_is_a_warning(tmp_path):
+    """Vecu 12/11 : 131 entites de RE2-FR portaient un `Material:` absent des
+    49 materiaux du scenario ; le moteur ne trouve aucune definition, ne log
+    rien, et la resistance aux degats retombe sur le defaut."""
+    from core.config_hygiene import scan_entity_materials
+    from core.launch_check import _check_hygiene
+    fautif = _build_material_scenario(tmp_path / "a", "Mechanical2")
+    trouves = scan_entity_materials(fautif)
+    assert [(e, m) for _f, _l, e, m in trouves] == [("Mechanoid", "Mechanical2")]
+    issues = [i for i in _check_hygiene(fautif) if "MaterialConfig" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "warning"
+
+    sain = _build_material_scenario(tmp_path / "b", "Mechanical")
+    assert scan_entity_materials(sain) == []
+    assert [i for i in _check_hygiene(sain) if "MaterialConfig" in i.message] == []

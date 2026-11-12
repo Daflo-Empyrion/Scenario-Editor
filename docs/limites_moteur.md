@@ -147,3 +147,26 @@ avertissements en dev (72 en prod : +1 départ non validé). Parti de 166.
 Reste **71 avertissements**, dont **65 réellement corrigeables** (28 A + 30 C +
 12 D moins recouvrements) mais tous bloqués par la même cause : des sources
 absentes (DLC/mod) ou une chirurgie qui demande l'éditeur de playfields.
+
+## Materiau d'entite inexistant : silencieux, et la resistance aux degats tombe au defaut
+
+- **Symptome** : une creature encaisse (ou non) comme les autres, sans que son
+  `Material:` ne corresponde a quoi que ce soit. Aucune ligne au log du client.
+- **Cause** : `EClassConfig.ecf` accepte n'importe quelle chaine dans
+  `Material:`. Si le nom n'est declare nulle part dans le `MaterialConfig.ecf`
+  du scenario, le moteur ne trouve aucune definition et retombe sur un
+  comportement par defaut. La vanille n'utilise que **2** materiaux dans son
+  EClassConfig, tous declares.
+- **Cas vecu (12/11)** : 131 entites de RE2-FR portaient 9 materiaux absents
+  des 49 du scenario (`Mechanical`, `CreatureHard`, `CreatureSoft`,
+  `DronePlanet`, `DroneSpace`, `HumanHard`, `HumanSoft`, `Ore`, `Player`).
+  Consequence concrete : la correction v1.20 « les shotguns font a nouveau des
+  degats contre les Turret Robots / Mechanoids / Androids » passe par le
+  materiau de ces 3 entites — elle ne nous atteint pas, nos versions portant
+  `Mechanical`.
+- **Correctif** : declarer les materiaux dans `MaterialConfig.ecf` (copie d'une
+  definition existante : `damage_category`, `surface_category`,
+  `particle_category`, `stepsound`), ou pointer une entite sur un materiau
+  declare (`metal`).
+- **Controle** : `scan_entity_materials` (`core/config_hygiene.py`) ->
+  avertissement au bilan avant lancement, un par famille de materiaux.

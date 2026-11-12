@@ -281,3 +281,46 @@ def scan_regen_policy(scenario: Path) -> list:
     """
     from core.regen_policy import scan as _scan
     return _scan(Path(scenario))
+
+
+_ENTITY_RE = re.compile(r"^\{ *\+?Entity Name: *([A-Za-z0-9_]+)")
+_ENTITY_MATERIAL_RE = re.compile(r"^\s*Material:\s*([A-Za-z0-9_]+)")
+_MATERIAL_NAME_RE = re.compile(r"^\{ *\+?Material Name: *([A-Za-z0-9_]+)", re.M)
+
+
+def scan_entity_materials(scenario: Path) -> list:
+    """[(fichier, ligne, entite, materiau)] des entites dont le `Material:`
+    n'est defini nulle part dans le `MaterialConfig.ecf` du scenario.
+
+    Vecu 12/11 : 24 entites de RE2-FR portaient `Material: Mechanical`, absent
+    des 49 materiaux du scenario (et de la vanille, 1.19 comme 1.20). Le
+    moteur ne trouve alors aucune definition et retombe sur un comportement
+    par defaut, **sans rien ecrire au log** : la resistance aux degats de ces
+    creatures n'est plus celle prevue (cas d'ecole : la correction v1.20 des
+    shotguns passe par le materiau de Mechanoid / TurretRobotV2 /
+    AssaultCyborgCommando, qui ne nous atteint donc pas).
+
+    Une entite qui herite son materiau par `Ref:` n'est pas signalee : seules
+    les declarations explicites sont controlees.
+    """
+    conf = Path(scenario) / "Content" / "Configuration"
+    matieres = conf / "MaterialConfig.ecf"
+    entites = conf / "EClassConfig.ecf"
+    if not matieres.is_file() or not entites.is_file():
+        return []
+    definis = set(_MATERIAL_NAME_RE.findall(
+        matieres.read_bytes().decode("utf-8", errors="replace")))
+    if not definis:
+        return []
+    out = []
+    entite = ""
+    texte = entites.read_bytes().decode("utf-8", errors="replace")
+    for i, ligne in enumerate(texte.replace("\r\n", "\n").split("\n"), 1):
+        trouve = _ENTITY_RE.match(ligne)
+        if trouve:
+            entite = trouve.group(1)
+            continue
+        materiau = _ENTITY_MATERIAL_RE.match(ligne)
+        if materiau and materiau.group(1) not in definis:
+            out.append((entites.name, i, entite, materiau.group(1)))
+    return out
