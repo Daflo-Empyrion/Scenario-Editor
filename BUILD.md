@@ -119,6 +119,10 @@ le pipeline (quelques minutes) ou sans connexion internet.
    python -m pytest -q          :: 19 min, sur l'etat exact qui sera tague
    git status --short           :: doit etre vide (hormis les fichiers ignores)
    ```
+   Le push passe par le hook `pre-push` du depot (`.githooks/`, versionne) :
+   un lot qui touche le code de l'application sans `README.md` est refuse
+   avant d'atteindre GitHub (`git push --no-verify` pour passer outre).
+
 2. Va sur l'onglet **Actions** du depot GitHub pour suivre la construction en
    cours (quelques minutes) -- ou construis en local avec `build.bat` si tu
    preferes ne pas attendre.
