@@ -163,7 +163,7 @@ def _index_prefabs(*roots: Path):
                 if name:
                     names.add(name.casefold())
                     # `read_header` renvoie la PROPRIETE 7 = GroupName (code
-                    # du jeu (v1.19.6) : GroupName=7, Tags=21) : c'est
+                    # du jeu (v1.20) : GroupName=7, Tags=21) : c'est
                     # aussi une cle de groupe. Sans cette ligne, tous les
                     # GroupName reels des playfields etaient declares
                     # « inconnus » (842 faux positifs sur RE2 Beta, mesure

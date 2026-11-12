@@ -16,7 +16,8 @@
 
 """Politique de regeneration des POI : ressources en tension (C + mines).
 
-`RegenAfter: 0` = la structure ne revient JAMAIS (verifie sur v1.19.6) ; les
+`RegenAfter: 0` = la structure ne revient JAMAIS (verifie en v1.19.6, non
+revérifié en v1.20) ; les
 gisements de terrain n'ont deja aucun regen, donc tout le renouvellement de
 ressources passe par les POI. La politique retenue :
 

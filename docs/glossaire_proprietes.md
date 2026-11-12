@@ -8,7 +8,7 @@ fichiers du scénario RE2-FR y est répertoriée avec son sens.
 
 | Étiquette | Signification |
 |---|---|
-| **[M]** | Vérifié contre le chargement réel du jeu (v1.19.6, build 5188) : propriété typée par le moteur, valeur par défaut ou documentation fournie par Eleon |
+| **[M]** | Vérifié contre le chargement réel du jeu (v1.20, build 5229) : propriété typée par le moteur, valeur par défaut ou documentation fournie par Eleon |
 | **[E]** | Vérifié dans les données réelles du scénario, ou via l'outil communautaire Empyrion Playfield Designer (EPD) |
 | **[S]** | Déduit du scénario RE2-FR lui-même (valeurs observées, contexte d'usage) |
 
@@ -34,7 +34,7 @@ Structure typée par le moteur : les noms de clés YAML sont les noms de
 propriétés que le jeu attend, et chaque section (`POIs`, `DroneBaseSetup`,
 `CreatureSpawning`, `SpawnRateZones`...) est un objet typé avec ses propres
 sous-sections. Hiérarchie vérifiée contre le chargement réel du jeu
-(v1.19.6, build 5188). Les noms de clés YAML = noms des
+(v1.20, build 5229). Les noms de clés YAML = noms des
 propriétés C# (liaison par réflexion).
 
 ## 1.1 Général / identité

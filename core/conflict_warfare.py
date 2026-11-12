@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Passes de conflit de factions (moteur 1.19.6 — modèle : GS_ConflictArid vanilla).
+"""Passes de conflit de factions (moteur v1.20 build 5229 — modèle : GS_ConflictArid).
 
 Pour chaque playfield PLANÉTAIRE du scénario (`PlayfieldType: Planet`,
 découverte automatique, `planet_playfields`) :

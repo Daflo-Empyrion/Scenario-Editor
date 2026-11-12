@@ -19,7 +19,7 @@
 Le boot dedie valide les SECTEURS (il annonce les N playfields de
 Sectors.yaml) mais n'instancie aucun playfield : le jeu ne les cree qu'a
 l'entree d'un joueur, et aucune commande console ne le force (constate en
-session les 05 et 12/11/2026, moteur v1.19.6 build 5188). Un prefab casse ne se
+session les 05 et 12/11/2026, moteur v1.20 build 5229). Un prefab casse ne se
 verrait donc qu'apres des heures de jeu, sur une planete encore inexploree.
 
 Ce module rejoue hors jeu la resolution par planete qui manquait au bilan :

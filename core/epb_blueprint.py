@@ -69,7 +69,8 @@ class EpbBlock:
 
 
 # Palette de 32 couleurs du jeu (uint RGBA : R = bits 16-23, G = bits 8-15,
-# B = bits 0-7 ; relevee sur des .epb reels du jeu, v1.19.6 build 5188).
+# B = bits 0-7 ; relevee sur des .epb reels du jeu, revérifiée en v1.20
+# build 5229).
 EPB_PALETTE_RAW: Tuple[int, ...] = (
     16777215, 16777126, 16711680, 16754409, 16639, 65535, 65433,
     12289882, 14474460, 16774912, 11142405, 16711830, 1716825, 3843799,
@@ -355,9 +356,9 @@ def read_id_mapping(path: os.PathLike, max_bytes: int = 2_000_000):
 def _read_header_fields(path: os.PathLike, max_bytes: int = 262144):
     """(GroupName, Tags, DisplayName) d'un .epb, ou None si illisible.
 
-    Numerotation VERIFIEE contre le chargement reel du jeu (v1.19.6, build
-    5188) sur des .epb produits par le jeu : GroupName = propriete **7**,
-    Tags = **21**,
+    Numerotation VERIFIEE contre le chargement reel du jeu sur des .epb
+    produits par le jeu (v1.19.6, reconfirmee sur la v1.20 build 5229 avec les
+    prefabs BAO_WSO-SPC-INS) : GroupName = propriete **7**, Tags = **21**,
     DisplayName = 16, et le nom de fichier vient du FileName. La docstring
     precedente annoncait l'inverse (Name=7, groupes=21), ce qui faisait
     passer les GroupName reels pour des noms de prefabs et rendait le
