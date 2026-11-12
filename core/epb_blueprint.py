@@ -158,7 +158,7 @@ def _skip_properties(r: "_BinReader") -> None:
     r.u16()
     count = r.u16()
     for _ in range(count):
-        r.i32()                 # EnumProperties key
+        r.i32()                 # numero de propriete d'en-tete .epb
         r.boolean()
         r.boolean()
         r.boolean()
@@ -364,7 +364,7 @@ def _read_header_fields(path: os.PathLike, max_bytes: int = 262144):
     controle des groupes de POI inutilisable (842 faux positifs sur RE2
     Beta, corrige le 03/11/2026).
 
-    Le moteur (`FormDictionary`, part_0053.cs) indexe les prefabs par
+    Le moteur indexe les prefabs par
     `Header.GroupName` (chaine entiere) puis par Tags separes par virgule :
     les deux doivent alimenter le pool de groupes. Le Name (propriete 7) est
     souvent le nom de FICHIER ; les playfields peuvent referencer l'un ou

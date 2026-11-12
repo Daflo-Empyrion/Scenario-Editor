@@ -943,7 +943,7 @@ def fix_t_turret_aliases(scenario, apply=False, store=None) -> dict:
         if target not in existing:
             rep["details"].append(f"{alias} : cible {target} absente — sauté")
             continue
-        # ECF : '{' et '}' sur une même ligne = ligne malformée (EcfFile.cs)
+        # ECF : '{' et '}' sur une même ligne = ligne malformée
         text += f"{{ Block Name: {alias}, Ref: {target}{eol}}}{eol}{eol}"
         added.append(alias)
     rep["edits"] = len(added)

@@ -303,7 +303,7 @@ def _poi_group_block(gname: str, prefab: str, faction: str, hostile: bool) -> st
     rendent le POI inabordable en debut de partie.
 
     `Properties: Music` sur la mine starter egalement : la propriete joue une
-    piste a l'ENTREE du POI (`EditorContext.cs` : POI -> structure ->
+    piste a l'ENTREE du POI (constate en jeu : POI -> structure ->
     playfield -> "default"). Seules les pistes embarquées du jeu sont
     acceptees (pas de fichier perso : les clips viennent des bundles)."""
     prop = ""

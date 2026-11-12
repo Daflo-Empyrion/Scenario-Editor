@@ -45,13 +45,13 @@ REFERENCES = ("mscorlib.dll", "System.dll", "System.Core.dll",
               "Assembly-CSharp.dll", "ModApi.dll")
 
 # Usings implicites du domaine de script du jeu : les fichiers d'exemple
-# officiels (PrepAndDefendTasks.cs, etc.) n'ont AUCUN using et utilisent
+# officiels livres avec l'API n'ont AUCUN using et utilisent
 # Task/PdaMPTaskType/ActionData tels quels — le moteur les fournit au
 # domaine Roslyn. La verification locale les ajoute aux fichiers qui ne les
 # declarent pas, sinon tout paraitrait introuvable.
 # 'System' est volontairement ABSENT : les exemples du jeu qualifient
 # 'System.Random' et utilisent 'Action' (Eleon.PdaScript.Action) — importer
-# System rendrait 'Action' ambigu (CS0104, vecu sur PrepAndDefendTasks.cs).
+# System rendrait 'Action' ambigu (CS0104, vecu sur un exemple officiel).
 DEFAULT_USINGS = ("System.Collections", "System.Collections.Generic",
                   "System.Linq", "UnityEngine",
                   "Eleon.Pda", "Eleon.PdaScript", "Eleon.Modding",

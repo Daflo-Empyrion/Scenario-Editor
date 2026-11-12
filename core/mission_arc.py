@@ -151,7 +151,7 @@ def _action(ms: Dict, i: int, a: Dict) -> str:
         out.append("            Amount: " + str(a["amount"]))
     # SetTimer = duree en SECONDES, decrementee de TimerRate toutes les
     # TimerRate secondes ; l'action se complete quand le compteur atteint 0
-    # (TimerAction.cs : CompletedFloatAmount / NotifyIncrementDecrement...).
+    # (action minuteur : CompletedFloatAmount / NotifyIncrementDecrement...).
     if a.get("set_timer"):
         out.append("            SetTimer: " + str(a["set_timer"]))
         out.append("            TimerRate: " + str(a.get("timer_rate", 1)))
@@ -201,7 +201,7 @@ def _chapter(ms: Dict) -> str:
             out.append("        MessageTime: " + str(act["message_time"]))
     if ms.get("preamble"):
         # `Preamble` ne s'affiche que si StartMessage est vide ou commence par
-        # `mbox` (TextFileScopeStoreSite.cs:6351) : briefing plein ecran.
+        # `mbox` : briefing plein ecran.
         out.append("    Preamble: " + _token(ms, "Pre"))
     out.append("    Tasks:")
     for i, t in enumerate(ms.get("tasks") or (), 1):

@@ -17,8 +17,8 @@ fichiers du scénario RE2-FR y est répertoriée avec son sens.
   YAML distincts, 1668 noms de propriétés ECF distinctes, 230 232 lignes
   de propriétés. Extraction : `_glossaire_work/extract_yaml.py`,
   `extract_ecf.py` (TSV de référence à côté des scripts).
-- Format EPB : enum moteur `BlueprintHeader.EnumProperties` (26 clés, lire
-  aussi `core/epb_blueprint.py`).
+- Format EPB : en-tête à 26 champs numérotés (lire aussi
+  `core/epb_blueprint.py`).
 - Conventions : `[min, max]` = borne incluses ; `True/False` ;
   couleurs = chaîne `"r, g, b"` 0..1 (alpha optionnel) ; les listes YAML
   s'écrivent `[ a, b ]` ou bloc indenté. L'orthographe moteur
@@ -1285,7 +1285,7 @@ Définit les MATÉRIAUX DE TEXTURE du terrain : chaque bloc racine
 Format binaire (parseur complet : `core/epb_blueprint.py` ; référence
 lecture/écriture : le parseur de référence décrit dans `core/epb_blueprint.py`).
 
-## 7.1 Header — EnumProperties (enum moteur `BlueprintHeader.EnumProperties`)
+## 7.1 En-tête EPB — champs numérotés (26)
 
 Clés du dictionnaire de propriétés binaires (type déclaré par entrée) :
 
