@@ -28,6 +28,7 @@ import re
 import shutil
 import stat
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -144,6 +145,117 @@ def central_backup(path: Path, kind: str = "sectors") -> Path:
         dst = dst_dir / f"{src.stem}-{stamp}-{n}{src.suffix}.bak"
     shutil.copy2(src, dst)
     return dst
+
+# Menage des sauvegardes de `central_backup` : les fichiers datees s'accumulent
+# dans ~/.empyrion_editor/backups/<type>/ (vecu : 1268 fichiers dans
+# cjk_cleanup, 485 dans difficulty). Regle : garder les N plus recentes de
+# chaque dossier, supprimer au-dela celles qui depassent X jours.
+BACKUP_KEEP = 10
+BACKUP_MAX_AGE_DAYS = 60
+
+
+def _backups_root(root=None) -> Path:
+    return Path(root) if root else Path.home() / ".empyrion_editor" / "backups"
+
+
+def plan_backup_cleanup(root=None, keep: int = BACKUP_KEEP,
+                        max_age_days: float = BACKUP_MAX_AGE_DAYS) -> dict:
+    """{fichier: taille} des sauvegardes a supprimer, sans rien effacer.
+
+    Ne regarde QUE les fichiers `*.bak` poses directement dans
+    `backups/<type>/` par `central_backup`. Les SOUS-DOSSIERS (sauvegardes de
+    scenario avec `_backup_info.json`, anciens enregistrements aplatis) ne sont
+    jamais inspectes ni supprimes : leur menage appartient a
+    `gui/backup_dialog.py`, qui sait ce qu'ils contiennent.
+    """
+    folder_root = _backups_root(root)
+    if not folder_root.is_dir():
+        return {}
+    limit = time.time() - float(max_age_days) * 86400
+    floor = max(int(keep), 1)
+    out = {}
+    for folder in sorted(p for p in folder_root.iterdir() if p.is_dir()):
+        try:
+            files = sorted((f for f in folder.iterdir()
+                            if f.is_file() and f.name.endswith(".bak")),
+                           key=lambda f: f.stat().st_mtime, reverse=True)
+        except OSError:
+            continue
+        for stale in files[floor:]:
+            try:
+                stat = stale.stat()
+            except OSError:
+                continue
+            if stat.st_mtime < limit:
+                out[stale] = stat.st_size
+    return out
+
+
+_STAMP_RE = re.compile(r"-\d{8}-\d{6}(?:-\d+)?(?=\.[^.]*$)")
+
+
+def original_name(backup) -> str:
+    """Nom d'origine d'une sauvegarde : `Localization-20261112-121530.csv.bak`
+    -> `Localization.csv` (propose au moment de restaurer)."""
+    name = Path(backup).name
+    if name.endswith(".bak"):
+        name = name[:-4]
+    return _STAMP_RE.sub("", name)
+
+
+def list_backup_files(root=None, kind=None) -> list:
+    """[(fichier, type, mtime, taille)] des `*.bak` de `central_backup`, du
+    plus recent au plus ancien. Meme perimetre que le menage : les fichiers
+    directement dans `backups/<type>/`, jamais les sous-dossiers."""
+    folder_root = _backups_root(root)
+    if not folder_root.is_dir():
+        return []
+    out = []
+    for folder in sorted(p for p in folder_root.iterdir() if p.is_dir()):
+        if kind and folder.name != kind:
+            continue
+        try:
+            files = [f for f in folder.iterdir()
+                     if f.is_file() and f.name.endswith(".bak")]
+        except OSError:
+            continue
+        for path in files:
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            out.append((path, folder.name, stat.st_mtime, stat.st_size))
+    out.sort(key=lambda row: row[2], reverse=True)
+    return out
+
+
+def restore_backup_file(backup, destination) -> Path | None:
+    """Restaure une sauvegarde vers `destination`.
+
+    L'actuel fichier de destination est d'abord sauvegarde (`central_backup`,
+    type « restauration ») : un ecrasement doit toujours etre rattrapable.
+    Retourne le chemin de cette sauvegarde de securite, ou None.
+    """
+    src, dst = Path(backup), Path(destination)
+    if not src.is_file():
+        raise FileNotFoundError(str(src))
+    safety = central_backup(dst, "restauration") if dst.is_file() else None
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    return safety
+
+
+def apply_backup_cleanup(plan: dict) -> tuple:
+    """Supprime les fichiers d'un plan ; retourne (nombre, octets liberes)."""
+    count = freed = 0
+    for path, size in plan.items():
+        try:
+            Path(path).unlink()
+        except OSError:
+            continue
+        count += 1
+        freed += size
+    return count, freed
 
 
 # Caracteres parasites colles APRES le crochet fermant d'une liste flow

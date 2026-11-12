@@ -149,3 +149,262 @@ def test_widget_import_button_fills_and_marks(qapp, tmp_path, monkeypatch):
 
     # le lookup par cle alimente la traduction d'une seule cellule (sans IA)
     assert widget._corpus_value(0, "fr", "Français") == "Francais un"
+
+
+# -------------------------------- apprentissage du corpus (demande 12/11)
+
+def test_remember_adds_a_missing_key(tmp_path, monkeypatch):
+    """Une cle absente est AJOUTEE au corpus perso : le scenario suivant la
+    reprendra sans payer d'IA."""
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir",
+                        lambda: str(tmp_path / "corpus"))
+    path = trad_corpus.remember("localization", "bkiNew",
+                                {"English": "Cred Token", "Français": "Jeton"},
+                                header=["KEY", "English", "Français"])
+    assert path is not None and path.is_file()
+    assert path.read_text(encoding="utf-8").splitlines() == [
+        "KEY,English,Français", "bkiNew,Cred Token,Jeton"]
+    # visible tout de suite : le cache est invalide a l'ecriture
+    assert trad_corpus.lookup("localization", "bkiNew")["Français"] == "Jeton"
+
+
+def test_remember_never_overwrites_and_completes_empty_cells(tmp_path, monkeypatch):
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    trad_corpus.remember("localization", "k1",
+                         {"Français": "AUTRE", "Deutsch": "Eins"})
+    text = (corpus / "Localization.csv").read_text(encoding="utf-8")
+    assert "AUTRE" not in text          # une cellule remplie n'est jamais ecrasee
+    assert "Eins" in text               # une cellule vide est completee
+    assert "Un" in text
+
+
+def test_remember_adds_a_missing_language_column(tmp_path, monkeypatch):
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Dialogues.csv", "KEY,English\nDlg1,Hello\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    trad_corpus.remember("dialogues", "Dlg1", {"Français": "Bonjour"})
+    text = (corpus / "Dialogues.csv").read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "KEY,English,Français"
+    assert "Dlg1,Hello,Bonjour" in text
+
+
+def test_remember_ignores_an_unknown_kind(tmp_path, monkeypatch):
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(tmp_path))
+    assert trad_corpus.remember("inconnu", "k", {"Français": "x"}) is None
+
+
+def test_personal_dir_falls_back_to_the_home_corpus(monkeypatch):
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: "")
+    assert trad_corpus.personal_dir() == (
+        Path.home() / ".empyrion_editor" / "corpus")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: "C:/corpus")
+    assert trad_corpus.personal_dir() == Path("C:/corpus")
+
+
+def test_translation_validee_est_archivee_dans_le_corpus(qapp, tmp_path, monkeypatch):
+    """Une traduction IA VALIDEE sur une cle inconnue est ecrite dans le
+    corpus perso (cle ajoutee), puis servie sans IA au tour suivant."""
+    corpus = tmp_path / "corpus"
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    import gui.csv_edit_widget as W
+    from gui.theme import apply_theme
+    apply_theme(qapp)
+    path = tmp_path / "Localization.csv"
+    path.write_text("KEY,English,Français\r\nbkiNew,New Token,\r\n",
+                    encoding="utf-8", newline="")
+    widget = W.CsvEditWidget(path, editable=True)
+
+    monkeypatch.setattr(W.translation, "is_available", lambda: True)
+    monkeypatch.setattr(W.translation, "translate_text_with_source",
+                        lambda text, target=None: ("Jeton neuf", "auto"))
+    monkeypatch.setattr(W.translation_memory, "store", lambda *a, **k: None)
+    monkeypatch.setattr("core.glossary.add_entry", lambda *a, **k: None)
+
+    class _Dialog:
+        accepted_replace = True
+        def __init__(self, *args, **kwargs):
+            pass
+        def exec(self):
+            return 1                     # QDialog.Accepted
+        def result_text(self):
+            return "Jeton neuf"
+
+    monkeypatch.setattr(W, "TranslationResultDialog", _Dialog)
+    widget._translate_single_cell(widget.table.item(0, 1), "New Token",
+                                 "fr", "Français")
+
+    written = (corpus / "Localization.csv").read_text(encoding="utf-8")
+    assert "bkiNew,New Token,Jeton neuf" in written
+    assert widget._corpus_value(0, "fr", "Français") == "Jeton neuf"
+
+
+# ------------------------------------ en-tetes mojibake ('FranГ§ais', 12/09)
+
+MOJI = "Fran" + "\u0413\u00a7" + "ais"        # ce que donne 'Français' relu en CP1251
+
+
+def test_mojibake_header_still_matches_the_corpus(tmp_path, monkeypatch):
+    """Un CSV d'origine russe porte 'FranГ§ais' : la colonne doit quand meme
+    etre appariee au corpus (sinon l'import ne remplit rien en silence)."""
+    from types import SimpleNamespace
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,Ein\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    doc = SimpleNamespace(header=["KEY", "English", MOJI, "Deutsch"],
+                          rows=[["k1", "One", "", ""]])
+    filled = trad_corpus.fill_document(doc, "localization")
+    assert doc.rows[0][2] == "Un"            # accent mojibake apparié
+    assert (0, 2) in filled
+
+
+def test_remember_never_writes_a_mojibake_column(tmp_path, monkeypatch):
+    """A l'ecriture, l'en-tete est repare : le corpus ne stocke jamais
+    'FranГ§ais' (ce serait un libelle mort pour tous les autres fichiers)."""
+    corpus = tmp_path / "corpus"
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    trad_corpus.remember("localization", "k2", {MOJI: "Deux"},
+                         header=["KEY", "English", MOJI])
+    text = (corpus / "Localization.csv").read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "KEY,English,Français"
+    assert "k2,,Deux" in text   # seule la colonne fournie est remplie
+    assert MOJI not in text
+
+
+def test_remember_repairs_the_header_of_an_existing_corpus_file(tmp_path, monkeypatch):
+    """Un corpus deja ecrit avec 'FranГ§ais' est remis d'aplomb a la premiere
+    ecriture, sans perdre ses lignes."""
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "PDA.csv", "KEY,English," + MOJI + "\np1,Title,Titre\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    trad_corpus.remember("pda", "p2", {"Français": "Deuxieme titre"})
+    text = (corpus / "PDA.csv").read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "KEY,English,Français"
+    assert "p1,Title,Titre" in text
+    assert "p2,,Deuxieme titre" in text
+
+
+# --------------------------- remontee manuelle dans le corpus (demande 12/11)
+
+def test_harvest_reports_what_would_change(tmp_path, monkeypatch):
+    """Le bilan annonce cles nouvelles / cellules ajoutees / valeurs
+    remplacees, sans rien ecrire : l'utilisateur decide ensuite."""
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv",
+               HEADER + "k1,One,Un,Eins\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    header = ["KEY", "English", "Français", "Deutsch"]
+    rows = [["k1", "One", "Un corrige", "Eins"],     # valeur FR corrigee
+            ["k2", "Two", "Deux", ""]]               # cle nouvelle
+    entries, report = trad_corpus.harvest("localization", header, rows)
+    assert set(entries) == {"k1", "k2"}
+    assert report == {"new_keys": 1, "added": 2, "changed": 1}
+    # rien n'a ete ecrit
+    assert "corrige" not in (corpus / "Localization.csv").read_text(
+        encoding="utf-8")
+
+
+def test_remember_many_overwrite_replaces_a_value(tmp_path, monkeypatch):
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,Eins\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    trad_corpus.remember_many("localization",
+                              {"k1": {"Français": "Un corrige"}},
+                              overwrite=True)
+    assert trad_corpus.lookup("localization", "k1")["Français"] == "Un corrige"
+    # sans overwrite : la reference est conservee
+    trad_corpus.remember("localization", "k1", {"Français": "Encore autre"})
+    assert trad_corpus.lookup("localization", "k1")["Français"] == "Un corrige"
+
+
+def test_harvest_button_updates_the_corpus(qapp, tmp_path, monkeypatch):
+    """Une cellule corrigee a la main remonte dans le corpus APRES
+    confirmation, et seulement la."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    import gui.csv_edit_widget as W
+    from gui.theme import apply_theme
+    apply_theme(qapp)
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,Eins\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.StandardButton.Yes)
+
+    path = tmp_path / "scenario" / "Localization.csv"
+    path.parent.mkdir()
+    path.write_text("KEY,English,Français,Deutsch\r\nk1,One,Un,Eins\r\n",
+                    encoding="utf-8", newline="")
+    widget = W.CsvEditWidget(path, editable=True)
+    widget.table.item(0, 2).setText("Un corrigé")
+
+    widget._harvest_corpus()
+
+    assert trad_corpus.lookup("localization", "k1")["Français"] == "Un corrigé"
+    assert trad_corpus.lookup("localization", "k1")["Deutsch"] == "Eins"
+
+
+def test_harvest_button_refused_writes_nothing(qapp, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    import gui.csv_edit_widget as W
+    from gui.theme import apply_theme
+    apply_theme(qapp)
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,Eins\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.StandardButton.No)
+    path = tmp_path / "scenario" / "Localization.csv"
+    path.parent.mkdir()
+    path.write_text("KEY,English,Français,Deutsch\r\nk1,One,Autre,Eins\r\n",
+                    encoding="utf-8", newline="")
+    widget = W.CsvEditWidget(path, editable=True)
+    widget._harvest_corpus()
+    assert trad_corpus.lookup("localization", "k1")["Français"] == "Un"
+
+
+# ------------------------- sauvegarde avant ecriture du corpus (12/11)
+
+def test_overwrite_always_backs_up_the_corpus_file(tmp_path, monkeypatch):
+    """Un ecrasement de reference est TOUJOURS sauvegarde, meme si une copie
+    recente existe : c'est le seul cas ou une valeur est perdue."""
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,Eins\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    monkeypatch.setattr(trad_corpus, "_recent_backup", lambda path: True)
+    calls = []
+    monkeypatch.setattr("core.fsutil.central_backup",
+                        lambda path, kind="sectors": calls.append((path, kind)))
+    trad_corpus.remember_many("localization", {"k1": {"Français": "Corrige"}},
+                              overwrite=True)
+    assert calls and calls[0][1] == "corpus"
+    assert calls[0][0].name == "Localization.csv"
+
+
+def test_append_does_not_back_up_when_a_recent_copy_exists(tmp_path, monkeypatch):
+    """Un ajout de cle ne perd rien : une seule copie par heure suffit
+    (sinon un CSV de plusieurs Mo serait dupé a chaque traduction)."""
+    corpus = tmp_path / "corpus"
+    _write_csv(corpus, "Localization.csv", HEADER + "k1,One,Un,Eins\n")
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir", lambda: str(corpus))
+    monkeypatch.setattr(trad_corpus, "_recent_backup", lambda path: True)
+    calls = []
+    monkeypatch.setattr("core.fsutil.central_backup",
+                        lambda path, kind="sectors": calls.append(kind))
+    trad_corpus.remember("localization", "k2", {"Français": "Deux"})
+    assert calls == []
+
+
+def test_first_write_of_a_new_corpus_file_has_nothing_to_back_up(tmp_path,
+                                                                monkeypatch):
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir",
+                        lambda: str(tmp_path / "corpus"))
+    calls = []
+    monkeypatch.setattr("core.fsutil.central_backup",
+                        lambda path, kind="sectors": calls.append(kind))
+    trad_corpus.remember("localization", "k1", {"Français": "Un"})
+    assert calls == []

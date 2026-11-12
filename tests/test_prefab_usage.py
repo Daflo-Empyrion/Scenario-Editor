@@ -144,3 +144,23 @@ def test_short_group_tag_matches_only_exactly(tmp_path, monkeypatch):
     rapport = prefab_usage.scan_prefab_usage(tmp_path)
     # SameThing : cite par son nom ; OldThing : ni nom ni tag ne matche
     assert [p.name for p, _s in rapport.unused] == ["OldThing.epb"]
+
+
+def test_prefab_cited_only_by_poi_groups_config_is_kept(tmp_path,
+                                                        monkeypatch):
+    """`Prefabs/_PoiGroupsConfig.yaml` mappe les pools de POI vers leurs
+    `BlueprintFileNames` : c'est la SEULE citation de beaucoup de prefabs.
+    L'ignorer les declarait inutilises (vecu 12/11 : BAO_ARCMiningOutpost
+    parti en quarantaine alors qu'il sert a `ConflictARCMines`)."""
+    prefabs = tmp_path / "Prefabs"
+    prefabs.mkdir()
+    for nom in ("PoolOnly", "Orphan"):
+        (prefabs / f"{nom}.epb").write_bytes(b"fake")
+    (prefabs / "_PoiGroupsConfig.yaml").write_text(
+        "---\n  PoiGroups:\n    - GroupName: SomePool\n"
+        "      Filters:\n"
+        "          BlueprintFileNames: [ PoolOnly ]\n", encoding="utf-8")
+    entetes = {"PoolOnly.epb": ("Nobody", ""), "Orphan.epb": ("Nobody2", "")}
+    monkeypatch.setattr(prefab_usage, "read_header", lambda p: entetes[p.name])
+    rapport = prefab_usage.scan_prefab_usage(tmp_path)
+    assert [p.name for p, _s in rapport.unused] == ["Orphan.epb"]

@@ -76,6 +76,14 @@ def _no_real_start_validations(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_trad_corpus(tmp_path, monkeypatch):
+    """Les traductions validees des tests ne s'archivent pas dans le corpus
+    reel (~/.empyrion_editor/corpus) : le dossier perso reste dans tmp_path."""
+    monkeypatch.setattr("core.settings.get_corpus_trad_dir",
+                        lambda: str(tmp_path / "corpus_trad"))
+
+
+@pytest.fixture(autouse=True)
 def _no_real_codex_store(tmp_path, monkeypatch):
     """Lieux et routes du Codex restent dans tmp_path : aucun test n'ecrit
     dans ~/.empyrion_editor/codex/<empreinte>/."""

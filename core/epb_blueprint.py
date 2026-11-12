@@ -772,6 +772,8 @@ class EpbBlueprint:
         self._prefix = b""
         self._flags = b""
         self._trailer = b""
+        self._sections_start = 0                # debut de _tail dans le flux
+        self._color_offsets: Dict[int, int] = {}  # cellule -> offset de sa couleur
         self._mask_count = 0
         self._cells: List[Tuple[int, int]] = []  # (index de cellule, uint32 brut)
         self._tail = b""
@@ -929,13 +931,17 @@ class EpbBlueprint:
         # bouge pas lors des remplacements d'ids)
         sections_start = br.p
 
-        def _matrix_u(read_value):
+        def _matrix_u(read_value, offsets=None):
             count = br.i32()
             mask = br.d[br.p:br.p + count]
             br.skip(count)
             out = {}
+            pos = br.p
             for cell in range(volume):
                 if (mask[cell // 8] >> (cell % 8)) & 1:
+                    if offsets is not None:
+                        offsets[cell] = pos     # u32 : 4 octets par valeur
+                        pos += 4
                     out[cell] = read_value()
             return out
 
@@ -946,9 +952,11 @@ class EpbBlueprint:
         else:
             br.skip(volume)                     # octets denses
         colors = {}
+        self._color_offsets = {}
         if self.version >= 8:
             # 6 faces x 5 bits ; face 0 = couleur affichee (EPD)
-            colors = _matrix_u(br.u32)
+            colors = _matrix_u(br.u32, self._color_offsets)
+        self._sections_start = sections_start
 
         self.blocks = []
         id_hi = self.version >= 28
@@ -1123,6 +1131,46 @@ class EpbBlueprint:
         return self.id_names.get(bid, f"ID_Bloc_{bid}")
 
     # ------------------------------------------------------------------ edition
+
+    def set_colors(self, ids: Iterable[int], index: int = 0,
+                   only_colors: Optional[Iterable[int]] = None) -> int:
+        """Force l'index palette de face 0 des blocs dont l'id est dans `ids`
+        (restreint aux variantes de `only_colors` si fourni).
+        La couleur vit dans la matrice Colors (dans _tail), pas dans le mot de
+        cellule : on patche ses valeurs, le masque ne bouge donc pas.
+        Retourne le nombre de cellules modifiees (a sauvegarder ensuite).
+
+        Sert aux blocs d'une famille a UNE texture (`Texture: 59`, ex. Truss) :
+        un prefab qui leur donne une variante couleur fait echouer la creation
+        du mesh (`Cannot create mesh for block id=... texIdx=...`)."""
+        ids = set(ids)
+        cibles = set(only_colors) if only_colors is not None else None
+        sx, sy, _ = self.size
+        cells = {b.x + sx * (b.y + sy * b.z)
+                 for b in self.blocks
+                 if b.block_id in ids and (cibles is None or b.color in cibles)}
+        if not cells or not self._tail:
+            return 0
+        tail = bytearray(self._tail)
+        changed = set()
+        for cell in cells:
+            off = self._color_offsets.get(cell)
+            if off is None:
+                continue
+            rel = off - self._sections_start
+            w = struct.unpack_from("<I", tail, rel)[0]
+            new = (w & ~0x1F) | (index & 0x1F)
+            if new == w:
+                continue
+            struct.pack_into("<I", tail, rel, new)
+            changed.add(cell)
+        if not changed:
+            return 0
+        self._tail = bytes(tail)
+        for b in self.blocks:                   # vue 3D / relecture coherente
+            if b.block_id in ids and (cibles is None or b.color in cibles):
+                b.color = index
+        return len(changed)
 
     def remove_ids(self, ids: Iterable[int]) -> int:
         """Retire toutes les cellules dont l'id est dans `ids`.

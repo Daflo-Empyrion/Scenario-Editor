@@ -498,8 +498,9 @@ def set_vanilla_content_path(path: str) -> None:
 def get_corpus_trad_dir() -> str:
     """Dossier PERSONNEL de corpus de traduction (core/trad_corpus.py) :
     tout CSV nomme Localization.csv / Dialogues.csv / PDA.csv y ajoute ses
-    cles deja traduites au corpus embarque avec l'application. Vide = seul
-    le corpus embarque est utilise."""
+    cles deja traduites au corpus embarque avec l'application. Vide =
+    `trad_corpus.personal_dir()` prend le relais
+    (~/.empyrion_editor/corpus), ou les traductions validees sont ecrites."""
     return _get('corpus_trad_dir', '')
 
 

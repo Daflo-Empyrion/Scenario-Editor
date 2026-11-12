@@ -37,12 +37,14 @@ la donnee d'un depart au menu (vecu 05/11 : `Lava` ET `StarterRandom_Arid_V2`,
 donnees du mod intactes, crashaient des qu'elles devenaient des departs —
 alors que les 16 departs marques par l'auteur passent). Le module suit donc
 les departs VALIDES EN JEU dans un cache local
-(`~/.empyrion_editor/starts_valides.json`, par scénario) ; tout depart non
+(`~/.empyrion_editor/starts_valides.json`, cle = empreinte du depart : ligne
+de `Sectors.yaml` + `FixedPlayerStart`, jamais le chemin) ; tout depart non
 valide est signale « a tester » par le module et le bilan.
 
 Ecriture via yamllite (commentaires et mise en forme preserves). L'appelant
 gere sauvegardes et undo.
 """
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -239,43 +241,135 @@ def find_planets(root) -> List[PlanetRow]:
 
 # ---------------------------------------------------- validation en jeu
 
+CACHE_VERSION = 2
+
+
 def validated_cache_path() -> Path:
     return Path.home() / ".empyrion_editor" / "starts_valides.json"
 
 
-def load_validated(root) -> Tuple[set, bool]:
-    """(departs valides en jeu, le cache existe-t-il deja ?). Cle = chemin du
-    scenario. Cache absent -> ensemble vide (le dialogue propose
-    l'initialisation ; le bilan, lui, ne dit rien sans cache)."""
-    path = validated_cache_path()
-    if not path.is_file():
-        return set(), False
+def _sectors_raw(root) -> str:
+    path = sectors_yaml(Path(root))
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return set(), True
-    return set(data.get(str(Path(root)), [])), True
+        return path.read_bytes().decode("utf-8", errors="replace") \
+            .replace("\r\n", "\n")
+    except (OSError, AttributeError):
+        return ""
 
 
-def mark_validated(root, type_names: Iterable[str]) -> None:
-    """Enregistre des departs confirmes en jeu (cache local, jamais dans le
-    scenario : la donnee du jeu ne porte pas cette information)."""
-    path = validated_cache_path()
+def _playfield_bits(root, type_name: str) -> str:
+    """Ce qui decide de l'acceptation du depart : ses types et son bloc
+    `FixedPlayerStart`. Le reste du playfield (POI, decor) n'entre PAS dans
+    l'empreinte : editer un POI ne doit pas invalider une validation."""
+    path = static_path(Path(root), type_name)
+    if path is None:
+        return ""
     try:
-        data = json.loads(path.read_text(encoding="utf-8")) \
-            if path.is_file() else {}
+        text = path.read_bytes().decode("utf-8", errors="replace") \
+            .replace("\r\n", "\n")
+    except OSError:
+        return ""
+    bits = []
+    for key in ("PlanetType", "PlayfieldType"):
+        m = re.search(rf"^{key}:[ \t]*(\S.*?)[ \t]*$", text, re.MULTILINE)
+        bits.append(f"{key}={m.group(1) if m else ''}")
+    block = re.search(r"^\s*FixedPlayerStart:.*?(?=^[^\s#]|\Z)", text,
+                      re.MULTILINE | re.DOTALL)
+    bits.append(block.group(0).strip() if block else "")
+    return "\n".join(bits)
+
+
+def start_signature(root, type_name: str) -> str:
+    """Empreinte d'un depart : sa ligne de `Sectors.yaml` + `_playfield_bits`.
+
+    Identique pour une copie dev -> prod (meme contenu, autre chemin) et
+    insensible aux editions de POI : c'est ce qui manquait le 12/11, ou le
+    cache indexe par chemin faisait renaitre l'avertissement a chaque
+    deploiement.
+    """
+    line = next((ln.strip() for ln in _sectors_raw(root).split("\n")
+                 if re.search(r"\b" + re.escape(type_name) + r"\b", ln)), "")
+    raw = line + "\n" + _playfield_bits(root, type_name)
+    return hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()[:16]
+
+
+def _read_cache() -> dict:
+    try:
+        data = json.loads(validated_cache_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        data = {}
-    key = str(Path(root))
-    known = set(data.get(key, []))
-    known.update(type_names)
-    data[key] = sorted(known)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_cache(data: dict) -> None:
+    path = validated_cache_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
                         encoding="utf-8")
     except OSError:
         pass
+
+
+def _sigs(data: dict) -> dict:
+    sigs = data.get("sigs")
+    return sigs if isinstance(sigs, dict) else {}
+
+
+def _migrate(data: dict) -> bool:
+    """Ancien format `{chemin: [types]}` -> empreintes de contenu, une fois.
+
+    Sans cette reprise, une validation faite sur `C:\\Dev\\RE2-FR` ne couvrait
+    jamais la copie de production.
+    """
+    changed = False
+    legacy = [k for k in data if k not in ("version", "sigs")]
+    if legacy and "sigs" not in data:
+        data["sigs"] = {}
+    for key in legacy:
+        types = data.pop(key)
+        changed = True
+        root = Path(key)
+        if not isinstance(types, list) or not root.is_dir():
+            continue
+        for type_name in types:
+            if isinstance(type_name, str) and static_path(root, type_name):
+                _sigs(data)[start_signature(root, type_name)] = type_name
+    if changed:
+        data["version"] = CACHE_VERSION
+    return changed
+
+
+def load_validated(root) -> Tuple[set, bool]:
+    """(departs valides en jeu, le cache existe-t-il deja ?).
+
+    Cle = **empreinte du contenu** du depart (voir `start_signature`), plus le
+    chemin : une copie du scenario garde ses validations, une modification du
+    depart les retire. Cache absent -> ensemble vide (le dialogue propose
+    l'initialisation ; le bilan, lui, ne dit rien sans cache).
+    """
+    path = validated_cache_path()
+    if not path.is_file():
+        return set(), False
+    data = _read_cache()
+    if _migrate(data):
+        _write_cache(data)
+    return {type_name for sig, type_name in _sigs(data).items()
+            if isinstance(type_name, str)
+            and start_signature(root, type_name) == sig}, True
+
+
+def mark_validated(root, type_names: Iterable[str]) -> None:
+    """Enregistre des departs confirmes en jeu (cache local, jamais dans le
+    scenario : la donnee du jeu ne porte pas cette information)."""
+    data = _read_cache()
+    _migrate(data)
+    sigs = _sigs(data)
+    for type_name in type_names:
+        sigs[start_signature(root, type_name)] = type_name
+    data["sigs"] = sigs
+    data["version"] = CACHE_VERSION
+    _write_cache(data)
 
 
 def find_untested_starts(root) -> List[Tuple[str, str]]:

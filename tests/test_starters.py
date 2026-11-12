@@ -343,3 +343,49 @@ def test_card_is_not_written_over_a_block_description(tmp_path):
     message = prepend_start_card(root, _rows(root)["Eden"])
     assert "non guillemetee" in message
     assert "Start Location:" not in _playfield(root)
+
+
+def test_validation_suit_le_contenu_pas_le_chemin(tmp_path):
+    """Vecu 12/11 : le cache etait indexe par CHEMIN, donc chaque deploiement
+    dev -> prod faisait renaitre « depart non valide en jeu ». L'empreinte
+    porte sur le depart, pas sur l'emplacement."""
+    import shutil
+
+    from core.starters import (load_validated, mark_validated)
+    root = _build(tmp_path / "dev")
+    mark_validated(root, ["Starter_Akua_V2"])
+    copie = Path(shutil.copytree(root, tmp_path / "prod"))
+    assert load_validated(copie)[0] == {"Starter_Akua_V2"}
+    # editer un POI du playfield de depart ne l'invalide pas
+    path = copie / "Playfields" / "Starter_Akua_V2" / "playfield_static.yaml"
+    path.write_text(path.read_text(encoding="utf-8").replace(
+        "CountMinMax: [ 1, 1 ]", "CountMinMax: [ 2, 5 ]"), encoding="utf-8")
+    assert load_validated(copie)[0] == {"Starter_Akua_V2"}
+    # changer le point de depart, si
+    path.write_text(path.read_text(encoding="utf-8").replace(
+        "Pos: [0, 70, 0]", "Pos: [0, 120, 0]"), encoding="utf-8")
+    assert load_validated(copie)[0] == set()
+    # deplacer le depart dans Sectors.yaml, si
+    mark_validated(copie, ["Starter_Akua_V2"])
+    assert load_validated(copie)[0] == {"Starter_Akua_V2"}
+    sectors = copie / "Sectors" / "Sectors.yaml"
+    sectors.write_text(sectors.read_text(encoding="utf-8").replace(
+        "['0, 0, 0', Akua, Starter_Akua_V2,'Human:1', '', '', '']",
+        "['0, 0, 0', Akua, Starter_Akua_V2,'Human:2', '', '', '']"),
+        encoding="utf-8")
+    assert load_validated(copie)[0] == set()
+
+
+def test_cache_ancien_format_est_migre(tmp_path):
+    """La reprise d'un cache `{chemin: [types]}` doit rendre la validation
+    active sans redemander un test en jeu."""
+    import json
+
+    from core.starters import load_validated, validated_cache_path
+    root = _build(tmp_path)
+    validated_cache_path().write_text(
+        json.dumps({str(Path(root)): ["Starter_Akua_V2"]}), encoding="utf-8")
+    validated, exists = load_validated(root)
+    assert exists and validated == {"Starter_Akua_V2"}
+    data = json.loads(validated_cache_path().read_text(encoding="utf-8"))
+    assert "sigs" in data and str(Path(root)) not in data

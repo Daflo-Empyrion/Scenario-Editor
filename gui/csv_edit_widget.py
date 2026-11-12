@@ -208,6 +208,27 @@ class CsvEditWidget(QWidget):
                 btn_corpus.setToolTip(t("btn.import_corpus_tooltip"))
                 btn_corpus.clicked.connect(self._import_corpus_translations)
                 toolbar.addWidget(btn_corpus)
+                # Chemin INVERSE (demande 12/11/2026) : les corrections faites
+                # a la main dans ce fichier remontent dans le corpus partage --
+                # explicitement, jamais en silence (une valeur adaptee au
+                # contexte ne doit pas ecraser la reference sans decision).
+                btn_harvest = QPushButton(icon("fa5s.upload", "#4a7dfc"),
+                                          t("btn.harvest_corpus"))
+                btn_harvest.setIconSize(icon_size())
+                btn_harvest.setObjectName("secondaryButton")
+                btn_harvest.setToolTip(t("btn.harvest_corpus_tooltip"))
+                btn_harvest.clicked.connect(self._harvest_corpus)
+                toolbar.addWidget(btn_harvest)
+            # En-tetes double-encodes (CSV d'origine russe : 'FranГ§ais') :
+            # bouton visible seulement si le fichier en contient un.
+            if self._mojibake_columns():
+                btn_headers = QPushButton(icon("fa5s.wrench", "#d08b00"),
+                                          t("btn.repair_headers"))
+                btn_headers.setIconSize(icon_size())
+                btn_headers.setObjectName("secondaryButton")
+                btn_headers.setToolTip(t("btn.repair_headers_tooltip"))
+                btn_headers.clicked.connect(self._repair_headers)
+                toolbar.addWidget(btn_headers)
             btn_quick_translate = QPushButton(icon("fa5s.globe", "#4a7dfc"), t("btn.quick_translate"))
             btn_quick_translate.setIconSize(icon_size())
             btn_quick_translate.setObjectName("secondaryButton")
@@ -762,6 +783,97 @@ class CsvEditWidget(QWidget):
                 return text.strip() or None
         return None
 
+    def _remember_corpus(self, entries: dict) -> None:
+        """Archive dans le corpus perso les traductions VALIDEES
+        (`{cle: {colonne: texte}}`) : une cle absente y est AJOUTEE, sinon seules
+        ses cellules vides sont completees. Ce qui est appris sur un scenario
+        ne repart jamais vers l'IA sur le suivant (demande du 12/11/2026).
+        Une valeur venue du corpus n'est pas re-archived : elle y est deja."""
+        kind = getattr(self, "_corpus_kind", None)
+        if not kind or not entries:
+            return
+        from core import trad_corpus
+        trad_corpus.remember_many(kind, entries, header=self.doc.header)
+
+    def _harvest_corpus(self):
+        """Remonte dans le corpus partage les cellules de CE fichier : cles
+        nouvelles, cellules ajoutees, et -- apres confirmation -- valeurs
+        corrigees a la main qui remplacent la reference."""
+        kind = getattr(self, "_corpus_kind", None)
+        if not kind or not self.editable:
+            return
+        from core import trad_corpus
+        self._sync_doc_from_table()
+        entries, report = trad_corpus.harvest(kind, self.doc.header,
+                                              self.doc.rows)
+        if not report["new_keys"] and not report["added"] and not report["changed"]:
+            QMessageBox.information(self, t("corpus.harvest_title"),
+                                    t("corpus.harvest_nothing"))
+            return
+        answer = QMessageBox.question(
+            self, t("corpus.harvest_title"),
+            t("corpus.harvest_confirm", new=report["new_keys"],
+              added=report["added"], changed=report["changed"]),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        path = trad_corpus.remember_many(kind, entries, header=self.doc.header,
+                                         overwrite=True)
+        if path is None:
+            QMessageBox.information(self, t("corpus.harvest_title"),
+                                    t("corpus.harvest_nothing"))
+            return
+        QMessageBox.information(self, t("corpus.harvest_title"),
+                                t("corpus.harvest_done", n=len(entries),
+                                  path=str(path)))
+
+    def _corpus_entry(self, key: str, source_label: str, target_label: str,
+                      source_text: str, translated: str) -> dict:
+        """Entree `{cle: {colonnes}}` pour `_remember_corpus` ; vide si la cle
+        manque ou si la traduction est vide."""
+        key = (key or "").strip()
+        if not key or not (translated or "").strip():
+            return {}
+        values = {target_label: translated}
+        if source_label and source_label != target_label \
+                and (source_text or "").strip():
+            values[source_label] = source_text
+        return {key: values}
+
+    def _mojibake_columns(self) -> list:
+        """Indices des colonnes dont l'en-tete est un mojibake (UTF-8 relu en
+        CP1251 : 'FranГ§ais'). Sert a afficher l'action de reparation."""
+        if not self.doc.header:
+            return []
+        return [c for c, name in enumerate(self.doc.header)
+                if translation.repair_mojibake(name) != name]
+
+    def _repair_headers(self):
+        """Repare les en-tetes double-encodes du fichier ouvert.
+
+        Ecriture de donnee : rien n'est ecrit avant `save()` (fermer sans
+        enregistrer annule), et l'en-tete repare est celui que verront le
+        corpus, la colonne de langue cible et les autres outils.
+        """
+        cols = self._mojibake_columns()
+        if not cols:
+            QMessageBox.information(self, t("headers.repair_title"),
+                                    t("headers.repair_none"))
+            return
+        for col in cols:
+            self.doc.header[col] = translation.repair_mojibake(
+                self.doc.header[col])
+            item = self.table.horizontalHeaderItem(col)
+            if item is not None:
+                item.setText(self.doc.header[col])
+                tooltip = get_csv_column_tooltip(self.doc.header[col])
+                if tooltip:
+                    item.setToolTip(tooltip)
+        self._set_modified(True)
+        QMessageBox.information(self, t("headers.repair_title"),
+                                t("headers.repair_done", n=len(cols)))
+
     def _import_corpus_translations(self):
         """Complete les cellules VIDES du fichier depuis le corpus de
         traduction (toutes les langues de la ligne de reference). Jamais
@@ -855,6 +967,15 @@ class CsvEditWidget(QWidget):
         translation_memory.store(text, "auto", target_code, result_text)
         if glossary.auto_feed_ok(text):
             glossary.add_entry(text, result_text, target=target_code)
+        if src != "corpus":
+            # traduction nouvelle (IA ou vanille) : on l'archive par CLE pour
+            # qu'un autre scenario n'ait jamais a la repayer
+            src_header = self.table.horizontalHeaderItem(item.column())
+            key_item = self.table.item(row, 0)
+            self._remember_corpus(self._corpus_entry(
+                key_item.text() if key_item else "",
+                src_header.text() if src_header else "",
+                target_label, text, result_text))
         if target_col is not None and target_col != item.column():
             dest_item = self.table.item(row, target_col)
             if dest_item is None:
@@ -1400,6 +1521,7 @@ class CsvEditWidget(QWidget):
         def apply(results):
             self._snapshot_undo()
             from core import glossary
+            corpus_entries = {}
             for meta, final_text in results:
                 p = plan[meta['plan_idx']]
                 p['dest_item'].setText(final_text)
@@ -1419,6 +1541,13 @@ class CsvEditWidget(QWidget):
                 if glossary.auto_feed_ok(p['original']):
                     glossary.add_entry(p['original'], final_text,
                                        target=p.get('target_code', 'auto'))
+                if meta.get('source') != 'corpus':
+                    dst_header = self.table.horizontalHeaderItem(p['dst_col'])
+                    corpus_entries.update(self._corpus_entry(
+                        p.get('row_key', ''), p.get('header', ''),
+                        dst_header.text() if dst_header else '',
+                        p.get('original', ''), final_text))
+            self._remember_corpus(corpus_entries)
             self._set_modified(True)
         return apply
 

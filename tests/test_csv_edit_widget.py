@@ -122,3 +122,57 @@ def test_pda_mission_creation_survives_csv_save_roundtrip(qapp, tmp_path):
     assert "pda_testTitle1" in saved_content
     assert "Test Mission Title" in saved_content
     assert "Titre de mission de test" in saved_content
+
+
+def test_repair_headers_action_fixes_mojibake_headers(qapp, tmp_path, monkeypatch):
+    """CSV d'origine russe : l'en-tete affiche 'FranГ§ais'. L'action le repare
+    en memoire (bouton visible seulement dans ce cas), marque le document
+    modifie, et save() ecrit le bon libelle."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    import gui.csv_edit_widget as W
+    from gui.theme import apply_theme
+    apply_theme(qapp)
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+
+    moji = "Fran" + "\u0413\u00a7" + "ais"
+    path = tmp_path / "Localization.csv"
+    path.write_text("KEY,English," + moji + "\r\nk1,One,Un\r\n",
+                    encoding="utf-8", newline="")
+
+    widget = W.CsvEditWidget(path, editable=True)
+    assert widget._mojibake_columns() == [2]
+    assert widget.table.horizontalHeaderItem(2).text() == moji
+    from PyQt6.QtWidgets import QPushButton
+    assert any(b.text() == W.t("btn.repair_headers")
+               for b in widget.findChildren(QPushButton)), "bouton absent"
+
+    widget._repair_headers()
+
+    assert widget.doc.header[2] == "Français"
+    assert widget.table.horizontalHeaderItem(2).text() == "Français"
+    assert widget.is_modified()
+
+    widget.save()
+    assert "Français" in path.read_text(encoding="utf-8")
+
+
+def test_repair_headers_action_is_a_no_op_without_mojibake(qapp, tmp_path,
+                                                          monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    import gui.csv_edit_widget as W
+    from gui.theme import apply_theme
+    apply_theme(qapp)
+    seen = []
+    monkeypatch.setattr(QMessageBox, "information",
+                        lambda *a, **k: seen.append(a))
+    path = tmp_path / "Localization.csv"
+    path.write_text("KEY,English,Français\r\nk1,One,Un\r\n",
+                    encoding="utf-8", newline="")
+
+    widget = W.CsvEditWidget(path, editable=True)
+    assert widget._mojibake_columns() == []
+    widget._repair_headers()
+    assert seen                                  # message « aucun en-tete abime »
+    assert not widget.is_modified()

@@ -60,13 +60,19 @@ class UsageReport:
 
 def _scenario_tokens(root: Path) -> Set[str]:
     """Jetons NORMALISES du scenario (alphanumerique minuscule), hors
-    Prefabs. La normalisation est indispensable : le PDA ecrit
+    Prefabs/**.epb. La normalisation est indispensable : le PDA ecrit
     `OPVPolaris_T1` la ou l'entete du prefab dit `OPVPolaris` — une
     comparaison de jetons exacts declarait 37 prefabs inutilises a tort
-    (mesure 05/11/2026, Extras/PDA)."""
+    (mesure 05/11/2026, Extras/PDA).
+
+    `Prefabs/` est scanne AUSSI, pour ses fichiers TEXTE seulement : c'est la
+    que vit `_PoiGroupsConfig.yaml`, qui mappe chaque pool de POI vers ses
+    `BlueprintFileNames`. L'ignorer faisait declarer « inutilise » tout
+    prefab cite uniquement par un pool — vecu 12/11 : BAO_ARCMiningOutpost
+    parti en quarantaine alors qu'il sert a `ConflictARCMines`."""
     jetons: Set[str] = set()
     for sous in ("Playfields", "Sectors", "Content", "Extras",
-                 "RandomPresets", "SharedData"):
+                 "RandomPresets", "SharedData", "Prefabs"):
         base = root / sous
         if not base.is_dir():
             continue

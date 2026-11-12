@@ -378,6 +378,20 @@ class MainWindow(QMainWindow):
         self.action_modified_files.triggered.connect(self._open_modified_files)
         self.action_production_sync = menu_files.addAction(t("menu.tools.production_sync"))
         self.action_production_sync.triggered.connect(self._open_production_sync)
+        # Sauvegardes automatiques (12/11/2026) : les *.bak de central_backup
+        # n'avaient aucune restauration dans l'app (et s'accumulaient : 1268
+        # fichiers dans un dossier reel). Liste + restaurer + menage.
+        self.action_clean_backups = menu_files.addAction(
+            t("menu.tools.clean_backups"))
+        self.action_clean_backups.triggered.connect(
+            self._open_backup_files_dialog)
+
+    def _open_backup_files_dialog(self):
+        """Sauvegardes automatiques (~/.empyrion_editor/backups/) : lister les
+        `*.bak` par type, en restaurer une vers un fichier choisi (l'actuel est
+        sauvegarde avant remplacement), et faire le menage des plus anciennes."""
+        from gui.backup_files_dialog import open_backup_files
+        open_backup_files(self)
 
     def _open_reintegrate(self):
         """Dossiers de Playfields non declares par Sectors : les reposer dans
@@ -2528,10 +2542,13 @@ class MainWindow(QMainWindow):
     def _set_corpus_trad_dir_dialog(self):
         """Dossier PERSONNEL de corpus de traduction : tout Localization.csv,
         Dialogues.csv ou PDA.csv (a n'importe quelle profondeur) y ajoute ses
-        cles deja traduites au corpus embarque. Vide = corpus embarque seul."""
+        cles deja traduites au corpus embarque. Non configure, les traductions
+        validees vont dans le dossier par defaut
+        (~/.empyrion_editor/corpus) -- voir trad_corpus.personal_dir."""
+        from core import trad_corpus
         current = settings.get_corpus_trad_dir()
         path = QFileDialog.getExistingDirectory(self, t("corpus.trad_dir_title"),
-                                                current or "")
+                                                current or str(trad_corpus.personal_dir()))
         if not path:
             if current and ask_yes_no(self, t("corpus.trad_dir_title"),
                                       t("corpus.trad_dir_clear_confirm")):

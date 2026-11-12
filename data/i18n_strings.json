@@ -3980,12 +3980,56 @@
     "en": "Translation corpus"
   },
   "corpus.trad_dir_saved": {
-    "fr": "Dossier enregistré :\n{path}\n\n{n} clé(s) disponible(s) au total (embarquées + les vôtres).",
-    "en": "Folder saved:\n{path}\n\n{n} key(s) available in total (embedded + yours)."
+    "fr": "Dossier enregistré :\\n{path}\\n\\n{n} clé(s) disponible(s) au total (embarquées + les vôtres). Toute traduction validée y est ajoutée.",
+    "en": "Folder saved:\\n{path}\\n\\n{n} key(s) available in total (embedded + yours). Every validated translation is added there."
   },
   "corpus.trad_dir_clear_confirm": {
-    "fr": "Effacer le dossier de corpus personnel ? Seul le corpus embarqué avec l'application restera utilisé.",
-    "en": "Clear the personal corpus folder? Only the corpus embedded with the application will remain in use."
+    "fr": "Effacer le dossier de corpus personnel ? Les traductions validées iront désormais dans le dossier par défaut (~/.empyrion_editor/corpus), en plus du corpus embarqué.",
+    "en": "Clear the personal corpus folder? Validated translations will now go to the default folder (~/.empyrion_editor/corpus), on top of the embedded corpus."
+  },
+  "btn.harvest_corpus": {
+    "fr": "Mettre à jour le corpus",
+    "en": "Update the corpus"
+  },
+  "btn.harvest_corpus_tooltip": {
+    "fr": "Remonte dans le corpus partagé les cellules remplies de ce fichier : clés nouvelles, cellules ajoutées et valeurs corrigées à la main (confirmation avant remplacement).",
+    "en": "Push this file's filled cells into the shared corpus: new keys, added cells and hand-corrected values (confirmation before replacing)."
+  },
+  "corpus.harvest_title": {
+    "fr": "Corpus de traduction",
+    "en": "Translation corpus"
+  },
+  "corpus.harvest_nothing": {
+    "fr": "Ce fichier n'apporte rien de neuf au corpus : aucune clé nouvelle, aucune valeur modifiée.",
+    "en": "This file adds nothing new to the corpus: no new key, no changed value."
+  },
+  "corpus.harvest_confirm": {
+    "fr": "{new} clé(s) nouvelle(s), {added} cellule(s) ajoutée(s), {changed} valeur(s) modifiée(s).\n\nLes valeurs modifiées REMPLACENT la référence du corpus, pour tous les scénarios. Continuer ?",
+    "en": "{new} new key(s), {added} added cell(s), {changed} changed value(s).\n\nChanged values REPLACE the corpus reference, for every scenario. Continue?"
+  },
+  "corpus.harvest_done": {
+    "fr": "Corpus mis à jour : {n} clé(s) écrite(s) dans\n{path}",
+    "en": "Corpus updated: {n} key(s) written to\n{path}"
+  },
+  "btn.repair_headers": {
+    "fr": "Réparer les en-têtes",
+    "en": "Repair headers"
+  },
+  "btn.repair_headers_tooltip": {
+    "fr": "Les en-têtes de ce fichier contiennent du texte double-encodé (« FranГ§ais » au lieu de « Français ») : la colonne n'est reconnue ni par la traduction ni par le corpus. Les réparer ici.",
+    "en": "This file's headers contain double-encoded text (« FranГ§ais » instead of « Français »): the column is recognised by neither the translation nor the corpus. Repair them here."
+  },
+  "headers.repair_title": {
+    "fr": "En-têtes de colonnes",
+    "en": "Column headers"
+  },
+  "headers.repair_none": {
+    "fr": "Aucun en-tête abîmé dans ce fichier.",
+    "en": "No damaged header in this file."
+  },
+  "headers.repair_done": {
+    "fr": "{n} en-tête(s) réparé(s) — à enregistrer pour écrire sur disque.",
+    "en": "{n} header(s) repaired — save to write them to disk."
   },
   "trans.fill_missing_title": {
     "fr": "Combler les traductions manquantes",
@@ -7634,6 +7678,78 @@
   "menu.tools.production_sync": {
     "fr": "Copier vers le scénario en production...",
     "en": "Copy to the production scenario..."
+  },
+  "menu.tools.clean_backups": {
+    "fr": "Sauvegardes automatiques...",
+    "en": "Automatic backups..."
+  },
+  "backups.title": {
+    "fr": "Sauvegardes",
+    "en": "Backups"
+  },
+  "bkf.title": {
+    "fr": "Sauvegardes automatiques",
+    "en": "Automatic backups"
+  },
+  "bkf.col_name": {
+    "fr": "Sauvegarde",
+    "en": "Backup"
+  },
+  "bkf.col_date": {
+    "fr": "Date",
+    "en": "Date"
+  },
+  "bkf.col_size": {
+    "fr": "Taille",
+    "en": "Size"
+  },
+  "bkf.restore": {
+    "fr": "Restaurer vers...",
+    "en": "Restore to..."
+  },
+  "bkf.clean": {
+    "fr": "Nettoyer...",
+    "en": "Clean up..."
+  },
+  "bkf.empty": {
+    "fr": "Aucune sauvegarde automatique pour l'instant.",
+    "en": "No automatic backup yet."
+  },
+  "bkf.pick_title": {
+    "fr": "Restaurer la sauvegarde vers...",
+    "en": "Restore the backup to..."
+  },
+  "bkf.pick_filter": {
+    "fr": "Tous les fichiers (*)",
+    "en": "All files (*)"
+  },
+  "bkf.confirm_replace": {
+    "fr": "Remplacer « {path} » par la sauvegarde {name} ?\n\nL'actuel fichier sera sauvegardé d'abord.",
+    "en": "Replace « {path} » with the backup {name}?\n\nThe current file will be backed up first."
+  },
+  "bkf.done": {
+    "fr": "Restauré dans :\n{path}\n\nAncienne version sauvegardée :\n{safety}",
+    "en": "Restored to:\n{path}\n\nPrevious version backed up:\n{safety}"
+  },
+  "bkf.no_safety": {
+    "fr": "aucune (le fichier n'existait pas)",
+    "en": "none (the file did not exist)"
+  },
+  "bkf.error": {
+    "fr": "Restauration impossible : {error}",
+    "en": "Restore failed: {error}"
+  },
+  "backups.nothing": {
+    "fr": "Rien à nettoyer : les {keep} sauvegardes les plus récentes de chaque dossier sont toujours conservées.",
+    "en": "Nothing to clean: the {keep} newest backups of each folder are always kept."
+  },
+  "backups.confirm": {
+    "fr": "{n} fichier(s) de sauvegarde ({size}) dépassent {days} jours, au-delà des {keep} plus récents de chaque dossier.\n\nLes supprimer ? Les dossiers de sauvegarde de scénario ne sont pas concernés.",
+    "en": "{n} backup file(s) ({size}) are older than {days} days, beyond the {keep} newest of each folder.\n\nDelete them? Scenario backup folders are not affected."
+  },
+  "backups.done": {
+    "fr": "{n} fichier(s) supprimé(s), {size} libérés.",
+    "en": "{n} file(s) deleted, {size} freed."
   },
   "prodsync.title": {
     "fr": "Synchronisation vers le scénario en production",

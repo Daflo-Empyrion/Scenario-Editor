@@ -68,6 +68,11 @@ l'erreur FATALE « No block id mapping found for block X » (code du chargeur).
 
 | Limite | Valeur | Preuve |
 |---|---|---|
+| **Référence ECF inexistante** | tout nom cité (`Material`, `AmmoType`, `Sfx*`, `Pfx*`) doit exister dans les configs du **scénario** — pas seulement dans la vanille. Un `Material` inconnu lève `System.Exception: Material 'x' not found in item 'N'` pendant `ConfigFile.load`, le playfield est abandonné (`NullReferenceException` dans `DeployPciture`) et le **jeu crashe**. Vécu 12/11 avec `Material: metalweapon` (vanille) importé dans RE2-FR, qui ne déclare plus ce matériau : corriger en `Device` (celui des `TurretMS*Weapon` du scénario). | log client 22:34, `GroupTree.TestDevice` → `EcfFile.ParseLines` |
+| **Importer un item de la vanille** | vérifier dans le scénario : `Material`, `AmmoType`, `Meshfile` (`@models/...`), `Sfx*` ; ids libres (RE2 vit jusqu'à 2010) ; le nom n'a pas été réassigné (`RocketLauncherMSWeapon` occupait l'id 110, repris par `CannonCVT1Weapon`) | ItemsConfig RE2-FR |
+
+| Limite | Valeur | Preuve |
+|---|---|---|
 | PrixEquipage/défense BA | « BA Defense: Scenario price exceeds max price, the price will be reduced » : les prix de scénario sont plafonnés à l'import | message de chargement |
 | Placer un bloc | `AllowPlacingAt: "Base,MS,SS,GV,Terrain"` | header officiel BlocksConfig |
 | Explosions | types 1-9 (listés dans le header BlocksConfig) | header officiel BlocksConfig |
@@ -113,3 +118,32 @@ l'erreur FATALE « No block id mapping found for block X » (code du chargeur).
 *Vérifié sur Empyrion v1.19.6 (build 5188), octobre 2026. Règles formulées
 d'après le chargement réel du jeu et les fichiers de configuration officiels
 livrés avec celui-ci.*
+
+## Controle avant lancement (obligatoire apres toute edition ECF)
+
+`python tools/ecf_lint.py <scenario>/Content/Configuration` → **0 erreur** avant
+de lancer le jeu. Deux crashs vecus le 12/11 venaient de la :
+`Material` inconnu du scenario (`metalweapon`, materiau vanille) et blocs
+`+LootGroup` ecrits dans `Containers.ecf` (ce fichier n'admet que
+`Container`). Dans les deux cas : `Exception`/`IndexOutOfRangeException` dans
+`EcfFile.ParseLines`, playfield abandonne, `NullReferenceException` dans
+`DeployPciture`, **crash** — et le parseur Python du projet ne voit rien.
+
+## Bilan avant lancement : les avertissements, classés (12/11/2026)
+
+`python tools/prelaunch_check.py <scenario> --all` → **0 erreur**, 71
+avertissements en dev (72 en prod : +1 départ non validé). Parti de 166.
+
+| # | Famille | Avant | Après | Reste | Pourquoi |
+|---|---|---|---|---|---|
+| A | `spawn` W311 (zones inertes) | 70 | 70 | 70 | **Neutralisation ANNULÉE** : commenter les items orphelins a avalé des en-têtes `SpawnZones:` dans 19 playfields -> « Property 'BiomesExcluded' not found on type 'SpawnRateZoneData' » + playfield refusé + **crash au chargement des planètes**. Fichiers restaurés depuis backup. Contrôle ajouté (`scan_spawnzone_schema`). À reprendre via l'éditeur de playfields, en supprimant le bloc (jamais en commentant une ligne d'en-tête). |
+| B | `playfields` Compound | 37 | 0 | 0 | 5 sous-descripteurs `IsCompoundSubDesc` recopiés depuis un playfield sain (3 fichiers), `CompoundZiraxSentryT1` retiré des 2 `TestOrbit*` (aucune déclaration nulle part). |
+| C | `prefabs` IdMapping | 30 | 30 | 30 | 139 noms manquants : 32 décoratifs **substitués** (1 580 prefabs, 5 707 mappings, cellules intactes) ; restent 107 blocs **fonctionnels** (boucliers, CPU, téléporteurs, minerais, leurres) : les substituer changerait le jeu, et 134 n'ont aucune définition source (94 mod externe, 44 DLC). |
+| D | `poi_groups` | 15 | 12 | 12 | 3 groupes pointés vers un prefab existant (`R2TraderAuxT2`→`EPH_R2TraderAuxT1`, `CivilSettlementO2`→`BA_CivilSettlementO`, `R2KrielDroneBase`→`Eden_BA_KrielDroneBase`). Les 12 autres n'ont **aucun prefab nulle part** (ni scénario, ni quarantaine, ni vanille). |
+| E | `values` | 5 | 0 | 0 | `IsScavenger: True` → `100` (forme numérique, la seule utilisée par la vanille). |
+| F | `dialogues` | 7 | 0 | 0 | 3 cibles corrigées (`Eden_Telepad_Deny`, `Eden_PurgStartPod2_Log3`, `Eden_ExpeditionGeneral_Deny`) + 4 états écrits pour le marchand de colis (`Eden_MissionSmugglerNPCGive/Take_Greet|Deny`) avec 6 lignes de localisation EN/FR. |
+| G | `engine` (arbre techno) | 2 | 1 | 1 | `ContainerAmmoSmall` remis au niveau 3 ; `FieldRepairStation` reste (incohérence vanilla assumée). |
+
+Reste **71 avertissements**, dont **65 réellement corrigeables** (28 A + 30 C +
+12 D moins recouvrements) mais tous bloqués par la même cause : des sources
+absentes (DLC/mod) ou une chirurgie qui demande l'éditeur de playfields.

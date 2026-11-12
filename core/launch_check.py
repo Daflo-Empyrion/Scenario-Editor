@@ -83,6 +83,7 @@ _FIX_MODULES = {
     "warfare": "core/faction_warfare.py (Outils > Defenses de faction)",
     "types": "core/balance_audit.py (_set_or_insert_block_prop)",
     "bin": "core/conflict_warfare.purge_playfield_cache",
+    "regen": "tools/regen_passes.py --scenario <scenario> --apply",
 }
 
 # formes de valeurs pour le check « valeurs » (dictionnaire vanille)
@@ -963,6 +964,90 @@ def _check_hygiene(root: Path) -> list[LaunchIssue]:
                     f"vaisseau planetaire est 'ImmobileTask' -> YamlException "
                     f"et playfield jamais charge",
             fix="core/ai_realism.py : pass_space_missions"))
+
+    # --- politique de regeneration des POI (ressources en tension) ---
+    # RegenAfter laisse a 720 sur un POI de combat = ressources infinies : le
+    # jeu ne s'en plaint pas, le design fuit. Politique : ancres SpawnPOINear,
+    # marchands et vaisseaux intacts, mines a 72 h, le reste definitif.
+    from core.config_hygiene import scan_regen_policy
+    hors_regen = scan_regen_policy(root)
+    if hors_regen:
+        par_pf = {}
+        for pf, line, name, old, want in hors_regen:
+            par_pf.setdefault(pf, f"{name}:{old}->{want}")
+        issues.append(LaunchIssue(
+            check="regen", path="Playfields", line=hors_regen[0][1],
+            severity="warning",
+            message=f"{len(hors_regen)} POI hors politique de regeneration "
+                    f"({len(par_pf)} playfields, ex. "
+                    f"{', '.join(f'{k} {v}' for k, v in list(par_pf.items())[:3])}"
+                    f"{' ...' if len(par_pf) > 3 else ''}) : ils reviennent au "
+                    f"lieu de se recuperer une fois — ressources infinies",
+            fix="tools/regen_passes.py --scenario <scenario> --apply"))
+
+    # --- references ECF (crashs du 12/11) : type de bloc etranger au fichier,
+    # Material absent du scenario, entrees de conteneur hors plage. Les deux
+    # premiers abandonnent le playfield puis crashent le jeu (Exception /
+    # IndexOutOfRangeException dans EcfFile.ParseLines, puis
+    # NullReferenceException dans DeployPciture) sans nommer le fichier. ---
+    from core.config_hygiene import (scan_container_slots, scan_ecf_openline,
+                                     scan_ecf_types, scan_spawnzone_schema)
+    from core.config_hygiene import scan_pda_sequences
+    for fichier, ligne, cle in scan_pda_sequences(root):
+        issues.append(LaunchIssue(
+            check="pda", path=f"Extras/PDA/{fichier}", line=ligne,
+            severity="error",
+            message=f"'{cle}:' doit etre une SEQUENCE ('- ...'), pas un "
+                    f"mapping : YamlDotNet jette « Expected 'SequenceStart', "
+                    f"got 'MappingStart' » et le PDA entier n'est plus charge "
+                    f"(crash au chargement) — vecu 12/11",
+            fix="prefixer l'entree par '- ' (ex. '  - Check: ...')"))
+    for pfname, fichier, ligne in scan_spawnzone_schema(root):
+        issues.append(LaunchIssue(
+            check="playfields", path=f"Playfields/{pfname}/{fichier}", line=ligne,
+            severity="error",
+            message="item de 'SpawnRateZones:' portant une propriete de "
+                    "SpawnZoneData (BiomesExcluded / SpawnOnlyIfPoiIsAlien / "
+                    "Entities) : le jeu leve « Property 'BiomesExcluded' not "
+                    "found on type 'SpawnRateZoneData' », refuse le playfield "
+                    "(« unknown playfield type Undefined ») et crashe au "
+                    "chargement des planetes — vecu 12/11 (en-tete "
+                    "'SpawnZones:' commente par erreur)",
+            fix="restaurer l'en-tete 'SpawnZones:' de ces items (ou supprimer "
+                "le bloc entier, jamais commenter une seule ligne d'en-tete)"))
+    for fichier, ligne in scan_ecf_openline(root):
+        issues.append(LaunchIssue(
+            check="hygiene", path=f"Content/Configuration/{fichier}", line=ligne,
+            severity="error",
+            message="bloc ECF dont la declaration n'est PAS sur la ligne du "
+                    "'{ ' (forme '{\\n  +Type Nom: …') : le chargeur lit le "
+                    "type sur cette ligne, sort du tableau "
+                    "(« IndexOutOfRangeException » dans EcfFile.ParseLines) "
+                    "puis le jeu crashe — vecu 12/11 avec des LootGroup",
+            fix="recoller l'element sur la ligne du '{' : '{ +Type ...'"))
+    for fichier, types in scan_ecf_types(root):
+        issues.append(LaunchIssue(
+            check="hygiene", path=f"Content/Configuration/{fichier}", line=0,
+            severity="error",
+            message=f"type(s) de bloc {', '.join(types)} absent(s) de la "
+                    f"vanille dans {fichier} : le chargeur ECF sort du tableau "
+                    f"(« IndexOutOfRangeException » dans EcfFile.ParseLines), "
+                    f"playfield abandonne puis crash — vecu 12/11 avec des "
+                    f"LootGroup ecrits dans Containers.ecf",
+            fix="deplacer chaque bloc dans son fichier (LootGroup -> "
+                "LootGroups.ecf)"))
+    hors_plage = scan_container_slots(root)
+    if hors_plage:
+        ids = sorted({str(cid) for _f, cid, _i in hors_plage})
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Containers.ecf",
+            line=0, severity="warning",
+            message=f"{len(hors_plage)} entree(s) au-dela de l'index 19 "
+                    f"(conteneurs {', '.join(ids[:6])}"
+                    f"{' ...' if len(ids) > 6 else ''}) : le moteur boucle sur "
+                    f"les index 0..19, ces lignes ne sont jamais lues (contenu "
+                    f"mort — vecu 12/11)",
+            fix="reecrire le surplus en LootGroup + Group_ d'un index libre"))
     return issues
 
 

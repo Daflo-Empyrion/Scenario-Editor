@@ -1,4 +1,6 @@
 """Tests de la pass de conflit de factions (core/conflict_warfare.py)."""
+import tempfile
+
 from core.conflict_warfare import _POOL_PREFABS, pass_faction_conflict
 
 # Deux ancres natives déclarées (Zirax, Pirates) + le reste en pools : les
@@ -310,12 +312,12 @@ def test_npc_aliases_added(tmp_path):
     """NPC référencés par des spawners mais absents d'EClassConfig : sans
     alias, le jeu logue 'Spawner NPC X not found' et le save du playfield
     lève une exception."""
-    from core.conflict_warfare import _ensure_npc_aliases
+    from core.conflict_warfare import _NPC_ALIASES, _ensure_npc_aliases
     ecf = "{ +Entity Name: Mechanoid, Ref: AlienTemplateBAI\n}\n"
     t2, n = _ensure_npc_aliases(ecf)
-    assert n == 2
-    assert "Entity Name: MechanoidMinigun, Ref: Mechanoid" in t2
-    assert "Entity Name: MechanoidFlak, Ref: Mechanoid" in t2
+    assert n == len(_NPC_ALIASES)
+    for nom in _NPC_ALIASES:
+        assert "Entity Name: " + nom + ", Ref: Mechanoid" in t2
     assert _ensure_npc_aliases(t2)[1] == 0  # idempotent
 
 
@@ -632,8 +634,55 @@ def test_force_attack_total_war_is_symmetric(tmp_path):
     assert pass_force_attack(sc, apply=True)["edits"] == 0        # idempotent
 
 
-FW_MIN = (
-    "{ Element Name: GlobalSettings\n"
+def test_abandoned_site_faction_is_exempt_from_npc_war(tmp_path):
+    """La faction des sites abandonnes (`Alien`) ne participe pas a la guerre
+    NPC-vs-NPC : aucune autre faction ne la cite, et sa propre liste est
+    reduite au joueur. Le moteur cible une FACTION, pas un POI : sans cette
+    exemption la mine starter est rasee avant l'arrivee du joueur."""
+    from core.conflict_warfare import pass_force_attack
+    txt = ('{ Faction Id: 2, Name: "Zirax"\n'
+           '  ForceAttack: "Pirates,Alien,Eden_Defender"\n'
+           "}\n"
+           '{ Faction Id: 8, Name: "Alien"\n'
+           "  Unfriendly: true\n"
+           '  ForceAttack: "Zirax,Pirates,Eden_Defender"\n'
+           "}\n"
+           '{ Faction Id: 4, Name: "Pirates"\n'
+           "  Unfriendly: true\n"
+           "}\n")
+    sc = _factions_scenario(tmp_path, txt)
+    assert pass_force_attack(sc, apply=True)["edits"]
+    out = (sc / "Content" / "Configuration" / "Factions.ecf").read_text("utf-8")
+    zirax = out.split('Name: "Zirax"')[1].split("}")[0]
+    assert "Alien" not in zirax                  # plus jamais citee
+    alien = out.split('Name: "Alien"')[1].split("}")[0]
+    assert 'ForceAttack: "Eden_Defender"' in alien   # une seule cible : le joueur
+    assert pass_force_attack(sc, apply=True)["edits"] == 0        # idempotent
+
+
+def test_patrol_radius_never_lands_on_immobile_task():
+    """`Radius` n'existe que sur `RangePatrolTask` : pose sur `ImmobileTask`,
+    le moteur leve une YamlException et REFUSE le playfield (crash au
+    chargement, vecu 12/11). La fonction nettoie aussi l'erreur deja posee."""
+    from core.conflict_warfare import _PATROL_RADIUS, _fix_patrol_tasks
+    bloc = ("              - Name: PV1\n"
+            "                ImmobileTask:\n"
+            "                  POINameAsPositionRef: [A]\n"
+            "                  Radius: 1000\n"
+            "                Properties:\n"
+            "                  - Key: Discovery\n"
+            "                RangePatrolTask:\n"
+            "                  POINameAsPositionRef: [B]\n"
+            "                  DistToGround: 300\n")
+    fixe = _fix_patrol_tasks(bloc)
+    immobile = fixe.split("ImmobileTask:")[1].split("RangePatrolTask:")[0]
+    assert "Radius" not in immobile                 # erreur retiree
+    patrouille = fixe.split("RangePatrolTask:")[1]
+    assert "Radius: " + str(_PATROL_RADIUS) in patrouille
+    assert _fix_patrol_tasks(fixe) == fixe          # idempotent
+
+
+FW_MIN = ("{ Element Name: GlobalSettings\n"
     "  EnableSpaceDefense: True\n"
     "}\n"
     "{ Element Name: FactionSettings\n"
@@ -838,10 +887,41 @@ def test_mine_poi_carries_the_ore(tmp_path):
     for faction, _hostile in roster:
         assert "GroupName: " + _mine_pool(faction) in bloc
     starter = bloc.split("GroupName: ConflictStarterMine")[1].split("- GroupName:")[0]
-    assert "Faction: None" in starter and "DroneProb: 0.0" in starter
-    assert "SpawnPOIAvoidDistance: 1200" in starter and "Value: 60" in starter
+    # Faction Alien = celle de la vanille pour `AbandonedMine` : les PNJ du
+    # prefab heritent de la faction du POI (None = neutres, ils n'attaquent pas)
+    assert "Faction: Alien" in starter and "DroneProb: 0.0" in starter
+    assert "SpawnPOINearRange: [ 1200, 1500 ]" in starter and "Value: 60" in starter
     assert "DroneProb: 0.6" in bloc and "DroneProb: 0.4" in bloc
     assert "NeodymiumResource" in bloc and "Value: 90" in bloc
+
+
+def test_starter_mine_is_anchored_on_the_start_pod():
+    """`SpawnPOINear: [START]` s'ancre sur le CENTRE du biome de depart, alors
+    que le pod y est lui-meme pose a 250-2000 m : la mine annoncee « ~1,2 km »
+    tombait a 2,44 km de la capsule (vecu 12/11). Avec un pod declare, la mine
+    s'ancre dessus (`GroupName` deja place, accepte par le RandomPlacer)."""
+    from core.conflict_warfare import (_entry_groups, _mine_entries_block,
+                                       _poi_style, _start_anchor)
+    roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
+    assert _start_anchor(RES_MIN) == ""          # pas de FixedPlayerStart
+    txt = RES_MIN + ("    FixedPlayerStart:\n"
+                     "        - Mode: Survival\n"
+                     "          Spawn: Structure\n"
+                     "          Structure: \"Eden_StarterDead2\"\n")
+    assert _start_anchor(txt) == ""              # pod absent des POIs du champ
+    txt = ("        - GroupName: Eden_StarterDead2\n"
+           "          Faction: Civilian\n"
+           "        - GroupName: Native1\n"
+           "          Faction: None\n"
+           "    FixedPlayerStart:\n"
+           "        - Mode: Survival\n"
+           "          Spawn: Structure\n"
+           "          Structure: \"Eden_StarterDead2\"\n")
+    assert _start_anchor(txt) == "Eden_StarterDead2"
+    starter = _mine_entries_block(roster, _poi_style(RES_MIN),
+                                  _start_anchor(txt)).split("\n\n")[0]
+    assert "SpawnPOINear: [Eden_StarterDead2]" in starter
+    assert "SpawnPOINearRange: [ 1000, 1400 ]" in starter
 
 
 def test_pois_stay_idempotent_when_another_pass_appends():
@@ -901,22 +981,104 @@ def _pda_scenario(tmp_path):
 
 
 def test_tech_milestones_added_once(tmp_path):
-    """Trois jalons ajoutes AVANT `Creator:` (donc dans Chapters:), textes
-    EN+FR dans le CSV, et un 2e passage ne fait rien."""
+    """Chapitre d'accueil EN TETE + trois jalons avant `Creator:`, textes
+    EN+FR dans le CSV (FR en colonne Francais, pas Deutsch), et un 2e
+    passage ne fait rien."""
     from core.tech_milestones import pass_tech_milestones
     sc = _pda_scenario(tmp_path)
     rep = pass_tech_milestones(sc, apply=True)
-    assert rep["edits"] == 18 and rep["files"] == 2, rep
+    assert rep["edits"] == 25 and rep["files"] == 2, rep
     yaml_txt = (sc / "Extras" / "PDA" / "PDA.yaml").read_text("utf-8")
     csv_txt = (sc / "Extras" / "PDA" / "PDA.csv").read_text("utf-8")
-    assert yaml_txt.count("  - ChapterTitle: ") == 4      # 1 existant + 3
-    assert yaml_txt.index("pda_Jal3Title") < yaml_txt.index("Creator:")
+    assert yaml_txt.count("  - ChapterTitle: ") == 5      # 1 existant + 3 + accueil
+    # nos quatre chapitres en tete, dans l'ordre de chainage
+    assert yaml_txt.index("pda_IntroTitle") < yaml_txt.index("pda_Jal1Title")
+    assert yaml_txt.index("pda_Jal3Title") < yaml_txt.index("pda_old01")
+    assert "Activatable: WhenRewarded" in yaml_txt        # Jalon I chaine
     assert "Check: ItemsPickedUp" in yaml_txt
     assert "Types:\n              - NeodymiumOre" in yaml_txt
     assert "Type: UP" in yaml_txt and "Type: XP" in yaml_txt
+    # message de validation + objet de progression (multi-outil + charges)
+    assert "CompletedMessage: norm;25|pda_Jal1Done" in yaml_txt
+    assert "- Item: MultiTool" in yaml_txt and "- Item: MultiCharge" in yaml_txt
     assert "Jalon III - L'ere du neodyme" in csv_txt
+    # colonne 4 = Francais : la 3 est l'allemand
+    titre = next(x for x in csv_txt.split("\n") if x.startswith("pda_Jal1Title"))
+    assert titre.split(",")[2] == "" and titre.split(",")[3] == \
+        "Jalon I - Le premier lingot"
     assert "Milestone III - The neodymium age" in csv_txt
+    # l'action « ouvre la CARTE » valide sur la fenetre `Map` (celle de la
+    # touche M, cf. ConditionStreamStoreSite) ; `SystemMap` seul ne validait
+    # rien (vecu 12/11). Les cartes sectorielle/systeme sont acceptees aussi.
+    intro = yaml_txt.split("pda_IntroTitle")[1].split("  - ChapterTitle:")[0]
+    assert "Check: WindowOpened" in intro
+    assert "- Map\n" in intro
+    assert "- SectorMap" in intro and "- SystemMap" in intro
+    assert "AllowManualCompletion: true" in intro
     assert pass_tech_milestones(sc, apply=True)["edits"] == 0        # idempotent
+
+
+def test_our_chapters_are_placed_first_and_in_order():
+    """L'ordre n'est pas cosmetique : `WhenRewarded` (Jalon I auto-enchaine
+    sur l'accueil) ne s'appuie que sur le chapitre qui PRECEDE. Nos quatre
+    chapitres sont donc en tete, dans cet ordre, et deplaces depuis leur
+    ancienne position (fin de liste)."""
+    from core.tech_milestones import (_place_our_chapters, _strip_chapter,
+                                       MILESTONES, INTRO_KEY)
+    vieux = ("Chapters:\n"
+             "  - ChapterTitle: natif1\n"
+             "    Tasks: []\n"
+             "  - ChapterTitle: " + INTRO_KEY + "\n"
+             "    Tasks: []\n"
+             "  - ChapterTitle: natif2\n"
+             "    Tasks: []\n"
+             "  - ChapterTitle: pda_Jal1Title\n"
+             "    Activatable: Always\n"
+             "Creator: \"x\"\n")
+    nouveau, n = _place_our_chapters(vieux)
+    assert n == 1
+    ordre = [nouveau.index(k) for k in
+             (INTRO_KEY, "pda_Jal1Title", "pda_Jal2Title", "pda_Jal3Title")]
+    assert ordre == sorted(ordre)                       # accueil puis I, II, III
+    assert nouveau.index(INTRO_KEY) < nouveau.index("natif1")
+    assert nouveau.count("  - ChapterTitle: pda_Jal1Title") == 1  # pas duplique
+    assert nouveau.index("Creator:") > nouveau.index("pda_Jal3Title")
+    assert _place_our_chapters(nouveau)[1] == 0         # idempotent
+    # Jalon I auto-enchaine, les suivants restent manuels
+    bloc1 = nouveau.split("  - ChapterTitle: pda_Jal1Title")[1] \
+        .split("  - ChapterTitle:")[0]
+    assert "Activatable: WhenRewarded" in bloc1
+    bloc2 = nouveau.split("  - ChapterTitle: pda_Jal2Title")[1] \
+        .split("  - ChapterTitle:")[0]
+    assert "Activatable: Always" in bloc2
+    # `WhenRewarded` n'est satisfait QUE si l'accueil declare la suite :
+    # ActivateChapterOnCompletion (lance) + RewardedChapters (offre)
+    accueil = nouveau.split("  - ChapterTitle: pda_IntroTitle")[1] \
+        .split("  - ChapterTitle:")[0]
+    assert "ActivateChapterOnCompletion: pda_Jal1Title" in accueil
+    assert "RewardedChapters:\n      - pda_Jal1Title" in accueil
+    # nettoyage cible bien un seul chapitre
+    assert "natif2" in _strip_chapter(nouveau, "pda_Jal2Title")
+
+
+def test_intro_csv_rows_refresh_in_place():
+    """Retoucher `_INTRO` PROPAGE : une ligne pda_IntroText perimee (ex :
+    « marqueur blanc », faux — la couleur suit la faction) est reecrite par
+    un simple re-passage, sans reinstaller le chapitre."""
+    from core.tech_milestones import (_INTRO, _CHAP_KEYS, _cle_intro,
+                                       _csv_ligne, _refresh_intro_rows)
+    bonne = _csv_ligne(_cle_intro("Text"), *_INTRO["Text"])
+    perimee = bonne.replace("faction", "marqueur BLANC")
+    csv = "KEY,English,,Francais\n" + perimee + "\n"
+    out, n = _refresh_intro_rows(csv)
+    assert n == 1
+    assert bonne in out and "BLANC" not in out
+    assert "KEY,English,,Francais" in out                 # autres lignes intactes
+    assert _refresh_intro_rows(out)[1] == 0               # idempotent
+    # les 5 suffixes du chapitre sont couverts
+    for suffixe in _CHAP_KEYS:
+        row = _csv_ligne(_cle_intro(suffixe), *_INTRO[suffixe])
+        assert _refresh_intro_rows(row)[1] == 0
 
 
 def test_tech_milestones_refuses_existing_keys(tmp_path):
@@ -932,17 +1094,82 @@ def test_tech_milestones_refuses_existing_keys(tmp_path):
 
 
 def test_mine_entries_are_visible_on_a_fogged_map():
-    """Carte voilee au demarrage : sans `Discovery: True` (combinaison de
-    l'exemple vanilla : MapDistance 0, HudDistance 0, MapMarker Neutral), le
-    joueur ne voit aucune mine. Les valeurs 20000 des vaisseaux spatiaux ne
-    revelent rien pour un POI (vecu 11/11)."""
+    """Carte voilee au demarrage : `Discovery: False` = toujours visible, meme
+    sous brouillard (`_PoiGroupsConfig_example.yaml`). Aucune distance posee :
+    `MapDistance: 0` signifie « jamais revele » (aucune mine sur la carte,
+    vecu 11/11) et les 20000 des vaisseaux spatiaux ne revelent rien pour un
+    POI."""
     from core.conflict_warfare import (_entry_groups, _mine_entries_block,
                                        _poi_style)
     roster = [(f, h) for _, f, h in _entry_groups(RES_MIN, "Starter_Dread")]
     bloc = _mine_entries_block(roster, _poi_style(RES_MIN))
     assert bloc.count("Key: Discovery") == len(roster) + 1
-    # Discovery: True = « Hidden from map » (commentaire vanilla) : donc False
     assert "Key: Discovery\n              Value: False" in bloc
     assert "Key: Discovery\n              Value: True" not in bloc
     assert "Key: MapMarker" in bloc and "Value: Neutral" in bloc
-    assert "Value: 20000" not in bloc
+    # une distance a 0 (ou 20000) rend le marqueur invisible : aucune posee
+    assert "Key: MapDistance" not in bloc and "Key: HudDistance" not in bloc
+    # la mine starter est a distance BORNEE du point de depart (1,2-1,5 km)
+    starter = bloc.split("\n\n")[0]
+    assert "SpawnPOINear: [START]" in starter
+    assert "SpawnPOINearRange: [ 1200, 1500 ]" in starter
+    assert "SpawnPOIAvoid" not in starter
+
+
+def test_starter_mine_group_is_unpowered():
+    """La mine starter est le SEUL pool declare sans courant (en plus de la
+    copie de prefab sans tourelles) : les autres restent alimentes."""
+    from core.conflict_warfare import _poi_group_block
+    starter = _poi_group_block("ConflictStarterMine",
+                               "RE2FR-BA_AbandonedMine-NoTurrets",
+                               "Alien", False)
+    assert "InitPower: false" in starter
+    autre = _poi_group_block("ConflictARCMines", "BAO_ARCMiningOutpost",
+                             "ARC", True)
+    assert "InitPower: true" in autre
+    # musique : propriete emise seulement si une piste integree est demandee,
+    # et jamais sur les autres mines (l'emetteur .decals porte le son custom)
+    from core.conflict_warfare import STARTER_MINE_MUSIC
+    assert ("Key: Music" in starter) == bool(STARTER_MINE_MUSIC)
+    assert "Key: Music" not in autre
+
+
+def test_starter_mine_uses_a_turret_free_copy():
+    """Le prefab source garde ses tourelles (mines Pirates/Alien) ; la mine
+    starter pointe une copie `RE2FR-` qui n'en a plus, servie sur les deux
+    dossiers (dev et prod)."""
+    from core.conflict_warfare import _MINE_PREFABS, _STARTER_MINE, \
+        _STARTER_MINE_SRC, STARTER_MINE
+    assert STARTER_MINE
+    assert _STARTER_MINE_SRC == "BA_AbandonedMine"
+    assert _STARTER_MINE[1].startswith("RE2FR-")
+    assert _STARTER_MINE[1] != _STARTER_MINE_SRC
+    # l'original reste utilise ailleurs : on ne le detourne pas
+    assert "BA_AbandonedMine" in _MINE_PREFABS.values()
+
+
+def test_starter_prefab_copy_is_idempotent_and_turret_free():
+    """Copie .epb reelle : 6 `SentryGun03` retires, source intacte, et un 2e
+    appel ne retouche rien (le prefab existant n'est jamais reecrit)."""
+    from pathlib import Path
+    import shutil
+    from core.conflict_warfare import (_STARTER_MINE, _STARTER_MINE_SRC,
+                                       ensure_starter_mine_prefab)
+    src = Path("C:/Dev/RE2-FR/Prefabs") / (_STARTER_MINE_SRC + ".epb")
+    if not src.is_file():
+        import pytest
+        pytest.skip("prefabs du scenario absents")
+    tmp = Path(tempfile.mkdtemp())
+    (tmp / "Prefabs").mkdir()
+    (tmp / "Content" / "Configuration").mkdir(parents=True)
+    shutil.copy(src, tmp / "Prefabs")
+    shutil.copy("C:/Dev/RE2-FR/Content/Configuration/BlocksConfig.ecf",
+                tmp / "Content" / "Configuration")
+    avant = len(src.read_bytes())
+    assert ensure_starter_mine_prefab(tmp, apply=False) == 6
+    assert not (tmp / "Prefabs" / (_STARTER_MINE[1] + ".epb")).exists()
+    assert ensure_starter_mine_prefab(tmp, apply=True) == 6
+    copie = tmp / "Prefabs" / (_STARTER_MINE[1] + ".epb")
+    assert copie.is_file() and copie.stat().st_size > 1000
+    assert ensure_starter_mine_prefab(tmp, apply=True) == 0    # idempotent
+    assert len(src.read_bytes()) == avant                      # source intacte

@@ -119,6 +119,16 @@ _RETIRED_POI_GROUPS = (
 # (195 POI natifs sur GUEN 49863 : seules les bases alliées se plaçaient).
 _POI_AVOID = {"hostile": 2000, "ally": 1200}
 
+# Rayon de patrouille des vaisseaux planetaires : sans lui, le moteur
+# patrouille a l'echelle de la planete (vanille : « Default patrol area is
+# planet-size ») et le patrouilleur vient au-dessus du point de depart.
+_PATROL_RADIUS = 1000
+
+# Factions des sites abandonnes : hors guerre NPC-vs-NPC. Le moteur cible une
+# FACTION, jamais un POI isole : sans cette exemption, la mine starter se fait
+# raser par les factions du roster avant la premiere visite du joueur.
+_WAR_EXEMPT = ("Alien",)
+
 # ---------------------------------------------------------------------------
 # Pools _PoiGroupsConfig : un par faction. Le prefab est un petit poste de
 # la faction — les gros prefabs échouent au placement (vécu 09/11 : bases
@@ -168,7 +178,24 @@ _MINE_ORES_HOSTILE = _MINE_ORES + ("NeodymiumResource:1-2",)
 # playfield sans gisement est un mur pour la premiere heure (le PDA de depart
 # n'explique pas que le minerai est dans les POI).
 STARTER_MINE = True
-_STARTER_MINE = ("ConflictStarterMine", "BA_AbandonedMine", "None", False)
+# `Faction: None` rendait les creatures du prefab NEUTRES : elles n'attaquaient
+# plus, meme en les touchant (vecu 11/11). La vanille declare pour ce prefab
+# `GroupName: AbandonedMine` + `Faction: Alien` (« Use for Dungeons and
+# abandoned POI ») : la faction du POI est heritee par ses PNJ. Meme prefab,
+# meme faction.
+# TOURELLES : le prefab source porte 6 `SentryGun03` qui tiraient malgre
+# `InitPower: false` (vecu 12/11) — le courant ne gate pas les devices d'un
+# POI. La mine starter utilise donc une COPIE sans tourelles (`RE2FR-` pour
+# la tracer) ; l'original reste pour les mines Pirates et Alien.
+_STARTER_MINE_SRC = "BA_AbandonedMine"
+_STARTER_MINE = ("ConflictStarterMine",
+                 "RE2FR-BA_AbandonedMine-NoTurrets", "Alien", False)
+# Piste jouee a l'entree de la mine starter (`Key: Music`). Doit appartenir a
+# la liste embarquee du jeu (bundles Unity) : pas de fichier perso possible par
+# cette cle. VIDE = propriete non emise : c'est l'etat de test de l'emetteur
+# audio `.decals` (son .ogg perso), sinon les deux pistes se superposent et on
+# ne sait pas laquelle joue.
+STARTER_MINE_MUSIC = "Tempest"
 _STARTER_ORES = ("IronResource:1-3", "CopperResource:1-2")
 # Mines hostiles : plus de drones et regeneration plus rapide (raider doit
 # rapporter) ; alliees : plus calmes.
@@ -210,6 +237,33 @@ def _mine_pool(faction: str) -> str:
     return "Conflict" + faction + "Mines"
 
 
+def ensure_starter_mine_prefab(scenario: Path, apply: bool = False) -> int:
+    """Cree la copie sans tourelles du prefab de la mine starter (idempotent :
+    ne touche rien si la copie existe). Retourne le nombre de blocs retires,
+    ou -1 si la source manque."""
+    src = Path(scenario) / "Prefabs" / (_STARTER_MINE_SRC + ".epb")
+    dst = Path(scenario) / "Prefabs" / (_STARTER_MINE[1] + ".epb")
+    if dst.is_file():
+        return 0
+    if not src.is_file():
+        return -1
+    # la lecture par blocs s'arrete apres les uint32 : la copie conserve le
+    # reste du flux (devices, spawners) octet pour octet
+    from core.epb_blueprint import EpbBlueprint
+    ecf = [Path(scenario) / "Content" / "Configuration" / "BlocksConfig.ecf"]
+    bp = EpbBlueprint(src, ecf).parse()
+    tourelles = {b.block_id for b in bp.blocks
+                 if re.search(r"(?i)sentry|turret",
+                              bp.block_name(b.block_id))}
+    n = sum(1 for b in bp.blocks if b.block_id in tourelles)
+    if apply:
+        if tourelles:
+            bp.remove_ids(tourelles)
+        bp.path = dst
+        bp.save(backup=False)
+    return n
+
+
 def mine_prefabs_manquants(scenario: Path) -> list:
     """Prefabs de mine absents du scenario (un pool sans .epb ne place RIEN)."""
     pre = Path(scenario) / "Prefabs"
@@ -244,6 +298,19 @@ def missing_pool_prefabs(scenario: Path) -> list:
 
 
 def _poi_group_block(gname: str, prefab: str, faction: str, hostile: bool) -> str:
+    """`InitPower: false` pour la SEULE mine starter : ses 6 blocs
+    `SentryGun03` tirent des qu'elle passe en faction Alien (vecu 11/11) et
+    rendent le POI inabordable en debut de partie.
+
+    `Properties: Music` sur la mine starter egalement : la propriete joue une
+    piste a l'ENTREE du POI (`EditorContext.cs` : POI -> structure ->
+    playfield -> "default"). Seules les pistes embarquées du jeu sont
+    acceptees (pas de fichier perso : les clips viennent des bundles)."""
+    prop = ""
+    if gname == _STARTER_MINE[0] and STARTER_MINE_MUSIC:
+        prop = ("\n          Properties:\n"
+                "            - Key: Music\n"
+                "              Value: " + STARTER_MINE_MUSIC)
     return (
         "    - GroupName: " + gname + "\n"
         "      Filters:\n"
@@ -253,11 +320,12 @@ def _poi_group_block(gname: str, prefab: str, faction: str, hostile: bool) -> st
         "          NoShieldReload: true\n"
         "          CountMinMax: [ 1, 1 ]\n"
         "          LevelMod: 0\n"
-        "          InitPower: true\n"
+        "          InitPower: "
+        + ("false" if gname == _STARTER_MINE[0] else "true") + "\n"
         "          DroneProb: 0.6\n"
         "          DronesMinMax: [ 3, 5 ]\n"
         "          ReserveCount: 3\n"
-        "          TroopTransport: " + str(hostile).lower())
+        "          TroopTransport: " + str(hostile).lower() + prop)
 
 
 def _poi_groups_block() -> str:
@@ -395,6 +463,7 @@ def _vessel_items(groups: tuple) -> list:
             "                IsRespawnAfterDestruction: False\n"
             "                RangePatrolTask:\n"
             "                  POINameAsPositionRef: [" + anchor + "]\n"
+            "                  Radius: " + str(_PATROL_RADIUS) + "\n"
             "                  DistToGround: " + str(dist) + "\n"
             "                Properties:\n"
             "                  - Key: Discovery\n"
@@ -404,6 +473,51 @@ def _vessel_items(groups: tuple) -> list:
             "                    Amount: 4\n"
             "                    Type: FighterDrone\n")
     return out
+
+
+def _fix_patrol_tasks(block: str) -> str:
+    """`Radius` n'existe QUE sur `RangePatrolTask`. Poses sur `ImmobileTask`
+    (AITask+Immobile n'a pas cette propriete), le moteur leve une
+    YamlException et REFUSE le playfield (`vecu 12/11 : crash au chargement`).
+    Ici : on retire tout `Radius` errone sous `ImmobileTask`, et on pose
+    `Radius: _PATROL_RADIUS` apres `POINameAsPositionRef` d'un
+    `RangePatrolTask` — sans lui, la patrouille est a l'echelle de la
+    PLANETE (commentaire vanille) et le vaisseau vient au-dessus du spawn."""
+    lignes, out, i = block.split("\n"), [], 0
+    while i < len(lignes):
+        ligne = lignes[i]
+        out.append(ligne)
+        m = re.match(r"( *)ImmobileTask:\s*$", ligne)
+        if m:
+            ind, i = len(m.group(1)), i + 1
+            while i < len(lignes):
+                sub = lignes[i]
+                if sub.strip() and len(sub) - len(sub.lstrip()) <= ind:
+                    break
+                if not re.match(r"\s+Radius: \d+\s*$", sub):
+                    out.append(sub)
+                i += 1
+            continue
+        m = re.match(r"( *)RangePatrolTask:\s*$", ligne)
+        if m:
+            ind, i, corps = len(m.group(1)), i + 1, []
+            while i < len(lignes):
+                sub = lignes[i]
+                if sub.strip() and len(sub) - len(sub.lstrip()) <= ind:
+                    break
+                corps.append(sub)
+                i += 1
+            if not any(re.match(r"\s+Radius: \d+\s*$", c) for c in corps):
+                for k, c in enumerate(corps):
+                    if "POINameAsPositionRef:" in c:
+                        pad = re.match(r"(\s+)", c).group(1)
+                        corps.insert(k + 1,
+                                     pad + "Radius: " + str(_PATROL_RADIUS))
+                        break
+            out.extend(corps)
+            continue
+        i += 1
+    return "\n".join(out)
 
 
 _RETIRED_VESSELS = (
@@ -877,16 +991,23 @@ def _ensure_vessels(text: str, items: list) -> tuple:
         if not m or not anchor:
             continue
         name, want = m.group(1), anchor.group(1)
-        block = re.search(r"(?m)^ +- Name: " + re.escape(name) + r"[ \t]*$"
-                          r".*?(?=^ +- Name: |^[A-Za-z_]|\Z)", text, re.S)
-        if block is None:
+        # un playfield peut declarer PLUSIEURS fois le meme vaisseau (un
+        # ImmobileTask qui garde la base + un RangePatrolTask qui patrouille) :
+        # traiter toutes les occurrences, sinon le second garde son etat.
+        blocks = list(re.finditer(r"(?m)^ +- Name: " + re.escape(name)
+                                  + r"[ \t]*$.*?(?=^ +- Name: |^[A-Za-z_]|\Z)",
+                                  text, re.S))
+        if not blocks:
             pending.append(it)
             continue
-        fixed = re.sub(r"POINameAsPositionRef: \[\w+\]",
-                       "POINameAsPositionRef: [" + want + "]", block.group(0))
-        if fixed != block.group(0):
-            text = text[:block.start()] + fixed + text[block.end():]
-            n += 1
+        for blk in reversed(blocks):
+            fixed = re.sub(r"POINameAsPositionRef: \[\w+\]",
+                           "POINameAsPositionRef: [" + want + "]",
+                           blk.group(0))
+            fixed = _fix_patrol_tasks(fixed)
+            if fixed != blk.group(0):
+                text = text[:blk.start()] + fixed + text[blk.end():]
+                n += 1
     if not pending:
         return text, n
     joined = "\n".join(it.rstrip("\n") for it in pending) + "\n"
@@ -1038,7 +1159,8 @@ def pass_hostile_reputation(scenario: Path, apply: bool = False, store=None) -> 
 # cannot calc value » (40x sur Dread) et ces entités fantômes font
 # échouer la sérialisation du playfield (« Exception on playfield »).
 # Alias vers l'EClass existant le plus proche.
-_NPC_ALIASES = {"MechanoidMinigun": "Mechanoid", "MechanoidFlak": "Mechanoid"}
+_NPC_ALIASES = {"MechanoidMinigun": "Mechanoid", "MechanoidFlak": "Mechanoid",
+                "MechanoidRocket": "Mechanoid"}
 
 
 def _ensure_npc_aliases(text: str) -> tuple:
@@ -1146,7 +1268,7 @@ def pass_faction_conflict(scenario: Path, apply: bool = False, store=None,
         bloc = _poi_entries_block(groups, style)
         if MINE_POIS and not mine_prefabs_manquants(scenario):
             bloc += "\n" + _mine_entries_block(
-                [(f, h) for _, f, h in groups], style)
+                [(f, h) for _, f, h in groups], style, _start_anchor(text))
         text, k_move = _ensure_pois(text, bloc)
         roster = {f for _, f, _ in groups}
         retired_v = tuple(n for n in _RETIRED_VESSELS
@@ -1469,7 +1591,14 @@ def _faction_names(text: str) -> list:
 
 
 def pass_force_attack(scenario: Path, apply: bool = False, store=None) -> dict:
-    """CF.4 : guerre totale NPC-vs-NPC (ForceAttack symetrique)."""
+    """CF.4 : guerre totale NPC-vs-NPC (ForceAttack symetrique).
+
+    `_WAR_EXEMPT` : les factions des SITES ABANDONNES ne participent pas a la
+    guerre. La cible d'une attaque NPC etant la FACTION et non le POI, c'est
+    le seul moyen d'empecher la mine starter d'etre rasee avant l'arrivee du
+    joueur (vecu 12/11 : deux factions l'ont detruite). Exempte = liste
+    reduite a `Eden_Defender` : elle ne se bat qu'avec le joueur.
+    """
     rep = {"id": "force_attack", "edits": 0, "files": 0, "details": []}
     path = scenario / "Content/Configuration/Factions.ecf"
     if not path.is_file():
@@ -1504,17 +1633,24 @@ def pass_force_attack(scenario: Path, apply: bool = False, store=None) -> dict:
             sep = ", " if ", " in corps else ","
             cur = [x.strip() for x in corps.split(",") if x.strip()]
             tail = (" " + m.group(3).strip()) if m.group(3).strip() else ""
-        manque = [f for f in actives if f != nom and f not in cur]
-        if not manque and ip is not None:
+        if nom in _WAR_EXEMPT:
+            # non-belligerante : ne se bat qu'avec le joueur
+            cible = ["Eden_Defender"]
+        else:
+            cible = [f for f in cur if f not in _WAR_EXEMPT]
+            cible += [f for f in actives
+                      if f != nom and f not in _WAR_EXEMPT
+                      and f not in cible]
+        if cible == cur and ip is not None:
             continue
-        cibles = quote + sep.join(cur + manque) + quote
+        cibles = quote + sep.join(cible) + quote
         ligne = ind + "ForceAttack: " + cibles + tail
         if ip is None:
             lignes.insert(b, ligne)
         else:
             lignes[ip] = ligne
         n += 1
-        rep["details"].append(nom + " : +" + str(len(manque)))
+        rep["details"].append(nom + " : " + str(len(cible)) + " cible(s)")
     if not n:
         return rep
     if apply:
@@ -1798,13 +1934,24 @@ def neutralize_random_resources(text: str) -> tuple:
 
 
 def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
-                style: dict, dist: int, defense: dict) -> str:
+                style: dict, dist: int, defense: dict,
+                near: tuple = None, anchor: str = "") -> str:
     """Une entree POI « mine » : le minerai est DANS le POI, et la mine est
     VISIBLE sur la carte meme non decouverte (carte voilee = le joueur ne sait
-    pas ou aller). Combinaison relevee dans l'exemple vanilla
-    (GS_Beech/GS_Ashon2Orbit) : MapDistance 0 + HudDistance 0 + MapMarker
-    Neutral + Discovery True. `Discovery` seul ne suffisait pas : les valeurs
-    20000 employees pour les vaisseaux spatiaux ne revelent rien pour un POI."""
+    pas ou aller).
+
+    SYMPTOME : aucune mine sur la carte d'un playfield voile.
+    CAUSE : `MapDistance: 0` / `HudDistance: 0` signifient « jamais revele »
+    (`_PoiGroupsConfig_example.yaml` : « If set to 0, map marker will never be
+    revealed »). L'exemple GS_Beech d'ou venait la combinaison est un
+    `Fixed: BA_Player` (point d'apparition), pas un POI aleatoire.
+    CORRECTIF : `Discovery: False` seul (« always visible, even if not
+    detected or under fog of war ») + `MapMarker`, comme `Eden_Beacon` du
+    mod ; on ne pose plus aucune distance.
+
+    `near` = (min, max) : la mine est posee A CETTE DISTANCE du START
+    (`SpawnPOINear`). `SpawnPOIAvoid` seul n'impose qu'un minimum : la mine
+    starter pouvait atterrir a l'autre bout de la planete."""
     e, c = style["entry"], style["cont"]
     lo, hi = defense["drones"]
     return (
@@ -1816,16 +1963,16 @@ def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
         + c + "DronesMinMax: [ " + str(lo) + ", " + str(hi) + " ]\n"
         + c + "ReserveCount: " + str(defense["reserve"]) + "\n"
         + c + "TroopTransport: " + str(hostile).lower() + "\n"
-        + c + "SpawnPOIAvoid: [START]\n"
-        + c + "SpawnPOIAvoidDistance: " + str(dist) + "\n"
+        + (c + "SpawnPOINear: [" + (anchor or "START") + "]\n"
+           + c + "SpawnPOINearRange: [ " + str(near[0]) + ", "
+           + str(near[1]) + " ]\n"
+           if near else
+           c + "SpawnPOIAvoid: [START]\n"
+           + c + "SpawnPOIAvoidDistance: " + str(dist) + "\n")
         + c + "SpawnResource: ["
         + ", ".join('"' + o + '"' for o in ores) + "]\n"
         + c + "SpawnResourceRange: [100, 600]\n"
         + c + "Properties:\n"
-        + style["item"] + "Key: MapDistance\n"
-        + style["val"] + "Value: 0\n"
-        + style["item"] + "Key: HudDistance\n"
-        + style["val"] + "Value: 0\n"
         + style["item"] + "Key: MapMarker\n"
         + style["val"] + "Value: Neutral\n"
         + style["item"] + "Key: Discovery\n"
@@ -1834,7 +1981,29 @@ def _mine_entry(gname: str, faction: str, hostile: bool, ores: tuple,
         + style["val"] + "Value: " + str(defense["regen"]) + "\n")
 
 
-def _mine_entries_block(groups: tuple, style: dict) -> str:
+def _start_anchor(text: str) -> str:
+    """Groupe POI du pod de depart (`FixedPlayerStart > Structure: X`), ou ""
+    quand X n'est pas un `GroupName` du playfield (25 playfields ecrivent
+    `Wreckage`, qui n'en est pas un).
+
+    SYMPTOME : mine starter annoncee « ~1,2 km » posee a 2,44 km de la capsule.
+    CAUSE : `SpawnPOINear: [START]` s'ancre sur le CENTRE du biome starter
+    (log : `RandomPlacer: StartBiome center: 0, 0`), or le pod est lui-meme
+    pose `SpawnPOINear: [START]` a 250-2000 m de ce centre : vecu 12/11, pod
+    a 1,29 km du centre et mine a 1,39 km du cote oppose.
+    CORRECTIF : ancrer la mine sur le pod quand il existe (le moteur accepte
+    un `GroupName` deja place)."""
+    m = re.search(r"(?m)^\s*FixedPlayerStart:", text)
+    if m is None:
+        return ""
+    s = re.search(r"(?m)^\s*Structure:\s*\"?([\w\- ]+?)\"?\s*$", text[m.end():])
+    if s is None:
+        return ""
+    g = s.group(1).strip()
+    return g if _declares(text, g) and g != _STARTER_MINE[0] else ""
+
+
+def _mine_entries_block(groups: tuple, style: dict, anchor: str = "") -> str:
     """Mine starter garantie + une mine par faction du roster. `IsImportant`
     garantit qu'elles existent : c'est la seule source de minerai depuis le
     retrait des gisements. Les mines hostiles ont plus de drones, un tier de
@@ -1844,7 +2013,8 @@ def _mine_entries_block(groups: tuple, style: dict) -> str:
         gname, _prefab, faction, hostile = _STARTER_MINE
         out.append(_mine_entry(
             gname, faction, hostile, _STARTER_ORES, style, 1200,
-            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 60}))
+            {"prob": 0.0, "drones": (0, 0), "reserve": 0, "regen": 60},
+            near=(1000, 1400) if anchor else (1200, 1500), anchor=anchor))
     for faction, hostile in groups:
         out.append(_mine_entry(
             _mine_pool(faction), faction, hostile,
@@ -1898,6 +2068,21 @@ def pass_mine_pois(scenario: Path, apply: bool = False, store=None,
     if not MINE_POIS:
         rep["details"].append("POI mines desactives")
         return rep
+    # copie sans tourelles de la mine starter : creee AVANT le garde-fou des
+    # prefabs manquants, sinon la passe s'arreterait sur son propre prefab
+    if STARTER_MINE:
+        n_tur = ensure_starter_mine_prefab(scenario, apply)
+        if n_tur < 0:
+            rep["details"].append(
+                "prefab source de la mine starter absent : "
+                + _STARTER_MINE_SRC)
+            return rep
+        if n_tur and apply:
+            rep["files"] += 1
+            rep["edits"] += n_tur
+            rep["details"].append(
+                _STARTER_MINE[1] + " : " + str(n_tur) + " bloc(s) de tourelle "
+                "retire(s)")
     manquants = mine_prefabs_manquants(scenario)
     if manquants:
         rep["details"].append("Prefabs de mine manquants : "

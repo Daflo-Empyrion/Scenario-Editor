@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.ai_realism import BackupStore  # noqa: E402
 from core.tech_milestones import pass_tech_milestones  # noqa: E402
+from core.mission_arc import pass_mission_arc  # noqa: E402
 from core.conflict_warfare import (  # noqa: E402
     conflict_playfields, missing_pool_prefabs, pass_drone_aggression,
     pass_faction_conflict, pass_force_attack, pass_hostile_reputation,
@@ -119,6 +120,8 @@ def main() -> int:
     rep["mine_pois"] = pass_mine_pois(
         scenario, apply=args.apply, store=store, playfields=playfields)
     rep["tech_milestones"] = pass_tech_milestones(
+        scenario, apply=args.apply, store=store)
+    rep["mission_arc"] = pass_mission_arc(
         scenario, apply=args.apply, store=store)
     if args.scale_pois:
         rep["scale_pois"] = pass_scale_pois(

@@ -192,6 +192,25 @@ def test_parse_block_colors(tmp_path):
     assert epb_palette_color(2) == (255, 0, 0)
 
 
+def test_set_colors_rewrites_the_colors_matrix(tmp_path):
+    """Vecu 12/11 : un prefab qui donne une variante couleur a un bloc d'une
+    famille a UNE texture (`TrussCylinder`, `Texture: 59`) fait echouer le
+    mesh au chargement. `set_colors` remet la face 0 a 0 sans toucher aux
+    cellules (masque inchange) ; blocs et ids restent identiques."""
+    colored = {cell: 24 for cell in CELLS}
+    colored[11] = 3
+    epb = build_epb(tmp_path / "recolor.epb", colors=colored)
+    bp = EpbBlueprint(epb).parse()
+    ids_avant = [b.block_id for b in bp.blocks]
+    assert bp.set_colors({412}, 0) == 1
+    bp.save()
+    relu = EpbBlueprint(epb).parse()
+    assert [b.block_id for b in relu.blocks] == ids_avant
+    assert relu.blocks[0].color == 0 and relu.blocks[0].block_id == 412
+    assert relu.blocks[1].color == 24               # les autres sont intacts
+    assert EpbBlueprint(epb).parse().set_colors({412}, 0) == 0   # idempotent
+
+
 def test_unknown_counts(epb_file, catalog):
     bp = EpbBlueprint(epb_file, ecf_paths=[]).parse()
     assert bp.unknown_counts(set(catalog)) == {7500: 1, 2050: 1}

@@ -1068,3 +1068,221 @@ def test_playfield_without_any_resource_is_error(tmp_path):
     assert len(issues) == 1 and issues[0].severity == "error"
     assert "PfVide" in issues[0].message and "EdenSpaceA" not in issues[0].message
     assert issues[0].fix == "core/conflict_warfare.py : pass_mine_pois"
+
+
+# ---------------------------------------------------------------------------
+# References ECF : les deux crashs du 12/11 (playfield abandonne puis
+# NullReferenceException dans DeployPciture, sans nom de fichier au log).
+# ---------------------------------------------------------------------------
+CONTAINERS_OK = """{ +Container Id: 5
+  Count: "3,4"
+  Size: "8,1"
+
+  { Child Items
+    Name_0: Fiber, param1: 0.8, param2: "5,19"
+  }
+}
+"""
+LOOTGROUP_OK = """{ +LootGroup Name: Ores
+  Count: all
+  Item_0: IronIngot, param1: "1,8", param2: 0.3
+}
+"""
+ITEMS_OK = """{ +Item Id: 1, Name: TestItem
+  Material: Device
+  AmmoType: Aucune
+}
+"""
+MATERIALS_OK = """{ Material Name: Device
+  Sound: impact_metal
+}
+"""
+
+
+def _ecf_scenario(tmp_path: Path, containers=CONTAINERS_OK,
+                  items=ITEMS_OK) -> Path:
+    root = _build_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "Containers.ecf").write_text(containers, encoding="utf-8")
+    (conf / "LootGroups.ecf").write_text(LOOTGROUP_OK, encoding="utf-8")
+    (conf / "ItemsConfig.ecf").write_text(items, encoding="utf-8")
+    (conf / "MaterialConfig.ecf").write_text(MATERIALS_OK, encoding="utf-8")
+    return root
+
+
+def test_ecf_clean_scenario_has_no_reference_issue(tmp_path):
+    issues = run_launch_checks(_ecf_scenario(tmp_path), "")
+    assert [i for i in issues if "Material" in i.message
+            or "au-dela de l'index" in i.message
+            or "absent(s) de la vanille" in i.message] == []
+
+
+def test_lootgroup_in_containers_is_an_error(tmp_path):
+    """Vecu 12/11 : 10 blocs `+LootGroup` ecrits dans Containers.ecf ->
+    IndexOutOfRangeException dans EcfFile.ParseLines puis crash."""
+    mauvais = CONTAINERS_OK + "\n{ +LootGroup Name: Perime\n  Count: all\n}\n"
+    issues = run_launch_checks(_ecf_scenario(tmp_path, containers=mauvais), "")
+    fautifs = [i for i in issues if "absent(s) de la vanille" in i.message]
+    assert len(fautifs) == 1 and fautifs[0].severity == "error"
+    assert "LootGroup" in fautifs[0].message
+
+
+def test_unknown_item_material_is_an_error(tmp_path):
+    """Vecu 12/11 : `Material: metalweapon` (vanille) dans deux items importes
+    -> « Material not found » au chargement puis crash. Le controle existait
+    deja (check `engine`) : il n'a simplement pas ete lance avant le jeu —
+    d'ou la regle « bilan avant lancement » (tools/ecf_lint.py)."""
+    items = ITEMS_OK.replace("Material: Device", "Material: metalweapon")
+    issues = run_launch_checks(_ecf_scenario(tmp_path, items=items), "")
+    fautifs = [i for i in issues if "Material 'metalweapon'" in i.message]
+    assert len(fautifs) == 1 and fautifs[0].severity == "error"
+    assert fautifs[0].check == "engine"
+
+
+def test_container_entries_past_index_19_are_flagged(tmp_path):
+    """Vecu 12/11 : 34 entrees `Name_20+` jamais lues par le moteur (il boucle
+    sur les index 0..19) — contenu mort, pas un crash."""
+    entasses = CONTAINERS_OK.replace(
+        '    Name_0: Fiber, param1: 0.8, param2: "5,19"\n',
+        '    Name_0: Fiber, param1: 0.8, param2: "5,19"\n'
+        '    Name_20: TitanOre, param1: 0.6, param2: "2,3"\n')
+    issues = run_launch_checks(_ecf_scenario(tmp_path, containers=entasses), "")
+    fautifs = [i for i in issues if "au-dela de l'index" in i.message]
+    assert len(fautifs) == 1 and fautifs[0].severity == "warning"
+    assert "5" in fautifs[0].message          # id du conteneur
+
+
+def test_ecf_block_declaration_must_be_on_open_line(tmp_path):
+    """Vecu 12/11 : des blocs ecrits `{` puis `+LootGroup Name: …` a la ligne
+    suivante ont fait sortir le chargeur du tableau (IndexOutOfRangeException
+    dans EcfFile.ParseLines) puis crashe le jeu. La declaration DOIT etre sur
+    la ligne du `{` — c'est la forme de toute la vanille."""
+    mauvais = LOOTGROUP_OK.replace("{ +LootGroup Name: Ores", "{\n  +LootGroup Name: Ores")
+    root = _ecf_scenario(tmp_path)
+    conf = root / "Content" / "Configuration"
+    (conf / "LootGroups.ecf").write_text(mauvais, encoding="utf-8")
+    issues = run_launch_checks(root, "")
+    fautifs = [i for i in issues if "declaration n'est PAS sur la ligne" in i.message]
+    assert len(fautifs) == 1 and fautifs[0].severity == "error"
+    assert fautifs[0].path.endswith("LootGroups.ecf") and fautifs[0].line == 1
+
+
+def test_spawnzone_keys_in_spawnratezones_is_an_error(tmp_path):
+    """Vecu 12/11 au soir (crash au chargement des planetes) : un en-tete
+    `SpawnZones:` commente fait tomber ses items sous `SpawnRateZones:` ->
+    « Property 'BiomesExcluded' not found on type 'SpawnRateZoneData' »."""
+    root = _ecf_scenario(tmp_path)
+    pf = root / "Playfields" / "Pf1" / "playfield_static.yaml"
+    pf.write_text(
+        "PlayfieldType: Temperate\n"
+        "SpawnRateZones:\n"
+        "   - SpawnAt: [Pf1Poi]\n"
+        "     BiomesExcluded: [ Mountains ]\n"
+        "     Radius: 500\n", encoding="utf-8")
+    issues = run_launch_checks(root, "")
+    fautifs = [i for i in issues if "SpawnZoneData" in i.message]
+    assert len(fautifs) == 1 and fautifs[0].severity == "error"
+    assert fautifs[0].path.endswith("Pf1/playfield_static.yaml")
+
+
+def test_pda_chapter_activation_must_be_a_sequence(tmp_path):
+    """Vecu 12/11 : un `ChapterActivation:` ecrit en mapping fait jeter
+    YamlDotNet « Expected 'SequenceStart', got 'MappingStart' » et le PDA
+    entier n'est plus charge (crash au lancement de la partie)."""
+    root = _ecf_scenario(tmp_path)
+    pda = root / "Extras" / "PDA"
+    pda.mkdir(parents=True)
+    (pda / "PDA.yaml").write_text(
+        "Chapters:\n"
+        "  - ChapterTitle: pda_bad\n"
+        "    Description: pda_badDesc\n"
+        "    ChapterActivation:\n"
+        "      Check: NearPoi\n"
+        "    Tasks:\n"
+        "      - TaskTitle: pda_badT1\n", encoding="utf-8")
+    (pda / "PDA.csv").write_text("KEY,English,Deutsch,Fran\u00e7ais\n",
+                                 encoding="utf-8")
+    issues = run_launch_checks(root, "")
+    fautifs = [i for i in issues if "SequenceStart" in i.message]
+    assert len(fautifs) == 1 and fautifs[0].severity == "error"
+    assert fautifs[0].path.endswith("Extras/PDA/PDA.yaml")
+
+
+def _build_regen_scenario(tmp_path: Path) -> Path:
+    """Un playfield avec les quatre cas de la politique de regeneration."""
+    root = _build_scenario(tmp_path)
+    pf = root / "Playfields" / "PfRegen"
+    pf.mkdir(parents=True)
+    (pf / "playfield_static.yaml").write_text(
+        "PlayfieldType: Temperate\n"
+        "POIs:\n"
+        "    Random:\n"
+        "        - GroupName: R2XenuBases\n"
+        "          SpawnPOINear: [R2DroneBase]\n"
+        "          Properties:\n"
+        "            - Key: RegenAfter\n"
+        "              Value: 720\n"
+        "        - GroupName: R2DroneBase\n"
+        "          Properties:\n"
+        "            - Key: RegenAfter\n"
+        "              Value: 720\n"
+        "        - GroupName: ConflictZiraxBases\n"
+        "          Properties:\n"
+        "            - Key: RegenAfter\n"
+        "              Value: 90\n"
+        "        - GroupName: Eden_SV_UniqueT1\n"
+        "          Properties:\n"
+        "            - Key: RegenAfter\n"
+        "              Value: 720\n"
+        "        - GroupName: MineT1PolarisRG\n"
+        "          Properties:\n"
+        "            - Key: RegenAfter\n"
+        "              Value: 4320\n"
+        "        - GroupName: R2TraderAuxT1\n"
+        "          Properties:\n"
+        "            - Key: RegenAfter\n"
+        "              Value: 720\n", encoding="utf-8")
+    return root
+
+
+def test_regen_policy_flags_only_outliers(tmp_path):
+    """Politique C + mines 72 h : la base et la mine a 90 min sortent, l'ancre
+    (R2DroneBase), le vaisseau, la mine deja a 4320 et le marchand restent."""
+    from core.config_hygiene import scan_regen_policy
+    hors = scan_regen_policy(_build_regen_scenario(tmp_path))
+    noms = {name for _pf, _ln, name, _old, _want in hors}
+    assert noms == {"R2XenuBases", "ConflictZiraxBases"}
+    assert {want for *_r, want in hors} == {0}
+
+
+def test_regen_policy_is_idempotent(tmp_path):
+    """Appliquer la politique puis rescanner doit rendre 0 (relance sans effet)."""
+    from core.config_hygiene import scan_regen_policy
+    from core.regen_policy import plan, read, rewrite
+    root = _build_regen_scenario(tmp_path)
+    rows, _anchors = plan(root)
+    assert rows
+    for row in rows:
+        row["path"].write_text(rewrite(row["text"], row["changes"]),
+                               encoding="utf-8")
+    assert scan_regen_policy(root) == []
+    relance, _ = plan(root)
+    assert relance == []
+
+
+def test_regen_mining_mine_goes_to_72h(tmp_path):
+    """Une mine encore a 720 doit repartir a 4320, pas a 0."""
+    from core.regen_policy import MINE_CYCLE, plan, read, rewrite
+    root = _build_regen_scenario(tmp_path)
+    pf = root / "Playfields" / "PfRegen" / "playfield_static.yaml"
+    pf.write_text(pf.read_text(encoding="utf-8").replace(
+        "GroupName: MineT1PolarisRG\n          Properties:\n"
+        "            - Key: RegenAfter\n              Value: 4320",
+        "GroupName: MineT1PolarisRG\n          Properties:\n"
+        "            - Key: RegenAfter\n              Value: 720"), encoding="utf-8")
+    rows, _ = plan(root)
+    ligne = [(r, c) for r in rows for c in r["changes"] if c[1] == "MineT1PolarisRG"]
+    assert len(ligne) == 1
+    row, change = ligne[0]
+    assert change[3] == MINE_CYCLE
