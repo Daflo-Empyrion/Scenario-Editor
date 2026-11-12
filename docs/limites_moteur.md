@@ -168,5 +168,12 @@ absentes (DLC/mod) ou une chirurgie qui demande l'éditeur de playfields.
   definition existante : `damage_category`, `surface_category`,
   `particle_category`, `stepsound`), ou pointer une entite sur un materiau
   declare (`metal`).
+- **Applique le 12/11** : `metal` et `metalhard` copies tels quels de la base
+  dans notre `MaterialConfig` (nos 49 materiaux ne les contenaient pas), puis
+  report des 131 entites — `Mechanical`/`DronePlanet`/`DroneSpace`/
+  `CreatureSoft` -> `metal`, `CreatureHard` -> `metalhard`,
+  `HumanHard`/`HumanSoft`/`Player` -> `Human`, `Ore` -> `stone`. Bilan apres :
+  111 avertissements (le notre a disparu), 0 erreur. Sauvegarde :
+  `C:/Dev/_backup_prefabs_color/2026-11-12_materiaux/`.
 - **Controle** : `scan_entity_materials` (`core/config_hygiene.py`) ->
   avertissement au bilan avant lancement, un par famille de materiaux.
