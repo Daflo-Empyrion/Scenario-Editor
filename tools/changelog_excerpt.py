@@ -86,9 +86,11 @@ def main() -> int:
         return 2
     titre, corps = got
     if args.out:
-        Path(args.out).write_text(corps, encoding="utf-8")
+        # newline="\n" : corps identique sous Windows et Linux
+        # (write_text traduirait sinon en CRLF, +1 octet par ligne)
+        Path(args.out).write_text(corps, encoding="utf-8", newline="\n")
         print(f"note de version {version} ecrite dans {args.out} "
-              f"({len(corps)} octets)")
+              f"({len(corps)} caracteres)")
     else:
         sys.stdout.write(corps)
     sortie = os.environ.get("GITHUB_OUTPUT")

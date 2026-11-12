@@ -71,6 +71,7 @@ def test_cli_writes_the_body_and_fails_without_entry(tmp_path):
                     "--changelog", str(_write(tmp_path))]
         assert module.main() == 0
         assert body.read_text(encoding="utf-8").startswith("# v1.2.0")
+        assert chr(13).encode() not in body.read_bytes()  # corps OS-independant
         sys.argv = ["changelog_excerpt", "9.9.9", "--changelog",
                     str(_write(tmp_path))]
         assert module.main() == 2               # le build CI doit echouer
