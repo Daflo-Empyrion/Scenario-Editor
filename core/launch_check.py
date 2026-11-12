@@ -886,7 +886,7 @@ _FIX_WAR = "core/conflict_warfare.py : pass_force_attack"
 _FIX_SPACE = "core/conflict_warfare.py : pass_space_conflict"
 
 
-def _check_hygiene(root: Path) -> list[LaunchIssue]:
+def _check_hygiene(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     """Configs ECF/playfield : les deux pieges qui font jeter le moteur ou
     ignorent silencieusement une valeur (fiches cerveau
     empyrion-ecf-bloc-mono-ligne-malformed,
@@ -990,8 +990,9 @@ def _check_hygiene(root: Path) -> list[LaunchIssue]:
     # premiers abandonnent le playfield puis crashent le jeu (Exception /
     # IndexOutOfRangeException dans EcfFile.ParseLines, puis
     # NullReferenceException dans DeployPciture) sans nommer le fichier. ---
-    from core.config_hygiene import (scan_container_slots, scan_ecf_openline,
-                                     scan_ecf_types, scan_spawnzone_schema)
+    from core.config_hygiene import (BASE_CONFIG, scan_container_slots,
+                                     scan_ecf_openline, scan_ecf_types,
+                                     scan_spawnzone_schema)
     from core.config_hygiene import scan_pda_sequences
     for fichier, ligne, cle in scan_pda_sequences(root):
         issues.append(LaunchIssue(
@@ -1025,7 +1026,11 @@ def _check_hygiene(root: Path) -> list[LaunchIssue]:
                     "(« IndexOutOfRangeException » dans EcfFile.ParseLines) "
                     "puis le jeu crashe — vecu 12/11 avec des LootGroup",
             fix="recoller l'element sur la ligne du '{' : '{ +Type ...'"))
-    for fichier, types in scan_ecf_types(root):
+    # la base de reference suit le `vanilla_content` transmis : sans jeu
+    # installe (CI), le scan doit rester testable avec une base synthetique
+    base_cfg = (Path(vanilla_content) / "Configuration" if vanilla_content
+                else BASE_CONFIG)
+    for fichier, types in scan_ecf_types(root, base_cfg):
         issues.append(LaunchIssue(
             check="hygiene", path=f"Content/Configuration/{fichier}", line=0,
             severity="error",
@@ -1508,7 +1513,7 @@ def run_launch_checks(scenario_root: Path, vanilla_content: str = "") -> list[La
 
     # --- hygiene des configs (ECF mono-ligne, HitPoints sans type,
     # PlanetVessel en Immobile) + regles ECF du projet ---
-    issues.extend(_check_hygiene(root))
+    issues.extend(_check_hygiene(root, vanilla_content))
     issues.extend(_check_validation(root))
 
     # module correcteur affiche a cote de l'alerte ; vide = correction

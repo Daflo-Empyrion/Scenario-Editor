@@ -149,3 +149,21 @@ def test_disabling_the_chain_removes_the_chapter(tmp_path, monkeypatch):
     csv_txt = (sc / "Extras" / "PDA" / "PDA.csv").read_text("utf-8")
     assert "pda_Ano9" not in csv_txt
     assert ma.pass_mission_arc(sc, apply=True)["edits"] == 0   # idempotent
+
+
+def test_mission_pass_writes_without_pyyaml(tmp_path, monkeypatch):
+    """Vecu CI 12/11 : PyYAML n'est pas une dependance de l'application, donc
+    l'import levait ModuleNotFoundError, la validation repondait False et la
+    passe se bloquait sur « YAML invalide apres ajout : abandon » alors que le
+    fichier produit etait bon. Le parseur maison doit prendre le relais."""
+    import sys
+
+    from core import mission_arc as ma
+    monkeypatch.setattr(ma, "MISSIONS", (MISSION,))
+    monkeypatch.setattr(ma, "MISSION_ARC", True)
+    monkeypatch.setitem(sys.modules, "yaml", None)      # import yaml -> ImportError
+    sc = _scenario(tmp_path)
+    rep = ma.pass_mission_arc(sc, apply=True)
+    assert rep["edits"] == 1 + 7 and rep["files"] == 2, rep
+    assert "pda_Ano9Title" in (sc / "Extras" / "PDA" / "PDA.yaml").read_text(
+        encoding="utf-8")

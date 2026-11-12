@@ -1122,7 +1122,15 @@ def test_lootgroup_in_containers_is_an_error(tmp_path):
     """Vecu 12/11 : 10 blocs `+LootGroup` ecrits dans Containers.ecf ->
     IndexOutOfRangeException dans EcfFile.ParseLines puis crash."""
     mauvais = CONTAINERS_OK + "\n{ +LootGroup Name: Perime\n  Count: all\n}\n"
-    issues = run_launch_checks(_ecf_scenario(tmp_path, containers=mauvais), "")
+    # base de reference SYNTHETIQUE : le controle comparait a la config du
+    # jeu installe, absent sur un runner de CI (test non hermetique, rouge
+    # au tag v2.6.0 sans que rien ne soit casse).
+    base = tmp_path / "vanilla"
+    (base / "Configuration").mkdir(parents=True)
+    (base / "Configuration" / "Containers.ecf").write_text(
+        CONTAINERS_OK, encoding="utf-8")
+    issues = run_launch_checks(_ecf_scenario(tmp_path, containers=mauvais),
+                               str(base))
     fautifs = [i for i in issues if "absent(s) de la vanille" in i.message]
     assert len(fautifs) == 1 and fautifs[0].severity == "error"
     assert "LootGroup" in fautifs[0].message

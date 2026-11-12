@@ -426,14 +426,33 @@ def _avant_creator(texte: str, ajout: str) -> str:
 
 
 def _yaml_parse_ok(texte: str) -> bool:
-    """Garde-fou : le YAML produit doit se parser avec le parseur du projet."""
-    from core.yamllite.parser import parse_yaml_file
-    tmp = Path(tempfile.mkdtemp()) / "PDA.yaml"
-    tmp.write_text(texte, encoding="utf-8")
+    """Le texte reste-t-il un YAML lisible ?
+
+    PyYAML quand il est disponible (validation stricte, poste de dev) ; sinon
+    le parseur maison `core.yamllite`, qui est celui de l'application. Une
+    dependance absente ne doit JAMAIS decider si la passe ecrit : vecu CI
+    12/11, `import yaml` levait ModuleNotFoundError, la fonction repondait
+    False et la passe se bloquait sur « YAML invalide apres ajout : abandon »
+    alors que le fichier etait bon.
+
+    shortcut: sans PyYAML la validation est structurelle (le texte se relit),
+    pas syntaxique -- suffisant pour une insertion de bloc, revoir si la passe
+    se met a produire des valeurs complexes.
+    """
     try:
-        parse_yaml_file(tmp)
-        return True
-    except Exception:                      # noqa: BLE001 - YAML casse = abandon
+        import yaml
+    except ImportError:
+        yaml = None
+    if yaml is not None:
+        try:
+            yaml.safe_load(texte)
+            return True
+        except Exception:                   # noqa: BLE001 - validation souple
+            return False
+    try:
+        from core.yamllite.parser import parse_yaml_text
+        return bool(parse_yaml_text(texte).nodes)
+    except Exception:                       # noqa: BLE001 - validation souple
         return False
 
 
