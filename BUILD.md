@@ -21,6 +21,15 @@ pip install -r requirements.txt
 pip install -r requirements-build.txt
 ```
 
+### Activer les garde-fous du depot (une commande, par clone)
+Le hook `pre-push` versionne (`.githooks/pre-push`) refuse un lot qui touche le
+code de l'application sans `README.md` — sans cette commande, git ne le charge
+pas :
+
+```bat
+git config core.hooksPath .githooks
+```
+
 ### Icone de l'application
 Une icone simple par defaut a ete generee dans `assets/icon.ico` (visible en
 apercu dans `assets/icon_preview.png`). Pour la remplacer par la tienne : cree
