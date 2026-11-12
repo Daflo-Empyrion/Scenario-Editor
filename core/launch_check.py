@@ -167,7 +167,7 @@ def _index_prefabs(*roots: Path):
                     # aussi une cle de groupe. Sans cette ligne, tous les
                     # GroupName reels des playfields etaient declares
                     # « inconnus » (842 faux positifs sur RE2 Beta, mesure
-                    # 03/11/2026, verifie dans le deobfusque part_0052.cs).
+                    # 03/11/2026, verifie contre le chargement reel du jeu).
                     groups.add(name.casefold())
                 for group in raw_groups.split(","):
                     if group.strip():

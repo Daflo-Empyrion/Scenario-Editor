@@ -818,8 +818,8 @@ def test_compound_without_subdesc_is_flagged(tmp_path):
 
 
 def test_poi_group_comes_from_blueprint_group_name(tmp_path, monkeypatch):
-    """Decouverte du 03/11 (source deobfusquee, part_0052.cs) : GroupName =
-    propriete 7, Tags = 21. `read_header` renvoie le GroupName en premier :
+    """Decouverte du 03/11, verifiee contre le chargement reel du jeu :
+    GroupName = propriete 7, Tags = 21. `read_header` renvoie le GroupName en premier :
     il doit alimenter le pool de GROUPES, sinon tous les GroupName reels des
     playfields sont declares « inconnus » (842 faux positifs sur RE2 Beta
     avant correctif)."""

@@ -69,7 +69,7 @@ class EpbBlock:
 
 
 # Palette de 32 couleurs du jeu (uint RGBA : R = bits 16-23, G = bits 8-15,
-# B = bits 0-7 ; extraite du decompile EPD, EPBHandler/EPD.EPB/Palette.cs).
+# B = bits 0-7 ; relevee sur des .epb reels du jeu, v1.19.6 build 5188).
 EPB_PALETTE_RAW: Tuple[int, ...] = (
     16777215, 16777126, 16711680, 16754409, 16639, 65535, 65433,
     12289882, 14474460, 16774912, 11142405, 16711830, 1716825, 3843799,
@@ -355,8 +355,9 @@ def read_id_mapping(path: os.PathLike, max_bytes: int = 2_000_000):
 def _read_header_fields(path: os.PathLike, max_bytes: int = 262144):
     """(GroupName, Tags, DisplayName) d'un .epb, ou None si illisible.
 
-    Numerotation VERIFIEE dans le moteur (source deobfusquee, part_0052.cs,
-    `enum EnumProperties`) : GroupName = propriete **7**, Tags = **21**,
+    Numerotation VERIFIEE contre le chargement reel du jeu (v1.19.6, build
+    5188) sur des .epb produits par le jeu : GroupName = propriete **7**,
+    Tags = **21**,
     DisplayName = 16, et le nom de fichier vient du FileName. La docstring
     precedente annoncait l'inverse (Name=7, groupes=21), ce qui faisait
     passer les GroupName reels pour des noms de prefabs et rendait le
@@ -441,8 +442,8 @@ def read_display_name(path: os.PathLike, max_bytes: int = 262144):
 
 
 def read_meta_info(path: os.PathLike, max_bytes: int = 262144) -> Dict[str, str]:
-    """Infos d'entete d'un .epb en dict, d'apres l'enum moteur
-    `EnumProperties` (verifie dans le dump deobfusque, l. 56991) :
+    """Infos d'entete d'un .epb en dict, d'apres la numerotation des
+    proprietes verifiee sur des .epb produits par le jeu :
     `group` = propriete **7** (GroupName — la cle d'indexation des POI),
     `tags` = **21**, `display` = **16**. Chaines vides si illisible ou si
     la propriete est absente (les BP n'ont pas tous un groupe)."""
@@ -924,7 +925,7 @@ class EpbBlueprint:
         self._cells = cells
 
         # --- sections qui suivent BlockTypes dans le flux decompresse
-        # (ordre EPBParser.cs : DamageStates, Densities, Colors, ...) :
+        # (ordre releve sur des .epb reels : DamageStates, Densities, ...) :
         # on lit Densities/Colors pour les couleurs de la vue 3D ; les
         # octets bruts restent dans _tail pour que save() re-ecrive le
         # fichier a l'identique (matrices clees par cellule : le masque ne

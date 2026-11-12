@@ -9,9 +9,9 @@
 > Validation en jeu toujours impossible tant que RE2-FR ne charge pas
 > (NRE connu) — chaque valeur reste conservatrice et réversible.
 
-Document de travail — exploration reverse moteur + vanille 1.19.1 + RE2-FR
-(08/11/2026). Sources : dump moteur décompilé/déobfusqué
-(`C:\Dev\empyrion_game_re`), install vanille
+Document de travail — exploration moteur + vanille 1.19.1 + RE2-FR
+(08/11/2026). Sources : comportement constate en jeu (moteur 1.19.6 build
+5188), install vanille
 (`C:\Dev\2026-08-13_03h31__vanilla_1_19_1`), scénario RE2-FR. Chiffres
 vérifiés par agrégation sur les 342 playfields RE2-FR et 190 vanille.
 

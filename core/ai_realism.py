@@ -16,7 +16,7 @@
 
 """Passes de réalisme IA pour un scénario Empyrion (RE2-FR en cible).
 
-Constat 08/11 (reverse moteur + diff vanille, voir docs/ia_pnj_pistes.md) :
+Constat 08/11 (comportement en jeu + diff vanille, voir docs/ia_pnj_pistes.md) :
 PNJ nerveux mais uniformes ; BAIConfig.ecf et Animations.ecf disparus ;
 5 noms de vaisseaux PNJ sans .epb ; pression drone bridée (DroneProb 0 sur
 ~3000 POIs) en contradiction avec des bases Difficulty 6 ; patrouilles

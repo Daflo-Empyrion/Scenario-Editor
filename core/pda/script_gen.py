@@ -67,7 +67,8 @@ class ParamSpec:
 
 
 # Vocabulaires releves dans la reference de modding livree avec le jeu
-# (ModApi decompile : GameEventType, ChapterCategory, GuidingType) et dans les
+# (API de modding officielle : GameEventType, ChapterCategory, GuidingType) et
+# dans les
 # classes d'action du domaine PdaScript. Chaque champ du dialogue pioche ici
 # (liste deroulante EDITABLE : la valeur libre reste possible).
 VOCABULAIRE: Dict[str, Tuple[str, ...]] = {

@@ -87,7 +87,7 @@ def build_epb(path, cells=None, size=SIZE, tail=TAIL, mapping=None,
         mask[cell // 8] |= 1 << (cell % 8)
         values += struct.pack("<I", _raw_for(cells[cell]))
     stream = struct.pack("<i", mask_count) + bytes(mask) + values
-    # sections qui suivent BlockTypes pour v>11 (ordre EPBParser.cs) :
+    # sections qui suivent BlockTypes pour v>11 (ordre releve sur .epb reels) :
     # DamageStates (matrice vide), Densities (uniforme), Colors
     stream += struct.pack("<i", mask_count) + bytes(mask_count)
     stream += b"\x01" + b"\x00"
@@ -435,7 +435,7 @@ def test_unmapped_id_with_mapping_is_unknown(tmp_path):
 
 
 def test_read_meta_info_group_is_property_7(tmp_path):
-    """Enum moteur EnumProperties (dump deobfusque, l. 56991) : 7 = GroupName,
+    """Numerotation .epb verifiee sur des fichiers du jeu : 7 = GroupName,
     21 = Tags, 16 = DisplayName. Vecu 07/11 : LJCitadel.epb affichait
     « Groupe : — » parce que le GroupName etait presente comme nom interne."""
     from core.epb_blueprint import read_meta_info

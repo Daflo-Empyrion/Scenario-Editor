@@ -4,7 +4,7 @@
   "props": 1535
  },
  "file_descriptions": {
-  "*.epb": "Binary format (full parser: `core/epb_blueprint.py`; read/write reference: `rea-epd/EPBHandler/EPD.EPB/EPBParser.cs`).",
+  "*.epb": "Binary format (full parser: `core/epb_blueprint.py`; read/write reference: the parser described in `core/epb_blueprint.py`).",
   "Dialogues.ecf": "The textual content is localized in `Extras/Localization.csv` and `Content/Configuration/Dialogues.csv` (key = dialogue/node name).",
   "EClassConfig.ecf": "Structure: `{ Entity Name: Zirax` (+ sub-blocks `{ Child 0 ... }` for sensors/behaviors). Main keys:",
   "EGroupsConfig.ecf": "Group names (Crawler, ZiraxMale, TalonGuardianGroup...) are referenced by CreatureSpawning/SpawnZones/EClass.",
@@ -16,7 +16,7 @@
   "Templates.ecf": "Template structure:",
   "TraderNPCConfig.ecf": "Trader definitions: goods, selling text and discounts.",
   "gameoptions.yaml": "Engine model `GameOptionsYamlData.Dataset` — the descriptions below are a translation of Eleon's doc-strings (`[PackageHelper]`). The first dataset whose `ValidFor` matches the conditions (Survival/Creative/Freedom/Debug × SP/MP) is used; a dataset without `ValidFor` = universal default.",
-  "playfield.yaml": "Typed by the engine in `PlayfieldYamlData` (+ nested classes `InstanceData`, `LocalEffectData`, `GlobalEffectData`, `RandomResourceData`, `FixedResourceData`, `AsteroidResourceData`, `ResourceDistType*`, `PresetData`, `PoiData.*`, `DroneBaseSetupData.*`, `DroneSpawnData`, `CreatureSpawnData`, `SpawnZoneData`, `SpawnRateZoneData`, `TerrainBiomeData`, `DCClusterData`, `SpecialBiome`, `PoiData.PlayerStartData`). YAML key names = C# property names (reflection binding).",
+  "playfield.yaml": "Typed by the engine: YAML key names are the property names the game expects, and each section (`POIs`, `DroneBaseSetup`, `CreatureSpawning`, `SpawnRateZones`...) is a typed object with its own sub-sections. Hierarchy verified against real engine loading (v1.19.6, build 5188).",
   "terrain.ecf": "Defines the terrain TEXTURE MATERIALS: each root block `{ Material Name: N TextureName }` = one main texture, and its `{ Child N # SubTextureName }` = the possible transitions/blends."
  },
  "props": [

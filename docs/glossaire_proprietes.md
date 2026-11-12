@@ -8,8 +8,8 @@ fichiers du scénario RE2-FR y est répertoriée avec son sens.
 
 | Étiquette | Signification |
 |---|---|
-| **[M]** | Vérifié dans le MOTEUR décompilé/déobfusqué (`C:\Dev\empyrion_game_re`, Assembly-CSharp client+serveur) — classe typée, défaut `[DefaultValue]` ou doc `[PackageHelper]` d'Eleon |
-| **[E]** | Vérifié dans EPD décompilé (`C:\Dev\rea-epd`, outil Empyrion Playfield Designer) ou observé dans les données du scénario |
+| **[M]** | Vérifié contre le chargement réel du jeu (v1.19.6, build 5188) : propriété typée par le moteur, valeur par défaut ou documentation fournie par Eleon |
+| **[E]** | Vérifié dans les données réelles du scénario, ou via l'outil communautaire Empyrion Playfield Designer (EPD) |
 | **[S]** | Déduit du scénario RE2-FR lui-même (valeurs observées, contexte d'usage) |
 
 - Données extraites des **604 YAML** (playfields, sectors, PDA, gameoptions)
@@ -30,12 +30,11 @@ fichiers du scénario RE2-FR y est répertoriée avec son sens.
 
 # 1. playfield_static.yaml / playfield.yaml (planètes, lunes, orbites)
 
-Structure typée par le moteur dans `PlayfieldYamlData` (+ classes imbriquées
-`InstanceData`, `LocalEffectData`, `GlobalEffectData`, `RandomResourceData`,
-`FixedResourceData`, `AsteroidResourceData`, `ResourceDistType*`, `PresetData`,
-`PoiData.*`, `DroneBaseSetupData.*`, `DroneSpawnData`, `CreatureSpawnData`,
-`SpawnZoneData`, `SpawnRateZoneData`, `TerrainBiomeData`, `DCClusterData`,
-`SpecialBiome`, `PoiData.PlayerStartData`). Les noms de clés YAML = noms des
+Structure typée par le moteur : les noms de clés YAML sont les noms de
+propriétés que le jeu attend, et chaque section (`POIs`, `DroneBaseSetup`,
+`CreatureSpawning`, `SpawnRateZones`...) est un objet typé avec ses propres
+sous-sections. Hiérarchie vérifiée contre le chargement réel du jeu
+(v1.19.6, build 5188). Les noms de clés YAML = noms des
 propriétés C# (liaison par réflexion).
 
 ## 1.1 Général / identité
@@ -1284,7 +1283,7 @@ Définit les MATÉRIAUX DE TEXTURE du terrain : chaque bloc racine
 # 7. Prefabs .epb (blueprints/POI binaires)
 
 Format binaire (parseur complet : `core/epb_blueprint.py` ; référence
-lecture/écriture : `rea-epd/EPBHandler/EPD.EPB/EPBParser.cs`).
+lecture/écriture : le parseur de référence décrit dans `core/epb_blueprint.py`).
 
 ## 7.1 Header — EnumProperties (enum moteur `BlueprintHeader.EnumProperties`)
 

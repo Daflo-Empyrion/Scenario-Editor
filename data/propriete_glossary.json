@@ -4,7 +4,7 @@
   "props": 1535
  },
  "file_descriptions": {
-  "*.epb": "Format binaire (parseur complet : `core/epb_blueprint.py` ; référence lecture/écriture : `rea-epd/EPBHandler/EPD.EPB/EPBParser.cs`).",
+  "*.epb": "Format binaire (parseur complet : `core/epb_blueprint.py` ; référence lecture/écriture : le parseur de référence décrit dans `core/epb_blueprint.py`).",
   "Dialogues.ecf": "Le contenu textuel est localisé dans `Extras/Localization.csv` et `Content/Configuration/Dialogues.csv` (clé = nom de dialogue/nœud).",
   "EClassConfig.ecf": "Structure : `{ Entity Name: Zirax` (+ sous-blocs `{ Child 0 ... }` pour les sensors/behaviors). Clés principales :",
   "EGroupsConfig.ecf": "Les noms de groupes (Crawler, ZiraxMale, TalonGuardianGroup...) sont référencés par CreatureSpawning/SpawnZones/EClass.",
@@ -16,7 +16,7 @@
   "Templates.ecf": "Structure d'un template :",
   "TraderNPCConfig.ecf": "---",
   "gameoptions.yaml": "Modèle moteur `GameOptionsYamlData.Dataset` — les descriptions ci-dessous sont la traduction des doc-strings d'Eleon (`[PackageHelper]`). Le premier dataset dont `ValidFor` correspond aux conditions (Survival/Creative/Freedom/ Debug × SP/MP) est utilisé ; dataset sans `ValidFor` = défaut universel.",
-  "playfield.yaml": "Structure typée par le moteur dans `PlayfieldYamlData` (+ classes imbriquées `InstanceData`, `LocalEffectData`, `GlobalEffectData`, `RandomResourceData`, `FixedResourceData`, `AsteroidResourceData`, `ResourceDistType*`, `PresetData`, `PoiData.*`, `DroneBaseSetupData.*`, `DroneSpawnData`, `CreatureSpawnData`, `SpawnZoneData`, `SpawnRateZoneData`, `TerrainBiomeData`, `DCClusterData`, `SpecialBiome`, `PoiData.PlayerStartData`). Les noms de clés YAML = noms des propriétés C# (liaison par réflexion).",
+  "playfield.yaml": "Structure typée par le moteur : les noms de clés YAML sont les noms de propriétés que le jeu attend, et chaque section (`POIs`, `DroneBaseSetup`, `CreatureSpawning`, `SpawnRateZones`...) est un objet typé avec ses propres sous-sections. Hiérarchie vérifiée contre le chargement réel du jeu (v1.19.6, build 5188). Les noms de clés YAML = noms des propriétés C# (liaison par réflexion).",
   "terrain.ecf": "Définit les MATÉRIAUX DE TEXTURE du terrain : chaque bloc racine `{ Material Name: N NomTexture }` = une texture principale, et ses `{ Child N # NomSousTexture }` = les transitions/mélanges possibles."
  },
  "props": [
