@@ -63,3 +63,16 @@ def test_no_capture_is_reported(tmp_path):
         assert brand.main() == 2
     finally:
         sys.argv = argv
+
+
+def test_stamp_is_inked_and_localised():
+    """Le tampon MULTIPLIE l'encre (il teinte le papier, il ne le recouvre
+    pas) et ne touche que sa zone."""
+    base = Image.new("RGB", (400, 300), (200, 190, 170))
+    stamp = brand.apply_stamp(base.copy(), 300, 220, 90)
+    assert stamp.size == base.size
+    # dans la zone du tampon : des pixels ont change et sont plus sombres
+    zone = stamp.crop((240, 170, 360, 270))
+    assert min(sum(px) for px in zone.getdata()) < 420
+    # hors zone : intact
+    assert stamp.getpixel((10, 10)) == base.getpixel((10, 10))
