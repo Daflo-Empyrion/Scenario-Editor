@@ -212,6 +212,14 @@ class AiProvidersDialog(QDialog):
         self.btn_test = QPushButton(icon("fa5s.check", "#ffffff"), t("ai.test"))
         self.btn_test.clicked.connect(self._test)
         bottom.addWidget(self.btn_test)
+        # Le repos anti-echec (10 min, ou le retry_after de l'API) vit en
+        # memoire : ce bouton le leve sans redemarrer l'application.
+        self.btn_clear_wait = QPushButton(icon("fa5s.clock", "#d08b00"),
+                                          t("ai.clear_wait"))
+        self.btn_clear_wait.setObjectName("secondaryButton")
+        self.btn_clear_wait.setToolTip(t("ai.clear_wait_tip"))
+        self.btn_clear_wait.clicked.connect(self._clear_wait)
+        bottom.addWidget(self.btn_clear_wait)
         bottom.addStretch()
         btn_close = QPushButton(t("btn.close"))
         btn_close.setObjectName("secondaryButton")
@@ -221,6 +229,7 @@ class AiProvidersDialog(QDialog):
 
         self._reload_provider_combo()
         self._load_global()
+        self._refresh_wait_button()
 
     # -- comptes -------------------------------------------------------------
     def _reload_provider_combo(self) -> None:
@@ -522,6 +531,28 @@ class AiProvidersDialog(QDialog):
         self.account_label.setStyleSheet("")
         self.account_label.setText(info or t("ai.account_none"))
 
+    def _refresh_wait_button(self) -> None:
+        """Le bouton n'a de sens que si un maillon est en repos : on affiche
+        combien, et on le desactive le reste du temps."""
+        from core.ai import router
+        waiting = router.waiting_links()
+        self.btn_clear_wait.setEnabled(bool(waiting))
+        if waiting:
+            self.btn_clear_wait.setText(
+                t("ai.clear_wait_n", n=len(waiting)))
+
+    def _clear_wait(self) -> None:
+        """Leve le repos anti-echec de TOUS les maillons (memoriaire
+        seulement : rien n'etait persiste). Puis retablit l'affichage."""
+        from core.ai import router
+        waiting = router.waiting_links()
+        router.reset_link_states()
+        self.test_result.setStyleSheet("")
+        self.test_result.setText(
+            t("ai.clear_wait_done", n=len(waiting)) if waiting
+            else t("ai.clear_wait_none"))
+        self._refresh_wait_button()
+
     def _test(self) -> None:
         self._save_fields()
         self._build_links()
@@ -538,6 +569,7 @@ class AiProvidersDialog(QDialog):
         self.test_result.setStyleSheet("")
         self.test_result.setText(t("ai.test_ok", result=result))
         self._refresh_spend()
+        self._refresh_wait_button()
 
     def closeEvent(self, event):
         """La saisie de cle ne doit pas etre perdue si la fenetre est fermee

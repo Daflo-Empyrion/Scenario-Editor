@@ -82,3 +82,46 @@ def test_dialog_remove_provider_drops_links(qapp):
         assert settings.get_ai_providers() == []
     finally:
         sip.delete(dialog)
+
+
+def test_waiting_links_lists_and_reset_clears(qapp, monkeypatch):
+    """Le repos anti-echec est invisible et en memoire : le dialogue doit
+    pouvoir le MONTRER (combien de maillons) et le LEVER sans redemarrer."""
+    from core.ai import router
+    from gui.ai_providers_dialog import AiProvidersDialog
+
+    dialog = AiProvidersDialog()
+    try:
+        dialog._add_preset("openrouter")
+        dialog._build_links()
+        candidates = router._candidates()
+        assert candidates
+        for candidate in candidates:
+            router._mark(candidate.key, 600)
+        waiting = router.waiting_links()
+        assert len(waiting) == len(candidates)
+        assert all(seconds > 0 for _label, seconds in waiting)
+
+        dialog._refresh_wait_button()
+        assert dialog.btn_clear_wait.isEnabled()
+        assert dialog.btn_clear_wait.text() != ""
+
+        dialog._clear_wait()
+        assert router.waiting_links() == []
+        assert not dialog.btn_clear_wait.isEnabled()
+    finally:
+        router.reset_link_states()
+        sip.delete(dialog)
+
+
+def test_clear_wait_button_disabled_without_wait(qapp):
+    from core.ai import router
+    from gui.ai_providers_dialog import AiProvidersDialog
+    router.reset_link_states()
+    dialog = AiProvidersDialog()
+    try:
+        assert not dialog.btn_clear_wait.isEnabled()
+        dialog._clear_wait()                     # ne doit rien casser
+        assert router.waiting_links() == []
+    finally:
+        sip.delete(dialog)

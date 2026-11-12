@@ -109,6 +109,9 @@ aussi depuis le menu Aide de l'application.
 - **Plusieurs fournisseurs OpenAI-compatibles** declares librement (URL de
   base suffit, cle facultative pour un moteur local) ; routeur qui bascule
   automatiquement en cas de panne, de quota ou de plafond
+- **Attente levable** : apres un echec, un fournisseur est mis en repos 10 min
+  (ou le delai annonce par l'API) — le bouton « Lever l'attente » du dialogue
+  Fournisseurs IA le libere immediatement, sans redemarrer l'application
 - **Gratuit d'abord** : les maillons gratuits tournent en boucle ; le payant
   n'est utilise que si tu le coches ET que le cout estime tient dans le
   plafond mensuel (plafond global et par fournisseur, compteur en dollars)
@@ -411,6 +414,9 @@ from the application's Help menu.
 - **Several OpenAI-compatible providers** freely declared (base URL is enough,
   optional key for a local engine); a router that automatically switches on
   failure, quota or cap
+- **Releasable hold**: after a failure a provider is put on hold for 10 min
+  (or the delay the API announced) — the "Clear the wait" button in the AI
+  providers dialog releases it immediately, without restarting the application
 - **Free first**: free endpoints are rotated in a loop; paid ones are only used
   if you tick them AND the estimated cost fits the monthly cap (global and
   per-provider caps, counter in dollars)

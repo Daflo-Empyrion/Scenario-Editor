@@ -11603,6 +11603,26 @@
     "fr": "Tester la traduction",
     "en": "Test translation"
   },
+  "ai.clear_wait": {
+    "fr": "Lever l'attente",
+    "en": "Clear the wait"
+  },
+  "ai.clear_wait_n": {
+    "fr": "Lever l'attente ({n})",
+    "en": "Clear the wait ({n})"
+  },
+  "ai.clear_wait_tip": {
+    "fr": "Après un échec, un fournisseur est mis en repos (10 min, ou le délai annoncé par l'API). Ce repos ne vit qu'en mémoire : ce bouton le lève immédiatement, sans redémarrer l'application.",
+    "en": "After a failure a provider is put on hold (10 min, or the delay the API announced). That hold only lives in memory: this button clears it immediately, without restarting the application."
+  },
+  "ai.clear_wait_done": {
+    "fr": "Attente levée pour {n} maillon(s) : la prochaine traduction les réessaiera immédiatement.",
+    "en": "Wait cleared for {n} link(s): the next translation will retry them immediately."
+  },
+  "ai.clear_wait_none": {
+    "fr": "Aucun fournisseur en attente.",
+    "en": "No provider on hold."
+  },
   "ai.testing": {
     "fr": "Test en cours...",
     "en": "Testing..."

@@ -105,6 +105,25 @@ def cooldown_remaining(candidate: Candidate) -> float:
         return max(0.0, _LINK_DOWN.get(candidate.key, 0.0) - time.monotonic())
 
 
+def waiting_links() -> list:
+    """[(libelle, secondes restantes)] des maillons en repos, lecture seule.
+
+    Sert a l'interface : lever une attente n'a de sens que si l'on voit
+    laquelle est en cours, et pendant combien de temps.
+    """
+    candidates = _candidates()
+    now = time.monotonic()
+    out = []
+    with _LOCK:
+        for candidate in candidates:
+            left = max(_LINK_DOWN.get(candidate.key, 0.0),
+                       _PROVIDER_DOWN.get(
+                           (candidate.provider_id, candidate.tier), 0.0)) - now
+            if left > 0:
+                out.append((candidate.label, left))
+    return out
+
+
 def reset_link_states() -> None:
     global _LAST_LINK
     with _LOCK:
