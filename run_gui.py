@@ -29,6 +29,16 @@ normalement en mode graphique.
 """
 import os
 import sys
+
+# Qt sonde les polices pour chaque script rencontre dans le texte affiche (les
+# CSV du jeu portent 13 langues : chinois, japonais, coreen, russe...) et
+# avertit « OpenType support missing for <police>, script N » pour chaque
+# famille sans donnees pour ce script : c'est du bruit de sa base de polices,
+# Qt bascule sur une police de secours et l'affichage est correct. Coupe ici
+# pour garder la console lisible -- poser la regle AVANT tout import de PyQt,
+# sinon elle arrive trop tard. Retirer la ligne (ou definir QT_LOGGING_RULES)
+# pour revoir les avertissements.
+os.environ.setdefault("QT_LOGGING_RULES", "qt.text.font.db=false")
 from pathlib import Path
 
 if getattr(sys, 'frozen', False):
