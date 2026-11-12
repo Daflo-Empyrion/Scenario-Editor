@@ -34,19 +34,22 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
-FONT = Path("C:/Windows/Fonts/ariblk.ttf")      # Arial Black : base lourde
-SQUEEZE = 0.86                                   # comprime en largeur (aspect technique)
+FONT = (Path(__file__).resolve().parents[1] / "assets" / "fonts"
+        / "Montserrat-Black.ttf")     # police du gabarit (OFL)
+SQUEEZE = 1.0                                    # Montserrat garde ses proportions
 CAP_RATIO = 0.086                                # hauteur de capitale / hauteur d'image
 MARGIN_X = 0.045                                 # aligne sur les ecrans de reference
 MARGIN_Y = 0.075
 STAMP_W = 0.135        # largeur du tampon / largeur d'image
-SUPERSAMPLE = 3
+SUPERSAMPLE = 2
 
 WHITE = (252, 253, 255)
 GREY = (208, 212, 220)
 RED = ((214, 42, 30), (120, 12, 8))
 BLUE = ((58, 148, 226), (16, 62, 120))
-OUTLINE = (12, 13, 16)
+OUTLINE = (8, 9, 12)          # contour epais du gabarit
+FACE_TOP = (44, 52, 72)       # face sombre laquee
+FACE_BOTTOM = (16, 20, 30)
 # encre du tampon : bleu et rouge du drapeau, desatures par le papier
 INK_BLUE = (14, 40, 112)
 INK_RED = (156, 20, 34)
@@ -94,83 +97,112 @@ def _shift(mask: Image.Image, dx: int, dy: int) -> Image.Image:
     return out
 
 
-def _bevel(mask: Image.Image, depth: int):
-    """(lumieres, ombres) internes : la face eclairee haut-gauche, le biseau
-    sombre en bas-droite. C'est ce qui donne le relief des ecrans d'origine."""
-    light = ImageChops.subtract(mask, _shift(mask, depth, depth))
-    dark = ImageChops.subtract(mask, _shift(mask, -depth, -depth))
-    return light.filter(ImageFilter.GaussianBlur(depth / 3)),         dark.filter(ImageFilter.GaussianBlur(depth / 3))
+def _dilate(mask: Image.Image, radius: int) -> Image.Image:
+    """Dilatation par flou + seuil : MaxFilter coute O(k2) et prenait 3 minutes
+    sur un masque de 6 Mpixels a rayon 20."""
+    if radius < 1:
+        return mask.copy()
+    return mask.filter(ImageFilter.GaussianBlur(radius / 2)).point(
+        lambda v: 255 if v > 6 else 0)
 
 
 def render_label(label: str, size: int, accent: dict) -> Image.Image:
-    """Etiquette RGBA 3D : ombre, extrusion, contour, metal brosse biseaute."""
+    """Etiquette dans le style du gabarit : face sombre laquee, CERNE colore
+    (bleu / blanc / rouge), extrusion en bas a gauche, contour epais.
+
+    `accent` = {index du caractere: (couleur haut, couleur bas)} pour le cernc.
+    """
     s = size * SUPERSAMPLE
     font = ImageFont.truetype(str(FONT), s)
-    tracking = s // 44
-    depth = max(2, s // 26)                       # epaisseur de l'extrusion
+    tracking = s // 34
+    rim = max(2, s // 28)                     # epaisseur du cerne colore
+    edge = max(1, s // 80)                    # contour noir par-dessus
+    depth = max(4, s // 13)                   # longueur de l'extrusion
     width = int(sum(font.getlength(c) for c in label)
-                + tracking * (len(label) - 1)) + s * 2
+                + tracking * (len(label) - 1)) + s
     canvas = (width, s * 2)
-    origin = (s // 2, s // 5)
+    origin = (s // 4, s // 5)
 
     base = _text_mask(canvas, label, font, origin, tracking)
     box = base.getbbox()
     if box is None:
         raise ValueError(f"libelle vide : {label!r}")
 
-    # ombre portee
-    shadow = _text_mask(canvas, label, font, origin, tracking,
-                        stroke=max(2, s // 70)).filter(
-        ImageFilter.GaussianBlur(s // 30))
+    # 1. ombre au sol
+    shadow = _dilate(base, rim).filter(ImageFilter.GaussianBlur(s // 28))
     shadow_rgba = Image.new("RGBA", canvas, (0, 0, 0, 0))
-    shadow_rgba.putalpha(shadow.point(lambda v: int(v * 0.55)))
+    shadow_rgba.putalpha(shadow.point(lambda v: int(v * 0.6)))
 
-    # extrusion : la tranche, empilee du plus profond au plus proche
+    # 2. extrusion : la tranche du BLOC, dans la COULEUR du cerne de chaque
+    # lettre (comme le dore du gabarit), empilee vers le bas-gauche
+    outer = _dilate(base, rim + edge)
+
+    # 3. cerne colore ET tranche, lettre par lettre : dilate - masque
+    cerne = Image.new("RGBA", canvas, (0, 0, 0, 0))
     side = Image.new("RGBA", canvas, (0, 0, 0, 0))
-    for k in range(depth, 0, -1):
-        shade = int(28 + 26 * (1 - k / depth))    # plus sombre au fond
-        layer = Image.new("RGBA", canvas, (shade, shade + 2, shade + 6, 0))
-        layer.putalpha(_shift(base, k, k))
-        side = Image.alpha_composite(side, layer)
-
-    # contour fin
-    outline = Image.new("RGBA", canvas, OUTLINE + (0,))
-    outline.putalpha(_text_mask(canvas, label, font, origin, tracking,
-                                stroke=max(1, s // 90)))
-
-    # face : metal brosse, un glyphe a la fois
-    body = Image.new("RGBA", canvas, (0, 0, 0, 0))
+    bands = {}
     x = origin[0]
     for i, char in enumerate(label):
+        one = Image.new("L", canvas, 0)
         if char.strip():
-            one = Image.new("L", canvas, 0)
             ImageDraw.Draw(one).text((x, origin[1]), char, font=font, fill=255)
-            top, bottom = accent.get(i, (WHITE, GREY))
-            band = _brushed((canvas[0], box[3] - box[1]), top, bottom)
-            metal = Image.new("RGB", canvas, top)
-            metal.paste(band, (0, box[1]))
-            painted = metal.convert("RGBA")
-            painted.putalpha(one)
-            body = Image.alpha_composite(body, painted)
+        ring = ImageChops.subtract(_dilate(one, rim), one)
+        top, bottom = accent.get(i, (WHITE, GREY))
+        cle = (top, bottom, box[3] - box[1])
+        if cle not in bands:
+            bands[cle] = _brushed((canvas[0], box[3] - box[1]), top, bottom)
+        band = bands[cle]
+        metal = Image.new("RGB", canvas, top)
+        metal.paste(band, (0, box[1]))
+        painted = metal.convert("RGBA")
+        painted.putalpha(ring)
+        cerne = Image.alpha_composite(cerne, painted)
+
+        # tranche : l'union des decalages est une dilatation unique (meme
+        # diagonale bas-gauche), remplie d'un degrade dans la teinte du cerne
+        silhouette = _dilate(one, rim + edge)
+        bande = ImageChops.subtract(_shift(silhouette, -depth, depth),
+                                    silhouette)
+        shade = _gradient((canvas[0], canvas[1]), top,
+                          tuple(int(c * 0.45) for c in bottom))
+        tranche = Image.new("RGBA", canvas, (0, 0, 0, 0))
+        tranche = Image.composite(shade.convert("RGBA"),
+                                  Image.new("RGBA", canvas, (0, 0, 0, 0)),
+                                  bande)
+        side = Image.alpha_composite(side, tranche)
         x += font.getlength(char) + tracking
 
-    # biseau : lumieres puis ombres internes
-    light_mask, dark_mask = _bevel(base, depth)
-    light = Image.new("RGBA", canvas, (255, 255, 255, 0))
-    light.putalpha(light_mask.point(lambda v: int(v * 0.85)))
-    dark = Image.new("RGBA", canvas, (10, 12, 18, 0))
-    dark.putalpha(dark_mask.point(lambda v: int(v * 0.45)))
+    # 4. contour epais autour du cerne (anneau du masque exterieur)
+    contour = Image.new("RGBA", canvas, OUTLINE + (0,))
+    contour.putalpha(ImageChops.subtract(outer, _dilate(base, rim)))
+
+    # 5. face sombre laquee + reflet
+    face = Image.new("RGBA", canvas, (0, 0, 0, 0))
+    grad = _gradient((canvas[0], box[3] - box[1]), FACE_TOP, FACE_BOTTOM)
+    plate = Image.new("RGB", canvas, FACE_BOTTOM)
+    plate.paste(grad, (0, box[1]))
+    face.putalpha(base)
+    face = Image.composite(plate.convert("RGBA"),
+                           Image.new("RGBA", canvas, (0, 0, 0, 0)), base)
+    # reflet : bande claire sur le tiers superieur de la face
+    gloss_h = max(2, (box[3] - box[1]) // 3)
+    gloss = Image.new("L", canvas, 0)
+    gloss.paste(base.crop((0, box[1], canvas[0], box[1] + gloss_h)),
+                (0, box[1]))
+    gloss = gloss.filter(ImageFilter.GaussianBlur(max(1, s // 90)))
+    sheen = Image.new("RGBA", canvas, (255, 255, 255, 0))
+    sheen.putalpha(gloss.point(lambda v: int(v * 0.28)))
 
     comp = Image.new("RGBA", canvas, (0, 0, 0, 0))
-    offset = max(2, s // 40)
     shifted = Image.new("RGBA", canvas, (0, 0, 0, 0))
+    offset = max(2, s // 34)
     shifted.paste(shadow_rgba, (offset, offset))
     comp = Image.alpha_composite(comp, shifted)
     comp = Image.alpha_composite(comp, side)
-    comp = Image.alpha_composite(comp, outline)
-    comp = Image.alpha_composite(comp, body)
-    comp = Image.alpha_composite(comp, light)
-    comp = Image.alpha_composite(comp, dark)
+    comp = Image.alpha_composite(comp, contour)
+    comp = Image.alpha_composite(comp, cerne)
+    comp = Image.alpha_composite(comp, face)
+    comp = Image.alpha_composite(comp, sheen)
     comp = comp.crop(comp.getbbox())
     return comp.resize((max(1, comp.width // SUPERSAMPLE),
                         max(1, comp.height // SUPERSAMPLE)), Image.LANCZOS)
@@ -254,10 +286,18 @@ def main() -> int:
               len(args.label) - 1: (RED[0], RED[1])}
 
     number = args.start
+    cache = {}
+
+    def label_for(height: int):
+        if height not in cache:
+            cache[height] = render_label(args.label, int(height * CAP_RATIO),
+                                         accent)
+        return cache[height]
+
     for path in images:
         image = Image.open(path).convert("RGBA")
         w, h = image.size
-        label = render_label(args.label, int(h * CAP_RATIO), accent)
+        label = label_for(h)
         image.alpha_composite(label, (int(w * MARGIN_X), int(h * MARGIN_Y)))
         if not args.no_stamp:
             apply_stamp(image, int(w * 0.82), int(h * 0.79), int(w * STAMP_W))
