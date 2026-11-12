@@ -16,9 +16,9 @@
 
 # Construit automatiquement l'exe + l'installeur des qu'un tag "vX.Y.Z" est
 # pousse (meme geste qu'aujourd'hui : git tag vX.Y.Z && git push origin --tags),
-# et cree une Release GitHub en BROUILLON avec l'installeur deja attache -- il
-# ne reste plus qu'a coller le titre/les notes de version et cliquer "Publish"
-# (voir BUILD.md, section 3, pour la redaction des notes).
+# et cree une Release GitHub en BROUILLON avec l'installeur deja attache ET
+# les notes reprises du CHANGELOG (tools/changelog_excerpt.py) -- il ne reste
+# plus qu'a relire et cliquer "Publish" (BUILD.md section 3).
 #
 # Avantage independant de la signature de code : le build se fait sur un
 # environnement Windows propre et reproductible a chaque fois, ce qui elimine
@@ -89,6 +89,13 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-build.txt
 
+      # Les notes de release viennent du CHANGELOG (regle 2.6.0) : l'extraction
+      # echoue en quelques secondes si l'entree `## [X.Y.Z]` manque, donc AVANT
+      # les 10 minutes de build -- jamais de brouillon sans notes.
+      - name: Extraire la note de version (CHANGELOG)
+        id: notes
+        run: python tools/changelog_excerpt.py "${{ github.ref_name }}" -o release_body.md
+
       - name: Construire les executables (PyInstaller)
         run: pyinstaller empyrion_editor.spec --noconfirm
 
@@ -128,8 +135,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           draft: true
+          name: ${{ steps.notes.outputs.title }}
+          body_path: release_body.md
           files: installer_output/*.exe
-          # Pas de generation automatique des notes -- les notes de version
-          # detaillees restent redigees a la main (voir BUILD.md section 3),
-          # ce workflow ne fait que preparer le brouillon avec le fichier deja
-          # attache.
+          # Notes et titre viennent du CHANGELOG (etape precedente) : plus de
+          # recopie manuelle, donc plus de derive entre le depot et la release.
+          # La publication reste un clic (relire puis « Publish release »).

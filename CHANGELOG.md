@@ -4,8 +4,9 @@ Tous les changements notables du projet sont documentes ici.
 Format inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ;
 versionnement [SemVer](https://semver.org/lang/fr/) (`vX.Y.Z`).
 
-Depuis la **2.6.0**, l'entree du CHANGELOG est la source des notes
-de release : elle est recopiee telle quelle sur GitHub.
+Depuis la **2.6.0**, l'entree du CHANGELOG est la source des notes de
+release : le pipeline l'extrait (`tools/changelog_excerpt.py`) pour remplir le
+titre et le corps du brouillon GitHub. Ecrire l'entree AVANT de taguer.
 
 ## [2.6.0] — 2026-11-12
 

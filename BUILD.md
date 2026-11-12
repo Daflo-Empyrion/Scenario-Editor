@@ -123,9 +123,14 @@ le pipeline (quelques minutes) ou sans connexion internet.
    cours (quelques minutes) -- ou construis en local avec `build.bat` si tu
    preferes ne pas attendre.
 3. Une fois le workflow termine, va dans **Releases** : un brouillon avec le
-   tag `v1.1.0` et l'installeur deja attache t'attend. Ajoute le titre et la
-   description des changements, verifie que le bon fichier est present, puis
-   **Publish release**.
+   tag `v1.1.0`, l'installeur deja attache **et les notes reprises du
+   CHANGELOG** (`tools/changelog_excerpt.py`, titre compris) t'attend. Relis,
+   verifie que le bon fichier est present, puis **Publish release**.
+
+   Corollaire : l'entree `## [X.Y.Z]` doit exister dans `CHANGELOG.md` **avant**
+   de taguer — le job `build` l'extrait en premier et echoue en quelques
+   secondes si elle manque, donc aucun brouillon sans notes (le test
+   `test_current_version_has_a_changelog_entry` le verifie aussi cote suite).
 
 **Important** : le tag doit obligatoirement commencer par `v` suivi du meme
 numero que `APP_VERSION` (ex: tag `v1.1.0` pour `APP_VERSION = "1.1.0"`) —
