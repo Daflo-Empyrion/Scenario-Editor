@@ -1,2 +1,0 @@
-# Le hook pre-push est un script shell : un CRLF le casse ("bad interpreter").
-.githooks/* text eol=lf
