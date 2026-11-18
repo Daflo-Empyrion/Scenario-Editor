@@ -167,6 +167,14 @@ aussi depuis le menu Aide de l'application.
   de routes** (destination, item, note, vu date, net marchand) et **matrice de
   degats** armes x materiaux (paliers empiriques par colonne) — export CSV de
   chaque vue, lecture seule, rien n'est ecrit dans le scenario
+- **Consoles en jeu (scenario)** : bouton **« Regenerer les consoles »** qui
+  ecrit dans le scenario deux familles de blocs constructibles — **consoles
+  commercantes T1/T2/T3** (licence par commercant, stock marchand,
+  reapprovisionnement, vente automatique du container VENTE avec facture
+  paginee sur T2/T3) et **console d'atelier** (affichage LCD des coffres, tri
+  par sous-categorie, approvisionnement des fabricateurs avec coffre
+  memorise). Fusion idempotente : les editions manuelles hors sections
+  generees sont preservees
 
 #### Equilibrage et prix marche
 - **Equilibrage du scenario** : regles par propriete (MaxCount, CPUIn,
@@ -218,6 +226,14 @@ Un bouton, une reponse : **le jeu va-t-il charger ton scenario ?**
   `HitPoints` sans `type: int` (valeur ignoree en silence), entrees de
   conteneur hors plage, type de bloc etranger au fichier (`IndexOutOfRange`
   puis crash), `UnlockLevel` au-dela du cap joueur
+- **Dialogues et ECF** : appels de fonctions nus, cles dupliquees, etats ou
+  fonctions manquants, blocs non refermes, valeurs ECF coupees
+- **PDA, secteurs, POI** : activations sans cible, cles de niveau tache,
+  en-tete de galaxie, composition des secteurs, POI spatiaux multiples, POI
+  sans prefab, `Probability` invalide
+- **Localisation et decor** : cles `Info:` de blocs Frontier manquantes, et
+  **decorations de biome rendues visibles** (crash garanti au chargement du
+  playfield)
 - **Ressources en tension** : la politique de regeneration des POI est
   controlee (un POI qui revient au lieu de se recuperer une fois rend les
   ressources infinies) — l'alerte nomme la passe a relancer
@@ -471,6 +487,13 @@ from the application's Help menu.
   seen/dated, trader margin) and **damage matrix** weapons x materials
   (empirical tiers per column) — CSV export of every view, read-only, nothing
   is written into the scenario
+- **In-game consoles (scenario)**: a **"Regenerate consoles"** button writes
+  two families of craftable blocks into the scenario — **T1/T2/T3 merchant
+  consoles** (one licence per trader, trader stock, restock, automatic sale of
+  the SALE container with a paginated invoice on T2/T3) and a **workshop
+  console** (container contents on LCD screens, sorting by sub-category,
+  feeding constructors from a memorised chest). Idempotent merge: manual
+  edits outside generated sections are preserved
 
 #### Balancing and market prices
 - **Scenario balancing**: rules per property (MaxCount, CPUIn, HitPoints,
@@ -520,6 +543,14 @@ One button, one answer: **is the game going to load your scenario?**
   without `type: int` (silently ignored value), container entries past the
   index limit, a block type foreign to its file (`IndexOutOfRange` then
   crash), `UnlockLevel` beyond the player cap
+- **Dialogues and ECF**: bare function calls, duplicate keys, missing states
+  or functions, unclosed blocks, truncated ECF values
+- **PDA, sectors, POIs**: activations with no target, task-level keys, galaxy
+  header, sector composition, multiple space POIs, POI without prefab,
+  invalid `Probability`
+- **Localisation and decor**: missing `Info:` keys on Frontier blocks, and
+  **biome decorations made visible** (guaranteed crash when the playfield
+  loads)
 - **Resource tension**: the POI regeneration policy is checked (a POI that
   comes back instead of being salvaged once makes resources infinite) — the
   alert names the pass to re-run
