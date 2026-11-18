@@ -198,6 +198,47 @@ def _is_playfield(folder: Path) -> bool:
     return any((folder / name).is_file() for name in _DEFINITIONS)
 
 
+_INSTANCE_RE = re.compile(r"^Instance:[ \t]*$", re.M)
+_PLANET_TYPE_RE = re.compile(r"^PlanetType:[ \t]*(\w+)", re.M)
+
+
+def _is_instance(folder: Path) -> bool:
+    """Playfield d'INSTANCE (bloc `Instance:` : duree limitee, portail,
+    MaxPlayers) : il s'entre par un portail depuis un POI de mission, jamais
+    depuis la galaxie. Le declarer en secteur de galaxie casse la generation
+    de partie (vecu 13/11 : `Elemental Space Race Mission` pose en secteur,
+    NRE `PackageSite.IncreaseStub` sur le playfield d'espace nul)."""
+    for name in _DEFINITIONS:
+        path = folder / name
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            continue
+        if _INSTANCE_RE.search(text):
+            return True
+    return False
+
+
+def _planet_type(folder: Path) -> str:
+    """`PlanetType` declare (souvent `Orbit...` pour une orbite dont le NOM ne
+    dit pas « orbit » — `CrownSector` : un secteur autonome avec ce playfield
+    casse la creation de partie, comme toute orbite isolee)."""
+    for name in _YAML_FILES:
+        path = folder / name
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            continue
+        trouve = _PLANET_TYPE_RE.search(text)
+        if trouve:
+            return trouve.group(1)
+    return ""
+
+
 def _playfield_type(folder: Path) -> str:
     """`PlayfieldType` declare, `playfield.yaml` d'abord puis le corpus
     (`playfield_static.yaml` porte le type des planetes/lunes, `space_dynamic`
@@ -236,7 +277,7 @@ def _category(folder: Path) -> str:
     space = _is_space(folder)
     name = folder.name.casefold()
     if space:
-        if "orbit" in name:
+        if "orbit" in name or _planet_type(folder).casefold().startswith("orbit"):
             return "orbit"
         if "asteroid" in name:
             return "asteroid"
@@ -338,6 +379,8 @@ def find_orphans(root) -> List[Orphan]:
     for folder in sorted(pf_root.iterdir() if pf_root.is_dir() else []):
         if (not folder.is_dir() or folder.name.startswith("+")
                 or not _is_playfield(folder)):
+            continue
+        if _is_instance(folder):
             continue
         if folder.name.casefold() in refs:
             continue
@@ -467,10 +510,17 @@ def _ring_coords(used: set, center: Tuple[int, int, int] = (0, 0, 0)):
         radius += 1
 
 
-def _host_sectors(system: YamlEntry) -> List[Tuple[Tuple[int, int, int], set]]:
+def _host_sectors(root: Path, system: YamlEntry
+                  ) -> List[Tuple[Tuple[int, int, int], set, bool]]:
     """Secteurs de planete du systeme (accueillent lunes et orbites) avec les
-    offsets deja pris. Un soleil n'est jamais un hote ; plusieurs hotes
-    existent par systeme, on les fait tourner (une orbite par planete)."""
+    offsets deja pris et la presence d'un playfield SPATIAL. Un soleil n'est
+    jamais un hote ; plusieurs hotes existent par systeme, on les fait
+    tourner (une orbite par planete).
+
+    Le troisieme champ compte : un secteur n'admet QU'UN playfield spatial
+    (le corpus n'en met jamais deux) — y ajouter une orbite quand il en a
+    deja une fait creer au moteur un POI sans donnees de playfield et casse
+    la creation de partie (NRE PackageSite.IncreaseStub, vecu 13/11)."""
     sectors_entry = _find_child(system, "Sectors")
     out: List[Tuple[Tuple[int, int, int], set]] = []
     for sector in _seq_items(sectors_entry) if sectors_entry is not None else []:
@@ -483,6 +533,12 @@ def _host_sectors(system: YamlEntry) -> List[Tuple[Tuple[int, int, int], set]]:
                 types.append(_strip_quotes(fields[2]))
         if not types or all(t.casefold().startswith("sun") for t in types):
             continue
+        # un secteur de WARP (`SpaceWarpTarget`) n'est jamais un hote : le
+        # corpus n'y met qu'une entree, et y poser une lune ou une orbite
+        # casse la generation de partie (vecu 13/11 : 26 secteurs ainsi
+        # charges, NRE a la creation de partie)
+        if any(t.casefold().startswith("spacewarptarget") for t in types):
+            continue
         # un secteur de l'ANCIEN format va etre retire : jamais un hote
         if _is_legacy_sector(sector):
             continue
@@ -490,11 +546,16 @@ def _host_sectors(system: YamlEntry) -> List[Tuple[Tuple[int, int, int], set]]:
         if len(key) != 3:
             continue
         taken = set()
+        deja_espace = False
         for row in rows:
             fields = _split_flow(row.value) if row.value else []
             if fields:
                 taken.add(tuple(_coords_key(fields[0])))
-        out.append(((int(key[0]), int(key[1]), int(key[2])), taken))
+            if len(fields) >= 3:
+                dossier = root / "Playfields" / _strip_quotes(fields[2])
+                if dossier.is_dir() and _is_space(dossier):
+                    deja_espace = True
+        out.append(((int(key[0]), int(key[1]), int(key[2])), taken, deja_espace))
     return out
 
 
@@ -526,7 +587,7 @@ def plan_placements(root, picks: Iterable[str],
                              for s in _seq_items(sectors_entry)} \
             if sectors_entry is not None else set()
         centers[name] = _sun_coords(system)
-        hosts[name] = _host_sectors(system)
+        hosts[name] = _host_sectors(root, system)
     used_names = _playfield_names(solar)
     orphans = {o.type_name: o for o in find_orphans(root)}
     orbit_types = _orbit_types(root)
@@ -549,13 +610,27 @@ def plan_placements(root, picks: Iterable[str],
         while name.casefold() in used_names:
             name = f"{base_name}_{suffix}"
             suffix += 1
+        hote = None
         if orphan.category in ("moon", "orbit"):
             available = hosts.get(system) or []
-            if not available:
-                continue           # systeme sans planete : rien a orbiter
-            index_host = host_index.get(system, 0) % len(available)
-            host_index[system] = index_host + 1
-            host_coords, taken = available[index_host]
+            if orphan.category == "orbit":
+                # jamais deux playfields spatiaux dans un secteur : le moteur
+                # cree alors un POI sans donnees et casse la creation de
+                # partie (vecu 13/11). Sans hote libre, l'orbite prend son
+                # propre secteur (branche secteur, plus bas).
+                available = [h for h in available if not h[2]]
+            if available:
+                index_host = host_index.get(system, 0) % len(available)
+                host_index[system] = index_host + 1
+                hote = available[index_host]
+            elif orphan.category in ("moon", "orbit"):
+                # sans hote libre, une lune ou une ORBITE n'est jamais posee :
+                # un secteur autonome dont le playfield est une orbite casse la
+                # creation de partie (vecu 13/11, prouve avec deux playfields
+                # identiques au bit : le jumeau vanille casse aussi).
+                continue
+        if hote is not None:
+            host_coords, taken, _espace = hote
             offset = _pick_offset(orphan.category, taken)
             taken.add(tuple(_coords_key(f"{offset[0]},{offset[1]},{offset[2]}")))
             used_names.add(name.casefold())

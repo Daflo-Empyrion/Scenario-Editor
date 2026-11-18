@@ -172,6 +172,36 @@ def test_moon_is_skipped_without_a_host_planet(tmp_path):
     assert [p.system for p in plan] == ["Alpha"]      # Beta n'a pas de planete
 
 
+def test_warp_sector_is_never_a_host(tmp_path):
+    """Un secteur `SpaceWarpTarget` n'accueille ni lune ni orbite : le corpus
+    n'y met qu'une entree (vecu 13/11, systeme sans planete hote)."""
+    root = _build(tmp_path)
+    path = root / "Sectors" / "Sectors.yaml"
+    text = path.read_text(encoding="utf-8").replace(
+        "      - Coordinates: [3, 0, 0]\n        Playfields:\n"
+        "          - ['0, 0, 0', Akua, Starter_Akua_V2, '', '', '', '']",
+        "      - Coordinates: [3, 0, 0]\n        SectorMapType: WarpTarget\n"
+        "        Playfields:\n"
+        "          - ['0,0,0', 'Alpha [Sun Right]', SpaceWarpTarget, '']",
+        1)
+    path.write_text(text, encoding="utf-8")
+    plan = plan_placements(root, ["Start_MoonIce", "Starter_Akua_Orbit"],
+                           per_system=1)
+    assert all(p.sector != (3, 0, 0) for p in plan)
+
+
+def test_instance_playfield_is_not_proposed(tmp_path):
+    """Un playfield d'INSTANCE (`Instance:`) s'entre par portail : le declarer
+    en secteur de galaxie casse la generation (vecu 13/11)."""
+    root = _build(tmp_path)
+    folder = root / "Playfields" / "Space Race Mission"
+    folder.mkdir(parents=True)
+    (folder / "playfield.yaml").write_text(
+        "PlayfieldType: Space\nInstance:\n  Time: 7\n  MaxPlayers: 5\n",
+        encoding="utf-8")
+    assert "Space Race Mission" not in {o.type_name for o in find_orphans(root)}
+
+
 def test_plan_suffixes_a_name_already_taken(tmp_path):
     root = _build(tmp_path)
     plan = plan_placements(root, ["Alpha"])
@@ -422,3 +452,26 @@ def test_dialog_blocks_an_unloadable_playfield(qapp, tmp_path, monkeypatch):
             & Qt.ItemFlag.ItemIsUserCheckable
     finally:
         sip.delete(dialog)
+
+
+def test_orbit_never_joins_a_sector_that_already_has_a_space_playfield(tmp_path):
+    """Un secteur n admet QU UN playfield spatial (vanille : 0 sur 360).
+    En ajouter un second fait creer au moteur un POI sans donnees -> NRE a la
+    creation de partie (vecu 13/11) : l orbite orpheline prend son propre secteur."""
+    NL = chr(10)
+    Q = chr(39)
+    root = _build(tmp_path)
+    autre = root / "Playfields" / "Other_Orbit"
+    autre.mkdir(parents=True)
+    (autre / "space_dynamic.yaml").write_text("PlayfieldType: Space", encoding="utf-8")
+    path = root / "Sectors" / "Sectors.yaml"
+    avant = NL.join(["      - Coordinates: [3, 0, 0]",
+                     "        Playfields:",
+                     "          - [" + Q + "0, 0, 0" + Q + ", Akua, Starter_Akua_V2, " + Q + Q + ", " + Q + Q + ", " + Q + Q + ", " + Q + Q + "]"])
+    apres = avant + NL + "          - [" + Q + "0,0,0" + Q + ", Akua Orbit, Other_Orbit, " + Q + Q + "]"
+    path.write_text(path.read_text(encoding="utf-8").replace(avant, apres, 1), encoding="utf-8")
+    plan = plan_placements(root, ["Starter_Akua_Orbit"])
+    # ni ligne dans un secteur deja spatial, ni secteur autonome (prouve le
+    # 13/11 avec deux playfields identiques au bit) : l orbite est ecartee.
+    assert plan == []
+
