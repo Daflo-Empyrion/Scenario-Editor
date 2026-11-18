@@ -10,84 +10,84 @@ titre et le corps du brouillon GitHub. Ecrire l'entree AVANT de taguer.
 
 ## [2.7.0] — 2026-11-18
 
-*Consoles en jeu (commerce et atelier), bilan avant lancement etendu, modeles resolus par nom*
+*Consoles en jeu (commerce et atelier), bilan avant lancement étendu, modèles résolus par nom*
 
-### Consoles commercantes constructibles (T1 / T2 / T3)
+### Consoles commerçantes constructibles (T1 / T2 / T3)
 
-Deux generateurs ecrivent du **contenu de scenario** directement dans le
-scenario ouvert : les consoles sont posees en base ou en vaisseau capital et
+Deux générateurs écrivent du **contenu de scénario** directement dans le
+scénario ouvert : les consoles sont posées en base ou en vaisseau capital et
 portent tout le commerce du jeu.
 
-- **3 blocs** (T1 bleu, T2 or, T3 violet) : T1 = 5 electroniques + 10
+- **3 blocs** (T1 bleu, T2 or, T3 violet) : T1 = 5 électroniques + 10
   plastique ; T2 = 5 T1 + 20 reliques ; T3 = 5 T2 + 20 reliques.
-- **Licences** : chaque commercant de la galaxie vend la sienne (1 000 000 cr,
-  stock 1), l'activation est definitive et **une licence par console**.
-- **Achat / vente** : catalogue complet par commercant, prix du
-  `TraderNPCConfig` x `MarketPrice`, multiplicateurs par palier (achat
-  x1.60/1.40/1.20, vente x0.40/0.50/0.60), budgets de cycle separes
-  (500 k / 5 M / illimite), **stock marchand limite dans les deux sens** et
-  reapprovisionne toutes les 60 min de session.
+- **Licences** : chaque commerçant de la galaxie vend la sienne (1 000 000 cr,
+  stock 1), l'activation est définitive et **une licence par console**.
+- **Achat / vente** : catalogue complet par commerçant, prix du
+  `TraderNPCConfig` × `MarketPrice`, multiplicateurs par palier (achat
+  ×1.60/1.40/1.20, vente ×0.40/0.50/0.60), budgets de cycle séparés
+  (500 k / 5 M / illimité), **stock marchand limité dans les deux sens** et
+  réapprovisionné toutes les 60 min de session.
 - **Vente automatique du container « VENTE »** sur T2/T3, avec **rebond sur
-  l'acheteur suivant** quand le meilleur est epuise et **facture paginee**
+  l'acheteur suivant** quand le meilleur est épuisé et **facture paginée**
   (5 lignes par page, 12 pages max).
-- **Regeneration** : bouton **Codex > Marchands > Regenerer les consoles**
-  (`core/console_traders.py`), mode fusion idempotent qui preserve les
-  editions manuelles hors sections generees.
+- **Régénération** : bouton **Codex > Marchands > Régénérer les consoles**
+  (`core/console_traders.py`), mode fusion idempotent qui préserve les
+  éditions manuelles hors sections générées.
 
 ### Console d'atelier (affichage LCD, tri, approvisionnement)
 
 - **2 blocs pour un seul arbre de dialogue** : console principale + variante
-  compacte a poser pres des containers (memoire et reglages partages).
-- **AFFICHAGE** + **SONDE** : le contenu d'un coffre defile sur un ecran LCD
-  (12 lignes/page, 5 s), plusieurs ecrans par prefixe, RAFRAICHIR.
-- **TRI** : verse le container vers `TRI_<Categorie>` (15 sous-categories,
-  debordement multi-coffres), APPRENDRE memorise vos rangements manuels.
-- **APPRO** : alimente les fabricateurs, **coffre multi-items memorise**
-  (`|Nom=id:qte|`, MEMORISER TOUS / UN, coffre vide ignore), DEMARRER /
-  ARRETER l'auto.
-- Aide HTML complete (12 sections) ouverte par l'option AIDE, traces
-  `APP-TRACE:` sur chaque action, arbre optimise (6 020 -> 215 blocs C#,
-  643 -> 96 Ko).
+  compacte à poser près des containers (mémoire et réglages partagés).
+- **AFFICHAGE** + **SONDE** : le contenu d'un coffre défile sur un écran LCD
+  (12 lignes/page, 5 s), plusieurs écrans par préfixe, RAFRAÎCHIR.
+- **TRI** : verse le container vers `TRI_<Catégorie>` (15 sous-catégories,
+  débordement multi-coffres), APPRENDRE mémorise vos rangements manuels.
+- **APPRO** : alimente les fabricateurs, **coffre multi-items mémorisé**
+  (`|Nom=id:qté|`, MÉMORISER TOUS / UN, coffre vide ignoré), DÉMARRER /
+  ARRÊTER l'auto.
+- Aide HTML complète (12 sections) ouverte par l'option AIDE, traces
+  `APP-TRACE:` sur chaque action, arbre optimisé (6 020 → 215 blocs C#,
+  643 → 96 Ko).
 
-### Bilan avant lancement etendu
+### Bilan avant lancement étendu
 
-Nouveaux controles, chacun avec sa gravite (`error` = crash, `warning` =
-donnee ignoree) et le module correctif nomme :
+Nouveaux contrôles, chacun avec sa gravité (`error` = crash, `warning` =
+donnée ignorée) et le module correctif nommé :
 
-- **Dialogues** : appels de fonctions nus, cles dupliquees PAR dictionnaire,
-  etats/fonctions manquants, blocs non refermes (le parseur imbrique les
-  etats suivants), variables dupliquees, profondeur d'accolades.
-- **ECF** : valeurs coupees (saut de ligne dans une chaine).
-- **PDA** : activations de chapitre sans cible, cles de niveau tache au
+- **Dialogues** : appels de fonctions nus, clés dupliquées PAR dictionnaire,
+  états/fonctions manquants, blocs non refermés (le parseur imbrique les
+  états suivants), variables dupliquées, profondeur d'accolades.
+- **ECF** : valeurs coupées (saut de ligne dans une chaîne).
+- **PDA** : activations de chapitre sans cible, clés de niveau tâche au
   niveau chapitre.
-- **Secteurs** : en-tete perdu, composition, playfields spatiaux multiples,
+- **Secteurs** : en-tête perdu, composition, playfields spatiaux multiples,
   soleil/cibles de warp.
-- **POI** : `GroupName` sans prefab, cles inconnues, `Probability` invalide.
-- **Localisation** : cles `Info:` de blocs Frontier manquantes,
-  **decorations de biome rendues visibles** (crash au chargement du
+- **POI** : `GroupName` sans prefab, clés inconnues, `Probability` invalide.
+- **Localisation** : clés `Info:` de blocs Frontier manquantes,
+  **décorations de biome rendues visibles** (crash au chargement du
   playfield, NRE dans `InstancingManager.AddPrefab`).
 
-### Modeles et bundles
+### Modèles et bundles
 
-- Resolution des modeles de scenario `@bundle/Nom` **par nom de prefab**
+- Résolution des modèles de scénario `@bundle/Nom` **par nom de prefab**
   (`core/unity_bundles.bundle_prefabs`, `trouver_bundle`) et outil
-  `tools/list_models.py` pour lister/filtrer les modeles d'un bundle.
+  `tools/list_models.py` pour lister/filtrer les modèles d'un bundle.
 
-### Scenario Frontier-FR
+### Scénario Frontier-FR
 
-- `docs/scenario_frontierfr_particularites.md` : source de redaction de la
-  fiche du scenario (11 sections + journal), incluant les consoles, les
-  donjons aliens et les recettes de **deconstruction** des blocs de POI.
-- `docs/frontierfr_ressources_rarete.md` : repartition des ressources rares.
+- `docs/scenario_frontierfr_particularites.md` : source de rédaction de la
+  fiche du scénario (11 sections + journal), incluant les consoles, les
+  donjons aliens et les recettes de **déconstruction** des blocs de POI.
+- `docs/frontierfr_ressources_rarete.md` : répartition des ressources rares.
 
 ### Corrections
 
-- `Localization.csv` : la purge des generateurs ne supprime plus que **leurs**
-  cles (les libelles de l'atelier survivent a une regeneration commerce) et
+- `Localization.csv` : la purge des générateurs ne supprime plus que **leurs**
+  clés (les libellés de l'atelier survivent à une régénération commerce) et
   les **commentaires de section** ne s'accumulent plus (70 copies dans
   Frontier-FR).
-- Libelles des blocs Frontier ecrits dans `Extras/Localization.csv`.
-- Glossaire des proprietes resynchronise (`data/propriete_glossary.json`).
+- Libellés des blocs Frontier écrits dans `Extras/Localization.csv`.
+- Glossaire des propriétés resynchronisé (`data/propriete_glossary.json`).
 
 ## [2.6.0] — 2026-11-12
 
