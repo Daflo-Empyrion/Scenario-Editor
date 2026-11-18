@@ -27,7 +27,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (QAbstractItemView, QComboBox, QDoubleSpinBox,
                              QGroupBox, QHBoxLayout, QHeaderView,
-                             QInputDialog, QLabel, QLineEdit, QListWidget,
+                             QInputDialog, QLabel, QLineEdit, QMessageBox, QListWidget,
                              QListWidgetItem, QPushButton, QSplitter,
                              QTableWidget, QTableWidgetItem, QTabWidget,
                              QTextBrowser, QVBoxLayout, QWidget)
@@ -1022,7 +1022,34 @@ class TradersTab(QWidget):
         self.tabs.addTab(self.opps, t("codex.opp.tab"))
         self.tabs.addTab(self.locations_tab, t("codex.loc.tab"))
         lay.addWidget(self.tabs, 1)
+        # Console commerçante : regeneration depuis les configs courantes
+        row = QHBoxLayout()
+        self.btn_regen = QPushButton(t("console.regen.button"))
+        self.btn_regen.clicked.connect(self._regen_consoles)
+        row.addWidget(self.btn_regen)
+        row.addStretch(1)
+        lay.addLayout(row)
         self.opps.routeRequested.connect(self._route_from_opportunity)
+
+    def _regen_consoles(self) -> None:
+        """Regenere licences + console + dialogues + APPS du scenario."""
+        from core.console_apps import regen_apps
+        from core.console_traders import regen
+
+        try:
+            report = run_long(
+                self,
+                lambda: {**regen(self.working_root),
+                         **regen_apps(self.working_root)},
+                message_key="busy.please_wait")
+        except Exception as exc:  # noqa: BLE001 -- retour UI explicite
+            QMessageBox.warning(self, t("console.regen.title"), str(exc))
+            return
+        done = t("console.regen.done", lic=report['licences'],
+                 stock=report['stock'], nodes=report['nodes'],
+                 skipped=report['skipped'], apps_items=report['apps_items'],
+                 apps_block=report['apps_block'])
+        QMessageBox.information(self, t("console.regen.title"), done)
 
     def set_data(self, data: CodexData) -> None:
         self.traders.set_data(data)
