@@ -864,6 +864,55 @@ def _check_transitions(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
                     f"chargement (reintegrer ce bloc ou repointur la {key})"))
 
 
+def _check_brace_depth(ctx: _Ctx, issues: List[LaunchIssue]) -> None:
+    """Equilibre des accolades ECF, vu le 16/11 : des fermetures `}` retirees
+    par des suppressions par blocs ont laisse des `{` non fermes — la
+    profondeur a depasse la limite du chargeur (« ECF config Template
+    contains too many child levels in line N -- ECF reading aborted! » :
+    TOUS les templates du fichier perdus). Le parseur du projet (recovery)
+    tolere ce que le jeu jette : ce check marche ligne a ligne.
+    Regle : profondeur finale != 0 (bloc non ferme) ou > 3 (trop imbrique :
+    le jeu jette au-dela de sa limite de niveaux enfants)."""
+    for fname in ("Templates.ecf", "BlocksConfig.ecf", "ItemsConfig.ecf"):
+        p = ctx.conf / fname
+        if not p.exists():
+            continue
+        depth = 0
+        max_depth = 0
+        first_line = None
+        for i, ln in enumerate(p.read_text(encoding="utf-8-sig",
+                                           errors="replace").splitlines(), 1):
+            s = ln.strip()
+            if s.startswith("#"):
+                continue
+            opens = ln.count("{")
+            closes = ln.count("}")
+            depth += opens - closes
+            if opens and depth > max_depth:
+                max_depth = depth
+            if depth < 0 and first_line is None:
+                first_line = (i, "}` orpheline (profondeur negative)")
+                depth = 0
+        if first_line:
+            issues.append(_issue(
+                f"{_CONF}/{fname}", "error",
+                f"accolades desequilibrees dans {fname} : {first_line[1]} — "
+                f"supprimer les lignes }} orphelines"))
+        elif depth != 0:
+            issues.append(_issue(
+                f"{_CONF}/{fname}", "error",
+                f"accolades desequilibrees dans {fname} : profondeur finale "
+                f"{depth} (bloc(s) non ferme(s)) — {max_depth} niveaux max "
+                f"imbriques ; le jeu jette « too many child levels » et "
+                f"avorte tout le fichier"))
+        elif max_depth > 3:
+            issues.append(_issue(
+                f"{_CONF}/{fname}", "error",
+                f"{fname} : {max_depth} niveaux d'accolades imbriques "
+                f"(limite du chargeur jeu depassee) — « too many child "
+                f"levels » et avortement du fichier"))
+
+
 def run_engine_loader_checks(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     """Les checks « chargeurs du moteur » du bilan : repliquent les
     validations fatales des chargeurs ECF/TechTree du jeu (voir docstring du
@@ -878,4 +927,5 @@ def run_engine_loader_checks(root: Path, vanilla_content: str = "") -> list[Laun
     _check_transitions(ctx, issues)
     _check_templates(ctx, issues)
     _check_techtree(ctx, issues)
+    _check_brace_depth(ctx, issues)
     return issues

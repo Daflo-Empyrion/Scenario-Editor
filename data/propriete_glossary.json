@@ -16,7 +16,7 @@
   "Templates.ecf": "Structure d'un template :",
   "TraderNPCConfig.ecf": "---",
   "gameoptions.yaml": "Modèle moteur `GameOptionsYamlData.Dataset` — les descriptions ci-dessous sont la traduction des doc-strings d'Eleon (`[PackageHelper]`). Le premier dataset dont `ValidFor` correspond aux conditions (Survival/Creative/Freedom/ Debug × SP/MP) est utilisé ; dataset sans `ValidFor` = défaut universel.",
-  "playfield.yaml": "Structure typée par le moteur : les noms de clés YAML sont les noms de propriétés que le jeu attend, et chaque section (`POIs`, `DroneBaseSetup`, `CreatureSpawning`, `SpawnRateZones`...) est un objet typé avec ses propres sous-sections. Hiérarchie vérifiée contre le chargement réel du jeu (v1.19.6, build 5188). Les noms de clés YAML = noms des propriétés C# (liaison par réflexion).",
+  "playfield.yaml": "Structure typée par le moteur : les noms de clés YAML sont les noms de propriétés que le jeu attend, et chaque section (`POIs`, `DroneBaseSetup`, `CreatureSpawning`, `SpawnRateZones`...) est un objet typé avec ses propres sous-sections. Hiérarchie vérifiée contre le chargement réel du jeu (v1.20, build 5229). Les noms de clés YAML = noms des propriétés C# (liaison par réflexion).",
   "terrain.ecf": "Définit les MATÉRIAUX DE TEXTURE du terrain : chaque bloc racine `{ Material Name: N NomTexture }` = une texture principale, et ses `{ Child N # NomSousTexture }` = les transitions/mélanges possibles."
  },
  "props": [

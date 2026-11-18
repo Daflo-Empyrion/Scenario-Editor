@@ -1328,3 +1328,531 @@ def test_entity_material_absent_from_materialconfig_is_a_warning(tmp_path):
     sain = _build_material_scenario(tmp_path / "b", "Mechanical")
     assert scan_entity_materials(sain) == []
     assert [i for i in _check_hygiene(sain) if "MaterialConfig" in i.message] == []
+
+
+def _build_dialogue_scenario(root: Path, fonc: str, var: str = "") -> Path:
+    conf = root / "Content" / "Configuration"
+    conf.mkdir(parents=True, exist_ok=True)
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Frontier_THub2_container\n'
+        '  NPCName: "Borne commerçante"\n'
+        f'  Functions: "{fonc}"\n'
+        + (f"  {var}\n" if var else "")
+        + '  Option_1: "VENDRE maintenant"\n'
+        '}\n', encoding="utf-8")
+    return root
+
+
+def test_dialogue_dup_var_intra_arbre(tmp_path):
+    """Vecu 17/11 : Frontier_DV2 declare dans le hub T2 ET dans le noeud du
+    container VENTE -> CS0102, arbre mort, console commerce VIDE. Deux
+    arbres differents peuvent declarer le meme nom : seul le doublon DANS
+    UN MEME arbre est fatal."""
+    from core.config_hygiene import scan_dialogue_dup_vars
+    conf = tmp_path / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "BlocksConfig.ecf").write_text(
+        # racine trouvee MEME avec plusieurs champs entre Name et
+        # DialogueState (bloc console atelier : CustomIcon, Class, puis
+        # DialogueState). Vecu 17/11 soir : un regex tolerant UNE seule
+        # ligne intermediaire rendait les scans AVEUGLES a cet arbre —
+        # 15 CS0102 + 1 CS0103 passes sans un mot, console VIDE en jeu.
+        "{ +Block Id: 207, Name: Frontier_Console\n"
+        "  CustomIcon: ScifiComputerTable\n"
+        "  Class: NPCDialogue\n"
+        "  DialogueState: Frontier_HubA\n"
+        "}\n"
+        "{ +Block Id: 208, Name: Frontier_Console2\n"
+        "  DialogueState: Frontier_HubB\n"
+        "}\n", encoding="utf-8")
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Frontier_HubA\n'
+        '  Variable_1: "Dupliquee", param1: dbplayer_int\n'
+        '  Option_1: "x"\n  OptionNext_1: Frontier_FilsA\n'
+        '}\n'
+        '{ +Dialogue Name: Frontier_FilsA\n'
+        '  Variable_1: "Dupliquee", param1: dbplayer_int\n'
+        '  Option_1: "retour"\n  OptionNext_1: End\n'
+        '}\n'
+        '{ +Dialogue Name: Frontier_HubB\n'
+        '  Variable_1: "Dupliquee", param1: dbplayer_int\n'
+        '  Option_1: "fin"\n  OptionNext_1: End\n'
+        '}\n', encoding="utf-8")
+    res = scan_dialogue_dup_vars(tmp_path)
+    assert len(res) == 1
+    assert res[0][0] == "Frontier_HubA" and res[0][1] == "Dupliquee"
+
+
+def test_dialogue_functions_bare_call_et_dup_key(tmp_path):
+    """Vecu 17/11 (log 034353) : un appel nu dans Functions -> CS0501,
+    classe morte, console vide + figage ; deux entrees de Dictionary de
+    meme id (bloc + item partagent le numero 600) -> ArgumentException
+    a l'execution."""
+    from core.config_hygiene import scan_dialogue_functions
+    from core.launch_check import _check_hygiene
+    conf = tmp_path / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Cassant\n'
+        '  Functions: "OpenHtmlWindow(\'a\', \'b\', 1f, 1f, 1f, 1f)"\n'
+        '}\n'
+        '{ +Dialogue Name: Doublon\n'
+        '  Functions: "Dictionary<int,int> d = new Dictionary<int,int>() '
+        '{ {600, 5}, {600, 9} };"\n'
+        '}\n'
+        '{ +Dialogue Name: Guillemets\n'
+        '  Functions: "void F() {<nl>  Log("0123");<nl>}"\n'
+        '}\n'
+        '{ +Dialogue Name: OutputChar\n'
+        '  Output: "Prix : {AddToGlobalVar(\'X\', 0)} cr"\n'
+        '}\n', encoding="utf-8")
+    res = scan_dialogue_functions(tmp_path)
+    assert ('Cassant', 'bare_call') == (res[0][0], res[0][1])
+    assert ('Doublon', 'dup_key', 'id 600 x2') == res[1]
+    # un guillemet dans la valeur casse le delimiteur ECF (lecture avortee)
+    assert (res[2][0], res[2][1]) == ('Guillemets', 'quotes')
+    # apostrophe dans une interpolation d'Output -> CS1012, arbre mort
+    assert (res[3][0], res[3][1]) == ('OutputChar', 'output_char')
+    issues = [i for i in _check_hygiene(tmp_path)
+              if i.path.endswith("Dialogues.ecf") and 'Functions' in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+    ok = tmp_path / "b" / "Content" / "Configuration"
+    ok.mkdir(parents=True)
+    (ok / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Sain\n'
+        '  Functions: "void F() {<nl>  OpenHtmlWindow(\'a\', \'b\', '
+        '1f, 1f, 1f, 1f);<nl>}"\n'
+        '  Execute: "F();"\n'
+        '}\n', encoding="utf-8")
+    assert scan_dialogue_functions(ok.parent.parent) == []
+
+
+def test_dialogue_var_undeclared_is_an_error(tmp_path):
+    """Vecu 16/11 : la fonction VENTE incrementait `vendus`/`total` sans les
+    declarer -> CS0103, l'etat Frontier_TraderHub2 ne compilait plus, la
+    vente du container ne faisait rien et le log client se remplissait de
+    324 « Cannot process 'DialogOption' »."""
+    from core.config_hygiene import scan_dialogue_vars
+    from core.launch_check import _check_hygiene
+    casse = 'void F() {<nl>    vendus = vendus + 1; total = total + 1;<nl>}'
+    fautif = _build_dialogue_scenario(tmp_path / "a", casse)
+    assert sorted(scan_dialogue_vars(fautif)) == [
+        ("Frontier_THub2_container", "total"),
+        ("Frontier_THub2_container", "vendus")]
+    issues = [i for i in _check_hygiene(fautif)
+              if i.path.endswith("Dialogues.ecf")]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+    sain = _build_dialogue_scenario(
+        tmp_path / "b",
+        'void F() {<nl>    int vendus = 0; int total = 0;<nl>'
+        '    vendus = vendus + 1; total = total + 1;<nl>}')
+    assert scan_dialogue_vars(sain) == []
+
+    # variables declarees en Variable_N du noeud : legitime, non signalee
+    noeud = _build_dialogue_scenario(
+        tmp_path / "c", casse,
+        var='Variable_1: "vendus", param1: int\n'
+            '  Variable_2: "total", param1: int')
+    assert scan_dialogue_vars(noeud) == []
+
+
+SECTORS_WARP_HOST = """SolarSystems:
+  - Name: Sys1
+    Sectors:
+      - Coordinates: [0, 0, 0]
+        SectorMapType: None
+        Playfields:
+          - ['0,0,0', Soleil1, Sun, '']
+      - Coordinates: [4, 0, 0]
+        SectorMapType: WarpTarget
+        Playfields:
+          - ['0,0,0', 'Soleil1 [Sun Right]', SpaceWarpTarget, '']
+          - ['4500, 5000, 8000', Lune1, Pf1Moon]
+"""
+
+
+def test_playfield_added_inside_a_warp_sector_is_a_warning(tmp_path):
+    """Vecu 13/11 : la reintegration de playfields orphelins a pose des lunes
+    et des orbites DANS les secteurs de warp (26 cas) ; le corpus n'y met
+    qu'une entree. Controle de composition, pas de consequence prouvee."""
+    from core.config_hygiene import scan_sector_composition
+    root = _build_scenario(tmp_path, SECTORS_WARP_HOST)
+    trouves = scan_sector_composition(root)
+    assert [(c[2], c[3]) for c in trouves] == [("[4, 0, 0]", "warp")]
+    issues = run_launch_checks(root, "")
+    compo = [i for i in issues if "secteur(s) de warp" in i.message]
+    assert len(compo) == 1 and compo[0].severity == "warning"
+
+
+def test_radial_poi_with_unknown_prefab_group_is_an_error(tmp_path, monkeypatch):
+    """Vecu 13/11 : la vanille porte UN POI a `RadialInfo` dont le groupe est
+    vide (`ARCMainRandomOrbital`). Tant que l'anneau trouve une place, seule
+    une ligne « No BP group » sort ; des que le placement echoue (galaxie
+    modifiee), le repli dereference le prefab absent -> NRE a la creation de
+    partie. RE2-FR : 118 anneaux rates, 0 groupe vide, aucun crash."""
+    from core import epb_blueprint
+    from core.config_hygiene import scan_space_poi_groups
+    root = _build_scenario(tmp_path)
+    (root / "Prefabs" / "Connu.epb").write_bytes(b"")
+    monkeypatch.setattr(epb_blueprint, "read_header",
+                        lambda path, max_bytes=262144: ("GroupeConnu", ""))
+    orbit = root / "Playfields" / "Orbit1"
+    orbit.mkdir(parents=True)
+    (orbit / "space_dynamic.yaml").write_text(
+        "PlayfieldType: Space\nPOIs:\n"
+        "    - Type: BA_Alien\n"
+        "      GroupName: GroupeConnu    # commentaire\n"
+        "      RadialInfo: [0, 0, 0, 0, 2, 2]\n"
+        "    - Type: BA_Alien\n"
+        "      GroupName: GroupeFantome\n"
+        "      RadialInfo: [0, 0, 0, 0, 2, 2]\n", encoding="utf-8")
+    trouves = scan_space_poi_groups(root)
+    assert [t[2] for t in trouves] == ["GroupeFantome"]
+    from core.launch_check import _check_hygiene
+    issues = [i for i in _check_hygiene(root) if "GroupName" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+
+def test_two_space_playfields_in_one_sector_is_a_warning(tmp_path):
+    """Vecu 13/11 : `Lava_Orbit` et `LavaCollided2_Orbit` ajoutes au secteur
+    d'une planete qui avait deja son orbite -> NRE a la creation de partie,
+    systematique. Le corpus vanille n'a jamais deux playfields spatiaux dans
+    un secteur (0 sur 360)."""
+    from core.config_hygiene import scan_sector_double_space
+    from core.launch_check import _check_hygiene
+    root = _build_scenario(tmp_path)
+    for nom in ("Pf1Orbit", "Pf1Orbit2"):
+        orbit = root / "Playfields" / nom
+        orbit.mkdir(parents=True)
+        (orbit / "space_dynamic.yaml").write_text(
+            "PlayfieldType: Space\n", encoding="utf-8")
+    text = (root / "Sectors" / "Sectors.yaml").read_text(encoding="utf-8")
+    text += ("      - Coordinates: [300, 0, 0]\n"
+             "        Playfields:\n"
+             "          - ['0,0,0', Planete2, Pf1, '']\n"
+             "          - ['0,0,0', Planete2 Orbit, Pf1Orbit, '']\n"
+             "          - ['0,0,0', Planete2 Orbit2, Pf1Orbit2, '']\n")
+    (root / "Sectors" / "Sectors.yaml").write_text(text, encoding="utf-8")
+    trouves = scan_sector_double_space(root)
+    assert [c[1] for c in trouves] == ["[300, 0, 0]"]
+    issues = [i for i in _check_hygiene(root) if "playfields" in i.message and "spatiaux" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "warning"
+
+
+def test_sectors_without_header_is_an_error(tmp_path):
+    """Vecu 13/11 : une reecriture du Sectors.yaml a perdu son en-tete
+    (`GalaxyMode`, `Sectors: []`, `SolarSystems:`) ; le jeu refuse de lancer
+    avec « Property 'Name' not found » puis « No sectors specified ».
+    `yamlcheck` ne le voit pas, le YAML restant valide."""
+    from core.config_hygiene import scan_sectors_header
+    from core.launch_check import _check_hygiene
+    root = _build_scenario(tmp_path)
+    assert scan_sectors_header(root) == []
+    path = root / "Sectors" / "Sectors.yaml"
+    lignes = path.read_text(encoding="utf-8").splitlines()
+    path.write_text("\n".join(lignes[1:]) + "\n", encoding="utf-8")   # sans SolarSystems:
+    assert [c[2] for c in scan_sectors_header(root)] == ["SolarSystems"]
+    issues = [i for i in _check_hygiene(root) if "SolarSystems" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+
+def test_pda_task_key_at_chapter_level_is_an_error(tmp_path):
+    """Vecu 13/11 : `OnCompletePdaDataOps` ecrit sous le chapitre fait jeter
+    tout le PDA (« Property ... not found on type Eleon.Pda.ChapterData »
+    puis « No or incomplete PDA data ») : le jeu tourne, aucune mission
+    n'existe. La cle n'existe qu'au niveau tache (indentation 8)."""
+    from core.config_hygiene import scan_pda_task_keys
+    root = _build_scenario(tmp_path)
+    pda = root / "Extras" / "PDA"
+    pda.mkdir(parents=True)
+    (pda / "PDA.yaml").write_text(
+        "Chapters:\n"
+        "  - ChapterTitle: Chap1\n"
+        "    CompletedMessage: ''\n"
+        "    OnCompletePdaDataOps:\n"
+        "      - 'ChapterData: Chap2;Visibility;Always;'\n"
+        "    Tasks:\n"
+        "      - TaskTitle: T1\n"
+        "        CompletedMessage: ''\n"
+        "        OnCompletePdaDataOps:\n"
+        "          - 'ChapterData: Chap2;Visibility;Always;'\n", encoding="utf-8")
+    trouves = scan_pda_task_keys(root)
+    assert [(c[1], c[2]) for c in trouves] == [(4, "OnCompletePdaDataOps")]
+    from core.launch_check import _check_hygiene
+    issues = [i for i in _check_hygiene(root) if "PDA data" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+
+def test_pda_activation_without_target_is_a_warning(tmp_path):
+    """Vecu 14/11 : 13 activations de chapitre (`ChapterActivation`) avec
+    `Check: NearPoi/DialogOption` mais sans `Names:` ni `Types:` (pack
+    RE2/ATL + vanille) — actions `CAA_*_T:-_N:-` jamais declenchables,
+    spam du log client a chaque evaluation du PDA. La donnee est ignoree :
+    le chapitre ne s'activera jamais."""
+    from core.config_hygiene import scan_pda_activations
+    root = _build_scenario(tmp_path)
+    pda = root / "Extras" / "PDA"
+    pda.mkdir(parents=True)
+    (pda / "PDA.yaml").write_text(
+        "Chapters:\n"
+        "  - ChapterTitle: ChapOK\n"
+        "    ChapterActivation:\n"
+        "      - Check: DialogOption\n"
+        "        Names:\n"
+        "          - dlg_trader\n"
+        "        Value: 2\n"
+        "  - ChapterTitle: ChapCassee\n"
+        "    ChapterActivation:\n"
+        "      - Check: NearPoi\n"
+        "    ChapterActivation:\n"
+        "      - Check: DialogOption\n"
+        "        Value: 2\n", encoding="utf-8")
+    trouves = scan_pda_activations(root)
+    # la cle vide (chapitre ChapCassee, 1re activation) est exclue du scan :
+    # elle est couverte par le scan de sequences (jette tout le PDA)
+    assert [(c[2], c[3]) for c in trouves] == [("ChapCassee", "NearPoi"),
+                                               ("ChapCassee", "DialogOption")]
+    from core.launch_check import _check_hygiene
+    issues = [i for i in _check_hygiene(root) if "sans cible" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "warning"
+
+def test_unknown_poi_key_in_random_section_is_an_error(tmp_path):
+    """Vecu 13/11 : `Name:` (cle des POI FIXES) place dans une section
+    `Random:` -> « Property 'Name' not found on type PoiData+RandomPoiData »
+    puis le playfield entier est refuse. Les deux sections sont des types
+    differents pour le deserialiseur."""
+    from core.config_hygiene import scan_poi_keys
+    root = _build_scenario(tmp_path)
+    pf = root / "Playfields" / "Pf1" / "playfield.yaml"
+    pf.write_text(
+        "PlanetSize: 2\n"
+        "POIs:\n"
+        "    Random:\n"
+        "        - GroupName: AbandonedPOI\n"
+        "          CountMinMax: [1, 1]\n"
+        "          Name: [ BA_AbandonedDepot ]\n", encoding="utf-8")
+    trouves = scan_poi_keys(root)
+    assert [(c[2], c[3]) for c in trouves] == [("Random", "Name")]
+    from core.launch_check import _check_hygiene
+    issues = [i for i in _check_hygiene(root) if "bloc POI" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+
+def test_system_without_warp_targets_is_an_error(tmp_path):
+    """Vecu 15/11 : systeme converti du legacy (SoS) sans secteurs
+    SpaceWarpTarget — le warp vise '<Systeme> [Sun Right]' a l'arrivee,
+    secteur absent -> 'Sector for playfield not found' puis exception en
+    boucle, obligation de quitter. Format EVO imbrique uniquement."""
+    from core.config_hygiene import scan_sun_warp_targets
+    from core.launch_check import _check_hygiene
+    root = _build_scenario(tmp_path, sectors_text=(
+        "SolarSystems:\n"
+        "  - Name: SoS\n"
+        "    Coordinates: [-160, 40, -160]\n"
+        "    Sectors:\n"
+        "      - Coordinates: [0, 0, 0]\n"
+        "        Playfields:\n"
+        "          - ['0, 0, 0', Sun, Sun]\n"))
+    assert [c[2] for c in scan_sun_warp_targets(root)] == ["SoS"]
+    issues = [i for i in _check_hygiene(root) if "SpaceWarpTarget" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+
+def test_system_with_warp_targets_and_instance_are_clean(tmp_path):
+    """Portes presentes (6 possibles, une suffit au controle) + systeme
+    d'instance (marque # INSTANCE, jamais atteint au warp) = 0 erreur."""
+    from core.config_hygiene import scan_sun_warp_targets
+    root = _build_scenario(tmp_path, sectors_text=(
+        "SolarSystems:\n"
+        "  - Name: SoS\n"
+        "    Coordinates: [-160, 40, -160]\n"
+        "    Sectors:\n"
+        "      - Coordinates: [0, 0, 0]\n"
+        "        Playfields:\n"
+        "          - ['0, 0, 0', Sun, Sun]\n"
+        "      - Coordinates: [4, 0, 0]\n"
+        "        SectorMapType: None\n"
+        "        Playfields:\n"
+        "          - ['0, 0, 0', 'SoS [Sun Right]', SpaceWarpTarget, '']\n"
+        "  - Name: Inst\n"
+        "    Coordinates: [0, 1000, 0]\n"
+        "    Sectors:\n"
+        "      - Coordinates: [0, 0, 0]  # INSTANCE SYSTEM - far outside\n"
+        "        Playfields:\n"
+        "          - ['0, 0, 0', SoleilInst, SunRandom, '']\n"))
+    assert scan_sun_warp_targets(root) == []
+
+
+def test_static_probability_is_an_error(tmp_path):
+    """Vecu 15/11 : `Probability: 1` ajoute dans les POIs de playfield_static
+    -> 'Property 'Probability' not found on type PoiData+RandomPoiData' ->
+    scenario impossible a selectionner. La vanille n'a AUCUN Probability
+    dans ses statics (les POIs spatiaux, autre classe, l'admettent)."""
+    from core.config_hygiene import scan_static_probability
+    from core.launch_check import _check_hygiene
+    root = _build_scenario(tmp_path)
+    path = root / "Playfields" / "Pf1" / "playfield_static.yaml"
+    path.write_text(
+        "PlayfieldType: Temperate\n"
+        "POIs:\n"
+        "    Random:\n"
+        "        - GroupName: XyFortress\n"
+        "          CountMinMax: [ 1, 1 ]\n"
+        "          Probability: 1\n", encoding="utf-8")
+    trouves = scan_static_probability(root)
+    assert [(c[0], c[1]) for c in trouves] == [
+        ("Playfields\\Pf1\\playfield_static.yaml", 6)]
+    issues = [i for i in _check_hygiene(root) if "Probability" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+
+
+def test_static_without_probability_is_clean(tmp_path):
+    from core.config_hygiene import scan_static_probability
+    root = _build_scenario(tmp_path)
+    path = root / "Playfields" / "Pf1" / "playfield_static.yaml"
+    path.write_text(
+        "PlayfieldType: Temperate\n"
+        "POIs:\n"
+        "    Random:\n"
+        "        - GroupName: XyFortress\n"
+        "          CountMinMax: [ 1, 1 ]\n"
+        "          Faction: Alien\n"
+        "          SpaceDefenseProbability: 0.2\n", encoding="utf-8")
+    assert scan_static_probability(root) == []
+
+
+def test_brace_depth_imbalance_is_an_error(tmp_path):
+    """Vecu 16/11 : des fermetures `}` retirees par suppression par blocs ont
+    laisse des `{` non fermes dans Templates.ecf -> le jeu jette « ECF config
+    Template contains too many child levels » et avorte TOUT le fichier
+    (le parseur du projet tolere ce que le jeu jette)."""
+    from core.engine_loaders import run_engine_loader_checks
+    root = tmp_path
+    (root / "Content" / "Configuration").mkdir(parents=True)
+    (root / "Content" / "Configuration" / "ItemsConfig.ecf").write_text(
+        "{ +Item Id: 1, Name: MonItem\n"
+        "  Material: metal\n"
+        "}\n", encoding="utf-8")
+    (root / "Content" / "Configuration" / "Templates.ecf").write_text(
+        "{ +Template Name: MonItem\n"
+        "  CraftTime: 5\n"
+        "  { Child Inputs\n"
+        "    SteelPlate: 5\n"
+        # fermetures manquantes : Child Inputs + Template
+        , encoding="utf-8")
+    issues = run_engine_loader_checks(root, "")
+    profondeur = [i for i in issues if "accolades desequilibrees" in i.message
+                  and i.severity == "error"]
+    assert profondeur, [i.message[:80] for i in issues]
+    # vanilla vide : les autres checks sont silencieux
+    assert len(profondeur) == 1
+
+
+def test_dialogue_etat_manquant_detecte(tmp_path):
+    """Vecu 18/11 : un Dialogues.ecf TRONQUE (regen pendant la session) ->
+    log « Dialogue state definition for Frontier_AppAtelier_TriOk not
+    found! » x4, options mortes, aucun autre message. Un fichier tronque
+    casse toujours les DERNIERS etats : ce scan le voit avant le jeu."""
+    from core.config_hygiene import scan_dialogue_etats_manquants
+    conf = tmp_path / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Frontier_Hub\n'
+        '  Option_1: "ok"\n  OptionNext_1: Frontier_Fils\n'
+        '  Option_2: "fin"\n  OptionNext_2: End\n'
+        '}\n', encoding="utf-8")
+    res = scan_dialogue_etats_manquants(tmp_path)
+    assert res == [("Frontier_Hub", "Frontier_Fils")]
+    # fichier complet : plus rien (End/Return/undefined sont des mots-cles)
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Frontier_Hub\n'
+        '  Option_1: "ok"\n  OptionNext_1: Frontier_Fils\n'
+        '}\n'
+        '{ +Dialogue Name: Frontier_Fils\n'
+        '  Option_1: "retour"\n  OptionNext_1: Return\n'
+        '}\n', encoding="utf-8")
+    assert scan_dialogue_etats_manquants(tmp_path) == []
+
+
+def test_dialogue_bloc_non_ferme_detecte(tmp_path):
+    """Vecu 18/11 : une edition du generateur avait supprime le `}` final
+    du noeud Appro. Le parseur ECF imbrique alors les etats suivants, le
+    jeu log « Dialogue state definition for X not found » en cascade, et
+    TOUS les scans precedents restaient verts (ils decoupent sur
+    `+Dialogue Name:` sans verifier l'equilibre des accolades)."""
+    from core.config_hygiene import scan_dialogue_blocs_non_fermes
+    conf = tmp_path / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    # cas casse : pas de } apres le premier noeud
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Frontier_A\n'
+        '  Option_1: "x"\n  OptionNext_1: Frontier_B\n'
+        '{ +Dialogue Name: Frontier_B\n'
+        '  Option_1: "y"\n  OptionNext_1: End\n'
+        '}\n', encoding="utf-8")
+    assert scan_dialogue_blocs_non_fermes(tmp_path) == ["Frontier_A"]
+    # cas sain : chaque bloc referme
+    (conf / "Dialogues.ecf").write_text(
+        '{ +Dialogue Name: Frontier_A\n'
+        '  Option_1: "x"\n  OptionNext_1: Frontier_B\n'
+        '}\n'
+        '{ +Dialogue Name: Frontier_B\n'
+        '  Option_1: "y"\n  OptionNext_1: End\n'
+        '}\n', encoding="utf-8")
+    assert scan_dialogue_blocs_non_fermes(tmp_path) == []
+
+
+def test_bloc_frontier_sans_libelle_detecte(tmp_path):
+    """Vecu 18/11 : les blocs atelier etaient installes sans leurs cles de
+    localisation (regen_apps ne les ecrivait pas) et la regen commerce les
+    purgeait ensuite — le jeu affiche le nom technique au lieu du libelle."""
+    from core.launch_check import _check_hygiene
+    conf = tmp_path / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "BlocksConfig.ecf").write_text(
+        '{ +Block Id: 207, Name: Frontier_Console_Atelier\n'
+        '  Info: bkiFrontier_Console_Atelier, display: true\n'
+        '}\n'
+        '{ +Block Id: 258, Name: ConsoleTrading\n'
+        '  Info: bkiConsoleTrading, display: true\n}\n', encoding="utf-8")
+    extras = tmp_path / "Extras"
+    extras.mkdir()
+    (extras / "Localization.csv").write_text(
+        'KEY,English,Français\nSomeKey,x,y\n', encoding="utf-8")
+    issues = [i for i in _check_hygiene(tmp_path)
+              if "Localization.csv" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "warning"
+    assert ("Frontier_Console_Atelier -> bkiFrontier_Console_Atelier"
+            in issues[0].message)
+    # un bloc vanilla sans cle n'est PAS signale (cle partagee volontaire)
+    assert "ConsoleTrading" not in issues[0].message
+    (extras / "Localization.csv").write_text(
+        'KEY,English,Français\nbkiFrontier_Console_Atelier,x,y\n',
+        encoding="utf-8")
+    assert [i for i in _check_hygiene(tmp_path)
+            if "Localization.csv" in i.message] == []
+
+
+def test_deco_biome_visible_detecte(tmp_path):
+    """Vecu 18/11 : HollywoodJuniperDesktop (Shape: Deco, deco de biome
+    d'Akua) passe en ShowUser: Yes -> crash du chargement du playfield
+    (NRE dans InstancingManager.AddPrefab)."""
+    from core.launch_check import _check_hygiene
+    conf = tmp_path / "Content" / "Configuration"
+    conf.mkdir(parents=True)
+    (conf / "BlocksConfig.ecf").write_text(
+        '{ +Block Id: 733, Name: HollywoodJuniperDesktop\n'
+        '  Shape: Deco\n  Model: @models2/Environment/Plants/TreePrefab\n'
+        '  ShowUser: Yes\n}\n'
+        '{ +Block Id: 734, Name: HollywoodJuniperDesktopBare\n'
+        '  Shape: Deco\n  ShowUser: No\n}\n'
+        '{ +Block Id: 900, Name: RailingL\n'
+        '  Shape: Ext3dModel\n  ShowUser: Yes\n}\n', encoding="utf-8")
+    issues = [i for i in _check_hygiene(tmp_path)
+              if "InstancingManager" in i.message]
+    assert len(issues) == 1 and issues[0].severity == "error"
+    assert "HollywoodJuniperDesktop" in issues[0].message
+    assert "HollywoodJuniperDesktopBare" not in issues[0].message
+    assert "RailingL" not in issues[0].message

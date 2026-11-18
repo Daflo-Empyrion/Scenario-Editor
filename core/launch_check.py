@@ -892,7 +892,22 @@ def _check_hygiene(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
     empyrion-ecf-bloc-mono-ligne-malformed,
     empyrion-ecf-hitpoints-type-int-obligatoire,
     empyrion-yaml-immobiletask-planetvessel)."""
-    from core.config_hygiene import scan_ecf_monoline, scan_hitpoints_type
+    from core.config_hygiene import (scan_dialogue_blocs_non_fermes,
+                                     scan_dialogue_dup_vars,
+                                     scan_dialogue_etats_manquants,
+                                     scan_ecf_valeurs_coupees,
+                                     scan_dialogue_fonctions_manquantes,
+                                     scan_dialogue_functions,
+                                     scan_dialogue_vars, scan_ecf_monoline,
+                                     scan_hitpoints_type,
+                                     scan_sector_composition,
+                                     scan_sectors_header,
+                                     scan_sector_double_space,
+                                     scan_pda_task_keys,
+                                     scan_poi_keys,
+                                     scan_space_poi_groups,
+                                     scan_sun_warp_targets,
+                                     scan_static_probability)
     issues: list[LaunchIssue] = []
 
     monolignes = scan_ecf_monoline(root)
@@ -908,6 +923,114 @@ def _check_hygiene(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
                     f"{' ...' if len(par_fichier) > 4 else ''}) : lecture "
                     f"avortee « config line N is malformed » puis NRE",
             fix="core/config_hygiene.py : fix_ecf_monoline"))
+
+    coupees = scan_ecf_valeurs_coupees(root)
+    if coupees:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf",
+            line=coupees[0][1], severity="error",
+            message=f"{len(coupees)} valeur(s) non refermee(s) sur leur "
+                    f"ligne ({coupees[0][0]}:{coupees[0][1]}) : le jeu "
+                    f"repond « ECF config line N is malformed -- ECF "
+                    f"reading aborted! » et TOUT ce qui suit n'est pas "
+                    f"charge (etats introuvables, consoles VIDES) — vecu "
+                    f"17/11",
+            fix="corriger le generateur : une valeur Functions/Output doit "
+                "tenir sur une seule ligne (echapper les sauts de ligne)"))
+
+    manquantes = scan_dialogue_fonctions_manquantes(root)
+    if manquantes:
+        vus = sorted({f"{f} ({a})" for a, f in manquantes})
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf",
+            line=0, severity="error",
+            message=f"{len(manquantes)} fonction(s) Frontier_* appelee(s) "
+                    f"mais jamais declaree(s) dans leur arbre "
+                    f"({', '.join(vus[:3])}{' ...' if len(vus) > 3 else ''}) : "
+                    f"CS0103 « The name ... does not exist », arbre mort, "
+                    f"console VIDE — vecu 17/11",
+            fix="declarer la fonction dans le bloc Functions d'un etat de "
+                "l'arbre (la fusion en une classe la rend visible partout)"))
+
+    # etats references mais absents : un Dialogues.ecf TRONQUE (regen
+    # pendant la session) casse toujours les DERNIERS etats -> le jeu log
+    # « Dialogue state definition for X not found! » et les options
+    # meurent (vecu 18/11)
+    # accolades : un bloc non referme avale tous les etats suivants
+    ouverts = scan_dialogue_blocs_non_fermes(root)
+    if ouverts:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf",
+            line=0, severity="error",
+            message=f"{len(ouverts)} etat(s) de dialogue sans accolade "
+                    f"fermante ({', '.join(ouverts[:3])}"
+                    f"{' ...' if len(ouverts) > 3 else ''}) : le parseur ECF "
+                    f"imbrique les etats suivants dans le bloc et le jeu les "
+                    f"declare introuvables (« Dialogue state definition for "
+                    f"... not found ») — vecu 18/11",
+            fix="ajouter le `}` final du noeud (une seule ligne) : le "
+                "generateur doit refermer chaque bloc qu'il ouvre"))
+
+    etats_ko = scan_dialogue_etats_manquants(root)
+    if etats_ko:
+        vus = sorted({f"{c} (depuis {e})" for e, c in etats_ko})
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf",
+            line=0, severity="error",
+            message=f"{len(etats_ko)} etat(s) de dialogue reference(s) mais "
+                    f"ABSENT(s) du fichier ({', '.join(vus[:3])}"
+                    f"{' ...' if len(vus) > 3 else ''}) : log « Dialogue "
+                    f"state definition for ... not found », options mortes "
+                    f"— fichier tronque ou regen interrompue",
+            fix="regenerer le dialogue (Dialogue menu de l'editeur) et "
+                "relancer le jeu ; ne jamais regenerer pendant une session"))
+
+    doublons = scan_dialogue_dup_vars(root)
+    if doublons:
+        vus = sorted({f"{v} ({s[0]} / {s[1]})" for _r, v, s in doublons})
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf",
+            line=0, severity="error",
+            message=f"{len(doublons)} variable(s) declaree(s) deux fois dans "
+                    f"un meme arbre ({', '.join(vus[:3])}"
+                    f"{' ...' if len(vus) > 3 else ''}) : CS0102 « already "
+                    f"contains a definition », l'arbre entier ne compile plus "
+                    f"et la console s'ouvre VIDE — vecu 17/11",
+            fix="declarer la variable dans UN seul noeud de l'arbre (la "
+                "fusion en une classe la rend visible partout)"))
+
+    fonctions_ko = scan_dialogue_functions(root)
+    if fonctions_ko:
+        vus = {f"{d} : {t} ({x})" for d, t, x in fonctions_ko}
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf",
+            line=0, severity="error",
+            message=f"{len(fonctions_ko)} bloc(s) Functions invalides "
+                    f"({', '.join(sorted(vus)[:3])}"
+                    f"{' ...' if len(vus) > 3 else ''}) : bare_call = appel "
+                    f"nu au lieu d'une declaration (CS0501, classe entiere "
+                    f"morte, console vide) ; dup_key = id duplique dans un "
+                    f"Dictionary (ArgumentException a l'execution) — vecu "
+                    f"17/11",
+            fix="Functions ne contient que des DECLARATIONS de membres ; "
+                "le declencheur d'entree est le champ Execute: du state"))
+
+    non_decl = scan_dialogue_vars(root)
+    if non_decl:
+        vus = sorted({f"{d} : {v}" for d, v in non_decl})
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/Dialogues.ecf", line=0,
+            severity="error",
+            message=f"{len(non_decl)} variable(s) C# lues mais jamais "
+                    f"declarees dans les fonctions dialogue "
+                    f"({', '.join(vus[:4])}"
+                    f"{' ...' if len(vus) > 4 else ''}) : CS0103, l'etat ne "
+                    f"compile plus, la fonction ne fait rien (aucun message "
+                    f"en jeu) et le log client se remplit de « Cannot "
+                    f"process 'DialogOption' » — vecu 16/11 : vente container "
+                    f"morte, 324 erreurs au log",
+            fix="declarer la variable au debut de la fonction generee "
+                "(int X = 0;) ou en Variable_N du noeud dialogue"))
 
     sans_type = scan_hitpoints_type(root)
     if sans_type:
@@ -964,6 +1087,183 @@ def _check_hygiene(root: Path, vanilla_content: str = "") -> list[LaunchIssue]:
                     f"vaisseau planetaire est 'ImmobileTask' -> YamlException "
                     f"et playfield jamais charge",
             fix="core/ai_realism.py : pass_space_missions"))
+
+    # Un secteur `SpaceWarpTarget` ne porte QUE sa porte : c'est la forme
+    # qu'a produite la reintegration de playfields orphelins du 13/11 (26
+    # secteurs avec une lune ou une orbite en plus). Avertissement et non
+    # erreur : RE2-FR en porte 59 et se lance, le lien avec le NRE a la
+    # creation de partie n'est pas prouve.
+    compo = scan_sector_composition(root)
+    if compo:
+        noms = ", ".join(f"{c[2]} ({c[3]})" for c in compo[:4])
+        issues.append(LaunchIssue(
+            check="hygiene", path="Sectors/Sectors.yaml", line=compo[0][1],
+            severity="warning",
+            message=f"{len(compo)} secteur(s) de warp avec une entree "
+                    f"playfield en plus de la porte : {noms}"
+                    f"{' ...' if len(compo) > 4 else ''} — le corpus n'y met "
+                    f"que la porte (lune/orbite posee au meme offset)",
+            fix="core/playfield_reintegrate.py : _host_sectors"))
+
+    # Systeme avec soleil mais sans secteur SpaceWarpTarget : le routeur
+    # warp vise '<Systeme> [Sun Right]' a l'arrivee, secteur absent ->
+    # DirectoryNotFoundException puis exception en boucle, obligation de
+    # quitter (vecu 15/11 : systeme SoS converti du legacy sans portes).
+    portes = scan_sun_warp_targets(root)
+    if portes:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Sectors/Sectors.yaml", line=portes[0][1],
+            severity="error",
+            message=f"{len(portes)} systeme(s) avec soleil mais sans "
+                    f"secteur SpaceWarpTarget ({', '.join(p[2] for p in portes[:4])}"
+                    f"{' ...' if len(portes) > 4 else ''}) : le warp vers ce "
+                    f"systeme vise '<Systeme> [Sun Right]' absent -> "
+                    f"'Sector for playfield not found' puis exception en "
+                    f"boucle, obligation de quitter",
+            fix="ajouter 6 secteurs SpaceWarpTarget autour du soleil "
+                "(coordonnees [+-4,0,0] / [0,+-4,0] / [0,0,+-4], playfield "
+                "type SpaceWarpTarget, nom '<Systeme> [Sun Right/Left/Top/"
+                "Bottom/Front/Back]')"))
+
+    # Cle `Probability:` dans les POIs d'un playfield_static : n'existe pas
+    # sur PoiData.RandomPoiData/FixedPoiData (seulement SpaceDefenseProbability
+    # et les POIs spatiaux) -> refus du playfield entier, scenario impossible
+    # a selectionner (vecu 15/11 : 96 statics avec des POIs ajoutes).
+    proba = scan_static_probability(root)
+    if proba:
+        issues.append(LaunchIssue(
+            check="hygiene", path=proba[0][0], line=proba[0][1],
+            severity="error",
+            message=f"{len(proba)} cle(s) 'Probability' dans les POIs de "
+                    f"playfield_static.yaml ({', '.join(f'{p[0]}:{p[1]}' for p in proba[:4])}"
+                    f"{' ...' if len(proba) > 4 else ''}) : propriete absente de "
+                    f"PoiData.RandomPoiData -> 'Property not found' + NRE, "
+                    f"scenario impossible a selectionner (sans Probability le "
+                    f"POI spawnera toujours : supprimer la ligne)",
+            fix="supprimer les lignes 'Probability:' des sections POIs des "
+                "playfield_static.yaml (la vanille n'en a aucune)"))
+
+    # POI spatial dont le `GroupName` n'a aucun prefab : le moteur cree un POI
+    # sans prefab et la creation de partie casse (NRE PackageSite.IncreaseStub,
+    # vecu 13/11 : une cle `GroupName:` restee active dans un bloc commente).
+    space = scan_space_poi_groups(root)
+    if space:
+        issues.append(LaunchIssue(
+            check="hygiene", path=space[0][0], line=space[0][1],
+            severity="error",
+            message=f"{len(space)} `GroupName` de playfield spatial sans "
+                    f"prefab ({', '.join(sorted({c[2] for c in space})[:4])}"
+                    f"{' ...' if len(space) > 4 else ''}) : le moteur cree un "
+                    f"POI sans prefab -> NRE a la creation de partie",
+            fix="commenter la cle `GroupName:` orpheline (bloc a moitie "
+                "commente) ou fournir un prefab pour le groupe"))
+
+    # En-tete du Sectors.yaml perdu : le jeu ne parse plus la galaxie et
+    # refuse de lancer (vecu 13/11, reecriture du fichier).
+    entete = scan_sectors_header(root)
+    if entete:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Sectors/Sectors.yaml", line=0,
+            severity="error",
+            message="`Sectors.yaml` sans en-tete `SolarSystems:` : le jeu "
+                    "refuse de charger la galaxie (« Property 'Name' not "
+                    "found » puis « No sectors specified »)",
+            fix="restaurer les premieres lignes du fichier "
+                "(`GalaxyMode:`, `Sectors: []`, `SolarSystems:`)"))
+
+    # Cle inconnue dans un bloc POI de playfield.yaml : le moteur refuse le
+    # playfield entier (vecu 13/11 : `Name:` dans une section `Random:`).
+    poi_cles = scan_poi_keys(root)
+    if poi_cles:
+        issues.append(LaunchIssue(
+            check="hygiene", path=poi_cles[0][0], line=poi_cles[0][1],
+            severity="error",
+            message=f"{len(poi_cles)} cle(s) inconnue(s) dans un bloc POI : "
+                    f"{', '.join(f'{c[0]}:{c[1]} {c[2]}.{c[3]}' for c in poi_cles[:3])}"
+                    f"{' ...' if len(poi_cles) > 3 else ''} — le playfield entier "
+                    f"est refuse (« Property not found on type PoiData »)",
+            fix="retirer la cle, ou la mettre dans la section `Fixed:` si elle "
+                "n'existe qu'en POI fixe (Name, Prefab, Pos, Rot)"))
+
+    # Cle de niveau TACHE au niveau chapitre du PDA : le deserialiseur refuse
+    # TOUT le fichier (aucune mission), sans crash (vecu 13/11).
+    pda_cles = scan_pda_task_keys(root)
+    if pda_cles:
+        issues.append(LaunchIssue(
+            check="hygiene", path=pda_cles[0][0], line=pda_cles[0][1],
+            severity="error",
+            message=f"{len(pda_cles)} cle(s) de niveau tache au niveau "
+                    f"chapitre ({', '.join(sorted({c[2] for c in pda_cles}))}) : "
+                    f"le moteur rejette le fichier entier — « No or incomplete "
+                    f"PDA data », plus aucune mission",
+            fix="deplacer la cle dans la tache (indentation 8 espaces)"))
+
+    # Activation de chapitre PDA sans cible (NearPoi/DialogOption sans
+    # Names/Types) : action CAA_*_T:-_N:- jamais declenchable, spam du log
+    # client a chaque evaluation du PDA (vecu 14/11, 13 entrees du pack
+    # RE2/ATL et de la vanille).
+    from core.config_hygiene import scan_pda_activations
+    pda_act = scan_pda_activations(root)
+    if pda_act:
+        issues.append(LaunchIssue(
+            check="hygiene", path=pda_act[0][0], line=pda_act[0][1],
+            severity="warning",
+            message=f"{len(pda_act)} activation(s) de chapitre PDA sans "
+                    f"cible ({', '.join(sorted({a[2] + ':' + a[3] for a in pda_act}))}) : "
+                    f"jamais declenchables, spam du log client "
+                    f"(CAA_*_T:-_N:-)",
+            fix="supprimer l'entree (jamais declenchable) ou remplir "
+                "Names/Types selon l'intention du chapitre"))
+
+    # Deux playfields SPATIAUX dans un meme secteur : jamais dans le corpus
+    # vanille (0 sur 360). Le second fait creer au moteur un POI sans donnees
+    # de playfield -> NRE a la creation de partie, systematique (vecu 13/11).
+    # Avertissement : RE2-FR en porte 23 (`SpaceWarpTargetFixed` + orbite) et
+    # se lance, la combinaison exacte qui casse n'est pas cernee.
+    doubles = scan_sector_double_space(root)
+    if doubles:
+        noms = ", ".join(f"{c[1]} ({'/'.join(c[2])})" for c in doubles[:3])
+        issues.append(LaunchIssue(
+            check="hygiene", path="Sectors/Sectors.yaml", line=0,
+            severity="warning",
+            message=f"{len(doubles)} secteur(s) avec PLUSIEURS playfields "
+                    f"spatiaux : {noms}{' ...' if len(doubles) > 3 else ''} — "
+                    f"le corpus vanille n'en met jamais deux (le second peut "
+                    f"faire casser la creation de partie)",
+            fix="deplacer le playfield en trop dans son propre secteur"))
+
+    # Cle de localisation d'un bloc Frontier absente : le jeu affiche le nom
+    # technique au lieu du libelle (cosmetique, vecu 18/11 : l'atelier etait
+    # installe sans ses cles, et la regen commerce purgeait `Frontier_*`).
+    from core.config_hygiene import scan_blocs_frontier_loc
+    loc_manquante = scan_blocs_frontier_loc(root)
+    if loc_manquante:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/BlocksConfig.ecf",
+            line=0, severity="warning",
+            message=f"{len(loc_manquante)} bloc(s) Frontier sans libelle dans "
+                    f"Extras/Localization.csv "
+                    f"({', '.join(f'{b} -> {k}' for b, k in loc_manquante[:3])}"
+                    f"{' ...' if len(loc_manquante) > 3 else ''}) : le jeu "
+                    f"affiche le nom technique",
+            fix="core/console_apps.py : regen_apps"))
+
+    # Decoration de biome rendue visible : le jeu charge ses prefabs de biome
+    # au playfield et crashe (NRE dans InstancingManager.AddPrefab). Vecu
+    # 18/11 : HollywoodJuniperDesktop passe en ShowUser: Yes -> crash Akua.
+    from core.config_hygiene import scan_deco_showuser
+    deco_visibles = scan_deco_showuser(root)
+    if deco_visibles:
+        issues.append(LaunchIssue(
+            check="hygiene", path="Content/Configuration/BlocksConfig.ecf",
+            line=0, severity="error",
+            message=f"{len(deco_visibles)} decoration(s) de biome rendue(s) "
+                    f"visible(s) ({', '.join(n for n, _s in deco_visibles[:4])}"
+                    f"{' ...' if len(deco_visibles) > 4 else ''}) : le "
+                    f"chargement du playfield crashe en NullReferenceException "
+                    f"(InstancingManager.AddPrefab)",
+            fix="remettre ShowUser: No sur ces blocs (ou retirer la ligne "
+                "ShowUser pour heriter du parent)"))
 
     # --- politique de regeneration des POI (ressources en tension) ---
     # RegenAfter laisse a 720 sur un POI de combat = ressources infinies : le
