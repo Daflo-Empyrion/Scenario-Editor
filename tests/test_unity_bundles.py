@@ -66,3 +66,21 @@ def test_compare_bundles_missing_module(monkeypatch):
     with pytest.raises(ValueError) as e:
         unity_bundles.bundle_assets(__file__)   # fichier quelconque
     assert str(e.value) == "UnityPy"
+
+
+def test_trouver_bundle_ordre_des_racines(tmp_path):
+    """Un bundle se cherche dans CE bundle : `Bundles/` du jeu, puis
+    `SharedData/Content/Bundles/` d'un scenario (ou vivent les bundles
+    custom : eden_blockmodels...), puis `Content/Bundles/`."""
+    from core.unity_bundles import trouver_bundle
+    jeu, scen = tmp_path / "jeu", tmp_path / "scen"
+    (jeu / "Bundles").mkdir(parents=True)
+    (scen / "SharedData" / "Content" / "Bundles").mkdir(parents=True)
+    (jeu / "Bundles" / "models").write_bytes(b"x")
+    (scen / "SharedData" / "Content" / "Bundles" / "eden_blockmodels"
+     ).write_bytes(b"x")
+    assert trouver_bundle("eden_blockmodels", [scen]) == \
+        scen / "SharedData/Content/Bundles/eden_blockmodels"
+    # le bundle du jeu n'est pas dans le scenario : la 2e racine le trouve
+    assert trouver_bundle("models", [scen, jeu]) == jeu / "Bundles/models"
+    assert trouver_bundle("absent", [scen, jeu]) is None
