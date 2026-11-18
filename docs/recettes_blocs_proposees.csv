@@ -1,0 +1,149 @@
+bloc,groupe,source,crafttime,inputs
+PassengerSeatSS_Cube,special,PassengerSeatMS,15,Electronics:1 + SteelPlate:7 + OpticalFiber:1
+PassengerSeatSS_Slope,special,PassengerSeatMS,15,Electronics:1 + SteelPlate:7 + OpticalFiber:1
+TurretBaseCannonOld,special,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+RadarTracker,special,TurretRadar,10,Electronics:3 + SteelPlate:7 + Computer:2
+SensorSS,special,TurretRadar,10,Electronics:3 + SteelPlate:7 + Computer:2
+CapacitorSS,special,ConsoleBlocks,10,Electronics:2 + SteelPlate:2 + PlasticMaterial:1 + Computer:1
+CockpitSV,special,CockpitBlocksSV,15,Electronics:3 + MechanicalComponents:6 + OpticalFiber:1 + Computer:2 + GlassPlate:4
+CockpitSV_fighter,special,CockpitBlocksSV,15,Electronics:3 + MechanicalComponents:6 + OpticalFiber:1 + Computer:2 + GlassPlate:4
+CockpitSV_fighter_Noscale,special,CockpitBlocksSV,15,Electronics:3 + MechanicalComponents:6 + OpticalFiber:1 + Computer:2 + GlassPlate:4
+ControlFieldGenerator,special,ShieldGeneratorSV,70,EnergyMatrix:1 + Oscillator:8 + CapacitorComponent:5 + MechanicalComponents:2 + FluxCoil:5 + PowerCoil:1
+RCSBlockEscapePod,special,RCSBlockSV,30,Electronics:2 + MechanicalComponents:10 + OpticalFiber:2 + SteelPlate:20 + Computer:1
+InsanityPepper,special,IndoorPlants,5,PlasticMaterial:2 + WoodPlanks:1
+ConstructorSV_Old,special,ConstructorSV,40,Computer:2 + EnergyMatrix:2 + Electronics:3 + SteelPlate:25 + CobaltAlloy:50
+AlienInteriorGreen01,special,HullSmallBlocks,2,SteelPlate:2
+AlienInteriorGreenWedge01,special,HullSmallBlocks,2,SteelPlate:2
+AlienInteriorGreen02,special,HullSmallBlocks,2,SteelPlate:2
+AlienPalmTree,special,IndoorPlants,5,PlasticMaterial:2 + WoodPlanks:1
+LandinggearMSShort,special,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+HollywoodJuniperDesktop,special,IndoorPlants,5,PlasticMaterial:2 + WoodPlanks:1
+HollywoodJuniperDesktopBare,special,IndoorPlants,5,PlasticMaterial:2 + WoodPlanks:1
+ScifiMine1,special,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+ConstructorSurvivalV2,special,ConstructorSV,40,Computer:2 + EnergyMatrix:2 + Electronics:3 + SteelPlate:25 + CobaltAlloy:50
+SpringGun,special,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+StoneBarbarian,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+CelticCross,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+DemonHead,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+DemonicStatue,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+GothicFountain,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+GreekHead,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+MayanStatueSnake,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+SnakeStatue,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+StatueSkull,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TigerStatue,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+AncientStatue,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+DemonicStatueSmall,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+MayanStatueSnakeSmall,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+SnakeStatueSmall,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TigerStatueSmall,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+Runestone,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+DetectorHVT2,special,TurretRadar,10,Electronics:3 + SteelPlate:7 + Computer:2
+TurretBaseFlakRetract,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBasePlasmaRetract,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretBaseCannonRetract,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseRocketRetract,tourelle,TurretBaseRocketBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + CobaltAlloy:25 + Oscillator:8
+TurretBaseMinigunRetract,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBasePulseLaserRetract,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretBaseArtilleryRetract,tourelle,TurretBaseArtilleryBlocks,30,SteelPlateArmored:30 + PowerCoil:10 + Motor:3 + ZascosiumAlloy:100 + Oscillator:20
+TurretGVMinigunRetract,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretGVRocketRetract,tourelle,TurretBaseRocketBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + CobaltAlloy:25 + Oscillator:8
+TurretGVPlasmaRetract,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretGVArtilleryRetract,tourelle,TurretBaseArtilleryBlocks,30,SteelPlateArmored:30 + PowerCoil:10 + Motor:3 + ZascosiumAlloy:100 + Oscillator:20
+TribalBarrels,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalBarrow,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalBaskets,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalBed1,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalBed2,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalBookcase1,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalBookcase2,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalBuckets,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalCabinet1,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalCabinet2,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalCauldron,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalDryFish,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalLoom,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalOven,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalSacks,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalTable1,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalTable2,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalWoodSaw,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalTrunkAxe,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalTorch,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalFirepit,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalFirewood,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalBoat,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalChair,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalAnvil,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalCauldron2,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalHearth,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+TribalTub,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TribalBox,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TalonFoodProcessor,special,FoodProcessorV2,15,Computer:2 + Electronics:3 + SteelPlate:25 + OpticalFiber:3 + Nanotubes:2
+TalonBarrels,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TalonBox,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+TalonFurnace,special,Furnace,80,CapacitorComponent:10 + EnergyMatrix:4 + TitanPlates:50 + Motor:3 + FluxCoil:5
+PosterARest,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterBiker,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterBoyband,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterDontHide,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterForeignWorld,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterJump,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterNewWorld,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterSoleDesert,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterStranger,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterSurvivor,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterTakingABreak,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterTalon,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterTrader,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterZiraxAlienWorld,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterCrystalMoon,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterOffIntoTheUnknown,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+AutoMiningDeviceEpic,special,AutoMiningDeviceT3,150,TitanPlates:20 + Motor:4 + FluxCoil:5 + CapacitorComponent:15 + ZascosiumAlloy:75 + PowerCoil:10 + AutoMinerCore:1
+TurretMSMinigunFaction,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseMinigunFaction,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretMSFlakFaction,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseFlakFaction,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretMSCannonFaction,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseCannonFaction,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretMSRocketFaction,tourelle,TurretMSRocketBlocks,30,ZascosiumAlloy:75 + Electronics:5 + Motor:2 + FluxCoil:2 + PowerCoil:3
+TurretBaseRocketFaction,tourelle,TurretBaseRocketBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + CobaltAlloy:25 + Oscillator:8
+TurretMSArtilleryFaction,tourelle,TurretMSArtilleryBlocks,30,TitanPlates:75 + PowerCoil:10 + Motor:5 + ZascosiumAlloy:75 + Oscillator:20
+TurretBaseArtilleryFaction,tourelle,TurretBaseArtilleryBlocks,30,SteelPlateArmored:30 + PowerCoil:10 + Motor:3 + ZascosiumAlloy:100 + Oscillator:20
+TurretRailgunFaction,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretMSPulseLaserFaction,tourelle,TurretMSLaserBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + Oscillator:8 + PowerCoil:1
+TurretBasePulseLaserFaction,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretMSPlasmaFaction,tourelle,TurretMSLaserBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + Oscillator:8 + PowerCoil:1
+TurretBasePlasmaFaction,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretMSMinigunUpgrade,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseMinigunUpgrade,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretMSFlakUpgrade,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseFlakUpgrade,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretMSCannonUpgrade,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretBaseCannonUpgrade,tourelle,TurretBaseProjectileBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + OpticalFiber:5
+TurretMSRocketUpgrade,tourelle,TurretMSRocketBlocks,30,ZascosiumAlloy:75 + Electronics:5 + Motor:2 + FluxCoil:2 + PowerCoil:3
+TurretBaseRocketUpgrade,tourelle,TurretBaseRocketBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + CobaltAlloy:25 + Oscillator:8
+TurretMSArtilleryUpgrade,tourelle,TurretMSArtilleryBlocks,30,TitanPlates:75 + PowerCoil:10 + Motor:5 + ZascosiumAlloy:75 + Oscillator:20
+TurretBaseArtilleryUpgrade,tourelle,TurretBaseArtilleryBlocks,30,SteelPlateArmored:30 + PowerCoil:10 + Motor:3 + ZascosiumAlloy:100 + Oscillator:20
+TurretRailgunUpgrade,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretMSPulseLaserUpgrade,tourelle,TurretMSLaserBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + Oscillator:8 + PowerCoil:1
+TurretBasePulseLaserUpgrade,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+TurretMSPlasmaUpgrade,tourelle,TurretMSLaserBlocks,30,MechanicalComponents:20 + Electronics:5 + Motor:2 + Oscillator:8 + PowerCoil:1
+TurretBasePlasmaUpgrade,tourelle,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+PLBTribalBox,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalBarrels,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalBaskets,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalSacks,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalBookcase1,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalBookcase2,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalCabinet1,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalCabinet2,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalCauldron,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalCauldron2,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalTub,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+PLBTribalBuckets,conteneur,ContainerExtensionSmall,5,SteelPlate:2
+ConsoleGIN,special,ConsoleBlocks,10,Electronics:2 + SteelPlate:2 + PlasticMaterial:1 + Computer:1
+WeaponMSLaserFactionTalonar,special,TurretBaseLaserBlocks,30,ZascosiumAlloy:50 + Motor:2 + Oscillator:8 + CapacitorComponent:2 + PowerCoil:1
+PosterTheEnd,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterTheTorch,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
+PosterZiraxHuntress,deco,DecoBlocks,5,WoodPlanks:1 + PlasticMaterial:3
